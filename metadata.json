@@ -1,0 +1,9 @@
+{
+  "name": "EduAlloc AI - Academic Management",
+  "description": "An AI-powered academic management platform for subject allocations, scheduling, and institutional tracking.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}

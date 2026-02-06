@@ -1,0 +1,2 @@
+-- EduAi Academic Database Initialization
+-- Please refer to sqlGenerator.ts for the full dynamic schema.
