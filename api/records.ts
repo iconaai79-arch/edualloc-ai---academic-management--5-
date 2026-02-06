@@ -1,7 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { createAuthenticatedClient } from '../lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const supabase = createAuthenticatedClient(req.headers.authorization);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     const { module, id, institutionId } = req.query;

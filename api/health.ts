@@ -1,7 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { createAuthenticatedClient } from '../lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const supabase = createAuthenticatedClient(req.headers.authorization);
     if (!supabase) {
         return res.status(200).json({
             success: false,
@@ -16,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Attempt a simple ping to see if the project is reachable
         // Even if tables don't exist, this verifies the connection to Supabase itself
         const { error } = await supabase.from('institutions').select('id', { count: 'exact', head: true }).limit(1);
-        
+
         const url = process.env.SUPABASE_URL || '';
         const dbName = url.replace('https://', '').split('.')[0] || 'supabase-instance';
 

@@ -3,17 +3,26 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
 import { Buffer } from 'buffer';
 
+import { createAuthenticatedClient } from '../lib/supabase';
+
 export const config = {
-  maxDuration: 15,
+    maxDuration: 15,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+    // Verify Auth
+    const supabase = createAuthenticatedClient(req.headers.authorization);
+    if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     try {
@@ -32,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         body: JSON.stringify({ mobile: cleanPhone, message, shortcode: fromNumber || 'EduAi', partnerID: apiSecret })
                     });
                     const data = await response.json();
-                    console.log('Zettatel SMS Response:', data); 
+                    console.log('Zettatel SMS Response:', data);
                     // Adjust check based on standard success responses
                     const isSuccess = (data.status === "success" || data.status === 200 || data.code === 200);
                     return res.status(200).json({ success: isSuccess, data });
@@ -42,9 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const data = await response.json();
                     return res.status(200).json({ success: true, data });
                 }
-            } catch (error: any) { 
+            } catch (error: any) {
                 console.error("SMS Gateway Error:", error);
-                return res.status(500).json({ success: false, message: "Gateway error." }); 
+                return res.status(500).json({ success: false, message: "Gateway error." });
             }
         }
 

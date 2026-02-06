@@ -1,6 +1,7 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { query, mapToCamelCase } from '../lib/db_connect';
+import { createAuthenticatedClient } from '../lib/supabase';
 
 export default async function handler(
   request: VercelRequest,
@@ -8,9 +9,15 @@ export default async function handler(
 ) {
   response.setHeader('Access-Control-Allow-Origin', '*');
   response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (request.method === 'OPTIONS') return response.status(200).end();
+
+  // Verify Auth
+  const supabase = createAuthenticatedClient(request.headers.authorization);
+  if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return response.status(401).json({ error: 'Unauthorized' });
 
   try {
     // GET: Load timetable for a specific semester
@@ -22,8 +29,8 @@ export default async function handler(
       let params = [institutionId];
 
       if (semesterId) {
-          sql += ' AND semester_id = $2';
-          params.push(semesterId as string);
+        sql += ' AND semester_id = $2';
+        params.push(semesterId as string);
       }
 
       const res = await query(sql, params);
@@ -43,34 +50,34 @@ export default async function handler(
 
       // 2. Bulk Insert
       if (entries.length > 0) {
-          const values: any[] = [];
-          const placeholders: string[] = [];
-          
-          entries.forEach((e: any, index: number) => {
-              const i = index * 10;
-              placeholders.push(`($${i+1}, $${i+2}, $${i+3}, $${i+4}, $${i+5}, $${i+6}, $${i+7}, $${i+8}, $${i+9}, $${i+10})`);
-              values.push(
-                  e.id, 
-                  e.day, 
-                  e.startTime, 
-                  e.endTime, 
-                  e.subjectId, 
-                  e.lecturerId, 
-                  e.roomId, 
-                  institutionId, 
-                  academicYearId, 
-                  semesterId
-              );
-          });
+        const values: any[] = [];
+        const placeholders: string[] = [];
 
-          const sql = `
+        entries.forEach((e: any, index: number) => {
+          const i = index * 10;
+          placeholders.push(`($${i + 1}, $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6}, $${i + 7}, $${i + 8}, $${i + 9}, $${i + 10})`);
+          values.push(
+            e.id,
+            e.day,
+            e.startTime,
+            e.endTime,
+            e.subjectId,
+            e.lecturerId,
+            e.roomId,
+            institutionId,
+            academicYearId,
+            semesterId
+          );
+        });
+
+        const sql = `
             INSERT INTO timetable_entries (
                 id, day, start_time, end_time, subject_id, lecturer_id, room_id, 
                 institution_id, academic_year_id, semester_id
             ) VALUES ${placeholders.join(', ')}
           `;
-          
-          await query(sql, values);
+
+        await query(sql, values);
       }
 
       return response.status(201).json({ success: true, count: entries.length });

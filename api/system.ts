@@ -1,7 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { createAuthenticatedClient } from '../lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const supabase = createAuthenticatedClient(req.headers.authorization);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     const { action } = req.query;
@@ -29,9 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // NOTE: Supabase client doesn't support raw SQL execution directly for security.
             // In a production app, you'd use a postgres client like 'pg' or a Supabase RPC function.
             // For this implementation, we return a mock success or guide the user.
-            return res.status(200).json({ 
-                success: true, 
-                message: "Migration script received. Please run this SQL in your Supabase SQL Editor to initialize the schema." 
+            return res.status(200).json({
+                success: true,
+                message: "Migration script received. Please run this SQL in your Supabase SQL Editor to initialize the schema."
             });
         }
     }

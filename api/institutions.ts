@@ -1,21 +1,45 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { supabase } from '../lib/supabase';
+import { createAuthenticatedClient } from '../lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const supabase = createAuthenticatedClient(req.headers.authorization);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
-    if (req.method === 'GET') {
-        const { data, error } = await supabase.from('institutions').select('*');
-        if (error) return res.status(500).json({ error: error.message });
-        return res.status(200).json(data);
-    }
+    try {
+        if (req.method === 'GET') {
+            const { id } = req.query;
+            let query = supabase.from('institutions').select('*');
 
-    if (req.method === 'POST') {
-        const instData = req.body;
-        const { data, error } = await supabase.from('institutions').upsert(instData).select();
-        if (error) return res.status(500).json({ error: error.message });
-        return res.status(200).json(data[0]);
-    }
+            if (id) {
+                query = query.eq('id', id);
+            }
 
-    return res.status(405).json({ error: 'Method not allowed' });
+            const { data, error } = await query;
+            if (error) throw error;
+            return res.status(200).json(id && Array.isArray(data) ? data[0] : data);
+        }
+
+        if (req.method === 'POST') {
+            const instData = req.body;
+            if (!instData) return res.status(400).json({ error: 'Missing request body' });
+
+            const { data, error } = await supabase.from('institutions').upsert(instData).select();
+            if (error) throw error;
+            return res.status(200).json(data ? data[0] : null);
+        }
+
+        if (req.method === 'DELETE') {
+            const { id } = req.query;
+            if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Missing or invalid id parameter' });
+
+            const { error } = await supabase.from('institutions').delete().eq('id', id);
+            if (error) throw error;
+            return res.status(200).json({ success: true, message: 'Institution deleted' });
+        }
+
+        return res.status(405).json({ error: 'Method not allowed' });
+    } catch (err: any) {
+        console.error('API Error:', err);
+        return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    }
 }
