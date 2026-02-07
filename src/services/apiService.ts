@@ -195,11 +195,22 @@ export const apiService = {
             return;
         }
 
-        const { error } = await _supabase.from(module as any).upsert(payload).select();
+        try {
+            const { error } = await _supabase.from(module as any).upsert(payload).select();
 
-        if (error) {
-            console.error(`Save Error [${module}]:`, error);
-            throw new Error(`Failed to save ${module}: ${error.message} (${error.code})`);
+            if (error) {
+                console.error(`Save Error [${module}]:`, error);
+                throw new Error(`Failed to save ${module}: ${error.message} (${error.code})`);
+            }
+        } catch (e: any) {
+            // Network error or Supabase unreachable - fallback to localStorage
+            if (e.message?.includes('fetch') || e.message?.includes('network')) {
+                console.warn(`Supabase unreachable for ${module}, using localStorage fallback`);
+                ls.upsert(module, payload);
+                return;
+            }
+            // Re-throw other errors
+            throw e;
         }
     },
     async deleteModuleRecord(module: string, id: string): Promise<void> {
