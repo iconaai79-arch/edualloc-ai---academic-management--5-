@@ -641,9 +641,14 @@ export const App: React.FC = () => {
                 if (data.loadDemoData) {
                     const { generateInstitutionalDemoData } = await import('../utils/demoData');
                     const d = generateInstitutionalDemoData(instId, adminId);
+                    // Save in dependency order to avoid foreign key violations
+                    // 1. Save departments and buildings first (no dependencies)
                     await Promise.all([
                         ...d.departments.map(x => apiService.saveModuleRecord('departments', x)),
                         ...d.buildings.map(x => apiService.saveModuleRecord('buildings', x)),
+                    ]);
+                    // 2. Save everything else (depends on departments/buildings)
+                    await Promise.all([
                         ...d.rooms.map(x => apiService.saveModuleRecord('rooms', x)),
                         ...d.users.map(x => apiService.saveModuleRecord('users', x)),
                         ...d.subjects.map(x => apiService.saveModuleRecord('subjects', x)),
