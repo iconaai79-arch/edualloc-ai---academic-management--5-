@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'; // Re-trigger analysis
 import type { Subject } from '../types';
 import { CheckIcon } from './icons';
 import { generatePastelColor } from '../utils/colorUtils';
@@ -125,10 +125,10 @@ export const SubjectCard: React.FC<SubjectCardProps> = ({ subject, onSelect, isR
       </div>
       <div className={`bg-black/5 px-6 py-3 border-t ${isSelected ? 'border-[var(--color-primary)]' : 'border-black/10'}`}>
         <p className={`text-center text-sm font-semibold transition-colors ${isDisabled
-            ? 'text-slate-600'
-            : isSelected
-              ? 'text-[var(--color-primary)]'
-              : 'text-slate-700'
+          ? 'text-slate-600'
+          : isSelected
+            ? 'text-[var(--color-primary)]'
+            : 'text-slate-700'
           }`}>
           {isDisabled ? getDisabledLabel() : (isSelected ? 'Selected' : `Click to ${actionLabel}`)}
         </p>
