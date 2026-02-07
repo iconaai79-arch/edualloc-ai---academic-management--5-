@@ -11,7 +11,6 @@ import type {
 } from '../types';
 import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
-import { FinanceView } from './SupportStaffViews';
 import { BrandedPaper } from './BrandedPaper';
 import { GradingSystemManager } from './GradingSystemManager';
 import {
@@ -145,7 +144,9 @@ const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
     same_time_subjects: 'Option Block (Concurrent)'
 };
 
-type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'finance' | 'facilities';
+
+type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'facilities';
+
 
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
@@ -458,11 +459,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     };
 
     const mainTabs = useMemo(() => {
-        const isFinanceRole = props.currentUser.role === 'finance';
-        if (isFinanceRole) {
-            return !isSchool ? [{ id: 'finance', label: 'Finance Hub', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> }] : [];
-        }
-
         const tabs = [];
 
         if (isSuperAdmin) {
@@ -473,7 +469,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'facilities', label: 'Facilities', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
         }
 
@@ -1133,23 +1128,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     onDeleteCourse={props.onDeleteCourse}
                     allocations={props.allocations || []}
                     currentUser={props.currentUser}
-                />
-            )}
-
-            {activeTab === 'finance' && !isSchool && (
-                <FinanceView
-                    user={props.currentUser}
-                    onUpdateInstitution={props.onUpdateInstitution}
-                    voteHeads={props.voteHeads || []}
-                    onUpdateVoteHeads={props.onUpdateVoteHeads}
-                    feeStructures={props.feeStructures || []}
-                    onUpdateFeeStructures={props.onUpdateFeeStructures}
-                    financialPeriods={props.financialPeriods || []}
-                    onUpdateFinancialPeriods={props.onUpdateFinancialPeriods}
-                    courses={props.courses}
-                    currentInstitution={props.currentInstitution}
-                    companyDetails={props.companyDetails!}
-                    activeTabInitial="settings"
                 />
             )}
 
