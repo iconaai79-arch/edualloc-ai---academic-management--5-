@@ -1,16 +1,16 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor } from './types';
-import { AdvisoryReportView } from './components/AdvisoryReportView.tsx';
-import { ConflictReport } from './components/ConflictReport.tsx';
-import { AttendanceReports } from './components/AttendanceReports.tsx';
-import { AssessmentReports } from './components/AssessmentReports.tsx';
-import { ExamTimetableGrid } from './components/ExamTimetableGrid.tsx';
+import { AdvisoryReportView } from './AdvisoryReportView.tsx';
+import { ConflictReport } from './ConflictReport.tsx';
+import { AttendanceReports } from './AttendanceReports.tsx';
+import { AssessmentReports } from './AssessmentReports.tsx';
+import { ExamTimetableGrid } from './ExamTimetableGrid.tsx';
 import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from './services/pdfService.ts';
-import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon } from './components/icons/index.ts';
-import { RoomUtilizationReport } from './components/RoomUtilizationReport.tsx';
-import { TimetablesView } from './components/TimetablesView.tsx';
-import { VisualReports } from './components/VisualReports.tsx';
+import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon } from './icons/index.ts';
+import { RoomUtilizationReport } from './RoomUtilizationReport.tsx';
+import { TimetablesView } from './TimetablesView.tsx';
+import { VisualReports } from './VisualReports.tsx';
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -47,8 +47,8 @@ const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) =
     const percentage = max > 0 ? (value / max) * 100 : 0;
     return (
         <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-            <div 
-                className="bg-indigo-600 h-2.5 rounded-full" 
+            <div
+                className="bg-indigo-600 h-2.5 rounded-full"
                 style={{ width: `${percentage}%` }}
             ></div>
         </div>
@@ -69,124 +69,124 @@ const ExamTimetableReport: React.FC<{
     logoUrl: string | null;
     footerImageUrl: string | null;
     currentInstitution?: Institution | null;
-}> = ({ 
-    examTimetable = [], 
-    subjects = [], 
-    departments = [], 
-    currentUser, 
-    getSubjectById, 
-    getLecturerById, 
-    getRoomById, 
-    buildings = [], 
-    courses = [], 
-    letterheadConfig, 
-    logoUrl, 
+}> = ({
+    examTimetable = [],
+    subjects = [],
+    departments = [],
+    currentUser,
+    getSubjectById,
+    getLecturerById,
+    getRoomById,
+    buildings = [],
+    courses = [],
+    letterheadConfig,
+    logoUrl,
     footerImageUrl,
     currentInstitution
 }) => {
-    const [departmentFilter, setDepartmentFilter] = useState(
-        currentUser?.role === 'hod' ? currentUser.departmentId || 'all' : 'all'
-    );
-    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-    const safeExams = useMemo(() => Array.isArray(examTimetable) ? examTimetable.filter(e => e) : [], [examTimetable]);
-    const safeSubjects = useMemo(() => Array.isArray(subjects) ? subjects.filter(s => s) : [], [subjects]);
-
-    const filteredEntries = useMemo(() => {
-        if (departmentFilter === 'all') {
-            return safeExams;
-        }
-        const subjectIdsInDept = new Set(
-            safeSubjects.filter(s => s && s.departmentId === departmentFilter).map(s => s.id)
+        const [departmentFilter, setDepartmentFilter] = useState(
+            currentUser?.role === 'hod' ? currentUser.departmentId || 'all' : 'all'
         );
-        return safeExams.filter(e => e && subjectIdsInDept.has(e.subjectId));
-    }, [safeExams, departmentFilter, safeSubjects]);
-    
-    const title = useMemo(() => {
-        if (departmentFilter === 'all') {
-            return 'Exam Timetable (All Departments)';
-        }
-        const dept = (departments || []).find(d => d && d.id === departmentFilter);
-        return `Exam Timetable for ${dept?.name || 'Unknown Department'}`;
-    }, [departmentFilter, departments]);
+        const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    const handleDownloadPdf = async () => {
-        setIsGeneratingPdf(true);
-        try {
-            const pdfUrl = await generateExamTimetablePdf(
-                filteredEntries,
-                getSubjectById || (id => undefined),
-                getLecturerById || (id => undefined),
-                getRoomById || (id => undefined),
-                buildings || [],
-                courses || [],
-                title,
-                letterheadConfig,
-                footerImageUrl,
-                logoUrl
+        const safeExams = useMemo(() => Array.isArray(examTimetable) ? examTimetable.filter(e => e) : [], [examTimetable]);
+        const safeSubjects = useMemo(() => Array.isArray(subjects) ? subjects.filter(s => s) : [], [subjects]);
+
+        const filteredEntries = useMemo(() => {
+            if (departmentFilter === 'all') {
+                return safeExams;
+            }
+            const subjectIdsInDept = new Set(
+                safeSubjects.filter(s => s && s.departmentId === departmentFilter).map(s => s.id)
             );
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            link.download = `Exam_Timetable.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Failed to generate PDF for download:", error);
-            alert("Could not generate the PDF for download.");
-        } finally {
-            setIsGeneratingPdf(false);
-        }
-    };
+            return safeExams.filter(e => e && subjectIdsInDept.has(e.subjectId));
+        }, [safeExams, departmentFilter, safeSubjects]);
 
-    const handlePrint = () => {
-        window.print();
-    };
-    
-    return (
-        <div className="space-y-6">
-            <style>{`
+        const title = useMemo(() => {
+            if (departmentFilter === 'all') {
+                return 'Exam Timetable (All Departments)';
+            }
+            const dept = (departments || []).find(d => d && d.id === departmentFilter);
+            return `Exam Timetable for ${dept?.name || 'Unknown Department'}`;
+        }, [departmentFilter, departments]);
+
+        const handleDownloadPdf = async () => {
+            setIsGeneratingPdf(true);
+            try {
+                const pdfUrl = await generateExamTimetablePdf(
+                    filteredEntries,
+                    getSubjectById || (id => undefined),
+                    getLecturerById || (id => undefined),
+                    getRoomById || (id => undefined),
+                    buildings || [],
+                    courses || [],
+                    title,
+                    letterheadConfig,
+                    footerImageUrl,
+                    logoUrl
+                );
+                const link = document.createElement('a');
+                link.href = pdfUrl;
+                link.download = `Exam_Timetable.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error("Failed to generate PDF for download:", error);
+                alert("Could not generate the PDF for download.");
+            } finally {
+                setIsGeneratingPdf(false);
+            }
+        };
+
+        const handlePrint = () => {
+            window.print();
+        };
+
+        return (
+            <div className="space-y-6">
+                <style>{`
                 .form-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; display: block; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
                 .dark .form-select { border-color: #4b5563; background-color: #374151; color: white; }
                 .btn-secondary { padding: 0.5rem 1rem; background-color: #e5e7eb; color: #1f2937; border-radius: 0.375rem; font-weight: 500; border: none; cursor: pointer; }
                 .dark .btn-secondary { background-color: #4b5563; color: #e5e7eb; }
             `}</style>
-            <div className="flex flex-wrap gap-4 justify-between items-center no-print">
-                <div className="flex items-center gap-4">
-                    <label htmlFor="dept-filter-report" className="text-sm font-medium">Filter by Department:</label>
-                    <select 
-                        id="dept-filter-report"
-                        value={departmentFilter} 
-                        onChange={e => setDepartmentFilter(e.target.value)}
-                        disabled={currentUser?.role === 'hod'}
-                        className="form-select"
-                    >
-                        <option value="all">All Departments</option>
-                        {(departments || []).map(d => d && <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
+                <div className="flex flex-wrap gap-4 justify-between items-center no-print">
+                    <div className="flex items-center gap-4">
+                        <label htmlFor="dept-filter-report" className="text-sm font-medium">Filter by Department:</label>
+                        <select
+                            id="dept-filter-report"
+                            value={departmentFilter}
+                            onChange={e => setDepartmentFilter(e.target.value)}
+                            disabled={currentUser?.role === 'hod'}
+                            className="form-select"
+                        >
+                            <option value="all">All Departments</option>
+                            {(departments || []).map(d => d && <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={handlePrint} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
+                            <PrinterIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Preparing...' : 'Print'}
+                        </button>
+                        <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
+                            <DocumentArrowDownIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Generating...' : 'PDF'}
+                        </button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={handlePrint} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
-                        <PrinterIcon className="w-5 h-5"/> {isGeneratingPdf ? 'Preparing...' : 'Print'}
-                    </button>
-                    <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
-                        <DocumentArrowDownIcon className="w-5 h-5"/> {isGeneratingPdf ? 'Generating...' : 'PDF'}
-                    </button>
-                </div>
+                <ExamTimetableGrid
+                    entries={filteredEntries}
+                    getSubjectById={getSubjectById || (id => undefined)}
+                    getLecturerById={getLecturerById || (id => undefined)}
+                    getRoomById={getRoomById || (id => undefined)}
+                    buildings={buildings || []}
+                    courses={courses || []}
+                    title={title}
+                    currentInstitution={currentInstitution}
+                />
             </div>
-            <ExamTimetableGrid 
-                entries={filteredEntries}
-                getSubjectById={getSubjectById || (id => undefined)}
-                getLecturerById={getLecturerById || (id => undefined)}
-                getRoomById={getRoomById || (id => undefined)}
-                buildings={buildings || []}
-                courses={courses || []}
-                title={title}
-                currentInstitution={currentInstitution}
-            />
-        </div>
-    );
-};
+        );
+    };
 
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const {
@@ -226,9 +226,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     }, [lecturers, departmentFilter]);
 
     const filteredDepartments = useMemo(() => {
-         const list = Array.isArray(departments) ? departments.filter(d => d) : [];
-         if (departmentFilter === 'all') return list;
-         return list.filter(d => d && d.id === departmentFilter);
+        const list = Array.isArray(departments) ? departments.filter(d => d) : [];
+        if (departmentFilter === 'all') return list;
+        return list.filter(d => d && d.id === departmentFilter);
     }, [departments, departmentFilter]);
 
 
@@ -237,10 +237,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const allocatedSubjectsCount = filteredSubjects.filter(s => s && allocatedSubjectIds.has(s.id)).length;
 
     const filteredRequests = useMemo(() => {
-         const reqList = Array.isArray(requests) ? requests.filter(r => r) : [];
-         if (departmentFilter === 'all') return reqList;
-         const subjectIdsInDept = new Set(filteredSubjects.map(s => s.id));
-         return reqList.filter(r => r && subjectIdsInDept.has(r.subjectId));
+        const reqList = Array.isArray(requests) ? requests.filter(r => r) : [];
+        if (departmentFilter === 'all') return reqList;
+        const subjectIdsInDept = new Set(filteredSubjects.map(s => s.id));
+        return reqList.filter(r => r && subjectIdsInDept.has(r.subjectId));
     }, [requests, filteredSubjects, departmentFilter]);
 
     const requestStatusCounts = useMemo(() => {
@@ -264,7 +264,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         return filteredDepartments.map(dept => {
             if (!dept) return { id: '', name: '', totalPeriods: 0, allocatedPeriods: 0 };
             const departmentSubjects = (Array.isArray(subjects) ? subjects : []).filter(s => s && s.departmentId === dept.id);
-            const allocatedDeptSubjects = (Array.isArray(allocations) ? allocations : []).filter(a => 
+            const allocatedDeptSubjects = (Array.isArray(allocations) ? allocations : []).filter(a =>
                 a && departmentSubjects.some(s => s && s.id === a.subjectId)
             );
 
@@ -273,7 +273,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                 const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === a.subjectId);
                 return sum + (subject ? calculateTotalPeriods(subject.lessonStructure) : 0);
             }, 0);
-            
+
             return {
                 id: dept.id,
                 name: dept.name,
@@ -309,7 +309,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             .filter((l): l is NonNullable<typeof l> => l !== null)
             .sort((a, b) => b.totalPeriods - a.totalPeriods);
     }, [filteredLecturers, allocations, subjects, timetableSettings]);
-    
+
     const subjectAllocationStatus = useMemo(() => {
         return filteredSubjects.map(subject => {
             const isAllocated = allocatedSubjectIds.has(subject.id);
@@ -380,12 +380,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     return (
         <div className="space-y-6">
             <h2 className="text-3xl font-bold tracking-tight no-print">Institutional Reports</h2>
-            
+
             <div className="flex flex-col md:flex-row gap-8">
                 <aside className="md:w-64 flex-shrink-0 no-print text-slate-900 dark:text-slate-100">
                     <nav className="flex flex-col space-y-1" aria-label="Report Tabs">
                         {subTabs.map(tabInfo => (
-                             <button
+                            <button
                                 key={tabInfo.key}
                                 onClick={() => setSubTab(tabInfo.key)}
                                 className={`${subTab === tabInfo.key ? 'bg-slate-100 dark:bg-slate-700 text-[var(--color-primary)]' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'} group flex items-center px-3 py-2 text-sm font-medium rounded-md w-full text-left transition-colors`}
@@ -414,7 +414,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     {subTab === 'stats' && (
                         <div className="space-y-8 printable-area text-slate-900 dark:text-slate-100">
                             <div className="flex flex-wrap gap-4 justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm no-print">
-                                 <div className="w-full sm:w-64">
+                                <div className="w-full sm:w-64">
                                     <label htmlFor="dept-filter-stats" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                         Filter by Department
                                     </label>
@@ -430,10 +430,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button onClick={handlePrintStats} className="btn-secondary inline-flex items-center gap-2">
-                                        <PrinterIcon className="w-5 h-5"/> Print
+                                        <PrinterIcon className="w-5 h-5" /> Print
                                     </button>
                                     <button onClick={handleDownloadWorkloadPdf} disabled={isWorkloadPdfGenerating} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
-                                        <DocumentArrowDownIcon className="w-5 h-5"/> {isWorkloadPdfGenerating ? 'Generating...' : 'Download PDF'}
+                                        <DocumentArrowDownIcon className="w-5 h-5" /> {isWorkloadPdfGenerating ? 'Generating...' : 'Download PDF'}
                                     </button>
                                 </div>
                             </div>
@@ -566,7 +566,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         />
                     )}
                     {subTab === 'conflicts' && (
-                         <ConflictReport
+                        <ConflictReport
                             conflicts={timetableConflicts || []}
                             getLecturerById={getLecturerById || (id => undefined)}
                             getRoomById={getRoomById || (id => undefined)}
@@ -603,7 +603,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             footerImageUrl={footerImageUrl}
                         />
                     )}
-                     {subTab === 'exam_timetable' && (
+                    {subTab === 'exam_timetable' && (
                         <ExamTimetableReport
                             examTimetable={examTimetable || []}
                             subjects={subjects || []}
@@ -620,7 +620,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             currentInstitution={currentInstitution}
                         />
                     )}
-                     {subTab === 'generated_timetable' && (
+                    {subTab === 'generated_timetable' && (
                         <TimetablesView
                             generatedTimetable={allTimetableEntries || []}
                             subjects={subjects || []}
@@ -638,7 +638,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             footerImageUrl={footerImageUrl}
                             currentUser={currentUser}
                             timetableSettings={timetableSettings}
-                            onSaveTimetableSettings={() => {}}
+                            onSaveTimetableSettings={() => { }}
                             academicYears={academicYears || []}
                             activeSemester={activeSemester}
                             currentInstitution={currentInstitution}

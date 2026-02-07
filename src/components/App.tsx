@@ -103,7 +103,7 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
     );
 };
 
-export const App: React.FC<any> = (props) => {
+export const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(() => apiService.getSession());
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
     const [users, setUsers] = useState<User[]>([]);

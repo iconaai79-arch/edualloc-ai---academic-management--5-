@@ -20,8 +20,8 @@ interface AcademicsOfficerViewProps {
     users: User[];
     rooms: Room[];
     // Added add/delete/update room
-    onAddRoom?: (roomData: any) => void;
-    onUpdateRoom?: (roomId: string, data: any) => void;
+    onAddRoom?: (roomData: Omit<Room, 'id' | 'institutionId'>) => void;
+    onUpdateRoom?: (roomId: string, data: Partial<Omit<Room, 'id' | 'institutionId'>>) => void;
     onDeleteRoom?: (roomId: string) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
 
@@ -317,8 +317,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                                 <button
                                                     onClick={() => onUpdateSubject(subject.id, { hasExam: subject.hasExam === false ? true : false })}
                                                     className={`inline-flex items-center justify-center p-2 rounded-full transition-colors ${subject.hasExam !== false
-                                                            ? 'bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/50 dark:hover:bg-green-900'
-                                                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600'
+                                                        ? 'bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/50 dark:hover:bg-green-900'
+                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600'
                                                         }`}
                                                     title={subject.hasExam !== false ? "Click to disable exam" : "Click to enable exam"}
                                                 >
