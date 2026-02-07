@@ -85,6 +85,7 @@ export interface AdminViewProps {
     userTasks: UserTask[];
     generatedTimetable: TimetableEntry[];
     allTimetableEntries: TimetableEntry[];
+    timetable: TimetableEntry[];
     finalTimetableUrl: string | null;
     letterheadConfig: LetterheadConfig;
     smsConfig: SmsConfig;
@@ -127,6 +128,7 @@ export interface AdminViewProps {
     onTimetableGenerated: (entries: any[], ay: string, sem: string) => Promise<void>;
     onExamTimetableGenerated: (entries: any[], ay: string, sem: string) => Promise<void>;
     onSaveTimetableSettings?: (settings: TimetableSettings) => void;
+    onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onSaveExamTimetableSettings?: (settings: ExamTimetableSettings) => void;
     onUpdateLogo?: (logo: string | null) => void;
     onUpdateThemeColor?: (color: string) => void;
