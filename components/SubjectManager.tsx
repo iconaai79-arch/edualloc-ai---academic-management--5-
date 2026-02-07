@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types.ts';
 import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon } from './icons/index.ts';
 import { analyzeSubjectSpreadsheet } from '../services/geminiService.ts';
@@ -26,7 +26,7 @@ const highlightMatch = (text: string, query: string) => {
                     ))}
             </>
         );
-    } catch(e) { return <>{text}</>; }
+    } catch (e) { return <>{text}</>; }
 };
 
 interface SubjectManagerProps {
@@ -75,6 +75,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isImporting, setIsImporting] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -95,10 +97,90 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         });
     }, [subjects, searchQuery, departmentFilter, completionFilter, isSchool, currentUser.departmentId]);
 
-    const handleSaveSubject = (id: string, data: any, initialCourseLevelIds?: string[]) => {
+    const handleSaveSubject = (id: string, data: Partial<Omit<Subject, 'id' | 'institutionId'>>, initialCourseLevelIds?: string[]) => {
         if (id && onUpdateSubject) onUpdateSubject(id, data);
-        else if (onAddSubject) onAddSubject(data, initialCourseLevelIds);
+        else if (onAddSubject) onAddSubject(data as Omit<Subject, 'id' | 'institutionId'>, initialCourseLevelIds);
         setEditingSubject(null);
+    };
+
+    const handleSmartImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !onImportSubjectsAndAssociate) return;
+
+        setIsImporting(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const bstr = evt.target?.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+                    if (data.length < 2) {
+                        alert("The file seems empty or missing data.");
+                        setIsImporting(false);
+                        return;
+                    }
+
+                    const headers = data[0].map(h => String(h || '').trim());
+                    const rows = data.slice(1);
+
+                    // Call Gemini AI to map headers
+                    const mapping = await analyzeSubjectSpreadsheet(headers, currentInstitution?.aiModelTier);
+
+                    const importedSubjects = rows.map(row => {
+                        const subject: Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string } = {
+                            code: '',
+                            name: '',
+                            departmentId: visibleDepartments[0]?.id || '',
+                            institutionId: currentInstitution?.id || '',
+                            lessonStructure: [],
+                            description: '',
+                            isComplete: false
+                        };
+
+                        headers.forEach((header, index) => {
+                            const field = mapping[header];
+                            if (field && row[index] !== undefined && row[index] !== null) {
+                                const value = String(row[index]).trim();
+                                if (field === 'departmentName') {
+                                    const dept = departments.find(d => d.name.toLowerCase() === value.toLowerCase());
+                                    if (dept) subject.departmentId = dept.id;
+                                } else if (field === 'targetCourseLevel') {
+                                    subject.targetCourseLevelId = value;
+                                } else if (field === 'lessonStructure') {
+                                    // Basic structure parsing or leave it for later enhancement
+                                } else if (field in subject) {
+                                    (subject as any)[field] = value;
+                                }
+                            }
+                        });
+
+                        return subject;
+                    }).filter(s => s.name && s.code);
+
+                    if (importedSubjects.length === 0) {
+                        alert("No valid subjects found. Ensure your Excel has 'name' and 'code' columns.");
+                    } else {
+                        await onImportSubjectsAndAssociate(importedSubjects);
+                        alert(`Successfully imported ${importedSubjects.length} subjects!`);
+                    }
+                } catch (err) {
+                    console.error("Import processing error:", err);
+                    alert("Failed to process the Excel file.");
+                } finally {
+                    setIsImporting(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }
+            };
+            reader.readAsBinaryString(file);
+        } catch (err) {
+            console.error("File reading error:", err);
+            alert("Failed to read the file.");
+            setIsImporting(false);
+        }
     };
 
     const handleBulkPathwayUpdate = async (updates: Record<string, Partial<Subject>>) => {
@@ -110,38 +192,59 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
     return (
         <div className="space-y-6">
-             <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div>
                     <h3 className="text-2xl font-black uppercase tracking-tighter">Academic Subjects</h3>
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Curriculum Registry Control</p>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-3 min-w-fit">
-                    <button 
-                        onClick={() => setIsPathwaySyncOpen(true)} 
+                    <button
+                        onClick={() => setIsPathwaySyncOpen(true)}
                         className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm"
                     >
-                        <ArrowsRightLeftIcon className="w-5 h-5 text-indigo-500"/> Pathway Sync
+                        <ArrowsRightLeftIcon className="w-5 h-5 text-indigo-500" /> Pathway Sync
                     </button>
-                    
+
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleSmartImport}
+                        accept=".xlsx, .xls, .csv"
+                        className="hidden"
+                    />
+
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                        className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
+                    >
+                        {isImporting ? (
+                            <SparklesIcon className="w-5 h-5 text-indigo-500 animate-pulse" />
+                        ) : (
+                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-500" />
+                        )}
+                        {isImporting ? 'Mapping...' : 'Smart Import'}
+                    </button>
+
                     {onAddSubject && (
-                        <button 
+                        <button
                             onClick={() => {
                                 const defaultDeptId = visibleDepartments[0]?.id || (departments.length > 0 ? departments[0].id : '');
-                                setEditingSubject({ 
-                                    id: '', 
-                                    name: '', 
-                                    code: '', 
-                                    departmentId: defaultDeptId, 
-                                    institutionId: '', 
-                                    lessonStructure: [], 
-                                    description: '', 
-                                    isComplete: false 
+                                setEditingSubject({
+                                    id: '',
+                                    name: '',
+                                    code: '',
+                                    departmentId: defaultDeptId,
+                                    institutionId: '',
+                                    lessonStructure: [],
+                                    description: '',
+                                    isComplete: false
                                 } as Subject);
-                            }} 
+                            }}
                             className="btn-primary h-11 flex items-center gap-2 px-8 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
                         >
-                            <PlusIcon className="w-5 h-5"/> New Subject
+                            <PlusIcon className="w-5 h-5" /> New Subject
                         </button>
                     )}
                 </div>
@@ -164,7 +267,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         </select>
                     </div>
                 )}
-                 <div>
+                <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Learning Status</label>
                     <select value={completionFilter} onChange={e => setCompletionFilter(e.target.value as any)} className="form-select">
                         <option value="all">All Units</option>
@@ -173,9 +276,9 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     </select>
                 </div>
             </div>
-            
+
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700 overflow-x-auto">
-                 <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                     <thead className="bg-slate-50 dark:bg-slate-900/50">
                         <tr>
                             <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID Code</th>
@@ -208,7 +311,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                             </tr>
                         ))}
                     </tbody>
-                 </table>
+                </table>
             </div>
 
             {isPathwaySyncOpen && (

@@ -186,7 +186,8 @@ export function SettingsManager(props: SettingsManagerProps) {
     const [instProfile, setInstProfile] = useState({
         email: props.currentInstitution?.email || '',
         phoneNumber: props.currentInstitution?.phoneNumber || '',
-        useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true
+        useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
+        aiModelTier: props.currentInstitution?.aiModelTier || 'free'
     });
 
     // --- Exam Settings State ---
@@ -201,7 +202,8 @@ export function SettingsManager(props: SettingsManagerProps) {
             setInstProfile({
                 email: props.currentInstitution.email || '',
                 phoneNumber: props.currentInstitution.phoneNumber || '',
-                useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true
+                useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true,
+                aiModelTier: props.currentInstitution.aiModelTier || 'free'
             });
         }
     }, [props.currentInstitution]);
@@ -712,6 +714,34 @@ export function SettingsManager(props: SettingsManagerProps) {
                                 <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">System Email</label><input type="email" value={instProfile.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, email: e.target.value })} className="form-input" /></div>
                                 <div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Admin Phone</label><input type="tel" value={instProfile.phoneNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, phoneNumber: e.target.value })} className="form-input" /></div>
                             </div>
+
+                            <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800">
+                                <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> AI System Architecture</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => setInstProfile({ ...instProfile, aiModelTier: 'free' })}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${instProfile.aiModelTier === 'free' || !instProfile.aiModelTier ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Free Tier</span>
+                                            {(instProfile.aiModelTier === 'free' || !instProfile.aiModelTier) && <CheckIcon className="w-5 h-5 text-indigo-600" />}
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 1.5 Flash for rapid response allocation.</p>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setInstProfile({ ...instProfile, aiModelTier: 'premium' })}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${instProfile.aiModelTier === 'premium' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Premium Tier</span>
+                                            {instProfile.aiModelTier === 'premium' && <CheckIcon className="w-5 h-5 text-indigo-600" />}
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 1.5 Pro for deep reasoning and complex constraints.</p>
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="mt-8 flex justify-end"><button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Update Profile</button></div>
                         </div>
                     )}
@@ -1086,6 +1116,7 @@ export function SettingsManager(props: SettingsManagerProps) {
                     onUpdateSubject={props.onUpdateSubject}
                     onDeleteSubject={props.onDeleteSubject}
                     onEditSubject={props.onEditSubject}
+                    onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                     onSaveTimetableSettings={props.onSaveTimetableSettings!}
                 />
             )}
@@ -1115,7 +1146,7 @@ export function SettingsManager(props: SettingsManagerProps) {
                     onUpdateFinancialPeriods={props.onUpdateFinancialPeriods}
                     courses={props.courses}
                     currentInstitution={props.currentInstitution}
-                    companyDetails={props.currentInstitution as any}
+                    companyDetails={props.companyDetails!}
                     activeTabInitial="settings"
                 />
             )}
