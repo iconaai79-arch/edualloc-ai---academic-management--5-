@@ -1,10 +1,10 @@
 
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import type { 
-    Institution, User, Subject, Department, CompanyDetails, MpesaTransaction, 
-    Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester, 
-    SmsConfig, AllocationRequest, LetterheadConfig, Priority, Unavailability, 
+import type {
+    Institution, User, Subject, Department, CompanyDetails, MpesaTransaction,
+    Receipt, InvoiceItem, ActivityLog, Course, ExtensionRequest, Semester,
+    SmsConfig, AllocationRequest, LetterheadConfig, Priority, Unavailability,
     UserUpdateData, MpesaConfig, SubscriptionConfig, EmailConfig, TransactionStatus,
     Room, Building, AcademicLevel, TimetableSettings, ExamTimetableSettings, RequestStatus, AcademicYear, TimetableEntry, Conflict, TimeOffRequest, TimeOffRequestStatus, EnrollmentRequest, AbsenceRequest, LecturerContract, FeedbackSubmission, LessonRating,
     Invoice, VoteHead, FeeStructure, FinancialPeriod, UserTask, BiometricConfig, StudentAbsenceRequest, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, StudentAttendance, Assessment, AssessmentMark, ExamTimetableEntry, Role,
@@ -19,44 +19,44 @@ import { CourseManager } from './components/CourseManager.tsx';
 import { DepartmentManager } from './components/DepartmentManager.tsx';
 import { BuildingManager } from './components/BuildingManager.tsx';
 import { SettingsManager } from './components/SettingsManager.tsx';
-import { 
-    CheckCircleIcon, 
-    ChatBubbleBottomCenterTextIcon, 
-    ClipboardListIcon, 
-    ChartPieIcon, 
-    BuildingOfficeIcon, 
-    UserGroupIcon, 
-    RectangleStackIcon, 
-    Cog8ToothIcon, 
-    CheckIcon, 
-    ShieldIcon, 
-    SparklesIcon, 
-    MagnifyingGlassIcon, 
-    ArrowPathIcon, 
-    ClockIcon, 
-    CreditCardIcon, 
-    InformationCircleIcon, 
-    XIcon, 
-    ArrowsRightLeftIcon, 
-    ArchiveBoxIcon, 
-    PrinterIcon, 
-    ArrowUpTrayIcon, 
-    EyeIcon, 
-    DocumentArrowDownIcon, 
-    CommandLineIcon, 
-    MpesaIcon, 
-    CurrencyIcon, 
-    PaperAirplaneIcon, 
-    LockClosedIcon, 
+import {
+    CheckCircleIcon,
+    ChatBubbleBottomCenterTextIcon,
+    ClipboardListIcon,
+    ChartPieIcon,
+    BuildingOfficeIcon,
+    UserGroupIcon,
+    RectangleStackIcon,
+    Cog8ToothIcon,
+    CheckIcon,
+    ShieldIcon,
+    SparklesIcon,
+    MagnifyingGlassIcon,
+    ArrowPathIcon,
+    ClockIcon,
+    CreditCardIcon,
+    InformationCircleIcon,
+    XIcon,
+    ArrowsRightLeftIcon,
+    ArchiveBoxIcon,
+    PrinterIcon,
+    ArrowUpTrayIcon,
+    EyeIcon,
+    DocumentArrowDownIcon,
+    CommandLineIcon,
+    MpesaIcon,
+    CurrencyIcon,
+    PaperAirplaneIcon,
+    LockClosedIcon,
     EnvelopeIcon,
-    AcademicCapIcon, 
-    MapPinIcon, 
-    BookOpenIcon, 
-    UserIcon, 
-    CalendarDaysIcon, 
-    ChartBarIcon, 
-    ExclamationTriangleIcon, 
-    BeakerIcon, 
+    AcademicCapIcon,
+    MapPinIcon,
+    BookOpenIcon,
+    UserIcon,
+    CalendarDaysIcon,
+    ChartBarIcon,
+    ExclamationTriangleIcon,
+    BeakerIcon,
     PlusIcon
 } from './components/icons/index.ts';
 import { CommunicationsManager } from './components/CommunicationsManager.tsx';
@@ -124,7 +124,7 @@ export interface SuperAdminViewProps {
     timetableConflicts: Conflict[];
     currentInstitution?: Institution | null;
     currentUser: User;
-    
+
     onAddUser?: (userData: any) => void;
     onEditUser: (id: string, data: any) => Promise<void>;
     onDeleteUser: (id: string) => Promise<void>;
@@ -254,7 +254,7 @@ export interface SuperAdminViewProps {
     onToggleInstitutionStatus: (institutionId: string) => void;
     onLoginAsAdmin: (institutionId: string) => void;
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
-    
+
     // New Props
     assignments?: Assignment[];
     submissions?: Submission[];
@@ -267,28 +267,28 @@ export interface SuperAdminViewProps {
 export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     // Fixed: Defensive empty arrays to handle potentially undefined prop data
     const {
-        institutions = [], 
-        users = [], 
-        subjects = [], 
-        departments = [], 
-        courses = [], 
+        institutions = [],
+        users = [],
+        subjects = [],
+        departments = [],
+        courses = [],
         companyDetails,
-        onDeleteInstitution, 
-        onToggleInstitutionStatus, 
-        onUpdateInstitution, 
+        onDeleteInstitution,
+        onToggleInstitutionStatus,
+        onUpdateInstitution,
         onUpdateCompanyDetails,
-        onLoginAsAdmin, 
-        onSendSms, 
-        currentUser, 
-        onImportUsers, 
+        onLoginAsAdmin,
+        onSendSms,
+        currentUser,
+        onImportUsers,
         onImportStudents,
-        onEditUser, 
-        onDeleteUser, 
-        activityLog = [], 
-        semesters = [], 
-        logoUrl, 
-        transactions = [], 
-        receipts = [], 
+        onEditUser,
+        onDeleteUser,
+        activityLog = [],
+        semesters = [],
+        logoUrl,
+        transactions = [],
+        receipts = [],
         onGenerateReceipt,
         invoices = [],
         extensionRequests = [],
@@ -334,10 +334,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         themeColor,
         footerImageUrl
     } = props;
-    
+
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'timetable' | 'interactions'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'transactions' | 'invoices' | 'requests' | 'curriculum'>('list');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
@@ -350,7 +351,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    
+
     // State for new institution form
     const [newInstData, setNewInstData] = useState({
         name: '',
@@ -372,7 +373,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         } finally {
             setIsRefreshingHealth(false);
         }
-    }, []); 
+    }, []);
 
     useEffect(() => {
         if (activeTab === 'dashboard') fetchHealth();
@@ -382,9 +383,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         const list = Array.isArray(institutions) ? institutions : [];
         if (!institutionSearchQuery.trim()) return list;
         const lower = institutionSearchQuery.toLowerCase();
-        return list.filter(inst => 
-            inst && (inst.name?.toLowerCase().includes(lower) || 
-            inst.institutionCode?.toLowerCase().includes(lower))
+        return list.filter(inst =>
+            inst && (inst.name?.toLowerCase().includes(lower) ||
+                inst.institutionCode?.toLowerCase().includes(lower))
         );
     }, [institutions, institutionSearchQuery]);
 
@@ -443,9 +444,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
             const dataUrl = event.target?.result as string;
             if (type === 'logo') setLocalCompanyInfo(prev => ({ ...prev, logoUrl: dataUrl }));
             if (type === 'letterhead') {
-                setLocalCompanyInfo(prev => ({ 
-                    ...prev, 
-                    letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl } 
+                setLocalCompanyInfo(prev => ({
+                    ...prev,
+                    letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl }
                 }));
             }
             if (type === 'footer') setLocalCompanyInfo(prev => ({ ...prev, footerImageUrl: dataUrl }));
@@ -478,7 +479,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     };
 
     const fullSqlScript = useMemo(() => generateFullSqlScript(), []);
-    
+
     const semesterSqlPreview = useMemo(() => {
         let sql = `-- Table Schema: semesters\n`;
         return sql;
@@ -511,7 +512,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         if (settingsSubTab) setRequestedSettingsTab(settingsSubTab);
         if (tTabSub) setTimetableSubTab(tTabSub);
     };
-    
+
     const handleAddInstitutionSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (newInstData.name && newInstData.email && newInstData.phoneNumber) {
@@ -574,7 +575,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
     if (activeRole === 'student') {
-         return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id) => undefined)} getRoomById={props.getRoomById || ((id) => undefined)} getLecturerById={props.getLecturerById || ((id) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids, sig) => {}} assignments={assignments} submissions={submissions} onAddSubmission={async (d) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => {}} onRateLesson={() => {}} onAddFeedback={() => {}} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => {}} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => {}} onUpdateTask={() => {}} onDeleteTask={() => {}} currentInstitution={currentInstitution} assessments={assessments} assessmentMarks={assessmentMarks} />;
+        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id) => undefined)} getRoomById={props.getRoomById || ((id) => undefined)} getLecturerById={props.getLecturerById || ((id) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids, sig) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution} assessments={assessments} assessmentMarks={assessmentMarks} />;
     }
 
     if (activeRole === 'academics_officer') {
@@ -582,28 +583,28 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     }
 
     if (isAdminCatchAll) {
-         return <AdminView 
-             {...props} 
-             requests={requests || []} 
-             enrollmentRequests={enrollmentRequests}
-             onUpdateRequest={props.onUpdateRequest}
-             onWithdrawRequest={props.onWithdrawRequest}
-         />;
+        return <AdminView
+            {...props}
+            requests={requests || []}
+            enrollmentRequests={enrollmentRequests}
+            onUpdateRequest={props.onUpdateRequest}
+            onWithdrawRequest={props.onWithdrawRequest}
+        />;
     }
-    
+
     if (activeRole === 'lecturer' || activeRole === 'teacher') {
-        return <LecturerView 
-             {...(props as any)} 
-             assignments={assignments}
-             submissions={submissions}
-             onAddAssignment={props.onAddAssignment as any}
-             onDeleteAssignment={props.onDeleteAssignment as any}
-             onUpdateSubmission={props.onUpdateSubmission as any}
-             assessments={assessments}
-             assessmentMarks={assessmentMarks}
-             onAddAssessment={props.onAddAssessment as any}
-             onDeleteAssessment={props.onDeleteAssessment as any}
-             onSaveAssessmentMarks={props.onSaveAssessmentMarks as any}
+        return <LecturerView
+            {...(props as any)}
+            assignments={assignments}
+            submissions={submissions}
+            onAddAssignment={props.onAddAssignment as any}
+            onDeleteAssignment={props.onDeleteAssignment as any}
+            onUpdateSubmission={props.onUpdateSubmission as any}
+            assessments={assessments}
+            assessmentMarks={assessmentMarks}
+            onAddAssessment={props.onAddAssessment as any}
+            onDeleteAssessment={props.onDeleteAssessment as any}
+            onSaveAssessmentMarks={props.onSaveAssessmentMarks as any}
         />;
     }
 
@@ -618,11 +619,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                             setActiveTab(tab.id as any);
                             if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
                         }}
-                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                            activeTab === tab.id 
-                            ? 'border-indigo-600 text-indigo-600' 
+                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                            ? 'border-indigo-600 text-indigo-600'
                             : 'border-transparent text-slate-500 hover:text-slate-700'
-                        }`}
+                            }`}
                     >
                         {tab.icon}
                         {tab.label}
@@ -649,7 +649,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                         <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">There are {stats.totalActionable} allocation requests awaiting your final authorization.</p>
                                     </div>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('interactions')}
                                     className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95"
                                 >
@@ -683,7 +683,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                 Operational Hub
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', 'wizard')}
                                     className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
                                 >
@@ -693,7 +693,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                     <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
                                     <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setIsPerspectiveModalOpen(true)}
                                     className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
                                 >
@@ -703,7 +703,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
                                     <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('users')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -712,7 +712,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                     </div>
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Staff Hub</span>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -721,7 +721,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                     </div>
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : 'Academic Calendar'}</span>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -757,132 +757,165 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                         </div>
                     </div>
                 )}
-                
+
                 {activeTab === 'institutions' && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div>
-                                <h3 className="text-xl font-black uppercase tracking-tighter">Institutional Tenants</h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Multi-Tenancy Registry</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search by name or code..." 
-                                        value={institutionSearchQuery} 
-                                        onChange={e => setInstitutionSearchQuery(e.target.value)} 
-                                        className="w-72 pl-10 pr-4 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                    />
-                                    <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                                </div>
-                                <button 
-                                    onClick={() => setIsAddingInstitution(!isAddingInstitution)} 
-                                    className="btn-primary h-11 px-6 flex items-center gap-2 text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
+                        <div className="border-b border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto no-scrollbar">
+                            <nav className="-mb-px flex space-x-6" aria-label="Institutions Sub-tabs">
+                                <button
+                                    onClick={() => setInstitutionsSubTab('list')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${institutionsSubTab === 'list' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    {isAddingInstitution ? <XIcon className="w-4 h-4"/> : <PlusIcon className="w-4 h-4"/>}
-                                    {isAddingInstitution ? 'Cancel' : 'New Tenant'}
+                                    <BuildingOfficeIcon className="w-4 h-4" /> Company Registry
                                 </button>
-                            </div>
+                                <button
+                                    onClick={() => setInstitutionsSubTab('transactions')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${institutionsSubTab === 'transactions' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <CreditCardIcon className="w-4 h-4" /> Global Transactions
+                                </button>
+                            </nav>
                         </div>
 
-                        {isAddingInstitution && (
-                            <form onSubmit={handleAddInstitutionSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 animate-fade-in-up mb-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Name</label>
-                                        <input type="text" value={newInstData.name} onChange={e => setNewInstData({...newInstData, name: e.target.value})} className="form-input" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Admin Email</label>
-                                        <input type="email" value={newInstData.email} onChange={e => setNewInstData({...newInstData, email: e.target.value})} className="form-input" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
-                                        <input type="tel" value={newInstData.phoneNumber} onChange={e => setNewInstData({...newInstData, phoneNumber: e.target.value})} className="form-input" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Type</label>
-                                        <select value={newInstData.institutionType} onChange={e => setNewInstData({...newInstData, institutionType: e.target.value as any})} className="form-select">
-                                            <option value="Primary">Primary School</option>
-                                            <option value="Secondary">Secondary School</option>
-                                            <option value="University">University</option>
-                                            <option value="College">College</option>
-                                            <option value="Institute">Institute</option>
-                                            <option value="Polytechnic">Polytechnic</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
-                                    <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create Tenant</button>
-                                </div>
-                            </form>
+                        {institutionsSubTab === 'transactions' && (
+                            <div className="animate-fade-in-up">
+                                <TransactionsManager
+                                    transactions={transactions || []}
+                                    institutions={institutions || []}
+                                    receipts={receipts || []}
+                                    companyDetails={companyDetails}
+                                    onGenerateReceipt={onGenerateReceipt}
+                                    logoUrl={logoUrl}
+                                />
+                            </div>
                         )}
 
-                        <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
-                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                                <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Tenant Name</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Category</th>
-                                        <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Lifecycle</th>
-                                        <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filteredInstitutions.map(inst => (
-                                        <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-lg">
-                                                        {inst.name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</div>
-                                                        <div className="text-[10px] text-slate-400 font-mono">{inst.institutionCode}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${
-                                                    inst.status === 'active' ? 'bg-green-100 text-green-700' : 
-                                                    inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                    {inst.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex justify-end gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => onLoginAsAdmin(inst.id)} className="text-indigo-600 hover:text-indigo-900 font-black text-xs uppercase tracking-tighter">Enter Portal</button>
-                                                    <button onClick={() => setEditingInstitution(inst)} className="text-slate-600 hover:text-slate-900 font-bold text-xs uppercase tracking-tighter">Edit</button>
-                                                    <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-xs uppercase tracking-tighter">{inst.status === 'suspended' ? 'Resume' : 'Suspend'}</button>
-                                                    <button onClick={() => onDeleteInstitution(inst.id)} className="text-red-600 hover:text-red-900 font-black text-xs uppercase tracking-tighter">Purge</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {institutionsSubTab === 'list' && (
+                            <>
+                                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tighter">Institutional Tenants</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Platform Multi-Tenancy Registry</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Search by name or code..."
+                                                value={institutionSearchQuery}
+                                                onChange={e => setInstitutionSearchQuery(e.target.value)}
+                                                className="w-72 pl-10 pr-4 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            />
+                                            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                                        </div>
+                                        <button
+                                            onClick={() => setIsAddingInstitution(!isAddingInstitution)}
+                                            className="btn-primary h-11 px-6 flex items-center gap-2 text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
+                                        >
+                                            {isAddingInstitution ? <XIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+                                            {isAddingInstitution ? 'Cancel' : 'New Tenant'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {isAddingInstitution && (
+                                    <form onSubmit={handleAddInstitutionSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 animate-fade-in-up mb-8">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Name</label>
+                                                <input type="text" value={newInstData.name} onChange={e => setNewInstData({ ...newInstData, name: e.target.value })} className="form-input" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Admin Email</label>
+                                                <input type="email" value={newInstData.email} onChange={e => setNewInstData({ ...newInstData, email: e.target.value })} className="form-input" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Phone Number</label>
+                                                <input type="tel" value={newInstData.phoneNumber} onChange={e => setNewInstData({ ...newInstData, phoneNumber: e.target.value })} className="form-input" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Type</label>
+                                                <select value={newInstData.institutionType} onChange={e => setNewInstData({ ...newInstData, institutionType: e.target.value as any })} className="form-select">
+                                                    <option value="Primary">Primary School</option>
+                                                    <option value="Secondary">Secondary School</option>
+                                                    <option value="University">University</option>
+                                                    <option value="College">College</option>
+                                                    <option value="Institute">Institute</option>
+                                                    <option value="Polytechnic">Polytechnic</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
+                                            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create Tenant</button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
+                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                        <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Tenant Name</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Category</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Lifecycle</th>
+                                                <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {filteredInstitutions.map(inst => (
+                                                <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-lg">
+                                                                {inst.name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono">{inst.institutionCode}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
+                                                            inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {inst.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <div className="flex justify-end gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="text-indigo-600 hover:text-indigo-900 font-black text-xs uppercase tracking-tighter">Enter Portal</button>
+                                                            <button onClick={() => setEditingInstitution(inst)} className="text-slate-600 hover:text-slate-900 font-bold text-xs uppercase tracking-tighter">Edit</button>
+                                                            <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-xs uppercase tracking-tighter">{inst.status === 'suspended' ? 'Resume' : 'Suspend'}</button>
+                                                            <button onClick={() => onDeleteInstitution(inst.id)} className="text-red-600 hover:text-red-900 font-black text-xs uppercase tracking-tighter">Purge</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
-                
+
                 {activeTab === 'all_users' && (
                     <div className="animate-fade-in-up">
-                        <UserManager 
+                        <UserManager
                             {...props}
                             users={users || []}
                             departments={departments || []}
                             courses={courses || []}
                             subjects={subjects || []}
                             currentUser={currentUser}
-                            onAddUser={() => {}} 
+                            onAddUser={() => { }}
                             onImportUsers={onImportUsers}
                             onImportStudents={onImportStudents}
                             onDeleteUser={props.onDeleteUser}
                             onEditUser={props.onEditUser}
-                            onWithdrawRequest={() => {}}
+                            onWithdrawRequest={() => { }}
                             letterheadConfig={localCompanyInfo.letterheadConfig}
                             logoUrl={localCompanyInfo.logoUrl}
                             footerImageUrl={localCompanyInfo.footerImageUrl}
@@ -894,10 +927,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
 
                 {activeTab === 'communications' && (
                     <div className="animate-fade-in-up">
-                        <CommunicationsManager 
-                            users={users || []} 
-                            departments={departments || []} 
-                            courses={courses || []} 
+                        <CommunicationsManager
+                            users={users || []}
+                            departments={departments || []}
+                            courses={courses || []}
                             institutions={institutions || []}
                             onSendSms={onSendSms}
                             currentUser={currentUser}
@@ -993,14 +1026,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
                                     <h3 className="text-lg font-black uppercase mb-6 tracking-tighter">Identity Records</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                         <div className="space-y-6">
+                                        <div className="space-y-6">
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Platform Legal Name</label>
-                                                <input type="text" value={localCompanyInfo.name} onChange={e => setLocalCompanyInfo({...localCompanyInfo, name: e.target.value})} className="form-input" />
+                                                <input type="text" value={localCompanyInfo.name} onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, name: e.target.value })} className="form-input" />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Global Support Email</label>
-                                                <input type="email" value={localCompanyInfo.email} onChange={e => setLocalCompanyInfo({...localCompanyInfo, email: e.target.value})} className="form-input" />
+                                                <input type="email" value={localCompanyInfo.email} onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, email: e.target.value })} className="form-input" />
                                             </div>
                                             <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary w-full h-12 shadow-indigo-100">{isSavingConfigs ? 'Synchronizing...' : 'Update System Profile'}</button>
                                         </div>
@@ -1014,19 +1047,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
 
                             {settingsSubTab === 'infrastructure' && (
                                 <div className="animate-fade-in">
-                                    <DatabaseSettings 
-                                        dbConfig={companyDetails.databaseConfig} 
+                                    <DatabaseSettings
+                                        dbConfig={companyDetails.databaseConfig}
                                         onSave={async (newDbConfig) => {
                                             if (props.onUpdateCompanyDetails) {
                                                 await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });
                                             }
-                                        }} 
+                                        }}
                                     />
                                 </div>
                             )}
 
                             {settingsSubTab === 'branding' && (
-                                 <div className="space-y-8 animate-fade-in">
+                                <div className="space-y-8 animate-fade-in">
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 shadow-sm">
                                         <div className="flex justify-between items-center mb-8">
                                             <h4 className="font-bold text-lg flex items-center gap-2">
@@ -1043,9 +1076,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                                 <div>
                                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label>
                                                     <div className="flex gap-4 items-center">
-                                                        <input 
-                                                            type="color" 
-                                                            value={props.themeColor} 
+                                                        <input
+                                                            type="color"
+                                                            value={props.themeColor}
                                                             onChange={(e) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)}
                                                             className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer"
                                                         />
@@ -1056,7 +1089,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                         </div>
                                         {showPaperPreview && (
                                             <div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top">
-                                                <BrandedPaper 
+                                                <BrandedPaper
                                                     institution={null}
                                                     letterheadConfig={localCompanyInfo.letterheadConfig}
                                                     footerImageUrl={localCompanyInfo.footerImageUrl}
@@ -1070,21 +1103,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                         )}
 
                                         <div className="mt-8 flex justify-end">
-                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Branding Map</button>
+                                            <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Branding Map</button>
                                         </div>
                                     </div>
-                                 </div>
+                                </div>
                             )}
-                            
+
                             {settingsSubTab === 'sms' && (
-                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
                                     <h3 className="text-xl font-black uppercase tracking-tight">SMS Gateway Configuration</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="md:col-span-2">
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Service Provider</label>
-                                            <select 
-                                                value={localSmsConfig.provider} 
-                                                onChange={e => setLocalSmsConfig({...localSmsConfig, provider: e.target.value})} 
+                                            <select
+                                                value={localSmsConfig.provider}
+                                                onChange={e => setLocalSmsConfig({ ...localSmsConfig, provider: e.target.value })}
                                                 className="form-select h-12 font-bold text-sm"
                                             >
                                                 <option value="ABMIS">ABMIS (Default)</option>
@@ -1095,63 +1128,63 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
                                                 {localSmsConfig.provider === 'Zettatel' ? 'Bearer Token / API Key' : 'User ID'}
                                             </label>
-                                            <input type="text" value={localSmsConfig.apiKey} onChange={e => setLocalSmsConfig({...localSmsConfig, apiKey: e.target.value})} className="form-input" />
+                                            <input type="text" value={localSmsConfig.apiKey} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input" />
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
                                                 {localSmsConfig.provider === 'Zettatel' ? 'Partner ID' : 'API Password'}
                                             </label>
-                                            <input type="password" value={localSmsConfig.apiSecret} onChange={e => setLocalSmsConfig({...localSmsConfig, apiSecret: e.target.value})} className="form-input" />
+                                            <input type="password" value={localSmsConfig.apiSecret} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
                                         </div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={e => setLocalSmsConfig({...localSmsConfig, fromNumber: e.target.value})} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={e => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
                                     </div>
                                     <div className="pt-6 border-t flex justify-end">
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Sync Gateway</button>
                                     </div>
-                                 </div>
+                                </div>
                             )}
 
                             {settingsSubTab === 'email' && (
-                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
                                     <h3 className="text-xl font-black uppercase tracking-tight">Global Email Relay (SMTP)</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">SMTP Host</label><input type="text" value={localEmailConfig.host} onChange={e => setLocalEmailConfig({...localEmailConfig, host: e.target.value})} className="form-input" /></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Port</label><input type="number" value={localEmailConfig.port} onChange={e => setLocalEmailConfig({...localEmailConfig, port: Number(e.target.value)})} className="form-input" /></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Encryption</label><select value={localEmailConfig.encryption} onChange={e => setLocalEmailConfig({...localEmailConfig, encryption: e.target.value as any})} className="form-select"><option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option></select></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Username</label><input type="text" value={localEmailConfig.username} onChange={e => setLocalEmailConfig({...localEmailConfig, username: e.target.value})} className="form-input" /></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Password</label><input type="password" value={localEmailConfig.password} onChange={e => setLocalEmailConfig({...localEmailConfig, password: e.target.value})} className="form-input" /></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Name</label><input type="text" value={localEmailConfig.fromName} onChange={e => setLocalEmailConfig({...localEmailConfig, fromName: e.target.value})} className="form-input" /></div>
-                                        <div className="md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Email</label><input type="email" value={localEmailConfig.fromEmail} onChange={e => setLocalEmailConfig({...localEmailConfig, fromEmail: e.target.value})} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">SMTP Host</label><input type="text" value={localEmailConfig.host} onChange={e => setLocalEmailConfig({ ...localEmailConfig, host: e.target.value })} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Port</label><input type="number" value={localEmailConfig.port} onChange={e => setLocalEmailConfig({ ...localEmailConfig, port: Number(e.target.value) })} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Encryption</label><select value={localEmailConfig.encryption} onChange={e => setLocalEmailConfig({ ...localEmailConfig, encryption: e.target.value as any })} className="form-select"><option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option></select></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Username</label><input type="text" value={localEmailConfig.username} onChange={e => setLocalEmailConfig({ ...localEmailConfig, username: e.target.value })} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Password</label><input type="password" value={localEmailConfig.password} onChange={e => setLocalEmailConfig({ ...localEmailConfig, password: e.target.value })} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Name</label><input type="text" value={localEmailConfig.fromName} onChange={e => setLocalEmailConfig({ ...localEmailConfig, fromName: e.target.value })} className="form-input" /></div>
+                                        <div className="md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Email</label><input type="email" value={localEmailConfig.fromEmail} onChange={e => setLocalEmailConfig({ ...localEmailConfig, fromEmail: e.target.value })} className="form-input" /></div>
                                     </div>
                                     <div className="pt-6 border-t flex justify-end">
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Authorize SMTP</button>
                                     </div>
-                                 </div>
+                                </div>
                             )}
 
                             {settingsSubTab === 'billing' && (
-                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
                                             <MpesaIcon className="w-6 h-6 text-green-600" />
                                         </div>
                                         <h3 className="text-xl font-black uppercase tracking-tight">Platform Billing Configuration</h3>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                         <div className="space-y-6">
                                             <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">M-Pesa Daraja Gateway</h4>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Short Code (Paybill)</label><input type="text" value={localMpesaConfig.paybillNumber} onChange={e => setLocalMpesaConfig({...localMpesaConfig, paybillNumber: e.target.value})} className="form-input font-mono" placeholder="7-digit code" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={e => setLocalMpesaConfig({...localMpesaConfig, passkey: e.target.value})} className="form-input" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={e => setLocalMpesaConfig({...localMpesaConfig, consumerKey: e.target.value})} className="form-input" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Secret</label><input type="password" value={localMpesaConfig.consumerSecret} onChange={e => setLocalMpesaConfig({...localMpesaConfig, consumerSecret: e.target.value})} className="form-input" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Short Code (Paybill)</label><input type="text" value={localMpesaConfig.paybillNumber} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, paybillNumber: e.target.value })} className="form-input font-mono" placeholder="7-digit code" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, passkey: e.target.value })} className="form-input" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerKey: e.target.value })} className="form-input" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Secret</label><input type="password" value={localMpesaConfig.consumerSecret} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerSecret: e.target.value })} className="form-input" /></div>
                                         </div>
 
                                         <div className="space-y-6">
                                             <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={e => setLocalSubConfig({...localSubConfig, defaultMonthlyPrice: Number(e.target.value)})} className="form-input font-bold text-lg" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={e => setLocalSubConfig({...localSubConfig, defaultYearlyPrice: Number(e.target.value)})} className="form-input font-bold text-lg" /></div>
-                                            
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+
                                             <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <InformationCircleIcon className="w-5 h-5 text-indigo-500" />
@@ -1161,7 +1194,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="pt-6 border-t flex justify-end">
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Billing Map</button>
                                     </div>
@@ -1184,7 +1217,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                         </div>
                         <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {perspectiveOptions.map(opt => (
-                                <button 
+                                <button
                                     key={opt.role}
                                     onClick={() => {
                                         props.onSwitchPerspective?.(opt.role as Role);
@@ -1200,7 +1233,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                             ))}
                             {/* Added return button */}
                             {props.isImpersonating && (
-                                <button 
+                                <button
                                     onClick={() => {
                                         props.onSwitchPerspective?.(null as any);
                                         setIsPerspectiveModalOpen(false);
@@ -1217,12 +1250,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                     </div>
                 </div>
             )}
-            
+
             {editingInstitution && (
                 <EditInstitutionModal
                     institution={editingInstitution}
                     onClose={() => setEditingInstitution(null)}
-                    onSave={async (id, data) => { if(props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
+                    onSave={async (id, data) => { if (props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
                     defaultPrices={companyDetails.subscriptionConfig}
                 />
             )}
