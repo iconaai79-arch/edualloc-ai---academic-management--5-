@@ -35,7 +35,7 @@ interface StudentDashboardProps {
 const formatTimeRemaining = (targetTime: Date, now: Date): string => {
     const diffMs = targetTime.getTime() - now.getTime();
     if (diffMs <= 0) return "Starting now";
-    
+
     const diffSeconds = Math.floor(diffMs / 1000);
     const minutes = Math.floor(diffSeconds / 60);
     const seconds = diffSeconds % 60;
@@ -77,7 +77,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
 
         let current: TimetableEntry | null = null;
         let next: TimetableEntry | null = null;
-        
+
         for (const lesson of todaysLessons) {
             const lessonStart = timeStringToDate(lesson.startTime);
             const lessonEnd = timeStringToDate(lesson.endTime);
@@ -90,10 +90,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 }
             }
         }
-        
+
         return { currentLesson: current, nextLesson: next };
     }, [now, timetable]);
-    
+
     const pastLessonsToRate = useMemo(() => {
         const todayStr = dayMapping[now.getDay()];
         const ratedEntryIds = new Set(lessonRatings.filter(r => r.studentId === user.id).map(r => r.timetableEntryId));
@@ -113,15 +113,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         setIsGeneratingPdf(true);
         try {
             const pdfUrl = await generateStudentTimetablePdf(
-                user, 
-                timetable, 
-                getSubjectById, 
-                getLecturerById, 
-                getRoomById, 
-                letterheadConfig, 
-                footerImageUrl, 
-                course, 
-                level, 
+                user,
+                timetable,
+                getSubjectById,
+                getLecturerById,
+                getRoomById,
+                letterheadConfig,
+                footerImageUrl,
+                course,
+                level,
                 timetableSettings
             );
             const link = document.createElement('a');
@@ -143,15 +143,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         setIsGeneratingPdf(true);
         try {
             const pdfUrl = await generateStudentTimetablePdf(
-                user, 
-                timetable, 
-                getSubjectById, 
-                getLecturerById, 
-                getRoomById, 
-                letterheadConfig, 
-                footerImageUrl, 
-                course, 
-                level, 
+                user,
+                timetable,
+                getSubjectById,
+                getLecturerById,
+                getRoomById,
+                letterheadConfig,
+                footerImageUrl,
+                course,
+                level,
                 timetableSettings
             );
             const pdfWindow = window.open("");
@@ -180,7 +180,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         }
 
         if (!navigator.geolocation) {
-             setCheckInState(prev => ({
+            setCheckInState(prev => ({
                 ...prev,
                 [lesson.id]: {
                     status: 'error',
@@ -197,7 +197,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 message: "Verifying your location..."
             }
         }));
-        
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
@@ -206,7 +206,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 if (distance <= PROXIMITY_THRESHOLD_METERS) {
                     onStudentLessonCheckIn(lesson.id);
                     setCheckInState(prev => {
-                        const newState = {...prev};
+                        const newState = { ...prev };
                         delete newState[lesson.id];
                         return newState;
                     });
@@ -222,7 +222,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 }
             },
             (error) => {
-                 setCheckInState(prev => ({
+                setCheckInState(prev => ({
                     ...prev,
                     [lesson.id]: {
                         status: 'error',
@@ -236,16 +236,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
 
     const renderLessonProgress = () => {
         if (!currentLesson) return null;
-        
+
         const subject = getSubjectById(currentLesson.subjectId);
         const room = getRoomById(currentLesson.roomId);
-        
+
         const lessonStart = timeStringToDate(currentLesson.startTime);
         const lessonEnd = timeStringToDate(currentLesson.endTime);
         const totalDuration = lessonEnd.getTime() - lessonStart.getTime();
         const elapsed = now.getTime() - lessonStart.getTime();
         const progress = Math.min(100, (elapsed / totalDuration) * 100);
-        
+
         const checkInKey = `${user.id}-${currentLesson.id}`;
         const isCheckedIn = studentCheckIns[checkInKey];
         const currentCheckInState = checkInState[currentLesson.id];
@@ -263,8 +263,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 </div>
                 {!isCheckedIn && (
                     <div className="mt-4">
-                        <button 
-                            onClick={() => handleCheckInAttempt(currentLesson)} 
+                        <button
+                            onClick={() => handleCheckInAttempt(currentLesson)}
                             disabled={currentCheckInState?.status === 'checking'}
                             className="btn-primary w-full sm:w-auto inline-flex items-center gap-2"
                         >
@@ -286,7 +286,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
     return (
         <div className="space-y-8">
             <h2 className="text-3xl font-bold tracking-tight">Welcome, {user.name}</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
                     <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{courseLabel}</h3>
@@ -325,14 +325,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                                     <p className="text-xs text-slate-500 dark:text-slate-400">with {getLecturerById(lesson.lecturerId)?.name} at {lesson.startTime}</p>
                                 </div>
                                 <button onClick={() => onRateLesson(lesson)} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-amber-500 hover:bg-amber-600">
-                                    <StarIcon className="w-4 h-4"/> Rate
+                                    <StarIcon className="w-4 h-4" /> Rate
                                 </button>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
-            
+
             <MyTasks
                 tasks={userTasks}
                 onAddTask={onAddTask}
