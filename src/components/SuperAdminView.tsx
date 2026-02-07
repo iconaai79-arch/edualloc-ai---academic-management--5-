@@ -263,7 +263,7 @@ export interface SuperAdminViewProps {
     isImpersonating?: boolean;
 }
 
-export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
+export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminViewProps) => {
     // Fixed: Defensive empty arrays to handle potentially undefined prop data
     const {
         institutions = [],
@@ -350,6 +350,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
+    const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+    const [showPaperPreview, setShowPaperPreview] = useState(false);
 
     // State for new institution form
     const [newInstData, setNewInstData] = useState({
@@ -441,14 +443,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
-            if (type === 'logo') setLocalCompanyInfo(prev => ({ ...prev, logoUrl: dataUrl }));
+            if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: dataUrl }));
             if (type === 'letterhead') {
-                setLocalCompanyInfo(prev => ({
+                setLocalCompanyInfo((prev: any) => ({
                     ...prev,
                     letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl }
                 }));
             }
-            if (type === 'footer') setLocalCompanyInfo(prev => ({ ...prev, footerImageUrl: dataUrl }));
+            if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: dataUrl }));
         };
         reader.readAsDataURL(file);
     };
@@ -456,19 +458,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
         try {
-            await onUpdateCompanyDetails({
-                ...companyDetails,
-                ...localCompanyInfo,
-                smsConfig: localSmsConfig,
-                emailConfig: localEmailConfig,
-                mpesaConfig: localMpesaConfig,
-                subscriptionConfig: localSubConfig,
-                chatAssistantConfig: {
-                    ...companyDetails.chatAssistantConfig,
-                    welcomeMessage: localCompanyInfo.welcomeMessage,
-                    enabled: localCompanyInfo.chatEnabled
-                }
-            });
+            if (onUpdateCompanyDetails) {
+                await onUpdateCompanyDetails({
+                    ...companyDetails,
+                    ...localCompanyInfo,
+                    smsConfig: localSmsConfig,
+                    emailConfig: localEmailConfig,
+                    mpesaConfig: localMpesaConfig,
+                    subscriptionConfig: localSubConfig,
+                    chatAssistantConfig: {
+                        ...companyDetails.chatAssistantConfig,
+                        welcomeMessage: localCompanyInfo.welcomeMessage,
+                        enabled: localCompanyInfo.chatEnabled
+                    }
+                });
+            }
             alert("Platform configurations updated successfully.");
         } catch (e) {
             alert("Failed to save configurations.");
@@ -574,11 +578,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
     if (activeRole === 'student') {
-        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id) => undefined)} getRoomById={props.getRoomById || ((id) => undefined)} getLecturerById={props.getLecturerById || ((id) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids, sig) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution} assessments={assessments} assessmentMarks={assessmentMarks} />;
+        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} />;
     }
 
     if (activeRole === 'academics_officer') {
-        return <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id) => undefined)} getLecturerById={props.getLecturerById || ((id) => undefined)} getRoomById={props.getRoomById || ((id) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} />;
+        return <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuildings} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} />;
     }
 
     if (isAdminCatchAll) {
@@ -619,8 +623,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                             if (tab.key !== 'settings') setRequestedSettingsTab(undefined);
                         }}
                         className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.key
-                                ? 'border-indigo-600 text-indigo-600'
-                                : 'border-transparent text-slate-500 hover:text-slate-700'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         {tab.icon}
@@ -740,7 +744,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                 <h3 className="text-xl font-black tracking-tighter uppercase">Administrative Events</h3>
                             </div>
                             <div className="space-y-4">
-                                {(props.activityLog || []).slice(0, 5).map(log => (
+                                {(props.activityLog || []).slice(0, 5).map((log: ActivityLog) => (
                                     <div key={log.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                         <div>
                                             <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{String(log.action)}</p>
@@ -846,7 +850,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {filteredInstitutions.map(inst => (
+                                            {filteredInstitutions.map((inst: Institution) => (
                                                 <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-3">
@@ -862,7 +866,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
-                                                                inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                                                            inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
                                                             }`}>
                                                             {inst.status}
                                                         </span>
@@ -901,9 +905,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {extensionRequests.map(req => {
-                                                const inst = institutions.find(i => i.id === req.institutionId);
-                                                const requester = users.find(u => u.id === req.requesterId);
+                                            {extensionRequests.map((req: ExtensionRequest) => {
+                                                const inst = institutions.find((i: Institution) => i.id === req.institutionId);
+                                                const requester = users.find((u: User) => u.id === req.requesterId);
                                                 return (
                                                     <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
@@ -917,8 +921,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                                    req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                                        'bg-red-100 text-red-700'
+                                                                req.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                                                    'bg-red-100 text-red-700'
                                                                 }`}>
                                                                 {req.status}
                                                             </span>
