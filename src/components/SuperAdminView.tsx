@@ -1044,7 +1044,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     </div>
                 )}
 
-                {activeTab === 'timetable' && (
+                {activeTab === 'timetable' && currentUser && (
                     <div className="animate-fade-in-up">
                         <TimetableGenerator
                             allocations={allocations || []}
