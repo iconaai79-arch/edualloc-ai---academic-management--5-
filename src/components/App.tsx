@@ -466,12 +466,22 @@ export const App: React.FC<any> = (props) => {
     // --- User Handlers ---
 
     const onImportUsers = async (data: any[]) => {
-        await apiService.onImportUsers(data, currentUser?.institutionId);
+        const enriched = data.map((u, index) => ({
+            ...u,
+            id: `u_imp_${Date.now()}_${index}`,
+            institutionId: currentUser?.institutionId
+        }));
+        await apiService.onImportUsers(enriched, currentUser?.institutionId);
         loadData();
     };
 
     const onImportStudents = async (data: any[]) => {
-        await apiService.onImportStudents(data, currentUser?.institutionId);
+        const enriched = data.map((s, index) => ({
+            ...s,
+            id: `std_imp_${Date.now()}_${index}`,
+            institutionId: currentUser?.institutionId
+        }));
+        await apiService.onImportStudents(enriched, currentUser?.institutionId);
         loadData();
     };
 
