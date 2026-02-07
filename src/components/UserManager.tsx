@@ -24,7 +24,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'finance', 'security', 'info_desk', 'store'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -38,7 +38,7 @@ interface ManageParentsModalProps {
     onDeleteParent?: (studentId: string, parentId: string) => void;
 }
 
-const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUsers = [], onClose, onAddParent, onDeleteParent }) => {
+const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUsers = [], onClose, onAddParent, onDeleteParent }: ManageParentsModalProps) => {
     const [parentName, setParentName] = useState('');
     const [parentEmail, setParentEmail] = useState('');
     const [parentPhone, setParentPhone] = useState('');
@@ -46,7 +46,7 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
     const [error, setError] = useState('');
 
     const linkedParents = useMemo(() => {
-        return (allUsers || []).filter(u => student.parentIds?.includes(u.id));
+        return (allUsers as User[] || []).filter(u => student.parentIds?.includes(u.id));
     }, [allUsers, student.parentIds]);
 
     const handleAddParent = async (e: React.FormEvent) => {

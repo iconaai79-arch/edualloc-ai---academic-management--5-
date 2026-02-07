@@ -9,7 +9,7 @@ interface DeallocationModalProps {
   onSubmit: (justification: string) => Promise<any> | void;
 }
 
-export const DeallocationModal: React.FC<DeallocationModalProps> = ({ subject, onClose, onSubmit }) => {
+export const DeallocationModal: React.FC<DeallocationModalProps> = ({ subject, onClose, onSubmit }: DeallocationModalProps) => {
   const [justification, setJustification] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
