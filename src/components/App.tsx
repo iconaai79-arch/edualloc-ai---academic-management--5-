@@ -657,7 +657,7 @@ export const App: React.FC = () => {
                         {activeRole === 'super_admin' ? (
                             <SuperAdminView
                                 currentUser={currentUser} institutions={institutions} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => await apiService.saveInstitution(d as any)} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
-                                rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id, data) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id) => apiService.deleteModuleRecord('allocation_requests', id)}
+                                rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
                                 logoUrl={activeLogoUrl}
                                 finalTimetableUrl={null}
                                 themeColor={companyDetails.themeColor || '#4f46e5'}
@@ -704,9 +704,9 @@ export const App: React.FC = () => {
                                 demoDataGenerationProgress={0}
                                 demoDataGenerationMessage=""
                                 examTimetable={examTimetable}
-                                onManualInvoice={(instId, items, total, due) => { }}
+                                onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
                                 onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
-                                onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
+                                onBulkUpdateRequestStatus={async (status: RequestStatus, deptId?: string) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                 onGenerateReceipt={onGenerateReceipt}
                                 getLecturerById={getLecturerById}
                                 getSubjectById={getSubjectById}
@@ -716,7 +716,7 @@ export const App: React.FC = () => {
                                 emailConfig={companyDetails.emailConfig}
                                 onImportSubjectsAndAssociate={apiService.onImportSubjectsAndAssociate.bind(apiService)}
                                 onSwitchPerspective={(role) => setImpersonatedRole(role)}
-                                onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
+                                onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
                                 onDeleteParent={() => { }}
                                 assignments={assignments}
                                 submissions={submissions}
@@ -731,7 +731,7 @@ export const App: React.FC = () => {
                                 }}
                                 onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                 onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                onSaveAssessmentMarks={async (id, marks) => {
+                                onSaveAssessmentMarks={async (id: string, marks: any[]) => {
                                     const promises = marks.map(m => {
                                         const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
                                         const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
@@ -767,12 +767,12 @@ export const App: React.FC = () => {
                                 getLecturerById={getLecturerById}
                                 timetableSettings={timetableSettings!}
                                 studentCheckIns={studentCheckIns}
-                                onStudentLessonCheckIn={apiService.onAddTransaction.bind(apiService) as any}
+                                onStudentLessonCheckIn={onStudentLessonCheckIn}
                                 letterheadConfig={activeLetterheadConfig}
                                 footerImageUrl={activeFooterImageUrl}
                                 logoUrl={activeLogoUrl}
                                 buildings={buildings}
-                                onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
+                                onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
                                 onDeleteParent={() => { }}
                                 departments={departments}
                                 onSubmitEnrollmentRequest={async (sids, sig) => { }}
