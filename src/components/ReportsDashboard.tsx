@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor } from './types';
+import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor } from '../types';
 import { AdvisoryReportView } from './AdvisoryReportView.tsx';
 import { ConflictReport } from './ConflictReport.tsx';
 import { AttendanceReports } from './AttendanceReports.tsx';
 import { AssessmentReports } from './AssessmentReports.tsx';
 import { ExamTimetableGrid } from './ExamTimetableGrid.tsx';
-import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from './services/pdfService.ts';
+import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from '../services/pdfService.ts';
 import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon } from './icons/index.ts';
 import { RoomUtilizationReport } from './RoomUtilizationReport.tsx';
 import { TimetablesView } from './TimetablesView.tsx';
