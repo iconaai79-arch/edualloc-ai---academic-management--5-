@@ -9,16 +9,16 @@ import type {
     Room, Building, AcademicLevel, TimetableSettings, ExamTimetableSettings, RequestStatus, AcademicYear, TimetableEntry, Conflict, TimeOffRequest, TimeOffRequestStatus, EnrollmentRequest, AbsenceRequest, LecturerContract, FeedbackSubmission, LessonRating,
     Invoice, VoteHead, FeeStructure, FinancialPeriod, UserTask, BiometricConfig, StudentAbsenceRequest, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, StudentAttendance, Assessment, AssessmentMark, ExamTimetableEntry, Role,
     Assignment, Submission
-} from './types.ts';
-import { TransactionsManager } from './components/TransactionsManager.tsx';
-import { DatabaseSettings } from './components/DatabaseSettings.tsx';
-import { ActivityLogView } from './components/ActivityLogView.tsx';
-import { UserManager } from './components/UserManager.tsx';
-import { SubjectManager } from './components/SubjectManager.tsx';
-import { CourseManager } from './components/CourseManager.tsx';
-import { DepartmentManager } from './components/DepartmentManager.tsx';
-import { BuildingManager } from './components/BuildingManager.tsx';
-import { SettingsManager } from './components/SettingsManager.tsx';
+} from './types';
+import { TransactionsManager } from './components/TransactionsManager';
+import { DatabaseSettings } from './components/DatabaseSettings';
+import { ActivityLogView } from './components/ActivityLogView';
+import { UserManager } from './components/UserManager';
+import { SubjectManager } from './components/SubjectManager';
+import { CourseManager } from './components/CourseManager';
+import { DepartmentManager } from './components/DepartmentManager';
+import { BuildingManager } from './components/BuildingManager';
+import { SettingsManager } from './components/SettingsManager';
 import {
     CheckCircleIcon,
     ChatBubbleBottomCenterTextIcon,
@@ -58,32 +58,32 @@ import {
     ExclamationTriangleIcon,
     BeakerIcon,
     PlusIcon
-} from './components/icons/index.ts';
-import { CommunicationsManager } from './components/CommunicationsManager.tsx';
-import { EditInstitutionModal } from './components/EditInstitutionModal.tsx';
-import { apiService } from './services/apiService.ts';
-import { generateFullSqlScript } from './utils/sqlGenerator.ts';
-import { BrandedPaper } from './components/BrandedPaper.tsx';
-import { AcademicYearManager } from './components/AcademicYearManager.tsx';
-import { TimetableGenerator } from './components/TimetableGenerator.tsx';
-import { ReportsDashboard } from './components/ReportsDashboard.tsx';
-import { InteractionsManager } from './components/InteractionsManager.tsx';
-import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from './constants.ts';
-import { WallPosterView } from './components/WallPosterView.tsx';
-import { TenantInvoiceManager } from './components/TenantInvoiceManager.tsx';
-import { DirectAssignModal } from './components/DirectAssignModal.tsx';
-import { LecturerView } from './components/LecturerView.tsx';
-import { StudentView } from './components/StudentView.tsx';
-import { AcademicsOfficerView } from './components/AcademicsOfficerView.tsx';
-import { AdminView } from './components/AdminView.tsx';
-import { ProfileModal } from './components/ProfileModal.tsx';
-import { LoginView } from './components/LoginView.tsx';
-import { PublicAppointmentView } from './components/PublicAppointmentView.tsx';
-import { GuestFeedbackView } from './components/GuestFeedbackView.tsx';
-import { ChatBot } from './components/ChatBot.tsx';
-import { SuspendedAccountView } from './components/SuspendedAccountView.tsx';
-import { MandatoryUpdateView } from './components/MandatoryUpdateView.tsx';
-import { TimetableWizard } from './components/TimetableWizard.tsx';
+} from './components/icons/index';
+import { CommunicationsManager } from './components/CommunicationsManager';
+import { EditInstitutionModal } from './components/EditInstitutionModal';
+import { apiService } from './services/apiService';
+import { generateFullSqlScript } from './utils/sqlGenerator';
+import { BrandedPaper } from './components/BrandedPaper';
+import { AcademicYearManager } from './components/AcademicYearManager';
+import { TimetableGenerator } from './components/TimetableGenerator';
+import { ReportsDashboard } from './components/ReportsDashboard';
+import { InteractionsManager } from './components/InteractionsManager';
+import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from './constants';
+import { WallPosterView } from './components/WallPosterView';
+import { TenantInvoiceManager } from './components/TenantInvoiceManager';
+import { DirectAssignModal } from './components/DirectAssignModal';
+import { LecturerView } from './components/LecturerView';
+import { StudentView } from './components/StudentView';
+import { AcademicsOfficerView } from './components/AcademicsOfficerView';
+import { AdminView } from './components/AdminView';
+import { ProfileModal } from './components/ProfileModal';
+import { LoginView } from './components/LoginView';
+import { PublicAppointmentView } from './components/PublicAppointmentView';
+import { GuestFeedbackView } from './components/GuestFeedbackView';
+import { ChatBot } from './components/ChatBot';
+import { SuspendedAccountView } from './components/SuspendedAccountView';
+import { MandatoryUpdateView } from './components/MandatoryUpdateView';
+import { TimetableWizard } from './components/TimetableWizard';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];

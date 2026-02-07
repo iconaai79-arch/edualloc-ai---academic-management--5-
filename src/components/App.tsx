@@ -1,17 +1,17 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { LoginView } from './LoginView.tsx';
-import { AdminView } from '../AdminView.tsx';
-import { SuperAdminView } from '../SuperAdminView.tsx';
-import { LecturerView } from '../LecturerView.tsx';
-import { StudentView } from './StudentView.tsx';
-import { Header } from './Header.tsx';
-import { ChatBot } from './ChatBot.tsx';
-import { MandatoryUpdateView } from './MandatoryUpdateView.tsx';
-import { SuspendedAccountView } from './SuspendedAccountView.tsx';
-import { PublicAppointmentView } from './PublicAppointmentView.tsx';
-import { GuestFeedbackView } from './GuestFeedbackView.tsx';
-import { ProfileModal } from './ProfileModal.tsx';
+import { LoginView } from './LoginView';
+import { AdminView } from '../AdminView';
+import { SuperAdminView } from '../SuperAdminView';
+import { LecturerView } from '../LecturerView';
+import { StudentView } from './StudentView';
+import { Header } from './Header';
+import { ChatBot } from './ChatBot';
+import { MandatoryUpdateView } from './MandatoryUpdateView';
+import { SuspendedAccountView } from './SuspendedAccountView';
+import { PublicAppointmentView } from './PublicAppointmentView';
+import { GuestFeedbackView } from './GuestFeedbackView';
+import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
 import { LibrarianView } from './LibrarianView';
 import { AcademicsOfficerView } from '../AcademicsOfficerView';
@@ -23,7 +23,7 @@ import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
     INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
     INITIAL_ACADEMIC_YEARS, INITIAL_SEMESTERS
-} from '../constants.ts';
+} from '../constants';
 import type {
     User, Role, Institution, AllocationRequest, TimetableEntry,
     Priority, RequestStatus, CompanyDetails, Room, Subject, Course,
@@ -32,8 +32,8 @@ import type {
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, Conflict
-} from '../types.ts';
-import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index.ts';
+} from '../types';
+import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
 const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans">
@@ -585,7 +585,7 @@ export const App: React.FC<any> = (props) => {
                 await apiService.saveInstitution(newInstitution);
                 await apiService.saveUser(newAdmin);
                 if (data.loadDemoData) {
-                    const { generateInstitutionalDemoData } = await import('../utils/demoData.ts');
+                    const { generateInstitutionalDemoData } = await import('../utils/demoData');
                     const d = generateInstitutionalDemoData(instId, adminId);
                     await Promise.all([
                         ...d.departments.map(x => apiService.saveModuleRecord('departments', x)),
