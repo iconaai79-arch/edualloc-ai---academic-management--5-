@@ -227,6 +227,7 @@ export interface AdminViewProps {
     onAddAssignment?: (data: Omit<Assignment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onDeleteAssignment?: (id: string) => void;
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
+    isImpersonating?: boolean;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -500,12 +501,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'interactions' && (
                     <InteractionsManager
                         {...props}
+                        enrollmentRequests={props.enrollmentRequests || []}
                         onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
                         onUpdateRequestStatus={props.onUpdateRequestStatus}
                         onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
-                        getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
-                        getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
-                        allocations={props.allocations || []} // Explicitly pass allocations to InteractionsManager
+                        getLecturerById={props.getLecturerById || ((id) => (props.users || []).find(u => u && u.id === id))}
+                        getSubjectById={props.getSubjectById || ((id) => (props.subjects || []).find(s => s && s.id === id))}
+                        allocations={props.allocations || []}
                     />
                 )}
 

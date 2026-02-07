@@ -49,6 +49,16 @@ interface LecturerViewProps {
     onDeleteTask: (taskId: string) => void;
     currentInstitution?: Institution | null;
     onShareLesson?: (entryId: string, teacherId: string | null) => void;
+    assignments?: any[];
+    submissions?: any[];
+    onAddAssignment?: (data: any) => void;
+    onDeleteAssignment?: (id: string) => void;
+    onUpdateSubmission?: (id: string, data: any) => void;
+    assessments?: any[];
+    assessmentMarks?: any[];
+    onAddAssessment?: (data: any) => void;
+    onDeleteAssessment?: (id: string) => void;
+    onSaveAssessmentMarks?: (id: string, marks: any) => Promise<void>;
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {

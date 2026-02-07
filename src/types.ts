@@ -235,6 +235,9 @@ export interface AllocationRequest {
     justification?: string;
     preferences?: AllocationRequestPreferences;
     signatureUrl?: string | null;
+    requesterId?: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
     proposedChanges?: {
         priority?: Priority;
         justification?: string;

@@ -550,6 +550,37 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string>) => {
+        if (!activeInstitution) return;
+        const now = new Date().toISOString();
+        const promises = subjectIds.map(subjectId => {
+            const req: AllocationRequest = {
+                id: `ar_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                requesterId: currentUser!.id, // Admin is the requester
+                institutionId: activeInstitution.id,
+                subjectId,
+                lecturerId,
+                status: 'approved', // Auto-approved since it's direct assign
+                priority,
+                justification: justification || 'Direct Assignment by Admin',
+                requestedAt: now,
+                reviewedBy: currentUser!.id,
+                reviewedAt: now,
+                courseLevelIds: courseLevelSelections?.[subjectId] ? [courseLevelSelections[subjectId]] : []
+            };
+            return apiService.saveModuleRecord('allocation_requests', req);
+        });
+
+        try {
+            await Promise.all(promises);
+            await loadData(); // Refresh data
+            alert("Subjects assigned successfully.");
+        } catch (error) {
+            console.error("Failed to assign subjects:", error);
+            alert("Failed to assign subjects. Please try again.");
+        }
+    }, [activeInstitution, currentUser, loadData]);
+
     const onGenerateReceipt = useCallback(async (txn: MpesaTransaction) => {
         const id = `rec_${Date.now()}`;
         const receipt: Receipt = {
@@ -988,7 +1019,7 @@ export const App: React.FC = () => {
                                 onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
                                 onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
                                 onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
-                                onDirectAssign={() => { }}
+                                onDirectAssign={handleDirectAssign}
                                 onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
                                 onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
                                 onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
