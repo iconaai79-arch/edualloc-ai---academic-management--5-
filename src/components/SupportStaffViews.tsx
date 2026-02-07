@@ -1,16 +1,16 @@
 
 import React, { useState, useMemo } from 'react';
-import type { 
-    User, VoteHead, Supplier, StockTransaction, Room, Subject, TimetableEntry, 
-    Requisition, InventoryItem, SecurityAlert, Visitor, EmployeeDetails, 
-    PayrollRun, Invoice, Receipt, Course, FeeStructure, Semester, AcademicYear, 
-    CompanyDetails, MpesaTransaction, TimetableSettings, Building, Appointment, 
+import type {
+    User, VoteHead, Supplier, StockTransaction, Room, Subject, TimetableEntry,
+    Requisition, InventoryItem, SecurityAlert, Visitor, EmployeeDetails,
+    PayrollRun, Invoice, Receipt, Course, FeeStructure, Semester, AcademicYear,
+    CompanyDetails, MpesaTransaction, TimetableSettings, Building, Appointment,
     FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument
 } from '../types';
-import { 
-    CurrencyIcon, ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon, 
-    UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon, 
-    CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon, 
+import {
+    ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
+    UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon,
+    CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon,
     BuildingOfficeIcon, ClockIcon, CheckIcon, ArrowUpTrayIcon, ClipboardListIcon,
     LockClosedIcon,
     MpesaIcon,
@@ -112,7 +112,7 @@ const formatDuration = (timeIn?: string, timeOut?: string) => {
     const start = parseTime(timeIn);
     const end = parseTime(timeOut);
     const diff = end - start;
-    if (diff < 0) return "--"; 
+    if (diff < 0) return "--";
     const h = Math.floor(diff / 60);
     const m = diff % 60;
     if (h === 0) return `${m}m`;
@@ -120,7 +120,7 @@ const formatDuration = (timeIn?: string, timeOut?: string) => {
 };
 
 export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
-    const { 
+    const {
         securityAlerts = [], visitors = [], appointments = [], users = [],
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus
     } = props;
@@ -195,13 +195,13 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                            {tab.icon} {tab.label} {tab.count !== undefined && tab.count > 0 && ( <span className="bg-red-50 text-white text-[9px] px-1.5 py-0.5 rounded-full">{tab.count}</span> )}
+                            {tab.icon} {tab.label} {tab.count !== undefined && tab.count > 0 && (<span className="bg-red-50 text-white text-[9px] px-1.5 py-0.5 rounded-full">{tab.count}</span>)}
                         </button>
                     ))}
                 </nav>
             </div>
             {activeTab === 'checkpoint' && (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in-up">
                     <div className="space-y-6">
                         <h3 className="text-xl font-black uppercase tracking-tight">Access Control</h3>
                         <div className="grid grid-cols-1 gap-4">
@@ -243,9 +243,9 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             ))}
                         </div>
                     </div>
-                 </div>
+                </div>
             )}
-            {activeTab === 'alerts' && ( <SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} /> )}
+            {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; }
                 .dark .form-input { border-color: #334155; background-color: #0f172a; color: #fff; }
@@ -254,57 +254,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     );
 };
 
-export const FinanceView: React.FC<SupportStaffViewProps> = (props) => {
-    const { 
-        invoices = [], receipts = [], currentInstitution, 
-        voteHeads = [], onUpdateVoteHeads,
-        financialPeriods = [], onUpdateFinancialPeriods,
-        activeTabInitial = 'dashboard'
-    } = props;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'payroll' | 'billing' | 'payments' | 'requisitions' | 'settings'>(activeTabInitial);
-    const [settingsSubTab, setSettingsSubTab] = useState<'vote_heads' | 'fee_structure' | 'financial_period'>('vote_heads');
-    const [newVoteHeadName, setNewVoteHeadName] = useState('');
-    const [newVoteHeadAmount, setNewVoteHeadAmount] = useState('');
-    
-    const pendingInvoicesTotal = useMemo(() => invoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.totalAmount, 0), [invoices]);
-    const totalReceipts = useMemo(() => receipts.reduce((sum, r) => sum + r.amountPaid, 0), [receipts]);
 
-    const handleAddVoteHead = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (onUpdateVoteHeads && newVoteHeadName.trim()) {
-            const nextPrio = (voteHeads.length > 0 ? Math.max(...voteHeads.map(v => v.priority || 0)) : 0) + 1;
-            onUpdateVoteHeads([...voteHeads, { id: `vh_${Date.now()}`, name: newVoteHeadName.trim(), allocatedAmount: parseFloat(newVoteHeadAmount) || 0, amountSpent: 0, academicYearId: 'current', priority: nextPrio, institutionId: currentInstitution?.id || '' }]);
-            setNewVoteHeadName(''); setNewVoteHeadAmount('');
-        }
-    };
-
-    return (
-        <BaseDashboard title="Institutional Accounts" icon={<CurrencyIcon className="w-6 h-6 text-slate-600" />}>
-            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">
-                {['dashboard', 'billing', 'payments', 'requisitions', 'payroll', 'settings'].map(tab => (
-                    <button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>
-                ))}
-            </nav></div>
-            {activeTab === 'dashboard' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Total Institutional Revenue</h3>
-                        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">KES {totalReceipts.toLocaleString()}</p>
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Uncollected Receivables</h3>
-                        <p className="text-3xl font-black text-red-600 tracking-tighter">KES {pendingInvoicesTotal.toLocaleString()}</p>
-                    </div>
-                </div>
-            )}
-            <style>{`
-                .form-input { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; }
-                .dark .form-input { border-color: #334155; background-color: #0f172a; color: #fff; }
-                .btn-primary { background-color: #4f46e5; color: #fff; font-weight: 700; padding: 0.5rem 1.5rem; border-radius: 0.75rem; border: none; cursor: pointer; transition: all 0.2s; }
-            `}</style>
-        </BaseDashboard>
-    );
-};
 
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const { inventory = [], suppliers = [], users = [], onAddItem, onAddItems, onAddStoreTransaction } = props;
@@ -313,13 +263,13 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const [qrItem, setQrItem] = useState<InventoryItem | null>(null);
     return (
         <BaseDashboard title="Institutional Store" icon={<ArchiveBoxIcon className="w-6 h-6 text-slate-600" />}>
-             <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'inventory', 'history', 'suppliers'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>))}</nav></div>
-             {activeTab === 'inventory' && (
-                 <div className="space-y-6 animate-fade-in-up">
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'inventory', 'history', 'suppliers'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>))}</nav></div>
+            {activeTab === 'inventory' && (
+                <div className="space-y-6 animate-fade-in-up">
                     <div className="flex justify-between items-center">
                         <h3 className="text-xl font-black uppercase tracking-tight">Active Stock Registry</h3>
                         <div className="flex gap-2">
-                             <button onClick={() => setIsAddModalOpen(true)} className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">Add Item</button>
+                            <button onClick={() => setIsAddModalOpen(true)} className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">Add Item</button>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700">
@@ -339,8 +289,8 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                             </tbody>
                         </table>
                     </div>
-                 </div>
-             )}
+                </div>
+            )}
         </BaseDashboard>
     );
 };
@@ -349,10 +299,10 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
     const { visitors = [], generatedTimetable = [], getSubjectById, getRoomById, getLecturerById, timetableSettings } = props;
     return (
         <BaseDashboard title="Visitor Center" icon={<InformationCircleIcon className="w-6 h-6 text-slate-600" />}>
-             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
                 <h3 className="text-xl font-black uppercase tracking-tight mb-6">Institutional Schedule Hub</h3>
                 <TimetableGrid entries={generatedTimetable} getSubjectById={getSubjectById!} getRoomById={getRoomById!} getLecturerById={getLecturerById!} timetableSettings={timetableSettings!} />
-             </div>
+            </div>
         </BaseDashboard>
     );
 };
@@ -365,14 +315,14 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
 
     return (
         <BaseDashboard title={`Vendor Portal: ${supplierProfile.name}`} icon={<BuildingOfficeIcon className="w-6 h-6 text-slate-600" />}>
-             <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'orders', 'catalog', 'profile'].map(tab => (
-                 <button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>
-             ))}</nav></div>
-             
-             {activeTab === 'orders' && (
-                 <div className="space-y-4 animate-fade-in-up">
-                     <h3 className="text-lg font-black uppercase tracking-tight">Active Supply Requests</h3>
-                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-800">
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'orders', 'catalog', 'profile'].map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+            ))}</nav></div>
+
+            {activeTab === 'orders' && (
+                <div className="space-y-4 animate-fade-in-up">
+                    <h3 className="text-lg font-black uppercase tracking-tight">Active Supply Requests</h3>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 divide-y divide-slate-50 dark:divide-slate-800">
                         {requisitions.filter(r => r.supplierId === supplierProfile.id).map(req => (
                             <div key={req.id} className="p-8 hover:bg-slate-50/50 transition-colors">
                                 <div className="flex justify-between items-center">
@@ -384,9 +334,9 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
                                 </div>
                             </div>
                         ))}
-                     </div>
-                 </div>
-             )}
+                    </div>
+                </div>
+            )}
         </BaseDashboard>
     );
 };

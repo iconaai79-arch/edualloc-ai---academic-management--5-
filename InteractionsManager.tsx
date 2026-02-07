@@ -61,7 +61,7 @@ export const InteractionsManager = (props: InteractionsManagerProps) => {
         <div className="flex flex-col md:flex-row gap-8">
             <aside className="md:w-64 flex-shrink-0">
                 <nav className="flex flex-col space-y-1" aria-label="Interaction Type Tabs">
-                    {interactionTabs.map(tabInfo => (
+                    {interactionTabs.map((tabInfo: { key: string; label: string; icon: any }) => (
                         <button
                             key={tabInfo.key}
                             onClick={() => setActiveTab(tabInfo.key)}

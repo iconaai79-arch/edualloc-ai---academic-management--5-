@@ -12,7 +12,7 @@ import { SuspendedAccountView } from './SuspendedAccountView.tsx';
 import { PublicAppointmentView } from './PublicAppointmentView.tsx';
 import { GuestFeedbackView } from './GuestFeedbackView.tsx';
 import { ProfileModal } from './ProfileModal.tsx';
-import { SecurityView, StoreView, InfoDeskView, FinanceView, SupplierView } from './SupportStaffViews.tsx';
+import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews.tsx';
 import { LibrarianView } from './LibrarianView.tsx';
 import { AcademicsOfficerView } from '../AcademicsOfficerView.tsx';
 import { apiService, initSupabaseClient } from '../services/apiService.ts';

@@ -60,7 +60,7 @@ import {
     PlusIcon
 } from './components/icons/index.ts';
 import { CommunicationsManager } from './components/CommunicationsManager.tsx';
-import { EditInstitutionModal } from './EditInstitutionModal.tsx';
+import { EditInstitutionModal } from './components/EditInstitutionModal.tsx';
 import { apiService } from './services/apiService.ts';
 import { generateFullSqlScript } from './utils/sqlGenerator.ts';
 import { BrandedPaper } from './components/BrandedPaper.tsx';
@@ -72,10 +72,10 @@ import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from './c
 import { WallPosterView } from './components/WallPosterView.tsx';
 import { TenantInvoiceManager } from './components/TenantInvoiceManager.tsx';
 import { DirectAssignModal } from './components/DirectAssignModal.tsx';
-import { LecturerView } from './LecturerView.tsx';
+import { LecturerView } from './components/LecturerView.tsx';
 import { StudentView } from './components/StudentView.tsx';
-import { AcademicsOfficerView } from './AcademicsOfficerView.tsx';
-import { AdminView } from './AdminView.tsx';
+import { AcademicsOfficerView } from './components/AcademicsOfficerView.tsx';
+import { AdminView } from './components/AdminView.tsx';
 import { ProfileModal } from './components/ProfileModal.tsx';
 import { LoginView } from './components/LoginView.tsx';
 import { PublicAppointmentView } from './components/PublicAppointmentView.tsx';
@@ -264,7 +264,7 @@ export interface SuperAdminViewProps {
     isImpersonating?: boolean;
 }
 
-export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
+export const SuperAdminView = (props: SuperAdminViewProps) => {
     // Fixed: Defensive empty arrays to handle potentially undefined prop data
     const {
         institutions = [],
@@ -351,6 +351,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
+    const [showDocumentPreview, setShowDocumentPreview] = useState(false);
 
     // State for new institution form
     const [newInstData, setNewInstData] = useState({
@@ -442,14 +443,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const dataUrl = event.target?.result as string;
-            if (type === 'logo') setLocalCompanyInfo(prev => ({ ...prev, logoUrl: dataUrl }));
+            if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: dataUrl }));
             if (type === 'letterhead') {
-                setLocalCompanyInfo(prev => ({
+                setLocalCompanyInfo((prev: any) => ({
                     ...prev,
                     letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl }
                 }));
             }
-            if (type === 'footer') setLocalCompanyInfo(prev => ({ ...prev, footerImageUrl: dataUrl }));
+            if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: dataUrl }));
         };
         reader.readAsDataURL(file);
     };
@@ -614,19 +615,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
             <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2">
                 {tabs.map((tab) => (
                     <button
-                        key={tab.id}
+                        key={tab.key}
                         onClick={() => {
-                            setActiveTab(tab.id as any);
-                            if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                            setActiveTab(tab.key as any);
+                            if (tab.key !== 'settings') setRequestedSettingsTab(undefined);
                         }}
-                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.key
                             ? 'border-indigo-600 text-indigo-600'
                             : 'border-transparent text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         {tab.icon}
                         {tab.label}
-                        {tab.id === 'interactions' && stats.totalActionable > 0 && (
+                        {tab.key === 'interactions' && stats.totalActionable > 0 && (
                             <span className="bg-red-50 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
                                 {stats.totalActionable}
                             </span>
@@ -1087,7 +1088,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
                                                 </div>
                                             </div>
                                         </div>
-                                        {showPaperPreview && (
+                                        {showDocumentPreview && (
                                             <div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top">
                                                 <BrandedPaper
                                                     institution={null}
