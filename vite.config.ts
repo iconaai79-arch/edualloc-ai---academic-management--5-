@@ -8,65 +8,66 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    'process.env.API_KEY': JSON.stringify(env.API_KEY || env.VITE_API_KEY || ""),
-    'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || env.VITE_SUPABASE_URL || ""),
-    'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ""),
-    'process.env.DATABASE_URL': JSON.stringify(env.DATABASE_URL || "")
-  },
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || env.VITE_API_KEY || ""),
+      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || env.VITE_SUPABASE_URL || ""),
+      'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ""),
+      'process.env.DATABASE_URL': JSON.stringify(env.DATABASE_URL || "")
+    },
     server: {
-    proxy: { }
-  },
-  configureServer(server) {
-    server.middlewares.use(async (req, res, next) => {
-      if (req.url?.startsWith('/api/integrations') && req.method === 'POST') {
-        try {
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', async () => {
-            try {
-              const payload = JSON.parse(body);
-              // Mock Vercel Request/Response
-              const vReq: any = {
-                method: 'POST',
-                body: payload,
-                headers: req.headers
-              };
-              const vRes: any = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => {
-                  res.statusCode = code;
-                  return vRes;
-                },
-                json: (data: any) => {
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify(data));
-                  return vRes;
-                },
-                end: () => res.end()
-              };
+      proxy: {}
+    },
+    configureServer(server: any) {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
+        if (req.url?.startsWith('/api/integrations') && req.method === 'POST') {
+          try {
+            let body = '';
+            req.on('data', (chunk: any) => body += chunk);
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body);
+                // Mock Vercel Request/Response
+                const vReq: any = {
+                  method: 'POST',
+                  body: payload,
+                  headers: req.headers
+                };
+                const vRes: any = {
+                  setHeader: (k: string, v: string) => res.setHeader(k, v),
+                  status: (code: number) => {
+                    res.statusCode = code;
+                    return vRes;
+                  },
+                  json: (data: any) => {
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(data));
+                    return vRes;
+                  },
+                  end: () => res.end()
+                };
 
-              // Load handler dynamically
-              const handlerModule = await server.ssrLoadModule('/api/integrations.ts');
-              await handlerModule.default(vReq, vRes);
-            } catch (e: any) {
-              console.error("API Middleware JSON Parse/Handler Error:", e);
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
-            }
-          });
-        } catch (e) {
-          console.error("API Middleware Error:", e);
+                // Load handler dynamically
+                const handlerModule = await server.ssrLoadModule('/api/integrations.ts');
+                await handlerModule.default(vReq, vRes);
+              } catch (e: any) {
+                console.error("API Middleware JSON Parse/Handler Error:", e);
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: e.message }));
+              }
+            });
+          } catch (e) {
+            console.error("API Middleware Error:", e);
+            next();
+          }
+        } else {
           next();
         }
-      } else {
-        next();
-      }
-    });
-  },
-  build: {
-    outDir: 'dist',
+      });
+    },
+    build: {
+      outDir: 'dist',
       sourcemap: false,
-        chunkSizeWarningLimit: 1000
-  }
-};
+      chunkSizeWarningLimit: 1000
+    }
+  };
 });
