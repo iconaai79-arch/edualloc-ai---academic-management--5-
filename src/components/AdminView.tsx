@@ -480,11 +480,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     departments={props.departments || []}
                                     buildings={props.buildings || []}
                                     allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                    getSubjectById={props.getSubjectById || ((id: string) => props.subjects?.find(s => s.id === id))}
+                                    getLecturerById={props.getLecturerById || ((id: string) => props.users?.find(u => u.id === id))}
+                                    getRoomById={props.getRoomById || ((id: string) => props.rooms?.find(r => r.id === id))}
+                                    letterheadConfig={props.letterheadConfig || { institutionName: '', institutionAddress: '', institutionPhone: '', institutionEmail: '', institutionWebsite: '', headerText: '', footerText: '' }}
+                                    logoUrl={props.logoUrl || null}
+                                    footerImageUrl={props.footerImageUrl || null}
+                                    currentUser={props.currentUser}
                                     timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                                    currentInstitution={props.currentInstitution}
-                                    activeAcademicYear={activeAcademicYear}
-                                    activeSemester={activeSemester}
+                                    onSaveTimetableSettings={props.onSaveTimetableSettings || (() => { })}
                                     academicYears={props.academicYears || []}
+                                    activeSemester={activeSemester}
+                                    currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
                                 />
