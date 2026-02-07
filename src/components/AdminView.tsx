@@ -1,56 +1,56 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import type { 
-    User, Department, Subject, Building, Room, AllocationRequest, 
-    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, 
-    TimetableSettings, Course, AcademicYear, Semester, RequestStatus, 
+import type {
+    User, Department, Subject, Building, Room, AllocationRequest,
+    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig,
+    TimetableSettings, Course, AcademicYear, Semester, RequestStatus,
     Institution, Priority, CompanyDetails, MpesaTransaction,
-    ExamTimetableSettings, AcademicLevel, StudentAttendance, 
+    ExamTimetableSettings, AcademicLevel, StudentAttendance,
     Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest,
-    EnrollmentRequest, AbsenceRequest, LecturerContract, 
-    ExamTimetableEntry, Conflict, UserTask, ExtensionRequest, 
+    EnrollmentRequest, AbsenceRequest, LecturerContract,
+    ExamTimetableEntry, Conflict, UserTask, ExtensionRequest,
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
     Assignment, Submission, UserUpdateData
-} from '../types.ts';
-import { UserManager } from './UserManager.tsx';
-import { TimetableGenerator } from './TimetableGenerator.tsx';
-import { SettingsManager } from './SettingsManager.tsx';
-import { SubjectManager } from './SubjectManager.tsx';
-import { CourseManager } from './CourseManager.tsx';
-import { InteractionsManager } from './InteractionsManager.tsx';
-import { CommunicationsManager } from './CommunicationsManager.tsx';
-import { ReportsDashboard } from './ReportsDashboard.tsx';
-import { 
-    ClipboardListIcon, 
-    UserGroupIcon, 
-    CalendarDaysIcon, 
-    Cog8ToothIcon, 
-    ChartPieIcon, 
-    ArrowsRightLeftIcon, 
-    ChatBubbleBottomCenterTextIcon, 
-    BookOpenIcon, 
-    ChartBarIcon, 
-    SparklesIcon, 
-    AcademicCapIcon, 
-    EyeIcon, 
-    ShieldIcon, 
-    ArchiveBoxIcon, 
-    CurrencyIcon, 
-    UserIcon, 
-    XIcon, 
-    ArrowPathIcon, 
+} from '../types';
+import { UserManager } from './UserManager';
+import { TimetableGenerator } from './TimetableGenerator';
+import { SettingsManager } from './SettingsManager';
+import { SubjectManager } from './SubjectManager';
+import { CourseManager } from './CourseManager';
+import { InteractionsManager } from './InteractionsManager';
+import { CommunicationsManager } from './CommunicationsManager';
+import { ReportsDashboard } from './ReportsDashboard';
+import {
+    ClipboardListIcon,
+    UserGroupIcon,
+    CalendarDaysIcon,
+    Cog8ToothIcon,
+    ChartPieIcon,
+    ArrowsRightLeftIcon,
+    ChatBubbleBottomCenterTextIcon,
+    BookOpenIcon,
+    ChartBarIcon,
+    SparklesIcon,
+    AcademicCapIcon,
+    EyeIcon,
+    ShieldIcon,
+    ArchiveBoxIcon,
+    CurrencyIcon,
+    UserIcon,
+    XIcon,
+    ArrowPathIcon,
     ExclamationTriangleIcon,
     BeakerIcon,
     PlusIcon
-} from './icons/index.ts';
-import { DirectAssignModal } from './DirectAssignModal.tsx';
-import { AcademicYearManager } from './AcademicYearManager.tsx';
-import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants.ts';
-import { EditInstitutionModal } from './EditInstitutionModal.tsx';
-import { TimetableWizard } from './TimetableWizard.tsx';
-import { apiService } from '../services/apiService.ts';
+} from './icons/index';
+import { DirectAssignModal } from './DirectAssignModal';
+import { AcademicYearManager } from './AcademicYearManager';
+import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
+import { EditInstitutionModal } from './EditInstitutionModal';
+import { TimetableWizard } from './TimetableWizard';
+import { apiService } from '../services/apiService';
 
 export interface AdminViewProps {
     currentUser: User;
@@ -90,7 +90,7 @@ export interface AdminViewProps {
     emailConfig: EmailConfig;
     timetableConflicts: Conflict[];
     currentInstitution?: Institution | null;
-    
+
     onAddUser?: (userData: any) => void;
     onEditUser: (id: string, data: any) => Promise<void>;
     onDeleteUser: (id: string) => Promise<void>;
@@ -220,7 +220,7 @@ export interface AdminViewProps {
     onToggleInstitutionStatus: (institutionId: string) => void;
     onLoginAsAdmin: (institutionId: string) => void;
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
-    
+
     // New Props
     assignments?: Assignment[];
     submissions?: Submission[];
@@ -232,7 +232,7 @@ export interface AdminViewProps {
 export const AdminView: React.FC<AdminViewProps> = (props) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
-    
+
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'interactions' | 'users' | 'courses' | 'comms' | 'settings' | 'reports'>(props.currentUser?.role === 'finance' ? 'settings' : 'dashboard');
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -247,10 +247,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     const tabs = useMemo(() => {
         if (props.currentUser?.role === 'finance') {
-             return [
+            return [
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5" /> },
                 { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5" /> },
-             ];
+            ];
         }
         return [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
@@ -297,11 +297,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             setActiveTab(tab.id as any);
                             if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
                         }}
-                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${
-                            activeTab === tab.id 
-                            ? 'border-indigo-600 text-indigo-600' 
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
-                        }`}
+                        className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? 'border-indigo-600 text-indigo-600'
+                                : 'border-transparent text-slate-500 hover:text-slate-700'
+                            }`}
                     >
                         {tab.icon}
                         {tab.label}
@@ -328,7 +327,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                         <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">There are {stats.totalActionable} allocation requests awaiting your final authorization.</p>
                                     </div>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('interactions')}
                                     className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95"
                                 >
@@ -362,7 +361,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 Operational Hub
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', 'wizard')}
                                     className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
                                 >
@@ -372,7 +371,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
                                     <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setIsPerspectiveModalOpen(true)}
                                     className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
                                 >
@@ -382,7 +381,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
                                     <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('users')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -391,7 +390,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </div>
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Staff Hub</span>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -400,7 +399,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </div>
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : 'Academic Calendar'}</span>
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
                                 >
@@ -439,13 +438,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
                 {activeTab === 'timetable' && (
                     <div className="space-y-6">
-                         <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
-                             <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Wizard</button>
-                             <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Lesson Scheduler</button>
-                             <button onClick={() => setTimetableSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Academic Calendar</button>
-                             <button onClick={() => setTimetableSubTab('subjects')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Subject Registry</button>
+                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit">
+                            <button onClick={() => setTimetableSubTab('wizard')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'wizard' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Wizard</button>
+                            <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Lesson Scheduler</button>
+                            <button onClick={() => setTimetableSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Academic Calendar</button>
+                            <button onClick={() => setTimetableSubTab('subjects')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-50'}`}>Subject Registry</button>
                         </div>
-                        
+
                         <div className="animate-fade-in-up">
                             {timetableSubTab === 'wizard' ? (
                                 <TimetableWizard
@@ -464,31 +463,31 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     onTimetableGenerated={props.onTimetableGenerated}
                                 />
                             ) : timetableSubTab === 'calendar' ? (
-                                <AcademicYearManager 
-                                    academicYears={props.academicYears || []} 
-                                    semesters={props.semesters || []} 
-                                    onAddAcademicYear={props.onAddAcademicYear} 
-                                    onUpdateAcademicYear={props.onUpdateAcademicYear} 
-                                    onDeleteAcademicYear={props.onDeleteAcademicYear} 
-                                    onAddSemester={props.onAddSemester} 
-                                    onUpdateSemester={props.onUpdateSemester} 
-                                    onDeleteSemester={props.onDeleteSemester} 
-                                    currentInstitution={props.currentInstitution} 
+                                <AcademicYearManager
+                                    academicYears={props.academicYears || []}
+                                    semesters={props.semesters || []}
+                                    onAddAcademicYear={props.onAddAcademicYear}
+                                    onUpdateAcademicYear={props.onUpdateAcademicYear}
+                                    onDeleteAcademicYear={props.onDeleteAcademicYear}
+                                    onAddSemester={props.onAddSemester}
+                                    onUpdateSemester={props.onUpdateSemester}
+                                    onDeleteSemester={props.onDeleteSemester}
+                                    currentInstitution={props.currentInstitution}
                                 />
                             ) : timetableSubTab === 'subjects' ? (
-                                <SubjectManager 
-                                    {...props} 
-                                    onAddSubject={props.onAddSubject} 
-                                    onUpdateSubject={props.onUpdateSubject} 
-                                    onDeleteSubject={props.onDeleteSubject} 
-                                    onEditSubject={props.onEditSubject} 
-                                    onSaveTimetableSettings={props.onSaveTimetableSettings!} 
+                                <SubjectManager
+                                    {...props}
+                                    onAddSubject={props.onAddSubject}
+                                    onUpdateSubject={props.onUpdateSubject}
+                                    onDeleteSubject={props.onDeleteSubject}
+                                    onEditSubject={props.onEditSubject}
+                                    onSaveTimetableSettings={props.onSaveTimetableSettings!}
                                     onUpdateCourse={props.onUpdateCourse}
                                     onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                                     currentUser={props.currentUser}
                                 />
                             ) : (
-                                <TimetableGenerator 
+                                <TimetableGenerator
                                     {...props}
                                     allocations={(props.requests || []).filter(r => r && (r.status === 'approved' || r.status === 'hod_approved'))}
                                     lecturers={props.users || []}
@@ -505,8 +504,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'interactions' && (
-                    <InteractionsManager 
-                        {...props} 
+                    <InteractionsManager
+                        {...props}
                         onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
                         onUpdateRequestStatus={props.onUpdateRequestStatus}
                         onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
@@ -517,8 +516,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'users' && (
-                    <UserManager 
-                        {...props} 
+                    <UserManager
+                        {...props}
                         user={props.currentUser}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         onImportUsers={props.onImportUsers}
@@ -530,14 +529,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'courses' && (
-                    <CourseManager 
-                        {...props} 
+                    <CourseManager
+                        {...props}
                         courses={props.courses || []}
-                        onAddCourse={props.onAddCourse} 
-                        onImportCourses={props.onImportCourses} 
-                        onUpdateCourse={props.onUpdateCourse} 
-                        onDeleteCourse={props.onDeleteCourse} 
-                        allocations={props.allocations || []} 
+                        onAddCourse={props.onAddCourse}
+                        onImportCourses={props.onImportCourses}
+                        onUpdateCourse={props.onUpdateCourse}
+                        onDeleteCourse={props.onDeleteCourse}
+                        allocations={props.allocations || []}
                         currentUser={props.currentUser}
                         timetableSettings={props.timetableSettings}
                         onSaveTimetableSettings={props.onSaveTimetableSettings}
@@ -545,16 +544,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'comms' && (
-                    <CommunicationsManager 
-                        {...props} 
+                    <CommunicationsManager
+                        {...props}
                         onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
                     />
                 )}
 
                 {activeTab === 'settings' && (
-                    <SettingsManager 
-                        {...props} 
+                    <SettingsManager
+                        {...props}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         initialTab={requestedSettingsTab}
                         currentUser={props.currentUser}
@@ -579,7 +578,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {activeTab === 'reports' && (
-                    <ReportsDashboard 
+                    <ReportsDashboard
                         {...props}
                         lecturers={props.users || []}
                         allTimetableEntries={props.allTimetableEntries || []}
@@ -599,7 +598,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     subjects={props.subjects || []}
                     courses={props.courses || []}
                     onClose={() => setIsDirectAssignOpen(false)}
-                    onAssign={props.onDirectAssign || (() => {})}
+                    onAssign={props.onDirectAssign || (() => { })}
                 />
             )}
 
@@ -615,7 +614,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         </div>
                         <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {perspectiveOptions.map(opt => (
-                                <button 
+                                <button
                                     key={opt.role}
                                     onClick={() => {
                                         props.onSwitchPerspective?.(opt.role as Role);
@@ -633,12 +632,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 </div>
             )}
-            
+
             {editingInstitution && (
                 <EditInstitutionModal
                     institution={editingInstitution}
                     onClose={() => setEditingInstitution(null)}
-                    onSave={async (id, data) => { if(props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
+                    onSave={async (id, data) => { if (props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
                     defaultPrices={companyDetails.subscriptionConfig}
                 />
             )}

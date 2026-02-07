@@ -1,13 +1,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution } from '../types';
-import { 
-    BookOpenIcon, 
-    ClockIcon, 
-    CalendarDaysIcon, 
-    CheckIcon, 
-    XIcon, 
-    MapPinIcon, 
+import {
+    BookOpenIcon,
+    ClockIcon,
+    CalendarDaysIcon,
+    CheckIcon,
+    XIcon,
+    MapPinIcon,
     ClockInIcon,
     StarIcon,
     ArrowsRightLeftIcon,
@@ -20,30 +20,30 @@ import {
     CheckCircleIcon,
     PlusIcon,
     ArrowPathIcon
-} from './icons/index.ts';
-import { AbsenceRequestModal } from './AbsenceRequestModal.tsx';
-import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils.ts';
-import { MyTasks } from './MyTasks.tsx';
+} from './icons/index';
+import { AbsenceRequestModal } from './AbsenceRequestModal';
+import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
+import { MyTasks } from './MyTasks';
 
 
 interface LecturerDashboardProps {
-  user: User;
-  requests: AllocationRequest[];
-  allocations: AllocationRequest[];
-  subjects: Subject[];
-  getSubjectById: (id: string) => Subject | undefined;
-  getRoomById: (id: string) => Room | undefined;
-  setActiveTab: (tab: string | any) => void;
-  generatedTimetable: TimetableEntry[];
-  onLessonCheckIn: (timetableEntryId: string) => void;
-  onAbsenceRequest: (timetableEntryId: string, reason: string) => void;
-  userTasks: UserTask[];
-  onAddTask: (task: { title: string; dueDate?: string; }) => void;
-  onUpdateTask: (taskId: string, isComplete: boolean) => void;
-  onDeleteTask: (taskId: string) => void;
-  onNavigateToNearby: () => void;
-  currentInstitution?: Institution | null;
-  onRequestChange?: (allocation: AllocationRequest) => void;
+    user: User;
+    requests: AllocationRequest[];
+    allocations: AllocationRequest[];
+    subjects: Subject[];
+    getSubjectById: (id: string) => Subject | undefined;
+    getRoomById: (id: string) => Room | undefined;
+    setActiveTab: (tab: string | any) => void;
+    generatedTimetable: TimetableEntry[];
+    onLessonCheckIn: (timetableEntryId: string) => void;
+    onAbsenceRequest: (timetableEntryId: string, reason: string) => void;
+    userTasks: UserTask[];
+    onAddTask: (task: { title: string; dueDate?: string; }) => void;
+    onUpdateTask: (taskId: string, isComplete: boolean) => void;
+    onDeleteTask: (taskId: string) => void;
+    onNavigateToNearby: () => void;
+    currentInstitution?: Institution | null;
+    onRequestChange?: (allocation: AllocationRequest) => void;
 }
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; colorClass?: string }> = ({ title, value, icon, colorClass = 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' }) => (
@@ -60,17 +60,17 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: React.Re
 
 
 const RequestStatusIcon: React.FC<{ status: RequestStatus }> = ({ status }) => {
-  const baseClasses = "w-5 h-5 mr-3 flex-shrink-0";
-  if (status === 'approved') {
-    return <div className="p-1 rounded-full bg-green-100 dark:bg-green-900"><CheckIcon className={`${baseClasses} text-green-600 dark:text-green-300`} /></div>;
-  }
-  if (status === 'disapproved') {
-    return <div className="p-1 rounded-full bg-red-100 dark:bg-red-900"><XIcon className={`${baseClasses} text-red-600 dark:text-red-300`} /></div>;
-  }
-   if (status === 'deallocation_pending') {
-    return <div className="p-1 rounded-full bg-rose-100 dark:bg-rose-900"><ClockIcon className={`${baseClasses} text-rose-600 dark:text-rose-300`} /></div>;
-  }
-  return <div className="p-1 rounded-full bg-yellow-100 dark:bg-yellow-900"><ClockIcon className={`${baseClasses} text-yellow-600 dark:text-yellow-300`} /></div>;
+    const baseClasses = "w-5 h-5 mr-3 flex-shrink-0";
+    if (status === 'approved') {
+        return <div className="p-1 rounded-full bg-green-100 dark:bg-green-900"><CheckIcon className={`${baseClasses} text-green-600 dark:text-green-300`} /></div>;
+    }
+    if (status === 'disapproved') {
+        return <div className="p-1 rounded-full bg-red-100 dark:bg-red-900"><XIcon className={`${baseClasses} text-red-600 dark:text-red-300`} /></div>;
+    }
+    if (status === 'deallocation_pending') {
+        return <div className="p-1 rounded-full bg-rose-100 dark:bg-rose-900"><ClockIcon className={`${baseClasses} text-rose-600 dark:text-rose-300`} /></div>;
+    }
+    return <div className="p-1 rounded-full bg-yellow-100 dark:bg-yellow-900"><ClockIcon className={`${baseClasses} text-yellow-600 dark:text-yellow-300`} /></div>;
 };
 
 interface UpcomingLessonsWidgetProps {
@@ -99,7 +99,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
     }>>({});
 
     useEffect(() => {
-        const timer = setInterval(() => setNow(new Date()), 5000); 
+        const timer = setInterval(() => setNow(new Date()), 5000);
         return () => clearInterval(timer);
     }, []);
 
@@ -117,7 +117,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
         }
 
         if (!navigator.geolocation) {
-             setCheckInState(prev => ({
+            setCheckInState(prev => ({
                 ...prev,
                 [lesson.id]: {
                     status: 'error',
@@ -134,7 +134,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                 message: "Verifying your location..."
             }
         }));
-        
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
@@ -143,7 +143,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                 if (distance <= PROXIMITY_THRESHOLD_METERS) {
                     onCheckIn(lesson.id);
                     setCheckInState(prev => {
-                        const newState = {...prev};
+                        const newState = { ...prev };
                         delete newState[lesson.id];
                         return newState;
                     });
@@ -159,7 +159,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                 }
             },
             (error) => {
-                 setCheckInState(prev => ({
+                setCheckInState(prev => ({
                     [lesson.id]: {
                         status: 'error',
                         message: `Could not get location: ${error.message}. Please enable location services and try again.`
@@ -192,7 +192,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                 if (dayA !== dayB) return dayA - dayB;
                 return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
             })
-            .slice(0, 3); 
+            .slice(0, 3);
     }, [now, timetable, userId]);
 
     const handleAbsenceSubmit = (reason: string) => {
@@ -205,7 +205,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
     if (upcomingLessons.length === 0) {
         return null;
     }
-    
+
     return (
         <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-6">
@@ -222,7 +222,7 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                     const lessonStartMinutes = timeToMinutes(lesson.startTime);
                     const lessonEndMinutes = timeToMinutes(lesson.endTime);
                     const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                    
+
                     const canCheckIn = isToday && (nowMinutes >= lessonStartMinutes - 15) && (nowMinutes < lessonEndMinutes);
                     const isLive = isToday && nowMinutes >= lessonStartMinutes && nowMinutes < lessonEndMinutes;
 
@@ -240,17 +240,17 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                                         {lesson.day} • {lesson.startTime} - {lesson.endTime} • Room <span className="text-indigo-600">{room?.name || 'N/A'}</span>
                                     </p>
                                 </div>
-                                 <div className="flex-shrink-0 flex items-center gap-2">
+                                <div className="flex-shrink-0 flex items-center gap-2">
                                     {lesson.attendanceStatus === 'present' ? (
                                         <span className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-green-700 bg-green-50 border border-green-100">Handshake Verified</span>
                                     ) : lesson.attendanceStatus === 'pending_absence_request' ? (
                                         <span className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-amber-700 bg-amber-50 border border-amber-100">Absence Notified</span>
-                                    ): (
+                                    ) : (
                                         <>
                                             <button onClick={() => setAbsenceModalEntry(lesson)} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50">Notify Absence</button>
                                             {canCheckIn && (
-                                                <button 
-                                                    onClick={() => handleCheckInAttempt(lesson)} 
+                                                <button
+                                                    onClick={() => handleCheckInAttempt(lesson)}
                                                     className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-60"
                                                     disabled={currentCheckInState?.status === 'checking'}
                                                 >
@@ -269,9 +269,9 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                                             {currentCheckInState.message}
                                         </p>
                                         {currentCheckInState.mapUrl && (
-                                             <a 
-                                                href={currentCheckInState.mapUrl} 
-                                                target="_blank" 
+                                            <a
+                                                href={currentCheckInState.mapUrl}
+                                                target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline"
                                             >
@@ -305,7 +305,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
     const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
     const approvedAllocationsCount = allocations.length;
-    
+
     const calculateTotalPeriods = (structure: LessonStructure[]) => {
         if (!structure || !Array.isArray(structure)) return 0;
         return structure.reduce((sum, s) => sum + (s.periods || 0) * (s.count || 0), 0);
@@ -335,7 +335,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         const hod = requests.filter(r => r.lecturerId === user.id && r.status === 'hod_approved');
         const approved = requests.filter(r => r.lecturerId === user.id && r.status === 'approved');
         const changes = requests.filter(r => r.lecturerId === user.id && r.status === 'change_request_pending');
-        
+
         return {
             pendingCount: pending.length,
             hodCount: hod.length,
@@ -352,7 +352,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                     <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1">Faculty Access Portal • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 {useRequests && (
-                    <button 
+                    <button
                         onClick={() => setActiveTab('my_requests')}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-3 rounded-2xl shadow-xl shadow-indigo-100 dark:shadow-none transition-all flex items-center gap-2 text-xs uppercase tracking-widest active:scale-95"
                     >
@@ -370,26 +370,26 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 onCheckIn={onLessonCheckIn}
                 onAbsenceRequest={onAbsenceRequest}
             />
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard 
-                    title="Allocated Units" 
-                    value={`${approvedAllocationsCount} Units`} 
-                    icon={<BookOpenIcon className="w-7 h-7" />} 
+                <StatCard
+                    title="Allocated Units"
+                    value={`${approvedAllocationsCount} Units`}
+                    icon={<BookOpenIcon className="w-7 h-7" />}
                     colorClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300"
                 />
                 {useRequests && (
-                    <StatCard 
-                        title="In Review Queue" 
-                        value={pendingRequestsCount} 
-                        icon={<ClockIcon className="w-7 h-7" />} 
+                    <StatCard
+                        title="In Review Queue"
+                        value={pendingRequestsCount}
+                        icon={<ClockIcon className="w-7 h-7" />}
                         colorClass="bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300"
                     />
                 )}
-                <StatCard 
-                    title="Weekly Contact Hours" 
-                    value={`${totalAllocatedPeriods} Periods`} 
-                    icon={<CalendarDaysIcon className="w-7 h-7" />} 
+                <StatCard
+                    title="Weekly Contact Hours"
+                    value={`${totalAllocatedPeriods} Periods`}
+                    icon={<CalendarDaysIcon className="w-7 h-7" />}
                     colorClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
                 />
             </div>
@@ -403,16 +403,16 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                         </div>
                         <h3 className="text-xl font-black uppercase tracking-tight">Registry Processing Pipeline</h3>
                     </div>
-                    
+
                     <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative">
                         {/* Connecting Line */}
                         <div className="hidden md:block absolute top-6 left-12 right-12 h-1 bg-slate-100 dark:bg-slate-700 -z-0"></div>
-                        
+
                         {[
-                            { label: 'Departmental Review', count: registryFlowItems.pendingCount, icon: <BookOpenIcon className="w-5 h-5"/>, active: registryFlowItems.pendingCount > 0 },
-                            { label: 'Registry Verification', count: registryFlowItems.hodCount, icon: <ShieldIcon className="w-5 h-5"/>, active: registryFlowItems.hodCount > 0 },
-                            { label: 'Modifications', count: registryFlowItems.changesCount, icon: <ArrowsRightLeftIcon className="w-5 h-5"/>, active: registryFlowItems.changesCount > 0 },
-                            { label: 'Active Load', count: approvedAllocationsCount, icon: <CheckCircleIcon className="w-5 h-5"/>, active: approvedAllocationsCount > 0, success: true }
+                            { label: 'Departmental Review', count: registryFlowItems.pendingCount, icon: <BookOpenIcon className="w-5 h-5" />, active: registryFlowItems.pendingCount > 0 },
+                            { label: 'Registry Verification', count: registryFlowItems.hodCount, icon: <ShieldIcon className="w-5 h-5" />, active: registryFlowItems.hodCount > 0 },
+                            { label: 'Modifications', count: registryFlowItems.changesCount, icon: <ArrowsRightLeftIcon className="w-5 h-5" />, active: registryFlowItems.changesCount > 0 },
+                            { label: 'Active Load', count: approvedAllocationsCount, icon: <CheckCircleIcon className="w-5 h-5" />, active: approvedAllocationsCount > 0, success: true }
                         ].map((step, idx) => (
                             <div key={idx} className="flex flex-col items-center relative z-10 w-full md:w-auto">
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${step.active ? (step.success ? 'bg-green-600 text-white shadow-lg shadow-green-100' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110') : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>
@@ -444,7 +444,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                             </div>
                             <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Target: 15/wk</span>
                         </div>
-                        
+
                         <div className="space-y-6">
                             <div className="relative pt-1">
                                 <div className="flex mb-2 items-center justify-between">
@@ -463,7 +463,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                     <div style={{ width: `${Math.min(100, (totalAllocatedPeriods / 15) * 100)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-600 transition-all duration-1000 ease-out rounded-full"></div>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {allocations.slice(0, 4).map(alloc => {
                                     const subject = getSubjectById(alloc.subjectId);
@@ -471,7 +471,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                         <div key={alloc.id} className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:border-indigo-200 transition-all">
                                             <div className="flex justify-between items-start mb-2">
                                                 <span className="text-[10px] font-mono font-black text-indigo-600 uppercase tracking-tighter">{subject?.code}</span>
-                                                <button onClick={() => onRequestChange?.(alloc)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600"><ArrowsRightLeftIcon className="w-4 h-4"/></button>
+                                                <button onClick={() => onRequestChange?.(alloc)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600"><ArrowsRightLeftIcon className="w-4 h-4" /></button>
                                             </div>
                                             <p className="font-bold text-slate-800 dark:text-white uppercase tracking-tight text-sm truncate">{subject?.name}</p>
                                         </div>
@@ -499,8 +499,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                             <h3 className="text-xl font-black uppercase tracking-tight">Academic Hub</h3>
                         </div>
                         <div className="space-y-3">
-                             {useRequests && (
-                                <button 
+                            {useRequests && (
+                                <button
                                     onClick={() => setActiveTab('my_requests')}
                                     className="w-full text-left p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-900/50 hover:bg-white hover:shadow-xl hover:border-indigo-200 border-2 border-transparent transition-all group"
                                 >
@@ -508,8 +508,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                     <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">Apply for Subject Load</p>
                                     <p className="text-sm text-slate-500 mt-2 font-medium">Find and request units across all departments.</p>
                                 </button>
-                             )}
-                             <button 
+                            )}
+                            <button
                                 onClick={() => setActiveTab('my_timetable')}
                                 className="w-full text-left p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-900/50 hover:bg-white hover:shadow-xl hover:border-indigo-200 border-2 border-transparent transition-all group"
                             >
@@ -522,7 +522,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
                     {useRequests && (
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                             <div className="flex items-center gap-3 mb-6">
+                            <div className="flex items-center gap-3 mb-6">
                                 <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
                                     <ClipboardListIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                                 </div>
@@ -538,7 +538,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                                 <p className="text-sm font-bold text-slate-800 dark:text-white truncate uppercase tracking-tight">{subject?.name}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{req.status.replace(/_/g, ' ')}</p>
                                             </div>
-                                            <span className="text-[10px] font-mono text-slate-400">{new Date(req.timestamp).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
+                                            <span className="text-[10px] font-mono text-slate-400">{new Date(req.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                                         </div>
                                     );
                                 }) : (

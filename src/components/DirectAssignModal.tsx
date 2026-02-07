@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { User, Subject, Priority, Course } from '../types';
 import { generateBulkJustification, generateJustification } from '../services/geminiService';
-import { SparklesIcon, XIcon, PlusIcon, CheckIcon, MagnifyingGlassIcon, ChevronDownIcon } from './icons/index.ts';
+import { SparklesIcon, XIcon, PlusIcon, CheckIcon, MagnifyingGlassIcon, ChevronDownIcon } from './icons/index';
 
 interface DirectAssignModalProps {
     lecturers: User[];
@@ -68,7 +68,7 @@ export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers 
             return newSet;
         });
     };
-    
+
     const handleLevelSelectionChange = (subjectId: string, levelId: string) => {
         setCourseLevelSelections(prev => {
             const currentSelection = prev[subjectId] || [];
@@ -86,14 +86,14 @@ export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers 
 
         setIsGenerating(true);
         try {
-            const generatedText = selectedSubjects.length === 1 
+            const generatedText = selectedSubjects.length === 1
                 ? await generateJustification(lecturer, selectedSubjects[0])
                 : await generateBulkJustification(lecturer, selectedSubjects);
             setJustification(generatedText || "");
         } catch (error) {
             console.error("Error generating justification:", error);
         } finally {
-             setIsGenerating(false);
+            setIsGenerating(false);
         }
     }, [lecturerId, selectedSubjects, lecturers]);
 
@@ -126,31 +126,31 @@ export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers 
                             <label htmlFor="lecturer-select" className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Faculty Member</label>
                             <select id="lecturer-select" value={lecturerId} onChange={e => setLecturerId(e.target.value)} className="form-select" required>
                                 <option value="" disabled>Select a faculty member...</option>
-                                {(lecturers || []).map(l => l && <option key={l.id} value={l.id}>{l.name} ({l.role?.replace('_',' ')})</option>)}
+                                {(lecturers || []).map(l => l && <option key={l.id} value={l.id}>{l.name} ({l.role?.replace('_', ' ')})</option>)}
                             </select>
                         </div>
-                        
+
                         <div className="space-y-3">
                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Target Subjects</label>
-                             <div className="relative">
+                            <div className="relative">
                                 <MagnifyingGlassIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Filter subjects..." 
+                                <input
+                                    type="text"
+                                    placeholder="Filter subjects..."
                                     value={subjectSearchQuery}
                                     onChange={e => setSubjectSearchQuery(e.target.value)}
                                     className="form-input pl-10 text-sm h-11"
                                 />
-                             </div>
+                            </div>
                             <div className="border border-slate-100 dark:border-slate-800 rounded-3xl max-h-60 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-3 space-y-1 shadow-inner">
                                 {(filteredSubjects || []).map(s => {
-                                     if (!s) return null;
-                                     const isSelected = selectedSubjectIds.has(s.id);
-                                     const isExpanded = expandedSubjectId === s.id;
-                                     const levels = subjectCourseLevels.get(s.id) || [];
-                                     const selectedLevelCount = (courseLevelSelections[s.id] || []).length;
+                                    if (!s) return null;
+                                    const isSelected = selectedSubjectIds.has(s.id);
+                                    const isExpanded = expandedSubjectId === s.id;
+                                    const levels = subjectCourseLevels.get(s.id) || [];
+                                    const selectedLevelCount = (courseLevelSelections[s.id] || []).length;
 
-                                     return (
+                                    return (
                                         <div key={s.id} className={`rounded-2xl transition-all ${isSelected ? 'bg-white dark:bg-slate-800 shadow-md ring-2 ring-indigo-500/20' : 'hover:bg-white/50'}`}>
                                             <div className="flex items-center p-3">
                                                 <input
@@ -190,7 +190,7 @@ export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers 
                                                 </div>
                                             )}
                                         </div>
-                                     );
+                                    );
                                 })}
                             </div>
                             <div className="flex justify-between items-center px-1">

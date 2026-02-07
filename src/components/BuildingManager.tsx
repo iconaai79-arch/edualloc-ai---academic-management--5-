@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { Building, Room, Institution, Subject, Course } from '../types.ts';
+import type { Building, Room, Institution, Subject, Course } from '../types';
 import {
     PlusIcon,
     XIcon,
@@ -17,8 +17,8 @@ import {
     ArrowUpTrayIcon,
     SparklesIcon,
     MapPinIcon
-} from './icons/index.ts';
-import { findLocationCoordinates } from '../services/geminiService.ts';
+} from './icons/index';
+import { findLocationCoordinates } from '../services/geminiService';
 
 declare var XLSX: any;
 

@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, FeedbackSubmission, LessonRating, EnrollmentRequest, StudentAbsenceRequest, StudentAbsenceRequestStatus, Department, Course, RequestStatus } from '../types';
 import { LecturerInteractionManager } from './LecturerInteractionManager';
 import { StudentInteractionManager } from './StudentInteractionManager';
-import { UserGroupIcon, AcademicCapIcon } from './icons/index.ts';
+import { UserGroupIcon, AcademicCapIcon } from './icons/index';
 
 interface InteractionsManagerProps {
     // Lecturer Props
@@ -17,7 +17,7 @@ interface InteractionsManagerProps {
     timeOffRequests: TimeOffRequest[];
     onUpdateTimeOffRequestStatus?: (requestId: string, newStatus: TimeOffRequestStatus) => void;
     contracts: LecturerContract[];
-    
+
     // Student Props
     feedbackSubmissions: FeedbackSubmission[];
     onUpdateFeedbackStatus?: (submissionId: string, status: FeedbackSubmission['status']) => void;
@@ -75,20 +75,20 @@ export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) =
                 </nav>
             </aside>
             <main className="flex-1 min-w-0">
-                {activeInteractionTab === 'lecturer' && <LecturerInteractionManager 
-                    {...props} 
+                {activeInteractionTab === 'lecturer' && <LecturerInteractionManager
+                    {...props}
                     allocations={props.allocations || []} // Pass allocations
-                    onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => {})}
-                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => {})}
-                    onOpenDirectAssign={props.onOpenDirectAssign || (() => {})}
-                    onUpdateRequest={props.onUpdateRequest || (() => {})}
-                    onUpdateTimeOffRequestStatus={props.onUpdateTimeOffRequestStatus || (() => {})}
+                    onUpdateRequestStatus={props.onUpdateRequestStatus || (async () => { })}
+                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus || (async () => { })}
+                    onOpenDirectAssign={props.onOpenDirectAssign || (() => { })}
+                    onUpdateRequest={props.onUpdateRequest || (() => { })}
+                    onUpdateTimeOffRequestStatus={props.onUpdateTimeOffRequestStatus || (() => { })}
                 />}
-                {activeInteractionTab === 'student' && !isSchool && <StudentInteractionManager 
-                    {...props} 
-                    onUpdateFeedbackStatus={props.onUpdateFeedbackStatus || (() => {})}
-                    onUpdateEnrollmentRequest={props.onUpdateEnrollmentRequest || (() => {})}
-                    onUpdateStudentAbsenceRequestStatus={props.onUpdateStudentAbsenceRequestStatus || (() => {})}
+                {activeInteractionTab === 'student' && !isSchool && <StudentInteractionManager
+                    {...props}
+                    onUpdateFeedbackStatus={props.onUpdateFeedbackStatus || (() => { })}
+                    onUpdateEnrollmentRequest={props.onUpdateEnrollmentRequest || (() => { })}
+                    onUpdateStudentAbsenceRequestStatus={props.onUpdateStudentAbsenceRequestStatus || (() => { })}
                 />}
             </main>
         </div>

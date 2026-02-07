@@ -1,28 +1,28 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { TimetableEntry, Subject, User, Department, Building, Room, LetterheadConfig, Course, TimetableSettings, AllocationRequest, Semester, AcademicYear, Institution } from '../types';
-import { TimetableGrid } from './TimetableGrid.tsx';
-import { DepartmentWorkloadSummary } from './DepartmentWorkloadSummary.tsx';
-import { RelationsView } from './RelationsView.tsx';
-import { MasterCourseTimetableGrid } from './MasterCourseTimetableGrid.tsx';
-import { DepartmentalMasterTimetable } from './DepartmentalMasterTimetable.tsx';
-import { 
-    BuildingOfficeIcon, 
-    ChartBarIcon, 
-    CalendarDaysIcon, 
-    UserGroupIcon, 
-    PrinterIcon, 
-    DocumentArrowDownIcon, 
-    UserIcon, 
+import { TimetableGrid } from './TimetableGrid';
+import { DepartmentWorkloadSummary } from './DepartmentWorkloadSummary';
+import { RelationsView } from './RelationsView';
+import { MasterCourseTimetableGrid } from './MasterCourseTimetableGrid';
+import { DepartmentalMasterTimetable } from './DepartmentalMasterTimetable';
+import {
+    BuildingOfficeIcon,
+    ChartBarIcon,
+    CalendarDaysIcon,
+    UserGroupIcon,
+    PrinterIcon,
+    DocumentArrowDownIcon,
+    UserIcon,
     RectangleStackIcon,
     EyeIcon,
     XIcon
-} from './icons/index.ts';
-import { generateMasterCourseTimetablePdf } from '../services/pdfService.ts';
-import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils.ts';
-import { MasterBuildingTimetable } from './MasterBuildingTimetable.tsx';
-import { generatePastelColor } from '../utils/colorUtils.ts';
-import { getInitials } from '../utils/stringUtils.ts';
+} from './icons/index';
+import { generateMasterCourseTimetablePdf } from '../services/pdfService';
+import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
+import { MasterBuildingTimetable } from './MasterBuildingTimetable';
+import { generatePastelColor } from '../utils/colorUtils';
+import { getInitials } from '../utils/stringUtils';
 
 export interface TimetablesViewProps {
     generatedTimetable: TimetableEntry[];
@@ -65,7 +65,7 @@ const PdfPreviewModal: React.FC<{ url: string; onClose: () => void }> = ({ url, 
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Ready for Print or Archiving</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button 
+                        <button
                             onClick={() => {
                                 const link = document.createElement('a');
                                 link.href = url;
@@ -82,10 +82,10 @@ const PdfPreviewModal: React.FC<{ url: string; onClose: () => void }> = ({ url, 
                     </div>
                 </div>
                 <div className="flex-grow bg-slate-100 dark:bg-slate-950 p-4">
-                    <iframe 
-                        src={`${url}#toolbar=1&navpanes=0&scrollbar=1`} 
-                        className="w-full h-full rounded-2xl shadow-inner border border-slate-200 dark:border-slate-800 bg-white" 
-                        title="PDF Preview" 
+                    <iframe
+                        src={`${url}#toolbar=1&navpanes=0&scrollbar=1`}
+                        className="w-full h-full rounded-2xl shadow-inner border border-slate-200 dark:border-slate-800 bg-white"
+                        title="PDF Preview"
                     />
                 </div>
             </div>
@@ -108,7 +108,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [selectedBuildingId, setSelectedBuildingId] = useState<string>('all');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-    
+
     const activeAcademicYear = useMemo(() => (academicYears || []).find(y => y && y.status === 'active'), [academicYears]);
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -155,8 +155,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         if (!generatedTimetable || generatedTimetable.length === 0) return;
         setIsGeneratingPdf(true);
         try {
-            const coursesToInclude = selectedCourseForMasterView === 'all' 
-                ? (courses || []) 
+            const coursesToInclude = selectedCourseForMasterView === 'all'
+                ? (courses || [])
                 : (courses || []).filter(c => c && c.id === selectedCourseForMasterView);
 
             const blob = await generateMasterCourseTimetablePdf(
@@ -188,7 +188,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
     return (
         <div className="space-y-6">
-             <style>{`
+            <style>{`
                 .form-select { display: block; border-radius: 0.75rem; border: 1px solid #e2e8f0; padding: 0.25rem 2.5rem 0.25rem 1rem; background-color: white; appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.75rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; }
                 .dark .form-select { border-color: #334155; background-color: #0f172a; color: white; }
                 @media print {
@@ -196,7 +196,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 }
             `}</style>
 
-             <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between no-print bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between no-print bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex flex-wrap gap-2">
                     <button onClick={() => setViewMode('master_course')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_course' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
                         {isSchool ? 'Grade' : 'Course'} Map
@@ -211,11 +211,11 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         Single {staffLabel}
                     </button>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-3">
                     {(viewMode === 'grid' || viewMode === 'master_staff') && (
-                        <select 
-                            value={selectedDay} 
+                        <select
+                            value={selectedDay}
                             onChange={e => setSelectedDay(e.target.value)}
                             className="form-select text-[10px] font-black uppercase tracking-widest h-11 w-36"
                         >
@@ -224,8 +224,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     )}
                     {viewMode === 'master_course' && (
                         <>
-                            <select 
-                                value={selectedCourseForMasterView} 
+                            <select
+                                value={selectedCourseForMasterView}
                                 onChange={e => setSelectedCourseForMasterView(e.target.value)}
                                 className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
                             >
@@ -245,22 +245,22 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
             <div className="printable-area">
                 {viewMode === 'master_course' ? (
-                        <MasterCourseTimetableGrid
-                            courses={courses || []}
-                            subjects={subjects || []}
-                            lecturers={lecturers || []}
-                            rooms={rooms || []}
-                            entries={generatedTimetable || []}
-                            getSubjectById={getSubjectById}
-                            getLecturerById={getLecturerById}
-                            getRoomById={getRoomById}
-                            timetableSettings={timetableSettings}
-                            selectedCourseId={selectedCourseForMasterView}
-                            academicYears={academicYears || []}
-                            activeSemester={activeSemester}
-                            isSchool={isSchool}
-                            currentInstitution={currentInstitution}
-                        />
+                    <MasterCourseTimetableGrid
+                        courses={courses || []}
+                        subjects={subjects || []}
+                        lecturers={lecturers || []}
+                        rooms={rooms || []}
+                        entries={generatedTimetable || []}
+                        getSubjectById={getSubjectById}
+                        getLecturerById={getLecturerById}
+                        getRoomById={getRoomById}
+                        timetableSettings={timetableSettings}
+                        selectedCourseId={selectedCourseForMasterView}
+                        academicYears={academicYears || []}
+                        activeSemester={activeSemester}
+                        isSchool={isSchool}
+                        currentInstitution={currentInstitution}
+                    />
                 ) : viewMode === 'grid' ? (
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 print:bg-transparent print:p-0 print:mb-4 flex justify-between items-center">
@@ -307,7 +307,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                                         const lecturer = (lecturers || []).find(l => l && l.id === entry.lecturerId);
                                                         const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
                                                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
-                                                        for(let k=0; k<colSpan; k++) if(periodHeaders[pIdx+k]) occupiedSlots.add(periodHeaders[pIdx+k].startTime);
+                                                        for (let k = 0; k < colSpan; k++) if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
 
                                                         return (
                                                             <td key={pIdx} colSpan={colSpan} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle">

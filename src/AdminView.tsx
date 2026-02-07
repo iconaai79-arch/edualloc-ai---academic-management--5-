@@ -13,7 +13,7 @@ import type {
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
     Assignment, Submission, UserUpdateData
-} from './types.ts';
+} from './types';
 import { UserManager } from './components/UserManager';
 import { TimetableGenerator } from './components/TimetableGenerator';
 import { SettingsManager } from './components/SettingsManager';
@@ -298,8 +298,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
                         }}
                         className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                ? 'border-indigo-600 text-indigo-600'
-                                : 'border-transparent text-slate-500 hover:text-slate-700'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         {tab.icon}

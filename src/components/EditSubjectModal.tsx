@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Subject, Department, Room, Course, Institution, TimetableSettings, TimetableConstraint, TimetableConstraintType, User, CourseLevel } from '../types.ts';
-import { XIcon, PlusIcon, MagnifyingGlassIcon, CheckIcon, InformationCircleIcon } from './icons/index.ts';
+import type { Subject, Department, Room, Course, Institution, TimetableSettings, TimetableConstraint, TimetableConstraintType, User, CourseLevel } from '../types';
+import { XIcon, PlusIcon, MagnifyingGlassIcon, CheckIcon, InformationCircleIcon } from './icons/index';
 
 interface EditSubjectModalProps {
     subject: Subject;
@@ -43,7 +43,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [selectedLevelId, setSelectedLevelId] = useState('');
     const [courseSearchQuery, setCourseSearchQuery] = useState('');
-    
+
     // For new subjects, we store associations locally until the subject is created
     const [pendingLevelIds, setPendingLevelIds] = useState<string[]>([]);
 
@@ -68,7 +68,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
 
     const associatedCourses = useMemo(() => {
         const associations: { courseName: string, levelName: string, courseId: string, levelId: string, isPending: boolean }[] = [];
-        
+
         // 1. Add existing associations from the DB
         (courses || []).forEach(course => {
             if (!course) return;
@@ -109,10 +109,10 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
 
     const availableCoursesForAssociation = useMemo(() => {
         let available = isSchool ? (courses || []) : (courses || []).filter(c => c && c.departmentId === (formData.departmentId || subject.departmentId));
-        
+
         if (courseSearchQuery.trim()) {
             const query = courseSearchQuery.toLowerCase();
-            available = (available || []).filter(c => 
+            available = (available || []).filter(c =>
                 c && (c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query))
             );
         }
@@ -138,7 +138,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         }
 
         const levelId = selectedLevelId || (course.levels[0] ? course.levels[0].id : '');
-        
+
         if (!levelId) {
             alert("No valid stream found.");
             return;
@@ -242,14 +242,14 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                     <input type="text" name="code" value={formData.code || ''} onChange={handleChange} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder="MATH101" required />
                                 </div>
                             </div>
-                            
+
                             <div className="space-y-4">
                                 {!isSchool && (
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Academic Department</label>
                                         <select name="departmentId" value={formData.departmentId || ''} onChange={handleChange} className="form-select" required disabled={isRestrictedToDept}>
                                             <option value="" disabled>-- Select Department --</option>
-                                            {(departments || []).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                                            {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                         </select>
                                     </div>
                                 )}
@@ -261,8 +261,8 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                         </div>
 
                         <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-                             <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Associated {isSchool ? 'Grades & Streams' : 'Courses & Levels'}</h4>
-                             {associatedCourses.length > 0 ? (
+                            <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Associated {isSchool ? 'Grades & Streams' : 'Courses & Levels'}</h4>
+                            {associatedCourses.length > 0 ? (
                                 <div className="flex flex-wrap gap-2 mb-4">
                                     {associatedCourses.map((assoc, i) => (
                                         <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${assoc.isPending ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400'}`}>
@@ -271,15 +271,15 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                         </span>
                                     ))}
                                 </div>
-                             ) : <p className="mb-4 text-xs text-slate-500 italic">No associations defined yet.</p>}
-                             
+                            ) : <p className="mb-4 text-xs text-slate-500 italic">No associations defined yet.</p>}
+
                             <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
                                 <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Link to Registry</h5>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[9px] font-black text-slate-500 uppercase mb-1">Search {isSchool ? 'Grade' : 'Course'}</label>
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             placeholder="Type to filter..."
                                             value={courseSearchQuery}
                                             onChange={(e) => setCourseSearchQuery(e.target.value)}
@@ -302,9 +302,9 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                         )}
                                     </div>
                                 </div>
-                                <button 
-                                    type="button" 
-                                    onClick={handleAddAssociation} 
+                                <button
+                                    type="button"
+                                    onClick={handleAddAssociation}
                                     disabled={!selectedCourseId || (levelsForSelectedCourse.length > 0 && !selectedLevelId)}
                                     className="mt-4 w-full btn-primary h-11 shadow-lg disabled:opacity-50"
                                 >
@@ -327,7 +327,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                         <div className="flex-grow">
                                             <select value={ls.dedicatedRoomId || ''} onChange={e => handleStructureChange(index, 'dedicatedRoomId', e.target.value)} className="form-select w-full text-xs py-1.5">
                                                 <option value="">Auto-Assign Room</option>
-                                                {(rooms || []).map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                                                {(rooms || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                             </select>
                                         </div>
                                         <button type="button" onClick={() => removeStructure(index)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><XIcon className="w-5 h-5" /></button>
@@ -347,9 +347,9 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
 
                     <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-5 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
                         <div>
-                             {!isNew && onDeleteSubject && (
+                            {!isNew && onDeleteSubject && (
                                 <button type="button" onClick={() => onDeleteSubject(subject.id)} className="text-[10px] font-black uppercase text-red-500 hover:underline transition-all">Purge Unit</button>
-                             )}
+                            )}
                         </div>
                         <div className="flex items-center gap-3">
                             <button type="button" onClick={onClose} className="btn-secondary h-12 px-6">Discard</button>

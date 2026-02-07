@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
-import type { MpesaTransaction, Institution, TransactionStatus, Receipt, CompanyDetails } from './types.ts';
-import { downloadReceiptPdf } from './services/pdfService.ts';
+import type { MpesaTransaction, Institution, TransactionStatus, Receipt, CompanyDetails } from './types';
+import { downloadReceiptPdf } from './services/pdfService';
 
 interface TransactionsManagerProps {
     transactions: MpesaTransaction[];
@@ -34,7 +34,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
     const sortedTransactions = useMemo(() => {
         return [...transactions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [transactions]);
-    
+
     const filteredTransactions = useMemo(() => {
         if (!searchQuery.trim()) {
             return sortedTransactions;
@@ -50,7 +50,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
             );
         });
     }, [sortedTransactions, searchQuery, institutionMap]);
-    
+
     const totalRevenue = useMemo(() => {
         return transactions
             .filter(t => t.status === 'completed')
@@ -73,7 +73,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     />
                 </div>
             </div>
-            
+
             <div className="mb-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
                 <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Revenue (Completed)</h4>
                 <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">
@@ -91,7 +91,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Payer Info</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Date</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
-                             <th scope="col" className="relative px-6 py-3">
+                            <th scope="col" className="relative px-6 py-3">
                                 <span className="sr-only">Actions</span>
                             </th>
                         </tr>
@@ -111,28 +111,28 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                     }
                                 };
                                 return (
-                                <tr key={txn.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                        <div>{txn.payerName}</div>
-                                        <div className="text-xs">{txn.phoneNumber}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                        {new Date(txn.timestamp).toLocaleString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <TransactionStatusBadge status={txn.status} />
-                                    </td>
-                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        {txn.status === 'completed' && (
-                                            <button onClick={handleAction} className="text-[var(--color-primary)] hover:brightness-125">
-                                                {receipt ? 'Download Receipt' : 'Generate Receipt'}
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                    <tr key={txn.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                            <div>{txn.payerName}</div>
+                                            <div className="text-xs">{txn.phoneNumber}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                            {new Date(txn.timestamp).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            <TransactionStatusBadge status={txn.status} />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            {txn.status === 'completed' && (
+                                                <button onClick={handleAction} className="text-[var(--color-primary)] hover:brightness-125">
+                                                    {receipt ? 'Download Receipt' : 'Generate Receipt'}
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
                                 );
                             })
                         ) : (

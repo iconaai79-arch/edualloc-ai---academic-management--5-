@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { StarIcon, CheckCircleIcon, BuildingOfficeIcon, XIcon, MagnifyingGlassIcon } from './icons/index.ts';
+import { StarIcon, CheckCircleIcon, BuildingOfficeIcon, XIcon, MagnifyingGlassIcon } from './icons/index';
 import type { GuestFeedback, Institution, FeedbackSubmission } from '../types';
 
 interface GuestFeedbackViewProps {
@@ -100,11 +100,11 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Identity (Optional)</label>
-                                <input 
-                                    type="text" 
-                                    value={guestName} 
-                                    onChange={e => setGuestName(e.target.value)} 
-                                    className="form-input h-12" 
+                                <input
+                                    type="text"
+                                    value={guestName}
+                                    onChange={e => setGuestName(e.target.value)}
+                                    className="form-input h-12"
                                     placeholder="e.g. John Smith"
                                 />
                             </div>
@@ -112,11 +112,11 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Visit Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={visitDate} 
-                                        onChange={e => setVisitDate(e.target.value)} 
-                                        className="form-input h-12" 
+                                    <input
+                                        type="date"
+                                        value={visitDate}
+                                        onChange={e => setVisitDate(e.target.value)}
+                                        className="form-input h-12"
                                         required
                                     />
                                 </div>
@@ -132,7 +132,7 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
                                     ) : (
                                         <div className="relative">
                                             <MagnifyingGlassIcon className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Search registry..."
                                                 value={searchQuery}
@@ -175,11 +175,10 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
                                         className="focus:outline-none transition-transform hover:scale-125"
                                     >
                                         <StarIcon
-                                            className={`w-12 h-12 transition-colors ${
-                                                (hoverRating || rating) >= star
+                                            className={`w-12 h-12 transition-colors ${(hoverRating || rating) >= star
                                                     ? 'text-yellow-400 drop-shadow-md'
                                                     : 'text-slate-100 dark:text-slate-700'
-                                            }`}
+                                                }`}
                                         />
                                     </button>
                                 ))}
@@ -195,7 +194,7 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
 
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Observational Notes</label>
-                            <textarea 
+                            <textarea
                                 rows={4}
                                 value={comments}
                                 onChange={e => setComments(e.target.value)}
@@ -205,8 +204,8 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
                             ></textarea>
                         </div>
 
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-4 rounded-2xl shadow-xl transition-all active:scale-[0.98] uppercase tracking-widest text-xs"
                         >
                             Commit Feedback

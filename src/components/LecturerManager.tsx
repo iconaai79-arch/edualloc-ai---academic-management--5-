@@ -3,16 +3,16 @@ import type {
     User, Role, SmsConfig, Department, Unavailability, Course,
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
     AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig
-} from '../types.ts';
+} from '../types';
 import {
     PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
     CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
     // FIXED: Added missing icons
     DocumentArrowDownIcon, MagnifyingGlassIcon
-} from './icons/index.ts';
-import { analyzeUserSpreadsheet } from '../services/geminiService.ts';
-import { EditUserModal } from './EditUserModal.tsx';
-import { ManageLessonsModal } from './ManageLessonsModal.tsx';
+} from './icons/index';
+import { analyzeUserSpreadsheet } from '../services/geminiService';
+import { EditUserModal } from './EditUserModal';
+import { ManageLessonsModal } from './ManageLessonsModal';
 
 declare var XLSX: any;
 

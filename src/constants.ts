@@ -1,5 +1,5 @@
 
-import type { Institution, User, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types.ts';
+import type { Institution, User, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types';
 
 export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     name: "EduAi Solutions",
@@ -15,27 +15,27 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
         defaultYearlyPrice: 50000
     },
     mpesaConfig: { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' },
-    emailConfig: { 
-        host: 'mail.eduai.co.ke', 
-        port: 587, 
-        username: 'info@eduai.co.ke', 
-        password: 'password', 
-        encryption: 'tls', 
-        fromName: 'EduAi Support', 
-        fromEmail: 'info@eduai.co.ke' 
+    emailConfig: {
+        host: 'mail.eduai.co.ke',
+        port: 587,
+        username: 'info@eduai.co.ke',
+        password: 'password',
+        encryption: 'tls',
+        fromName: 'EduAi Support',
+        fromEmail: 'info@eduai.co.ke'
     },
-    smsConfig: { 
-        provider: 'ABMIS', 
-        apiKey: '', 
-        apiSecret: '', 
-        fromNumber: 'ABMIS' 
+    smsConfig: {
+        provider: 'ABMIS',
+        apiKey: '',
+        apiSecret: '',
+        fromNumber: 'ABMIS'
     },
     letterheadConfig: { headerImageUrl: null, stampImageUrl: null },
-    databaseConfig: { 
-        dbType: 'postgresql', 
-        host: '', 
-        port: '5432', 
-        username: '', 
+    databaseConfig: {
+        dbType: 'postgresql',
+        host: '',
+        port: '5432',
+        username: '',
         dbName: '',
         supabaseUrl: 'https://your-project.supabase.co',
         supabaseAnonKey: ''
@@ -116,31 +116,31 @@ export const INITIAL_SUBJECTS: Subject[] = [
 ];
 
 export const INITIAL_COURSES: Course[] = [
-    { 
-        id: 'c_form1', name: 'Form 1', code: 'F1', departmentId: 'dept_math', institutionId: INST_DEMO, academicLevelId: 'senior', 
+    {
+        id: 'c_form1', name: 'Form 1', code: 'F1', departmentId: 'dept_math', institutionId: INST_DEMO, academicLevelId: 'senior',
         levels: [
             { id: 'lvl_f1_east', name: 'East', subjectIds: ['sub_math', 'sub_eng', 'sub_kisw', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_hist', 'sub_geo'] },
             { id: 'lvl_f1_west', name: 'West', subjectIds: ['sub_math', 'sub_eng', 'sub_kisw', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_cre', 'sub_comp'] }
         ]
     },
-    { 
-        id: 'c_form2', name: 'Form 2', code: 'F2', departmentId: 'dept_math', institutionId: INST_DEMO, academicLevelId: 'senior', 
+    {
+        id: 'c_form2', name: 'Form 2', code: 'F2', departmentId: 'dept_math', institutionId: INST_DEMO, academicLevelId: 'senior',
         levels: [
             { id: 'lvl_f2_east', name: 'East', subjectIds: ['sub_math', 'sub_eng', 'sub_kisw', 'sub_chem', 'sub_phy', 'sub_bio'] },
             { id: 'lvl_f2_west', name: 'West', subjectIds: ['sub_math', 'sub_eng', 'sub_kisw', 'sub_chem', 'sub_phy', 'sub_bio'] }
         ]
     },
-    { 
-        id: 'c_form3', name: 'Form 3', code: 'F3', departmentId: 'dept_sci', institutionId: INST_DEMO, academicLevelId: 'senior', 
+    {
+        id: 'c_form3', name: 'Form 3', code: 'F3', departmentId: 'dept_sci', institutionId: INST_DEMO, academicLevelId: 'senior',
         levels: [
-             { id: 'lvl_f3_sci', name: 'Science Stream', subjectIds: ['sub_math', 'sub_eng', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_comp'] },
-             { id: 'lvl_f3_arts', name: 'Arts Stream', subjectIds: ['sub_math', 'sub_eng', 'sub_hist', 'sub_geo', 'sub_cre', 'sub_kisw'] }
+            { id: 'lvl_f3_sci', name: 'Science Stream', subjectIds: ['sub_math', 'sub_eng', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_comp'] },
+            { id: 'lvl_f3_arts', name: 'Arts Stream', subjectIds: ['sub_math', 'sub_eng', 'sub_hist', 'sub_geo', 'sub_cre', 'sub_kisw'] }
         ]
     },
-    { 
-        id: 'c_form4', name: 'Form 4', code: 'F4', departmentId: 'dept_sci', institutionId: INST_DEMO, academicLevelId: 'senior', 
+    {
+        id: 'c_form4', name: 'Form 4', code: 'F4', departmentId: 'dept_sci', institutionId: INST_DEMO, academicLevelId: 'senior',
         levels: [
-             { id: 'lvl_f4_cand', name: 'Candidates', subjectIds: ['sub_math', 'sub_eng', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_hist', 'sub_geo'] }
+            { id: 'lvl_f4_cand', name: 'Candidates', subjectIds: ['sub_math', 'sub_eng', 'sub_chem', 'sub_phy', 'sub_bio', 'sub_hist', 'sub_geo'] }
         ]
     }
 ];

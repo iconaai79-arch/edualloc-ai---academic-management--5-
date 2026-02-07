@@ -45,7 +45,7 @@ import {
     EnvelopeIcon,
     PhoneIcon,
     PaperAirplaneIcon
-} from './icons/index.ts';
+} from './icons/index';
 import { SubjectManager } from './SubjectManager';
 import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';

@@ -7,9 +7,9 @@ import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { SettingsManager } from './SettingsManager';
-import { ClipboardListIcon, Cog8ToothIcon, PrinterIcon, DocumentArrowDownIcon, CalendarDaysIcon, BookOpenIcon, CheckCircleIcon, SparklesIcon, CommandLineIcon, BeakerIcon } from './icons/index.ts';
+import { ClipboardListIcon, Cog8ToothIcon, PrinterIcon, DocumentArrowDownIcon, CalendarDaysIcon, BookOpenIcon, CheckCircleIcon, SparklesIcon, CommandLineIcon, BeakerIcon } from './icons/index';
 import { generateStandardExamTimetable } from '../utils/examUtils';
-import { TimetableWizard } from './TimetableWizard.tsx';
+import { TimetableWizard } from './TimetableWizard';
 
 interface AcademicsOfficerViewProps {
     currentUser: User;
@@ -24,7 +24,7 @@ interface AcademicsOfficerViewProps {
     onUpdateRoom?: (roomId: string, data: any) => void;
     onDeleteRoom?: (roomId: string) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
-    
+
     departments: Department[];
     onAddDepartment?: (name: string) => Promise<void> | void;
     onUpdateDepartment?: (id: string, name: string) => void;
@@ -41,16 +41,16 @@ interface AcademicsOfficerViewProps {
     getRoomById: (id: string) => Room | undefined;
     courseSizes: Map<string, number>;
     academicYears: AcademicYear[];
-    onAddAcademicYear?: (data: Omit<AcademicYear, 'id'|'institutionId'|'status'>) => void;
+    onAddAcademicYear?: (data: Omit<AcademicYear, 'id' | 'institutionId' | 'status'>) => void;
     onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id' | 'institutionId'>>) => Promise<void>;
     onDeleteAcademicYear?: (yearId: string) => void;
     semesters: Semester[];
-    onAddSemester?: (data: Omit<Semester, 'id'|'institutionId'>) => void;
-    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id'|'institutionId'|'academicYearId'>>) => Promise<void>;
+    onAddSemester?: (data: Omit<Semester, 'id' | 'institutionId'>) => void;
+    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id' | 'institutionId' | 'academicYearId'>>) => Promise<void>;
     onDeleteSemester?: (semesterId: string) => void;
     timetableSettings: TimetableSettings;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
-    
+
     buildings: Building[];
     onAddBuilding?: (name: string) => Promise<boolean>;
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
@@ -77,14 +77,14 @@ interface AcademicsOfficerViewProps {
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
-    const { 
-        currentUser, subjects = [], courses = [], users = [], rooms = [], departments = [], 
-        activeAcademicYear, activeSemester, onExamTimetableGenerated, examTimetable = [], 
-        getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig, 
-        logoUrl, footerImageUrl, currentInstitution, timetableSettings, 
-        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [] 
+    const {
+        currentUser, subjects = [], courses = [], users = [], rooms = [], departments = [],
+        activeAcademicYear, activeSemester, onExamTimetableGenerated, examTimetable = [],
+        getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig,
+        logoUrl, footerImageUrl, currentInstitution, timetableSettings,
+        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = []
     } = props;
-    
+
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -107,12 +107,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         setError(null);
         try {
             const subjectsWithExams = (Array.isArray(subjects) ? subjects : []).filter(s => s && s.hasExam !== false);
-            
+
             if (generationMode === 'ai') {
                 const lecturers = (Array.isArray(users) ? users : []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin');
                 const allExamPeriods = (activeSemester.sessions || []).flatMap(s => s.examPeriods || []);
                 if (allExamPeriods.length === 0) throw new Error("No exam periods defined.");
-                
+
                 const allStartDates = allExamPeriods.map(p => new Date(p.startDate));
                 const allEndDates = allExamPeriods.map(p => new Date(p.endDate));
                 const examPeriod = {
@@ -139,7 +139,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         const subjectIdsInDept = new Set((Array.isArray(subjects) ? subjects : []).filter(s => s && s.departmentId === departmentFilter).map(s => s.id));
         return list.filter(entry => entry && subjectIdsInDept.has(entry.subjectId));
     }, [examTimetable, departmentFilter, subjects]);
-    
+
     const title = useMemo(() => {
         if (departmentFilter === 'all') return 'Exam Timetable (All Departments)';
         const dept = (Array.isArray(departments) ? departments : []).find(d => d && d.id === departmentFilter);
@@ -172,7 +172,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             setIsGeneratingPdf(false);
         }
     };
-    
+
     const handlePrint = () => {
         window.print();
     };
@@ -187,7 +187,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     <button onClick={() => setActiveTab('settings')} className={`${activeTab === 'settings' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white'} inline-flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}><Cog8ToothIcon className="w-5 h-5 mr-2" /> Settings</button>
                 </nav>
             </div>
-            
+
             {activeTab === 'dashboard' && (
                 <div className="space-y-6">
                     <section className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
@@ -196,7 +196,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             Operational Hub
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <button 
+                            <button
                                 onClick={() => setIsWizardOpen(true)}
                                 className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
                             >
@@ -230,17 +230,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => setGenerationMode('ai')}
                                             className={`btn-secondary ${generationMode === 'ai' ? 'ring-2 ring-indigo-500' : ''}`}
                                         >
-                                            <SparklesIcon className="w-4 h-4 inline mr-1"/> AI Mode
+                                            <SparklesIcon className="w-4 h-4 inline mr-1" /> AI Mode
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => setGenerationMode('standard')}
                                             className={`btn-secondary ${generationMode === 'standard' ? 'ring-2 ring-indigo-500' : ''}`}
                                         >
-                                            <CommandLineIcon className="w-4 h-4 inline mr-1"/> Std Mode
+                                            <CommandLineIcon className="w-4 h-4 inline mr-1" /> Std Mode
                                         </button>
                                         <button onClick={handleGenerate} disabled={isLoading} className="btn-primary">
                                             {isLoading ? 'Generating...' : `Generate (${generationMode.toUpperCase()})`}
@@ -257,9 +257,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
                             <div className="flex items-center gap-4">
                                 <label htmlFor="dept-filter" className="text-sm font-medium text-slate-700 dark:text-slate-300">Filter by Department:</label>
-                                <select 
+                                <select
                                     id="dept-filter"
-                                    value={departmentFilter} 
+                                    value={departmentFilter}
                                     onChange={e => setDepartmentFilter(e.target.value)}
                                     className="form-select"
                                 >
@@ -268,15 +268,15 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 </select>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => window.print()} className="btn-secondary inline-flex items-center gap-2"><PrinterIcon className="w-5 h-5"/> Print</button>
+                                <button onClick={() => window.print()} className="btn-secondary inline-flex items-center gap-2"><PrinterIcon className="w-5 h-5" /> Print</button>
                                 <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2">
-                                    <DocumentArrowDownIcon className="w-5 h-5"/> {isGeneratingPdf ? 'Generating...' : 'PDF'}
+                                    <DocumentArrowDownIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Generating...' : 'PDF'}
                                 </button>
                             </div>
                         </div>
                         <div className="overflow-x-auto">
                             {/* FIXED: currentInstitution is now correctly passed to ExamTimetableGrid */}
-                            <ExamTimetableGrid 
+                            <ExamTimetableGrid
                                 entries={filteredExamTimetable}
                                 getSubjectById={getSubjectById}
                                 getLecturerById={getLecturerById}
@@ -314,13 +314,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                                 {departments.find(d => d.id === subject.departmentId)?.name || 'Unknown'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <button 
+                                                <button
                                                     onClick={() => onUpdateSubject(subject.id, { hasExam: subject.hasExam === false ? true : false })}
-                                                    className={`inline-flex items-center justify-center p-2 rounded-full transition-colors ${
-                                                        subject.hasExam !== false 
-                                                        ? 'bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/50 dark:hover:bg-green-900' 
-                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600'
-                                                    }`}
+                                                    className={`inline-flex items-center justify-center p-2 rounded-full transition-colors ${subject.hasExam !== false
+                                                            ? 'bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/50 dark:hover:bg-green-900'
+                                                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600'
+                                                        }`}
                                                     title={subject.hasExam !== false ? "Click to disable exam" : "Click to enable exam"}
                                                 >
                                                     {subject.hasExam !== false ? <CheckCircleIcon className="w-6 h-6" /> : <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-500" />}
@@ -364,7 +363,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     currentInstitution={currentInstitution}
                     courseSizes={courseSizes}
                     timeOffRequests={props.timeOffRequests || []}
-                    onTimetableGenerated={props.onTimetableGenerated || (async () => {})}
+                    onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
                 />
             )}
 

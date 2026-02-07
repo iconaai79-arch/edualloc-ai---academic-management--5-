@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Role, Department, UserUpdateData, Institution } from '../types.ts';
+import type { User, Role, Department, UserUpdateData, Institution } from '../types';
 
 interface EditUserModalProps {
   user: User;
@@ -43,8 +43,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
     if (!isSchool && rolesWithDepartment.includes(role) && !assignedDepartmentId) {
-        alert(`Please assign a department for the ${role.toUpperCase()}.`);
-        return;
+      alert(`Please assign a department for the ${role.toUpperCase()}.`);
+      return;
     }
 
     if (name.trim() && email.trim() && phoneNumber.trim() && staffId.trim()) {
@@ -63,7 +63,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   };
 
   if (!user) return null;
-  
+
   const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
   return (
@@ -72,7 +72,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         <form onSubmit={handleSubmit}>
           <div className="p-6">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Edit User: {user.name}</h3>
-            
+
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="edit-user-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
@@ -85,20 +85,20 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   required
                 />
               </div>
-              
+
               <div>
-                    <label htmlFor="edit-user-gender" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                    <select
-                        id="edit-user-gender"
-                        value={gender}
-                        onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                    >
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
+                <label htmlFor="edit-user-gender" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
+                <select
+                  id="edit-user-gender"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
 
               <div>
                 <label htmlFor="edit-user-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
@@ -151,63 +151,63 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
               </div>
 
               <div>
-                  <label htmlFor="edit-user-role" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role</label>
-                  <select
-                      id="edit-user-role"
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as Role)}
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                      disabled={!!fixedDepartmentId && user.role === role} // Disable if restricted (HOD editing within dept)
-                  >
-                    {isSchool ? (
-                        <>
-                            <option value="head_teacher">Head Teacher</option>
-                            <option value="deputy">Deputy</option>
-                            <option value="dos">DOS</option>
-                            <option value="teacher">Teacher</option>
-                            <option value="practice_teacher">Practice Teacher</option>
-                            <option value="librarian">Librarian</option>
-                            <option value="finance">Finance</option>
-                            <option value="security">Security</option>
-                            <option value="info_desk">Info Desk</option>
-                            <option value="store">Storekeeper</option>
-                        </>
-                    ) : (
-                        <>
-                            <option value="lecturer">Lecturer</option>
-                            <option value="hod">HOD</option>
-                            <option value="tto">TTO</option>
-                            <option value="admin">Chair TTO</option>
-                            <option value="deputy">Deputy</option>
-                            <option value="academics_officer">Academics Officer</option>
-                            <option value="practice_teacher">Practice Teacher</option>
-                            <option value="librarian">Librarian</option>
-                            <option value="finance">Finance</option>
-                            <option value="security">Security</option>
-                            <option value="info_desk">Info Desk</option>
-                            <option value="store">Storekeeper</option>
-                        </>
-                    )}
-                  </select>
+                <label htmlFor="edit-user-role" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role</label>
+                <select
+                  id="edit-user-role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as Role)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
+                  disabled={!!fixedDepartmentId && user.role === role} // Disable if restricted (HOD editing within dept)
+                >
+                  {isSchool ? (
+                    <>
+                      <option value="head_teacher">Head Teacher</option>
+                      <option value="deputy">Deputy</option>
+                      <option value="dos">DOS</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="practice_teacher">Practice Teacher</option>
+                      <option value="librarian">Librarian</option>
+                      <option value="finance">Finance</option>
+                      <option value="security">Security</option>
+                      <option value="info_desk">Info Desk</option>
+                      <option value="store">Storekeeper</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="lecturer">Lecturer</option>
+                      <option value="hod">HOD</option>
+                      <option value="tto">TTO</option>
+                      <option value="admin">Chair TTO</option>
+                      <option value="deputy">Deputy</option>
+                      <option value="academics_officer">Academics Officer</option>
+                      <option value="practice_teacher">Practice Teacher</option>
+                      <option value="librarian">Librarian</option>
+                      <option value="finance">Finance</option>
+                      <option value="security">Security</option>
+                      <option value="info_desk">Info Desk</option>
+                      <option value="store">Storekeeper</option>
+                    </>
+                  )}
+                </select>
               </div>
 
               {!isSchool && rolesWithDepartment.includes(role) && (
-                  <div>
-                      <label htmlFor="edit-hod-department" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
-                      <select
-                          id="edit-hod-department"
-                          value={assignedDepartmentId}
-                          onChange={(e) => setAssignedDepartmentId(e.target.value)}
-                          required
-                          disabled={!!fixedDepartmentId}
-                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 disabled:opacity-60"
-                      >
-                          <option value="" disabled>Select a department</option>
-                          {departments.map(dept => (
-                              <option key={dept.id} value={dept.id}>{dept.name}</option>
-                          ))}
-                      </select>
-                  </div>
+                <div>
+                  <label htmlFor="edit-hod-department" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
+                  <select
+                    id="edit-hod-department"
+                    value={assignedDepartmentId}
+                    onChange={(e) => setAssignedDepartmentId(e.target.value)}
+                    required
+                    disabled={!!fixedDepartmentId}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 disabled:opacity-60"
+                  >
+                    <option value="" disabled>Select a department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
               )}
 
             </div>

@@ -1,13 +1,13 @@
 
 import React, { useMemo, useState } from 'react';
 import type { AllocationRequest, User, Subject, RequestStatus, Priority, LessonStructure } from './types';
-import { 
-    CheckIcon, XIcon, SparklesIcon, ClockIcon, 
-    ArrowsRightLeftIcon, InformationCircleIcon, 
+import {
+    CheckIcon, XIcon, SparklesIcon, ClockIcon,
+    ArrowsRightLeftIcon, InformationCircleIcon,
     PlusIcon, CheckCircleIcon, BookOpenIcon,
     ArrowPathIcon,
     ExclamationTriangleIcon
-} from './components/icons/index.ts';
+} from './components/icons/index';
 
 interface RequestManagerProps {
     requests: AllocationRequest[];
@@ -25,32 +25,32 @@ interface RequestManagerProps {
 
 const RequestTypeBadge: React.FC<{ status: RequestStatus }> = ({ status }) => {
     if (status === 'deallocation_pending') {
-        return <span className="px-3 py-1 bg-rose-100 text-rose-700 text-[10px] font-black uppercase rounded-lg border border-rose-200 shadow-sm animate-pulse flex items-center gap-1"><ExclamationTriangleIcon className="w-3 h-3"/> Withdrawal</span>;
+        return <span className="px-3 py-1 bg-rose-100 text-rose-700 text-[10px] font-black uppercase rounded-lg border border-rose-200 shadow-sm animate-pulse flex items-center gap-1"><ExclamationTriangleIcon className="w-3 h-3" /> Withdrawal</span>;
     }
     if (status === 'change_request_pending') {
-        return <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-black uppercase rounded-lg border border-orange-200 shadow-sm flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3"/> Modification</span>;
+        return <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-black uppercase rounded-lg border border-orange-200 shadow-sm flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3" /> Modification</span>;
     }
-    return <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black uppercase rounded-lg border border-blue-200 shadow-sm flex items-center gap-1"><PlusIcon className="w-3 h-3"/> New Entry</span>;
+    return <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black uppercase rounded-lg border border-blue-200 shadow-sm flex items-center gap-1"><PlusIcon className="w-3 h-3" /> New Entry</span>;
 };
 
 const StatusBadge: React.FC<{ status: RequestStatus }> = ({ status }) => {
-  const styles: Record<RequestStatus, string> = {
-    pending: "bg-yellow-50 text-yellow-700 border-yellow-100",
-    hod_approved: "bg-sky-50 text-sky-700 border-sky-100",
-    approved: "bg-green-50 text-green-700 border-green-100",
-    disapproved: "bg-slate-50 text-slate-700 border-slate-100",
-    deallocation_pending: "bg-rose-50 text-rose-700 border-rose-100",
-    change_request_pending: "bg-orange-50 text-orange-700 border-orange-100",
-  };
-  const text: Record<RequestStatus, string> = {
-    pending: "Pending Dept. Review",
-    hod_approved: "Pending Final Registry",
-    approved: "Allocated",
-    disapproved: "Registry Declined",
-    deallocation_pending: "Awaiting Removal",
-    change_request_pending: "Awaiting Sync",
-  };
-  return <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${styles[status]}`}>{text[status]}</span>;
+    const styles: Record<RequestStatus, string> = {
+        pending: "bg-yellow-50 text-yellow-700 border-yellow-100",
+        hod_approved: "bg-sky-50 text-sky-700 border-sky-100",
+        approved: "bg-green-50 text-green-700 border-green-100",
+        disapproved: "bg-slate-50 text-slate-700 border-slate-100",
+        deallocation_pending: "bg-rose-50 text-rose-700 border-rose-100",
+        change_request_pending: "bg-orange-50 text-orange-700 border-orange-100",
+    };
+    const text: Record<RequestStatus, string> = {
+        pending: "Pending Dept. Review",
+        hod_approved: "Pending Final Registry",
+        approved: "Allocated",
+        disapproved: "Registry Declined",
+        deallocation_pending: "Awaiting Removal",
+        change_request_pending: "Awaiting Sync",
+    };
+    return <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${styles[status]}`}>{text[status]}</span>;
 };
 
 export const RequestManager: React.FC<RequestManagerProps> = ({
@@ -68,7 +68,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
 }) => {
     const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all' | 'action_required'>('action_required');
     const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
-    
+
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
     const calculateTotalPeriods = (structure: LessonStructure[] | undefined) => {
@@ -96,7 +96,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         }
 
         if (statusFilter === 'action_required') {
-             if (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser?.role)) {
+            if (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser?.role)) {
                 relevantRequests = relevantRequests.filter(req => req && ['pending', 'hod_approved', 'deallocation_pending', 'change_request_pending'].includes(req.status));
             } else if (currentUser?.role === 'hod' || currentUser?.role === 'tto') {
                 relevantRequests = relevantRequests.filter(req => req && req.status === 'pending');
@@ -108,7 +108,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         const sortedRequests = [...relevantRequests].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         let newTitle = "Registry Requests";
-        switch(statusFilter) {
+        switch (statusFilter) {
             case 'action_required': newTitle = 'Awaiting Authorisation'; break;
             case 'pending': newTitle = 'HOD Review Queue'; break;
             case 'hod_approved': newTitle = 'Final Registry Queue'; break;
@@ -119,7 +119,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
 
         const isHodViewingPending = currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto') && (statusFilter === 'pending' || statusFilter === 'action_required');
         const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser.role) && (statusFilter === 'hod_approved' || statusFilter === 'action_required' || statusFilter === 'pending');
-        
+
         const standardPendingRequests = sortedRequests.filter(r => r.status === 'pending' || r.status === 'hod_approved');
         const allowBulk = (isHodViewingPending || isAdminViewingFinal) && standardPendingRequests.length > 0;
 
@@ -149,9 +149,9 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                 await onUpdateRequestStatus(requestId, action === 'approve' ? 'disapproved' : 'approved');
             } else if (request.status === 'change_request_pending') {
                 if (action === 'approve') {
-                     await onUpdateRequestStatus(requestId, 'approved'); 
+                    await onUpdateRequestStatus(requestId, 'approved');
                 } else {
-                     await onUpdateRequest(requestId, { status: 'approved', proposedChanges: null } as any);
+                    await onUpdateRequest(requestId, { status: 'approved', proposedChanges: null } as any);
                 }
             } else {
                 let nextStatus: RequestStatus = action === 'approve' ? 'approved' : 'disapproved';
@@ -216,15 +216,14 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
 
                     const currentLoad = getLecturerWorkload(req.lecturerId);
                     const isProcessing = processingIds.has(req.id);
-                    const canAct = currentUser && (((currentUser.role === 'hod' || currentUser.role === 'tto') && req.status === 'pending') || 
-                                   (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser.role) && (req.status === 'hod_approved' || req.status === 'deallocation_pending' || req.status === 'pending' || req.status === 'change_request_pending')));
+                    const canAct = currentUser && (((currentUser.role === 'hod' || currentUser.role === 'tto') && req.status === 'pending') ||
+                        (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser.role) && (req.status === 'hod_approved' || req.status === 'deallocation_pending' || req.status === 'pending' || req.status === 'change_request_pending')));
 
                     return (
-                        <div key={req.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 transition-all hover:shadow-xl ${
-                            req.status === 'deallocation_pending' ? 'border-rose-100 dark:border-rose-900/30' : 
-                            req.status === 'change_request_pending' ? 'border-orange-100 dark:border-orange-900/30' : 
-                            'border-slate-50 dark:border-slate-700'
-                        } ${isProcessing ? 'opacity-70 grayscale' : ''}`}>
+                        <div key={req.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 transition-all hover:shadow-xl ${req.status === 'deallocation_pending' ? 'border-rose-100 dark:border-rose-900/30' :
+                                req.status === 'change_request_pending' ? 'border-orange-100 dark:border-orange-900/30' :
+                                    'border-slate-50 dark:border-slate-700'
+                            } ${isProcessing ? 'opacity-70 grayscale' : ''}`}>
                             <div className="p-8">
                                 <div className="flex flex-col xl:flex-row justify-between gap-8">
                                     <div className="flex-1 space-y-5">
@@ -263,7 +262,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                                         {req.status === 'change_request_pending' && req.proposedChanges?.justification && (
                                             <div className="p-5 bg-orange-50 dark:bg-orange-900/20 rounded-3xl border border-orange-100 dark:border-orange-800 space-y-2">
                                                 <p className="text-[9px] font-black uppercase text-orange-600 tracking-widest flex items-center gap-1">
-                                                    <InformationCircleIcon className="w-3 h-3"/> Proposed Amendment Reason
+                                                    <InformationCircleIcon className="w-3 h-3" /> Proposed Amendment Reason
                                                 </p>
                                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic font-medium leading-relaxed">
                                                     "{req.proposedChanges.justification}"
@@ -276,11 +275,11 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                                                 "{req.justification}"
                                             </div>
                                         )}
-                                        
+
                                         {req.status === 'deallocation_pending' && (
                                             <div className="p-5 bg-rose-50 dark:bg-rose-900/20 rounded-3xl border border-rose-100 dark:border-rose-800 space-y-2">
-                                                 <p className="text-[9px] font-black uppercase text-rose-600 tracking-widest flex items-center gap-1">
-                                                    <ExclamationTriangleIcon className="w-3 h-3"/> Removal Request
+                                                <p className="text-[9px] font-black uppercase text-rose-600 tracking-widest flex items-center gap-1">
+                                                    <ExclamationTriangleIcon className="w-3 h-3" /> Removal Request
                                                 </p>
                                                 <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">Lecturer has requested to be removed from this unit.</p>
                                             </div>
@@ -289,20 +288,19 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
 
                                     {canAct && (
                                         <div className="xl:w-64 flex flex-col gap-3 justify-center">
-                                            <button 
-                                                onClick={() => handleAction(req.id, 'approve', req)} 
+                                            <button
+                                                onClick={() => handleAction(req.id, 'approve', req)}
                                                 disabled={isProcessing}
-                                                className={`w-full h-14 flex items-center justify-center gap-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-[0.98] disabled:opacity-50 ${
-                                                    req.status === 'deallocation_pending' ? 'bg-rose-600 shadow-rose-200' :
-                                                    req.status === 'change_request_pending' ? 'bg-orange-600 shadow-orange-100' :
-                                                    'bg-indigo-600 shadow-indigo-100'
-                                                }`}
+                                                className={`w-full h-14 flex items-center justify-center gap-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-white shadow-xl transition-all active:scale-[0.98] disabled:opacity-50 ${req.status === 'deallocation_pending' ? 'bg-rose-600 shadow-rose-200' :
+                                                        req.status === 'change_request_pending' ? 'bg-orange-600 shadow-orange-100' :
+                                                            'bg-indigo-600 shadow-indigo-100'
+                                                    }`}
                                             >
-                                                {isProcessing ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <CheckIcon className="w-5 h-5" />} 
+                                                {isProcessing ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <CheckIcon className="w-5 h-5" />}
                                                 {req.status === 'deallocation_pending' ? 'Confirm Removal' : (req.status === 'change_request_pending' ? 'Accept Changes' : 'Authorise')}
                                             </button>
-                                            <button 
-                                                onClick={() => handleAction(req.id, 'reject', req)} 
+                                            <button
+                                                onClick={() => handleAction(req.id, 'reject', req)}
                                                 disabled={isProcessing}
                                                 className="w-full h-14 flex items-center justify-center gap-3 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50"
                                             >

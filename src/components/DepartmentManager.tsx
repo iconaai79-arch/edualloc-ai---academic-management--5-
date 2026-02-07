@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Department } from '../types.ts';
-import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index.ts';
-import { analyzeDepartmentSpreadsheet } from '../services/geminiService.ts';
+import type { Department } from '../types';
+import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index';
+import { analyzeDepartmentSpreadsheet } from '../services/geminiService';
 
 declare var XLSX: any;
 

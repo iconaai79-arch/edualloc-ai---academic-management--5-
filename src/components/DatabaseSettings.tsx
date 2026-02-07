@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { DatabaseConfig } from '../types.ts';
+import type { DatabaseConfig } from '../types';
 import {
     ShieldIcon,
     ArrowPathIcon,
@@ -8,8 +8,8 @@ import {
     InformationCircleIcon,
     LockClosedIcon,
     CommandLineIcon
-} from './icons/index.ts';
-import { apiService, initSupabaseClient } from '../services/apiService.ts';
+} from './icons/index';
+import { apiService, initSupabaseClient } from '../services/apiService';
 
 interface DatabaseSettingsProps {
     dbConfig: DatabaseConfig;

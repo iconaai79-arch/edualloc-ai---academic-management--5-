@@ -8,11 +8,9 @@ import type {
 import { generateTimetable } from '../services/geminiService';
 import { generateStandardTimetable } from '../utils/timetableLogic';
 import {
-    CheckCircleIcon, XIcon, ArrowPathIcon, CalendarDaysIcon,
-    UserGroupIcon, BuildingOfficeIcon, RectangleStackIcon,
     SparklesIcon, CommandLineIcon, ExclamationTriangleIcon,
     ChevronRightIcon
-} from './icons/index.ts';
+} from './icons/index';
 
 interface TimetableWizardProps {
     onClose?: () => void;

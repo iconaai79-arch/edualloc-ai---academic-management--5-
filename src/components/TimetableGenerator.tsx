@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { AllocationRequest, Subject, User, Room, TimetableEntry, LetterheadConfig, TimetableSettings, Department, Course, Building, AcademicYear, Semester, Conflict, TimeOffRequest, ExamTimetableEntry, ExamTimetableSettings } from '../types';
 import { generateTimetable, generateExamTimetable } from '../services/geminiService';
 import { generateTimetablePdf, generateExamTimetablePdf } from '../services/pdfService';
-import { CheckIcon, ExclamationTriangleIcon, ArrowUpTrayIcon, DocumentArrowDownIcon, CalendarDaysIcon, SparklesIcon, PrinterIcon, CheckCircleIcon } from './icons/index.ts';
+import { CheckIcon, ExclamationTriangleIcon, ArrowUpTrayIcon, DocumentArrowDownIcon, CalendarDaysIcon, SparklesIcon, PrinterIcon, CheckCircleIcon } from './icons/index';
 import { TimetablesView } from './TimetablesView';
 import { TimetableImporter } from './TimetableImporter';
 import { Tooltip } from './Tooltip';

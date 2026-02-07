@@ -1,9 +1,9 @@
 
-import type { 
-    TimetableEntry, AllocationRequest, Subject, User, Room, 
+import type {
+    TimetableEntry, AllocationRequest, Subject, User, Room,
     TimetableSettings, Course, AcademicYear, Semester, ScheduleProfile
-} from '../types.ts';
-import { timeToMinutes, minutesToTime, generateDisplaySlots } from './timeUtils.ts';
+} from '../types';
+import { timeToMinutes, minutesToTime, generateDisplaySlots } from './timeUtils';
 
 export const generateStandardTimetable = (
     allocations: AllocationRequest[],
@@ -19,7 +19,7 @@ export const generateStandardTimetable = (
     const entries: TimetableEntry[] = [];
     const lecturerOccupancy = new Set<string>();
     const roomOccupancy = new Set<string>();
-    
+
     const sortedAllocations = [...(allocations || [])].sort((a, b) => {
         const priorityWeight = { 'High': 0, 'Medium': 1, 'Low': 2 };
         return priorityWeight[a.priority] - priorityWeight[b.priority];
@@ -29,11 +29,11 @@ export const generateStandardTimetable = (
         const subject = (subjects || []).find(s => s && s.id === alloc.subjectId);
         if (!subject || !subject.lessonStructure) return;
 
-        const linkedCourse = (courses || []).find(c => 
+        const linkedCourse = (courses || []).find(c =>
             c && (c.levels || []).some(l => l && (l.subjectIds || []).includes(alloc.subjectId))
         );
         const profile = linkedCourse ? (profiles || []).find(p => p && p.id === linkedCourse.scheduleProfileId) : null;
-        
+
         const activeBreaks = profile?.breaks && profile.breaks.length > 0 ? profile.breaks : (settings?.breaks || []);
         const activeDays = profile?.operatingDays || settings?.operatingDays || [];
         const cellSpan = profile?.cellSpanMinutes || settings?.cellSpanMinutes || 60;
@@ -60,16 +60,16 @@ export const generateStandardTimetable = (
                         let isPathClear = true;
                         for (let p = 0; p < requiredPeriods; p++) {
                             const checkTime = minutesToTime(startTimeMin + (p * cellSpan));
-                            const isBreak = activeBreaks.some(b => 
-                                b && b.status === 'active' && 
-                                timeToMinutes(checkTime) >= timeToMinutes(b.startTime) && 
+                            const isBreak = activeBreaks.some(b =>
+                                b && b.status === 'active' &&
+                                timeToMinutes(checkTime) >= timeToMinutes(b.startTime) &&
                                 timeToMinutes(checkTime) < timeToMinutes(b.endTime)
                             );
 
                             const lecKey = `${day}-${checkTime}-${alloc.lecturerId}`;
                             const lecturer = (lecturers || []).find(l => l && l.id === alloc.lecturerId);
-                            const isUnvailable = (lecturer?.unavailability || []).some(u => 
-                                u && u.status === 'active' && 
+                            const isUnvailable = (lecturer?.unavailability || []).some(u =>
+                                u && u.status === 'active' &&
                                 u.day === day &&
                                 timeToMinutes(checkTime) >= timeToMinutes(u.startTime) &&
                                 timeToMinutes(checkTime) < timeToMinutes(u.endTime)

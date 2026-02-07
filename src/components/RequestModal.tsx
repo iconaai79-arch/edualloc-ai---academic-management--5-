@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Subject, User, Priority, TimetableSettings, AllocationRequestPreferences, Course } from '../types';
 import { generateBulkJustification } from '../services/geminiService';
-import { SparklesIcon, XIcon, CheckCircleIcon, PlusIcon, ChevronDownIcon, InformationCircleIcon, ArrowPathIcon } from './icons/index.ts';
+import { SparklesIcon, XIcon, CheckCircleIcon, PlusIcon, ChevronDownIcon, InformationCircleIcon, ArrowPathIcon } from './icons/index';
 
 interface RequestModalProps {
   subjects: Subject[];

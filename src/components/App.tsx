@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LoginView } from './LoginView';
-import { AdminView } from '../AdminView';
-import { SuperAdminView } from '../SuperAdminView';
-import { LecturerView } from '../LecturerView';
+import { AdminView } from './AdminView';
+import { SuperAdminView } from './SuperAdminView';
+import { LecturerView } from './LecturerView';
 import { StudentView } from './StudentView';
 import { Header } from './Header';
 import { ChatBot } from './ChatBot';
@@ -15,7 +15,7 @@ import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
 import { LibrarianView } from './LibrarianView';
-import { AcademicsOfficerView } from '../AcademicsOfficerView';
+import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
@@ -608,7 +608,7 @@ export const App: React.FC<any> = (props) => {
                 await apiService.saveInstitution(newInstitution);
                 await apiService.saveUser(newAdmin);
                 if (data.loadDemoData) {
-                    const { generateInstitutionalDemoData } = await import('../utils/demoData.ts');
+                    const { generateInstitutionalDemoData } = await import('../utils/demoData');
                     const d = generateInstitutionalDemoData(instId, adminId);
                     await Promise.all([
                         ...d.departments.map(x => apiService.saveModuleRecord('departments', x)),

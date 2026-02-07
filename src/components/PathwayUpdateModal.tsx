@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import type { Subject, Department, LessonStructure } from '../types.ts';
+import type { Subject, Department, LessonStructure } from '../types';
 import { suggestPathwaySubjectUpdates } from '../services/geminiService';
-import { SparklesIcon, XIcon, CheckCircleIcon, ArrowPathIcon, InformationCircleIcon } from './icons/index.ts';
+import { SparklesIcon, XIcon, CheckCircleIcon, ArrowPathIcon, InformationCircleIcon } from './icons/index';
 
 interface PathwayUpdateModalProps {
     onClose: () => void;
@@ -30,7 +30,7 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
 
     const handleAnalyze = async () => {
         if (!selectedDeptId || pathwaySubjects.length === 0) return;
-        
+
         setIsAnalyzing(true);
         try {
             const deptName = (departments || []).find(d => d.id === selectedDeptId)?.name || '';
@@ -75,11 +75,11 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
     return (
         <div className="fixed inset-0 bg-slate-900/90 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                
+
                 <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
-                             <SparklesIcon className="w-6 h-6 text-white" />
+                            <SparklesIcon className="w-6 h-6 text-white" />
                         </div>
                         <div>
                             <h3 className="text-2xl font-black uppercase tracking-tight">Pathway Synchronizer</h3>
@@ -95,8 +95,8 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Target Pathway (Dept)</label>
-                                    <select 
-                                        value={selectedDeptId} 
+                                    <select
+                                        value={selectedDeptId}
                                         onChange={e => setSelectedDeptId(e.target.value)}
                                         className="form-select w-full h-14"
                                     >
@@ -106,8 +106,8 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                                 </div>
                                 <div className="space-y-4">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Curriculum Profile</label>
-                                    <select 
-                                        value={targetProfile} 
+                                    <select
+                                        value={targetProfile}
                                         onChange={e => setTargetProfile(e.target.value)}
                                         className="form-select w-full h-14"
                                     >
@@ -126,8 +126,8 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                                 </div>
                             </div>
 
-                            <button 
-                                onClick={handleAnalyze} 
+                            <button
+                                onClick={handleAnalyze}
                                 disabled={isAnalyzing || pathwaySubjects.length === 0}
                                 className="w-full btn-primary h-14 shadow-indigo-100 uppercase tracking-widest text-sm font-black flex items-center justify-center gap-3 disabled:opacity-50"
                             >
@@ -147,8 +147,8 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                                     if (!subject) return null;
                                     const isSelected = selectedUpdateIds.has(id);
                                     return (
-                                        <div 
-                                            key={id} 
+                                        <div
+                                            key={id}
                                             onClick={() => handleToggleSelection(id)}
                                             className={`p-5 rounded-[2rem] border-2 cursor-pointer transition-all flex items-center justify-between group ${isSelected ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-900/20' : 'border-slate-50 dark:border-slate-800 opacity-60 hover:opacity-100'}`}
                                         >

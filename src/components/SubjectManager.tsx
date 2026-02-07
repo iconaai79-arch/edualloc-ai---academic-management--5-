@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react';
-import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types.ts';
-import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon } from './icons/index.ts';
-import { analyzeSubjectSpreadsheet } from '../services/geminiService.ts';
-import { generatePastelColor } from '../utils/colorUtils.ts';
-import { EditSubjectModal } from './EditSubjectModal.tsx';
-import { PathwayUpdateModal } from './PathwayUpdateModal.tsx';
+import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types';
+import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon } from './icons/index';
+import { analyzeSubjectSpreadsheet } from '../services/geminiService';
+import { generatePastelColor } from '../utils/colorUtils';
+import { EditSubjectModal } from './EditSubjectModal';
+import { PathwayUpdateModal } from './PathwayUpdateModal';
 
 declare var XLSX: any;
 

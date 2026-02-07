@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem } from '../types';
 import { ExclamationTriangleIcon, MpesaIcon, PhoneIcon, ChatBubbleLeftRightIcon, ArrowRightOnRectangleIcon, CreditCardIcon, ClockIcon } from './icons/index';
-import { PayNowModal } from './PayNowModal.tsx';
+import { PayNowModal } from './PayNowModal';
 
 interface SuspendedAccountViewProps {
     user: User;
@@ -33,7 +33,7 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                     <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-200/50">
                         <ExclamationTriangleIcon className="w-12 h-12" />
                     </div>
-                    
+
                     <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase mb-2">Account Inactive</h2>
                     <p className="text-slate-500 dark:text-slate-400 mb-8 px-4">
                         The institutional account for <span className="font-bold text-slate-800 dark:text-slate-200">{institution.name}</span> is currently suspended or its subscription has expired.
@@ -65,14 +65,14 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-3">
-                                <button 
+                                <button
                                     onClick={() => setIsPayModalOpen(true)}
                                     className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-green-200 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                                 >
                                     <MpesaIcon className="w-6 h-6" />
                                     Pay Now to Activate
                                 </button>
-                                <button 
+                                <button
                                     onClick={onLogout}
                                     className="sm:w-32 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
                                 >
@@ -88,7 +88,7 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                                     Academic portals are currently locked. Access will be restored once the institutional administrator settles the pending subscription.
                                 </p>
                             </div>
-                            
+
                             <div className="flex justify-center gap-4">
                                 <button onClick={onLogout} className="px-8 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-2xl hover:bg-slate-200 transition-all flex items-center gap-2">
                                     <ArrowRightOnRectangleIcon className="w-5 h-5" />
