@@ -742,7 +742,7 @@ export const App: React.FC = () => {
                                 getLecturerById={getLecturerById}
                                 getSubjectById={getSubjectById}
                                 getRoomById={getRoomById}
-                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, action: a, timestamp: new Date().toISOString() })}
+                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 smsConfig={companyDetails.smsConfig}
                                 emailConfig={companyDetails.emailConfig}
                                 onImportSubjectsAndAssociate={apiService.onImportSubjectsAndAssociate.bind(apiService)}
@@ -1030,7 +1030,7 @@ export const App: React.FC = () => {
                                 onAddTask={async (t) => apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() })}
                                 onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); }}
                                 onDeleteTask={async (id) => apiService.deleteModuleRecord('tasks', id)}
-                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, action: a, timestamp: new Date().toISOString() })}
+                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
                                 onSaveSmsConfig={() => { }}
                                 onUpdateRequest={(id, data) => apiService.saveModuleRecord('allocation_requests', { id, ...data })}
