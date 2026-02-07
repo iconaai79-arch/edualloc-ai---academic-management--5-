@@ -163,6 +163,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localTimetableSettings, setLocalTimetableSettings] = useState<TimetableSettings>(props.timetableSettings);
     const [newBreak, setNewBreak] = useState({ name: '', startTime: '', endTime: '' });
     const [newPeriod, setNewPeriod] = useState({ name: '', startTime: '', endTime: '' });
+    const [editingPeriodId, setEditingPeriodId] = useState<string | null>(null);
 
     // --- Constraint Form State ---
     const [newConstraint, setNewConstraint] = useState<{
@@ -732,15 +733,42 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <button
                                         onClick={() => {
                                             if (newPeriod.name && newPeriod.startTime && newPeriod.endTime) {
-                                                const newItem: TimetablePeriod = { id: `p_${Date.now()}`, ...newPeriod };
-                                                setLocalTimetableSettings(p => ({ ...p, periods: [...(p.periods || []), newItem].sort((a, b) => a.startTime.localeCompare(b.startTime)) }));
-                                                setNewPeriod({ name: '', startTime: '', endTime: '' });
+                                                if (editingPeriodId) {
+                                                    // Update existing period
+                                                    setLocalTimetableSettings(p => ({
+                                                        ...p,
+                                                        periods: (p.periods || []).map(period =>
+                                                            period.id === editingPeriodId
+                                                                ? { ...period, ...newPeriod }
+                                                                : period
+                                                        ).sort((a, b) => a.startTime.localeCompare(b.startTime))
+                                                    }));
+                                                    setEditingPeriodId(null);
+                                                    setNewPeriod({ name: '', startTime: '', endTime: '' });
+                                                } else {
+                                                    // Add new period
+                                                    const newItem: TimetablePeriod = { id: `p_${Date.now()}`, ...newPeriod };
+                                                    setLocalTimetableSettings(p => ({ ...p, periods: [...(p.periods || []), newItem].sort((a, b) => a.startTime.localeCompare(b.startTime)) }));
+                                                    setNewPeriod({ name: '', startTime: '', endTime: '' });
+                                                }
                                             }
                                         }}
-                                        className="btn-primary h-9 px-4 mb-[2px] shadow-indigo-100"
+                                        className={`h-9 px-4 mb-[2px] shadow-indigo-100 ${editingPeriodId ? 'btn-secondary text-indigo-600' : 'btn-primary'}`}
                                     >
-                                        <PlusIcon className="w-5 h-5" />
+                                        {editingPeriodId ? <CheckIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
                                     </button>
+                                    {editingPeriodId && (
+                                        <button
+                                            onClick={() => {
+                                                setEditingPeriodId(null);
+                                                setNewPeriod({ name: '', startTime: '', endTime: '' });
+                                            }}
+                                            className="h-9 px-2 mb-[2px] text-slate-400 hover:text-slate-600"
+                                            title="Cancel Editing"
+                                        >
+                                            <XIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -756,7 +784,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <span className="text-xs font-mono text-slate-400">{p.startTime} - {p.endTime}</span>
                                             </div>
                                         </div>
-                                        <button onClick={() => setLocalTimetableSettings(prev => ({ ...prev, periods: prev.periods.filter(x => x.id !== p.id) }))} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><XIcon className="w-4 h-4" /></button>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingPeriodId(p.id);
+                                                    setNewPeriod({ name: p.name, startTime: p.startTime, endTime: p.endTime });
+                                                }}
+                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                title="Edit Period"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => setLocalTimetableSettings(prev => ({ ...prev, periods: prev.periods.filter(x => x.id !== p.id) }))} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><XIcon className="w-4 h-4" /></button>
+                                        </div>
                                     </div>
                                 ))}
                                 {(localTimetableSettings.periods || []).length === 0 && (
