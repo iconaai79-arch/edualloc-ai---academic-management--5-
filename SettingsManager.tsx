@@ -753,9 +753,21 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 }
                                             }
                                         }}
-                                        className={`h-9 px-4 mb-[2px] shadow-indigo-100 ${editingPeriodId ? 'btn-secondary text-indigo-600' : 'btn-primary'}`}
+                                        disabled={!newPeriod.name || !newPeriod.startTime || !newPeriod.endTime}
+                                        className={`h-9 px-4 mb-[2px] shadow-indigo-100 transition-colors flex items-center justify-center gap-2 ${editingPeriodId
+                                                ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200'
+                                                : 'btn-primary'
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        title={editingPeriodId ? "Update Period Slot" : "Add Period Slot"}
                                     >
-                                        {editingPeriodId ? <CheckIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+                                        {editingPeriodId ? (
+                                            <>
+                                                <CheckIcon className="w-5 h-5" />
+                                                <span className="text-xs font-bold">Update</span>
+                                            </>
+                                        ) : (
+                                            <PlusIcon className="w-5 h-5" />
+                                        )}
                                     </button>
                                     {editingPeriodId && (
                                         <button
@@ -763,10 +775,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 setEditingPeriodId(null);
                                                 setNewPeriod({ name: '', startTime: '', endTime: '' });
                                             }}
-                                            className="h-9 px-2 mb-[2px] text-slate-400 hover:text-slate-600"
+                                            className="h-9 px-3 mb-[2px] text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all flex items-center gap-1"
                                             title="Cancel Editing"
                                         >
-                                            <XIcon className="w-5 h-5" />
+                                            <XIcon className="w-4 h-4" />
+                                            <span className="text-xs font-bold">Cancel</span>
                                         </button>
                                     )}
                                 </div>
