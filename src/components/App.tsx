@@ -566,6 +566,8 @@ export const App: React.FC = () => {
                 timestamp: now,
                 reviewedBy: currentUser!.id,
                 reviewedAt: now,
+                academicYearId: activeAcademicYear?.id,
+                semesterId: activeSemester?.id,
                 courseLevelIds: courseLevelSelections?.[subjectId] ? [courseLevelSelections[subjectId]] : []
             };
             return apiService.saveModuleRecord('allocation_requests', req);
