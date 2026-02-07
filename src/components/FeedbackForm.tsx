@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { User } from '../types';
-import { CheckCircleIcon } from './icons';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
 
 interface FeedbackFormProps {
     user: User;
@@ -24,7 +24,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({ user, onAddFeedback 
 
         setIsSubmitting(true);
         onAddFeedback(title, content, isAnonymous);
-
+        
         // Simulate submission
         setTimeout(() => {
             setIsSubmitting(false);
@@ -120,7 +120,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({ user, onAddFeedback 
                     </form>
                 )}
             </div>
-            <style>{`
+             <style>{`
                 .form-input { display: block; width: 100%; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
                 .dark .form-input { border-color: #4b5563; background-color: #374151; color: white; }
                 .btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 500; border: none; cursor: pointer; }

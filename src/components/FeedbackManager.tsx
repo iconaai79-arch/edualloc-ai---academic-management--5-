@@ -23,19 +23,16 @@ const StatusBadge: React.FC<{ status: FeedbackSubmission['status'] }> = ({ statu
     }
 };
 
-export const FeedbackManager: React.FC<FeedbackManagerProps> = ({ submissions = [], users = [], onUpdateStatus }) => {
-    const safeUsers = Array.isArray(users) ? users : [];
-    const safeSubmissions = Array.isArray(submissions) ? submissions : [];
-
-    const userMap = useMemo(() => new Map(safeUsers.map(u => [u.id, u.name])), [safeUsers]);
+export const FeedbackManager: React.FC<FeedbackManagerProps> = ({ submissions, users, onUpdateStatus }) => {
+    const userMap = useMemo(() => new Map(users.map(u => [u.id, u.name])), [users]);
     const [statusFilter, setStatusFilter] = useState<'all' | FeedbackSubmission['status']>('all');
 
     const filteredSubmissions = useMemo(() => {
         if (statusFilter === 'all') {
-            return safeSubmissions;
+            return submissions;
         }
-        return safeSubmissions.filter(s => s.status === statusFilter);
-    }, [safeSubmissions, statusFilter]);
+        return submissions.filter(s => s.status === statusFilter);
+    }, [submissions, statusFilter]);
 
     return (
         <div className="space-y-6">
