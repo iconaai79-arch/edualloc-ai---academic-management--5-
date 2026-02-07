@@ -12,13 +12,13 @@ import { SuspendedAccountView } from './SuspendedAccountView.tsx';
 import { PublicAppointmentView } from './PublicAppointmentView.tsx';
 import { GuestFeedbackView } from './GuestFeedbackView.tsx';
 import { ProfileModal } from './ProfileModal.tsx';
-import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews.tsx';
-import { LibrarianView } from './LibrarianView.tsx';
-import { AcademicsOfficerView } from '../AcademicsOfficerView.tsx';
-import { apiService, initSupabaseClient } from '../services/apiService.ts';
-import { generateAlphanumericCode } from '../utils/stringUtils.ts';
-import { generateFullSqlScript } from '../utils/sqlGenerator.ts';
-import { detectTimetableConflicts } from '../utils/conflictUtils.ts';
+import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
+import { LibrarianView } from './LibrarianView';
+import { AcademicsOfficerView } from '../AcademicsOfficerView';
+import { apiService, initSupabaseClient } from '../services/apiService';
+import { generateAlphanumericCode } from '../utils/stringUtils';
+import { generateFullSqlScript } from '../utils/sqlGenerator';
+import { detectTimetableConflicts } from '../utils/conflictUtils';
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
     INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,

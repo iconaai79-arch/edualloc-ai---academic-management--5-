@@ -22,15 +22,15 @@ import {
     ExclamationTriangleIcon,
     ArrowPathIcon,
     EnvelopeIcon
-} from './icons/index.ts';
-import { SecurityAlertManager } from './SecurityAlertManager.tsx';
-import { LicensePlateScanner } from './LicensePlateScanner.tsx';
-import { StoreItemForm } from './StoreItemForm.tsx';
-import { SmartInventoryImporterModal } from './SmartInventoryImporterModal.tsx';
-import { TransactionForm } from './TransactionForm.tsx';
-import { ItemQrCodeModal } from './ItemQrCodeModal.tsx';
+} from './icons/index';
+import { SecurityAlertManager } from './SecurityAlertManager';
+import { LicensePlateScanner } from './LicensePlateScanner';
+import { StoreItemForm } from './StoreItemForm';
+import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
+import { TransactionForm } from './TransactionForm';
+import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
-import { TimetableGrid } from './TimetableGrid.tsx';
+import { TimetableGrid } from './TimetableGrid';
 
 export interface SupportStaffViewProps {
     user: User;
