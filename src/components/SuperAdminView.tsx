@@ -1047,39 +1047,39 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 {activeTab === 'timetable' && (
                     <div className="animate-fade-in-up">
                         <TimetableGenerator
-                            allocations={allocations}
-                            subjects={subjects}
-                            lecturers={users}
-                            rooms={rooms}
-                            getLecturerById={(id: string) => users.find(u => u.id === id)}
-                            getSubjectById={(id: string) => subjects.find(s => s.id === id)}
-                            getRoomById={(id: string) => rooms.find(r => r.id === id)}
+                            allocations={allocations || []}
+                            subjects={subjects || []}
+                            lecturers={users || []}
+                            rooms={rooms || []}
+                            getLecturerById={(id: string) => users?.find(u => u.id === id)}
+                            getSubjectById={(id: string) => subjects?.find(s => s.id === id)}
+                            getRoomById={(id: string) => rooms?.find(r => r.id === id)}
                             onTimetableGenerated={props.onTimetableGenerated}
-                            generatedTimetable={generatedTimetable}
+                            generatedTimetable={generatedTimetable || []}
                             onPublishTimetable={props.onPublishTimetable}
                             finalTimetableUrl={finalTimetableUrl}
                             onRemovePublishedTimetable={props.onRemovePublishedTimetable}
                             letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }}
                             logoUrl={logoUrl}
                             footerImageUrl={footerImageUrl || null}
-                            timetableSettings={timetableSettings!}
+                            timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                             onSaveTimetableSettings={(s: TimetableSettings) => props.onSaveTimetableSettings?.(s)}
-                            departments={departments}
-                            courses={courses}
-                            buildings={buildings}
+                            departments={departments || []}
+                            courses={courses || []}
+                            buildings={buildings || []}
                             currentUser={currentUser}
-                            academicYears={academicYears}
+                            academicYears={academicYears || []}
                             activeAcademicYear={activeAcademicYear}
                             activeSemester={activeSemester}
-                            timetableConflicts={timetableConflicts}
+                            timetableConflicts={timetableConflicts || []}
                             setActiveTab={() => { }}
                             courseSizes={courseSizes}
-                            timeOffRequests={timeOffRequests}
+                            timeOffRequests={timeOffRequests || []}
                             onLogAction={props.onLogAction}
                             currentInstitution={currentInstitution}
-                            examTimetable={examTimetable}
+                            examTimetable={examTimetable || []}
                             onExamTimetableGenerated={props.onExamTimetableGenerated}
-                            examTimetableSettings={examTimetableSettings!}
+                            examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                         />
                     </div>
                 )}
