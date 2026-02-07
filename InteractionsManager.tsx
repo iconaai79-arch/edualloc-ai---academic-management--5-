@@ -42,12 +42,12 @@ interface InteractionsManagerProps {
     onUpdateRequest?: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
 }
 
-export const InteractionsManager: React.FC<InteractionsManagerProps> = (props) => {
+export const InteractionsManager = (props: InteractionsManagerProps) => {
     const [activeInteractionTab, setActiveTab] = useState('lecturer');
 
     const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
 
-    const interactionTabs = useMemo(() => {
+    const interactionTabs = useMemo<{ key: string; label: string; icon: React.ReactNode }[]>(() => {
         const tabs = [
             { key: 'lecturer', label: isSchool ? 'Teacher Interactions' : 'Lecturer Interactions', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         ];
