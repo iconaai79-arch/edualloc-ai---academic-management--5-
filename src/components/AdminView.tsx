@@ -47,6 +47,7 @@ import {
 } from './icons/index';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
+import { TimetablesView } from './TimetablesView';
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { TimetableWizard } from './TimetableWizard';
@@ -468,6 +469,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onUpdateSemester={props.onUpdateSemester}
                                     onDeleteSemester={props.onDeleteSemester}
                                     currentInstitution={props.currentInstitution}
+                                />
+                            ) : timetableSubTab === 'scheduler' ? (
+                                <TimetablesView
+                                    generatedTimetable={props.timetable || []}
+                                    subjects={props.subjects || []}
+                                    lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                    rooms={props.rooms || []}
+                                    courses={props.courses || []}
+                                    departments={props.departments || []}
+                                    buildings={props.buildings || []}
+                                    allocations={(props.requests || []).filter((r: AllocationRequest) => r && (r.status === 'approved' || r.status === 'hod_approved'))}
+                                    timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                    currentInstitution={props.currentInstitution}
+                                    activeAcademicYear={activeAcademicYear}
+                                    activeSemester={activeSemester}
+                                    academicYears={props.academicYears || []}
+                                    onMoveTimetableEntry={props.onMoveTimetableEntry}
+                                    onLogAction={props.onLogAction}
                                 />
                             ) : timetableSubTab === 'subjects' ? (
                                 <SubjectManager
