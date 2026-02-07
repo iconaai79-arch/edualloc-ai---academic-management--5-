@@ -563,7 +563,7 @@ export const App: React.FC = () => {
                 status: 'approved', // Auto-approved since it's direct assign
                 priority,
                 justification: justification || 'Direct Assignment by Admin',
-                requestedAt: now,
+                timestamp: now,
                 reviewedBy: currentUser!.id,
                 reviewedAt: now,
                 courseLevelIds: courseLevelSelections?.[subjectId] ? [courseLevelSelections[subjectId]] : []
@@ -742,7 +742,7 @@ export const App: React.FC = () => {
                                 getLecturerById={getLecturerById}
                                 getSubjectById={getSubjectById}
                                 getRoomById={getRoomById}
-                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 smsConfig={companyDetails.smsConfig}
                                 emailConfig={companyDetails.emailConfig}
                                 onImportSubjectsAndAssociate={apiService.onImportSubjectsAndAssociate.bind(apiService)}
@@ -881,7 +881,7 @@ export const App: React.FC = () => {
                                 themeColor={companyDetails.themeColor || '#4f46e5'}
                                 examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                                 onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
+                                onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
                                 allocations={allocations}
                                 timeOffRequests={timeOffRequests}
                             />
@@ -1092,7 +1092,7 @@ export const App: React.FC = () => {
                                 onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                 onUpdateAssessmentStatus={() => { }}
                                 onSaveAssessmentMarks={async (id, marks) => {
-                                    const promises = marks.map(m => {
+                                    const promises = marks.map((m: any) => {
                                         const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
                                         const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
 
@@ -1186,7 +1186,7 @@ export const App: React.FC = () => {
                                 onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                 onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                 onSaveAssessmentMarks={async (id, marks) => {
-                                    const promises = marks.map(m => {
+                                    const promises = marks.map((m: any) => {
                                         const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
                                         const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
 
