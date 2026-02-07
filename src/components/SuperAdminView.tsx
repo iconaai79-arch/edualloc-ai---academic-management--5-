@@ -550,6 +550,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+        { key: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
     ];
 
     const stats = useMemo(() => {
@@ -1040,6 +1041,46 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 {activeTab === 'user_activity' && (
                     <div className="animate-fade-in-up">
                         <ActivityLogView activityLog={activityLog || []} />
+                    </div>
+                )}
+
+                {activeTab === 'timetable' && (
+                    <div className="animate-fade-in-up">
+                        <TimetableGenerator
+                            allocations={allocations}
+                            subjects={subjects}
+                            lecturers={users}
+                            rooms={rooms}
+                            getLecturerById={(id: string) => users.find(u => u.id === id)}
+                            getSubjectById={(id: string) => subjects.find(s => s.id === id)}
+                            getRoomById={(id: string) => rooms.find(r => r.id === id)}
+                            onTimetableGenerated={props.onTimetableGenerated}
+                            generatedTimetable={generatedTimetable}
+                            onPublishTimetable={props.onPublishTimetable}
+                            finalTimetableUrl={finalTimetableUrl}
+                            onRemovePublishedTimetable={props.onRemovePublishedTimetable}
+                            letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }}
+                            logoUrl={logoUrl}
+                            footerImageUrl={footerImageUrl || null}
+                            timetableSettings={timetableSettings!}
+                            onSaveTimetableSettings={(s: TimetableSettings) => props.onSaveTimetableSettings?.(s)}
+                            departments={departments}
+                            courses={courses}
+                            buildings={buildings}
+                            currentUser={currentUser}
+                            academicYears={academicYears}
+                            activeAcademicYear={activeAcademicYear}
+                            activeSemester={activeSemester}
+                            timetableConflicts={timetableConflicts}
+                            setActiveTab={() => { }}
+                            courseSizes={courseSizes}
+                            timeOffRequests={timeOffRequests}
+                            onLogAction={props.onLogAction}
+                            currentInstitution={currentInstitution}
+                            examTimetable={examTimetable}
+                            onExamTimetableGenerated={props.onExamTimetableGenerated}
+                            examTimetableSettings={examTimetableSettings!}
+                        />
                     </div>
                 )}
 
