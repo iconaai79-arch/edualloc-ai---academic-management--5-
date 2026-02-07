@@ -335,7 +335,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'timetable' | 'interactions'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'requests'>('list'); // Modified for Requests
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'requests' | 'transactions'>('list'); // Modified for Requests
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -777,6 +777,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             >
                                 Extension Requests
                             </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('transactions')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'transactions' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Transactions
+                            </button>
                         </div>
 
                         {institutionsSubTab === 'list' && (
@@ -964,6 +970,19 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 </div>
                             </div>
                         )}
+
+                        {institutionsSubTab === 'transactions' && (
+                            <div className="animate-fade-in-up">
+                                <TransactionsManager
+                                    transactions={transactions || []}
+                                    institutions={institutions || []}
+                                    receipts={receipts || []}
+                                    companyDetails={companyDetails}
+                                    onGenerateReceipt={onGenerateReceipt}
+                                    logoUrl={logoUrl}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1035,6 +1054,83 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 </pre>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'academics' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm mb-6">
+                            <nav className="flex space-x-2" aria-label="Tabs">
+                                <button
+                                    onClick={() => setAcademicsSubTab('subjects')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'subjects' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Subjects / Units
+                                </button>
+                                <button
+                                    onClick={() => setAcademicsSubTab('courses')}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${academicsSubTab === 'courses' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Courses / Grades
+                                </button>
+                            </nav>
+                        </div>
+
+                        {academicsSubTab === 'subjects' && (
+                            <SubjectManager
+                                subjects={subjects || []}
+                                departments={departments || []}
+                                rooms={rooms || []}
+                                courses={courses || []}
+                                onAddSubject={props.onAddSubject}
+                                onUpdateSubject={props.onUpdateSubject}
+                                onDeleteSubject={props.onDeleteSubject}
+                                onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
+                                onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
+                                onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
+                                timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                onSaveTimetableSettings={props.onSaveTimetableSettings}
+                                letterheadConfig={
+                                    letterheadConfig || { headerImageUrl: null, stampImageUrl: null }
+                                }
+                                logoUrl={logoUrl}
+                                footerImageUrl={footerImageUrl}
+                                buildings={buildings || []}
+                                currentInstitution={currentInstitution}
+                                currentUser={currentUser}
+                                onUpdateCourse={props.onUpdateCourse}
+                            />
+                        )}
+
+                        {academicsSubTab === 'courses' && (
+                            <CourseManager
+                                courses={courses || []}
+                                subjects={subjects || []}
+                                departments={departments || []}
+                                academicLevels={academicLevels || []}
+                                letterheadConfig={
+                                    letterheadConfig || { headerImageUrl: null, stampImageUrl: null }
+                                }
+                                logoUrl={logoUrl}
+                                footerImageUrl={footerImageUrl}
+                                onAddCourse={props.onAddCourse}
+                                onUpdateCourse={props.onUpdateCourse}
+                                onDeleteCourse={props.onDeleteCourse}
+                                onImportCourses={props.onImportCourses}
+                                onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
+                                onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
+                                onDirectAssign={props.onDirectAssign}
+                                onWithdrawRequest={props.onWithdrawRequest}
+                                onUpdateRequest={props.onUpdateRequest}
+                                currentUser={currentUser}
+                                currentInstitution={currentInstitution}
+                                rooms={rooms || []}
+                                users={users || []}
+                                allocations={allocations || []}
+                                timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                onSaveTimetableSettings={props.onSaveTimetableSettings}
+                            />
+                        )}
                     </div>
                 )}
 
