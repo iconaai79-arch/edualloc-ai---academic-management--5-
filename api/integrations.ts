@@ -71,15 +71,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!integrationConfig) return res.status(400).json({ success: false, message: "M-Pesa config missing." });
             const { consumerKey, consumerSecret, paybillNumber, passkey } = integrationConfig;
             if (!consumerKey || !consumerSecret || !paybillNumber || !passkey) return res.status(400).json({ success: false, message: "M-Pesa credentials incomplete." });
+
+            const isSandbox = integrationConfig.environment !== 'production';
+            const baseUrl = isSandbox ? 'https://sandbox.safaricom.co.ke' : 'https://api.safaricom.co.ke';
+
             try {
                 const authCredentials = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-                const oauthResponse = await fetch("https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", { method: "GET", headers: { "Authorization": `Basic ${authCredentials}` } });
+                const oauthResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, { method: "GET", headers: { "Authorization": `Basic ${authCredentials}` } });
                 if (!oauthResponse.ok) return res.status(401).json({ success: false, message: "Daraja Auth Failed." });
                 const { access_token } = await oauthResponse.json();
                 const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
                 const stkPassword = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
                 const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
-                const stkResponse = await fetch("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest", {
+                const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" },
                     body: JSON.stringify({ BusinessShortCode: paybillNumber, Password: stkPassword, Timestamp: timestamp, TransactionType: "CustomerPayBillOnline", Amount: Math.round(amount), PartyA: cleanPhone, PartyB: paybillNumber, PhoneNumber: cleanPhone, CallBackURL: "https://eduai-academic.vercel.app/api/mpesa-callback", AccountReference: "SUBSCRIPTION", TransactionDesc: "License Activation" })

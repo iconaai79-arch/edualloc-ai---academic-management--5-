@@ -349,6 +349,7 @@ export interface MpesaConfig {
     consumerKey: string;
     consumerSecret: string;
     passkey: string;
+    environment?: 'sandbox' | 'production';
 }
 
 export interface CompanyDetails {
