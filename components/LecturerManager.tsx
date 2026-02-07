@@ -1,14 +1,14 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import type { 
-    User, Role, SmsConfig, Department, Unavailability, Course, 
-    CourseLevel, UserMappingField, StaffImportPreviewUser, Institution, 
-    AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig 
+import type {
+    User, Role, SmsConfig, Department, Unavailability, Course,
+    CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
+    AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig
 } from '../types.ts';
-import { 
-    PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon, 
-    CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon, 
+import {
+    PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
+    CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
     // FIXED: Added missing icons
-    DocumentArrowDownIcon, MagnifyingGlassIcon 
+    DocumentArrowDownIcon, MagnifyingGlassIcon
 } from './icons/index.ts';
 import { analyzeUserSpreadsheet } from '../services/geminiService.ts';
 import { EditUserModal } from './EditUserModal.tsx';
@@ -82,7 +82,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const handleFileSelect = (selectedFile: File) => {
         setStep('importing');
         setErrorMessage('');
-        
+
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
@@ -91,7 +91,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
+
                 if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty.");
 
                 const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
@@ -100,7 +100,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeUserSpreadsheet(headers);
+                const mapping = await analyzeUserSpreadsheet(headers, currentInstitution?.aiModelTier);
                 setUserMapping(mapping as Record<UserMappingField, string | null>);
                 setStep('mapping');
             } catch (error: any) {
@@ -125,7 +125,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         }
 
         setStep('importing');
-        
+
         const validUsers: StaffImportPreviewUser[] = [];
         const invalidRows: { row: any, error: string }[] = [];
         const currentBatchStaffIds = new Set<string>();
@@ -145,7 +145,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 if (!availableRolesForImport.includes(role)) role = 'lecturer';
 
                 if (!staffId) {
-                    staffId = generateUniqueStaffId(`STAFF-${name.substring(0,2).toUpperCase()}`, new Set([...existingUserStaffIds, ...currentBatchStaffIds]));
+                    staffId = generateUniqueStaffId(`STAFF-${name.substring(0, 2).toUpperCase()}`, new Set([...existingUserStaffIds, ...currentBatchStaffIds]));
                 }
                 currentBatchStaffIds.add(staffId.toLowerCase());
 
@@ -177,7 +177,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     generatedStaffId: !userMapping.staffId,
                     generatedEmail: generatedEmail
                 });
-            } catch(e: any) {
+            } catch (e: any) {
                 invalidRows.push({ row, error: e.message });
             }
         });
@@ -191,8 +191,8 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         setImportProgress(0);
 
         try {
-            const sanitizedUsers = parsedData.valid.map(({ 
-                originalRowIndex, generatedStaffId, generatedEmail, originalRoleValue, ...user 
+            const sanitizedUsers = parsedData.valid.map(({
+                originalRowIndex, generatedStaffId, generatedEmail, originalRoleValue, ...user
             }) => user);
 
             setImportProgress(20);
@@ -229,7 +229,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                             <input type="file" onChange={e => e.target.files && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls" className="mt-6 file-input" />
                         </div>
                     )}
-                    
+
                     {step === 'importing' && (
                         <div className="text-center p-10 flex flex-col items-center">
                             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -241,14 +241,14 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                         <div className="text-center p-10 flex flex-col items-center max-w-md mx-auto">
                             <h4 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Importing Users</h4>
                             <p className="text-sm text-slate-500 mb-6">{finalizingMessages}</p>
-                            
+
                             <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-4 mb-4 overflow-hidden shadow-inner">
-                                <div 
+                                <div
                                     className="bg-indigo-600 h-full transition-all duration-300 ease-out"
                                     style={{ width: `${importProgress}%` }}
                                 ></div>
                             </div>
-                            
+
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                                 {importProgress}% Complete
                             </p>
@@ -269,7 +269,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     )}
 
                     {step === 'error' && (
-                         <div className="text-center p-10 bg-red-50 dark:bg-red-900/50 rounded-lg">
+                        <div className="text-center p-10 bg-red-50 dark:bg-red-900/50 rounded-lg">
                             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <XIcon className="w-10 h-10" />
                             </div>
@@ -369,7 +369,7 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
             setError(result.message);
         }
     };
-    
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -438,35 +438,35 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
 };
 
 interface LecturerManagerProps {
-  user: User;
-  users: User[];
-  onAddUser: (userData: any) => void;
-  onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
-  onEditUser: (userId: string, data: any) => void;
-  onDeleteUser: (userId: string) => void;
-  onAddUnavailability: (userId: string, u: any) => void;
-  onUpdateUnavailability: (userId: string, unavailabilityId: string, data: any) => void;
-  onDeleteUnavailability: (userId: string, unavailabilityId: string) => void;
-  onManageUnavailability: (user: User) => void;
-  departments: Department[];
-  currentUser: User;
-  currentInstitution?: Institution | null;
-  letterheadConfig: LetterheadConfig;
-  logoUrl: string | null;
-  footerImageUrl: string | null;
-  allocations: AllocationRequest[];
-  courses: Course[];
-  subjects: Subject[];
-  onDirectAssign: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
-  onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
-  onWithdrawRequest: (requestId: string) => void;
-  onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
-  onDeleteParent: (studentId: string, parentId: string) => void;
+    user: User;
+    users: User[];
+    onAddUser: (userData: any) => void;
+    onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
+    onEditUser: (userId: string, data: any) => void;
+    onDeleteUser: (userId: string) => void;
+    onAddUnavailability: (userId: string, u: any) => void;
+    onUpdateUnavailability: (userId: string, unavailabilityId: string, data: any) => void;
+    onDeleteUnavailability: (userId: string, unavailabilityId: string) => void;
+    onManageUnavailability: (user: User) => void;
+    departments: Department[];
+    currentUser: User;
+    currentInstitution?: Institution | null;
+    letterheadConfig: LetterheadConfig;
+    logoUrl: string | null;
+    footerImageUrl: string | null;
+    allocations: AllocationRequest[];
+    courses: Course[];
+    subjects: Subject[];
+    onDirectAssign: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
+    onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
+    onWithdrawRequest: (requestId: string) => void;
+    onAddParent: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
+    onDeleteParent: (studentId: string, parentId: string) => void;
 }
 
 export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
-    const { 
-        users, onAddUser, onImportUsers, onEditUser, onDeleteUser, 
+    const {
+        users, onAddUser, onImportUsers, onEditUser, onDeleteUser,
         onManageUnavailability, departments, currentUser, currentInstitution,
         letterheadConfig, logoUrl, footerImageUrl, allocations, courses, subjects,
         onDirectAssign, onUpdateRequest, onWithdrawRequest, onAddParent, onDeleteParent
@@ -488,8 +488,8 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
     const [departmentId, setDepartmentId] = useState('');
 
     const resetForm = () => {
-        setName(''); setEmail(''); setPhone(''); setStaffId(''); 
-        setGender('Male'); setRole('lecturer'); setDepartmentId(''); 
+        setName(''); setEmail(''); setPhone(''); setStaffId('');
+        setGender('Male'); setRole('lecturer'); setDepartmentId('');
     };
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
@@ -507,7 +507,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const userData: any = {
             name, email, phoneNumber: phone, staffId, gender,
             role,
@@ -528,7 +528,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                 <h3 className="text-xl font-semibold">Staff Management</h3>
                 {canAddUser && (
                     <div className="flex items-center gap-2">
-                        <button onClick={() => { setIsAdding(!isAdding); if(!isAdding) resetForm(); }} className="btn-primary">{isAdding ? 'Cancel' : 'Add Staff'}</button>
+                        <button onClick={() => { setIsAdding(!isAdding); if (!isAdding) resetForm(); }} className="btn-primary">{isAdding ? 'Cancel' : 'Add Staff'}</button>
                         <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary flex items-center gap-2">
                             <ArrowUpTrayIcon className="w-5 h-5" /> Import
                         </button>
@@ -575,9 +575,9 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Department</label>
-                                <select 
-                                    value={(currentUser.role === 'hod' || currentUser.role === 'dos') ? currentUser.departmentId : departmentId} 
-                                    onChange={e => setDepartmentId(e.target.value)} 
+                                <select
+                                    value={(currentUser.role === 'hod' || currentUser.role === 'dos') ? currentUser.departmentId : departmentId}
+                                    onChange={e => setDepartmentId(e.target.value)}
                                     disabled={currentUser.role === 'hod' || currentUser.role === 'dos'}
                                     className="form-select w-full disabled:bg-slate-50"
                                     required={ROLES_REQUIRING_DEPARTMENT.includes(role)}
@@ -665,7 +665,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                     onDeallocate={onWithdrawRequest}
                 />
             )}
-            
+
             <style>{`
                 .form-input, .form-select { display: block; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
                 .dark .form-input, .dark .form-select { border-color: #4b5563; background-color: #374151; color: white; }

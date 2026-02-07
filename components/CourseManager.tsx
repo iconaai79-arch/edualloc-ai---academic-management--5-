@@ -18,7 +18,8 @@ const SmartCourseImporterModal: React.FC<{
     departments: Department[];
     academicLevels: AcademicLevel[];
     isSchool: boolean;
-}> = ({ onClose, onImport, existingCourses, departments, academicLevels, isSchool }) => {
+    aiModelTier?: string;
+}> = ({ onClose, onImport, existingCourses, departments, academicLevels, isSchool, aiModelTier }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<CourseMappingField, string | null>>(ALL_COURSE_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CourseMappingField, string | null>));
@@ -26,7 +27,7 @@ const SmartCourseImporterModal: React.FC<{
     const [errorMessage, setErrorMessage] = useState('');
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
-    
+
     const departmentNameMap = useMemo(() => new Map((departments || []).map(d => [d.name.toLowerCase().trim(), d.id])), [departments]);
     const academicLevelNameMap = useMemo(() => new Map((academicLevels || []).map(l => [l.name.toLowerCase().trim(), l.id])), [academicLevels]);
     const existingCourseCodes = useMemo(() => new Set((existingCourses || []).map(c => c.code.toLowerCase().trim())), [existingCourses]);
@@ -34,7 +35,7 @@ const SmartCourseImporterModal: React.FC<{
     const handleFileSelect = (selectedFile: File) => {
         setStep('importing');
         setErrorMessage('');
-        
+
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
@@ -43,7 +44,7 @@ const SmartCourseImporterModal: React.FC<{
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
+
                 if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty.");
 
                 const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
@@ -52,7 +53,7 @@ const SmartCourseImporterModal: React.FC<{
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeCourseSpreadsheet(headers, isSchool);
+                const mapping = await analyzeCourseSpreadsheet(headers, isSchool, aiModelTier);
                 setUserMapping(mapping as Record<CourseMappingField, string | null>);
                 setStep('mapping');
             } catch (error: any) {
@@ -62,7 +63,7 @@ const SmartCourseImporterModal: React.FC<{
         };
         reader.readAsArrayBuffer(selectedFile);
     };
-    
+
     const handleMappingChange = (field: CourseMappingField, value: string | null) => {
         setUserMapping(prev => ({ ...prev!, [field]: value }));
     };
@@ -77,7 +78,7 @@ const SmartCourseImporterModal: React.FC<{
         }
 
         setStep('importing');
-        
+
         const validCourses: Omit<Course, 'id' | 'institutionId' | 'levels'>[] = [];
         const invalidRows: { row: any, error: string }[] = [];
         const currentBatchCodes = new Set<string>();
@@ -90,7 +91,7 @@ const SmartCourseImporterModal: React.FC<{
                 const academicLevelName = row[userMapping.academicLevelName!];
 
                 if (!name || !code || !departmentName || !academicLevelName) {
-                     throw new Error("Missing required fields.");
+                    throw new Error("Missing required fields.");
                 }
 
                 const deptId = departmentNameMap.get(String(departmentName).toLowerCase().trim());
@@ -109,32 +110,32 @@ const SmartCourseImporterModal: React.FC<{
                     code: String(code).trim(),
                     departmentId: deptId,
                     academicLevelId: levelId,
-                    shortName: '', 
+                    shortName: '',
                 });
 
             } catch (e: any) {
                 invalidRows.push({ row, error: e.message });
             }
         });
-        
+
         setParsedData({ valid: validCourses, invalid: invalidRows });
         setStep('preview');
     };
 
     const handleFinalImport = async () => {
-         if (!parsedData?.valid) return;
-         setStep('finalizing');
-         setImportProgress(0);
+        if (!parsedData?.valid) return;
+        setStep('finalizing');
+        setImportProgress(0);
 
-         try {
+        try {
             await onImport(parsedData.valid);
             setImportProgress(100);
             setStep('success');
-         } catch (err: any) {
-             console.error("Import failure:", err);
-             setErrorMessage(err.message || "Failed to save course data to the database.");
-             setStep('error');
-         }
+        } catch (err: any) {
+            console.error("Import failure:", err);
+            setErrorMessage(err.message || "Failed to save course data to the database.");
+            setStep('error');
+        }
     };
 
     return (
@@ -157,9 +158,9 @@ const SmartCourseImporterModal: React.FC<{
                             </label>
                         </div>
                     )}
-                    
+
                     {step === 'mapping' && (
-                         <div className="space-y-6">
+                        <div className="space-y-6">
                             <div className="flex items-center gap-2 mb-4">
                                 <SparklesIcon className="w-6 h-6 text-indigo-500" />
                                 <h4 className="font-bold text-lg">Map Your Data Columns</h4>
@@ -184,7 +185,7 @@ const SmartCourseImporterModal: React.FC<{
                     )}
 
                     {step === 'preview' && (
-                         <div className="space-y-6 animate-fade-in-up">
+                        <div className="space-y-6 animate-fade-in-up">
                             <h4 className="font-black text-xl tracking-tight">Ready to Import ({parsedData?.valid.length})</h4>
                             <div className="overflow-hidden border border-slate-100 dark:border-slate-700 rounded-2xl">
                                 <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
@@ -212,7 +213,7 @@ const SmartCourseImporterModal: React.FC<{
                     )}
 
                     {step === 'finalizing' && (
-                         <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
+                        <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
                             <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
                             <h4 className="text-xl font-bold mb-2">Syncing institutional records...</h4>
                             <p className="text-sm text-slate-500">Connecting to cloud infrastructure</p>
@@ -220,7 +221,7 @@ const SmartCourseImporterModal: React.FC<{
                     )}
 
                     {step === 'success' && (
-                         <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+                        <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
                             <div className="w-24 h-24 bg-green-100 text-green-600 rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-green-100">
                                 <CheckCircleIcon className="w-12 h-12" />
                             </div>
@@ -301,7 +302,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const courseLabel = isSchool ? 'Grade' : 'Course';
     const streamOrLevelLabel = isSchool ? 'Stream' : 'Level';
     const streamOrLevelLabelPlural = isSchool ? 'Streams' : 'Levels';
-    
+
     const visibleDepartments = useMemo(() => {
         if (currentUser?.role === 'tto' && currentUser?.departmentId) return (departments || []).filter(d => d.id === currentUser.departmentId);
         return departments || [];
@@ -347,8 +348,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const filteredStreams = useMemo(() => {
         return (allStreams || []).filter(stream => {
             const query = searchQuery.toLowerCase();
-            const matchesSearch = 
-                stream.streamName.toLowerCase().includes(query) || 
+            const matchesSearch =
+                stream.streamName.toLowerCase().includes(query) ||
                 stream.courseName.toLowerCase().includes(query) ||
                 stream.courseCode.toLowerCase().includes(query);
             const matchesDept = departmentFilter === 'all' || stream.departmentId === departmentFilter;
@@ -363,15 +364,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 (level.subjectIds || []).forEach(subjectId => {
                     const subject = subjectMap.get(subjectId);
                     if (subject) {
-                        const relatedAllocations = (allocations || []).filter(a => 
-                            a.subjectId === subject.id && 
+                        const relatedAllocations = (allocations || []).filter(a =>
+                            a.subjectId === subject.id &&
                             a.status === 'approved' &&
                             (!a.courseLevelIds || a.courseLevelIds.length === 0 || a.courseLevelIds.includes(level.id))
                         );
 
                         const firstLecturerId = relatedAllocations[0]?.lecturerId;
                         const lecturersNames = relatedAllocations.map(a => userMap.get(a.lecturerId)).filter(Boolean).join(', ');
-                        
+
                         const structure = (subject.lessonStructure || [])
                             .map(ls => `${ls.count}x ${ls.periods === 1 ? 'Single' : ls.periods === 2 ? 'Double' : ls.periods + ' Periods'}`).join(', ') || 'N/A';
 
@@ -399,17 +400,17 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const filteredLessons = useMemo(() => {
         return (lessonsList || []).filter(lesson => {
             const query = searchQuery.toLowerCase();
-            const matchesSearch = 
-                lesson.subjectName.toLowerCase().includes(query) || 
+            const matchesSearch =
+                lesson.subjectName.toLowerCase().includes(query) ||
                 lesson.subjectCode.toLowerCase().includes(query) ||
                 lesson.lecturer.toLowerCase().includes(query) ||
                 lesson.courseName.toLowerCase().includes(query);
-            
+
             const matchesDept = departmentFilter === 'all' || lesson.departmentId === departmentFilter;
             return matchesSearch && matchesDept;
         });
     }, [lessonsList, searchQuery, departmentFilter]);
-    
+
     const handleAddStream = (e: React.FormEvent) => {
         e.preventDefault();
         const course = (courses || []).find(c => c.id === newStreamCourseId);
@@ -431,7 +432,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const course = courses.find(c => c.id === editingStream.courseId);
         if (!course) return;
 
-        const updatedLevels = (course.levels || []).map(l => 
+        const updatedLevels = (course.levels || []).map(l =>
             l.id === editingStream.streamId ? { ...l, name: editingStream.name } : l
         );
 
@@ -495,15 +496,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             if (course) setAssigningSubjectsTo(course);
         }
     };
-    
+
     const pathwayConstraints = useMemo(() => {
         return (timetableSettings?.constraints || []).filter(c => c.type === 'same_time_subjects');
     }, [timetableSettings]);
 
     const handleAddPathway = () => {
         if (!selectedPathwayCourseId || newPathwaySubjectIds.length < 2 || !onSaveTimetableSettings) {
-             alert("Please select a course and at least two subjects to create an option block.");
-             return;
+            alert("Please select a course and at least two subjects to create an option block.");
+            return;
         }
 
         setPathwayProcessing(true);
@@ -583,7 +584,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         });
 
         const isRestricted = currentUser?.role === 'tto' && !!currentUser?.departmentId;
-    
+
         useEffect(() => {
             setFormData({
                 name: course.name,
@@ -595,17 +596,17 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 curriculumType: course.curriculumType || '8-4-4'
             });
         }, [course]);
-    
+
         const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
             const { name, value } = e.target;
             setFormData(prev => ({ ...prev, [name]: value }));
         };
-    
+
         const handleSubmit = (e: React.FormEvent) => {
             e.preventDefault();
             onSave(course.id, { ...formData, curriculumType: formData.curriculumType as '8-4-4' | 'CBC' | 'Other' });
         };
-    
+
         return (
             <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
@@ -614,7 +615,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Edit {courseLabel}: {course.name}</h3>
                         </div>
                         <div className="p-8 space-y-5 overflow-y-auto max-h-[60vh]">
-                             <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">{courseLabel} Name</label>
                                     <input type="text" name="name" value={formData.name} onChange={handleChange} className="form-input" required />
@@ -624,7 +625,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <input type="text" name="code" value={formData.code} onChange={handleChange} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" required />
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Curriculum Type</label>
@@ -693,7 +694,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const [scheduleProfileId, setScheduleProfileId] = useState('');
         const [departmentId, setDepartmentId] = useState(isRestricted ? currentUser.departmentId! : (departments || [])[0]?.id || '');
         const [academicLevelId, setAcademicLevelId] = useState((academicLevels || [])[0]?.id || '');
-        
+
         const [initialStreams, setInitialStreams] = useState<string[]>([]);
         const [customStreamName, setCustomStreamName] = useState('');
 
@@ -749,15 +750,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const removeStream = (s: string) => {
             setInitialStreams(initialStreams.filter(item => item !== s));
         };
-    
+
         const handleSubmit = (e: React.FormEvent) => {
             e.preventDefault();
             if (name.trim() && code.trim() && (departmentId || isSchool) && (academicLevelId || isSchool)) {
-                onAddCourse({ 
-                    name, 
-                    code, 
-                    shortName, 
-                    departmentId, 
+                onAddCourse({
+                    name,
+                    code,
+                    shortName,
+                    departmentId,
                     curriculumType,
                     scheduleProfileId,
                     academicLevelId: isSchool ? academicLevels[0]?.id || '' : academicLevelId,
@@ -765,11 +766,11 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 onCancel();
             }
         };
-    
+
         return (
             <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-8 my-6 animate-fade-in-up">
                 <h5 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400">Initialize New {courseLabel}</h5>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {isSchool && (
                         <div className="md:col-span-2">
@@ -813,7 +814,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         </div>
                     </div>
 
-                     {!isSchool && (
+                    {!isSchool && (
                         <>
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Department</label>
@@ -836,7 +837,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         <h6 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Assign Class {streamOrLevelLabelPlural}</h6>
                         <div className="w-64">
                             <label className="block text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Quick Apply Template</label>
-                            <select 
+                            <select
                                 onChange={e => {
                                     const template = streamTemplates.find(t => t.label === e.target.value);
                                     if (template) handleTemplateSelect(template.values);
@@ -850,12 +851,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     </div>
 
                     <div className="flex gap-2">
-                        <input 
-                            type="text" 
-                            value={customStreamName} 
-                            onChange={e => setCustomStreamName(e.target.value)} 
-                            placeholder={`New ${streamOrLevelLabel} Name...`} 
-                            className="form-input flex-grow h-10 text-xs" 
+                        <input
+                            type="text"
+                            value={customStreamName}
+                            onChange={e => setCustomStreamName(e.target.value)}
+                            placeholder={`New ${streamOrLevelLabel} Name...`}
+                            className="form-input flex-grow h-10 text-xs"
                         />
                         <button type="button" onClick={addCustomStream} className="btn-secondary h-10 px-6 text-xs font-bold">Add</button>
                     </div>
@@ -863,7 +864,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     <div className="flex flex-wrap gap-2">
                         {initialStreams.map(s => (
                             <span key={s} className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold border border-indigo-100 flex items-center gap-2">
-                                {s} <button type="button" onClick={() => removeStream(s)}><XIcon className="w-3 h-3"/></button>
+                                {s} <button type="button" onClick={() => removeStream(s)}><XIcon className="w-3 h-3" /></button>
                             </span>
                         ))}
                     </div>
@@ -895,7 +896,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     return (
         <div className="space-y-6">
-             <style>{`
+            <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 0.75rem; border: 1px solid #e2e8f0; padding: 0.625rem 0.875rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; outline: none; }
                 .dark .form-input, .dark .form-select { border-color: #334155; background-color: #0f172a; color: #fff; }
                 .form-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
@@ -905,7 +906,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 .dark .btn-secondary { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
                 .file-input{display:block;width:100%;font-size:.875rem;line-height:1.25rem;color:#6b7280;file:mr-4;file:px-4;file:py-2;file:rounded-full;file:border-0;file:text-sm;file:font-semibold;file:bg-[var(--color-primary)]/10;file:text-[var(--color-primary)];hover:file:bg-[var(--color-primary)]/20}.dark .file-input{color:#9ca3af;file:bg-slate-700;file:text-slate-200;hover:file:bg-slate-600}
             `}</style>
-            
+
             <div className="flex flex-wrap gap-4 justify-between items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div>
                     <h3 className="text-2xl font-black uppercase tracking-tighter">{courseLabel} Registry</h3>
@@ -924,7 +925,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     >
                         {streamOrLevelLabelPlural}
                     </button>
-                     <button
+                    <button
                         onClick={() => setManagerTab('pathways')}
                         className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${managerTab === 'pathways' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
@@ -940,24 +941,24 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
                 <div className="flex flex-wrap items-center gap-2 min-w-fit">
                     {managerTab === 'courses' && onImportCourses && (
-                         <button onClick={() => setIsSmartImportOpen(true)} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
-                            <SparklesIcon className="w-5 h-5 text-indigo-500"/> Excel Smart Import
+                        <button onClick={() => setIsSmartImportOpen(true)} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                            <SparklesIcon className="w-5 h-5 text-indigo-500" /> Excel Smart Import
                         </button>
                     )}
                     {managerTab === 'courses' && (
                         <>
-                             <button onClick={() => window.print()} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
-                                <PrinterIcon className="w-5 h-5"/> Print
+                            <button onClick={() => window.print()} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                                <PrinterIcon className="w-5 h-5" /> Print
                             </button>
-                             <button onClick={handleExport} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
-                                <DocumentArrowDownIcon className="w-5 h-5"/> Export
+                            <button onClick={handleExport} className="btn-secondary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                                <DocumentArrowDownIcon className="w-5 h-5" /> Export
                             </button>
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => {
                                     if (onAddCourse) setIsAdding(!isAdding);
                                     else alert("Permission denied or feature unavailable.");
-                                }} 
+                                }}
                                 className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100"
                                 disabled={!onAddCourse}
                                 title={!onAddCourse ? "Feature unavailable" : ""}
@@ -967,7 +968,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         </>
                     )}
                     {managerTab === 'streams' && onUpdateCourse && (
-                         <button onClick={() => setIsAddingStream(!isAddingStream)} className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100">
+                        <button onClick={() => setIsAddingStream(!isAddingStream)} className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100">
                             {isAddingStream ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />} {isAddingStream ? 'Cancel' : `New ${streamOrLevelLabel}`}
                         </button>
                     )}
@@ -977,9 +978,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         </button>
                     )}
                     {managerTab === 'pathways' && (
-                        <button 
-                            onClick={handleAddPathway} 
-                            disabled={pathwayProcessing || !selectedPathwayCourseId || newPathwaySubjectIds.length < 2} 
+                        <button
+                            onClick={handleAddPathway}
+                            disabled={pathwayProcessing || !selectedPathwayCourseId || newPathwaySubjectIds.length < 2}
                             className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100 disabled:opacity-50"
                         >
                             <SparklesIcon className="w-5 h-5" /> Create Option Block
@@ -1101,13 +1102,13 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                         {(currentInstitution?.scheduleProfiles || []).find(p => p.id === course.scheduleProfileId)?.name || 'Default'}
                                     </td>
                                     <td className="px-8 py-5 whitespace-nowrap">
-                                         <div className="flex flex-col">
-                                             <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{(course.levels || []).length} {streamOrLevelLabelPlural}</span>
-                                             <span className="text-[10px] text-slate-400">{[...new Set((course.levels || []).flatMap(l => l.subjectIds || []))].length} Units</span>
-                                         </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">{(course.levels || []).length} {streamOrLevelLabelPlural}</span>
+                                            <span className="text-[10px] text-slate-400">{[...new Set((course.levels || []).flatMap(l => l.subjectIds || []))].length} Units</span>
+                                        </div>
                                     </td>
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
-                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => setEditingCourse(course)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button>
                                             <button onClick={() => setAssigningSubjectsTo(course)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registry</button>
                                             <button onClick={() => handleDeleteCourseSubmit(course.id, course.name)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Delete</button>
@@ -1141,15 +1142,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-700 dark:text-slate-300">
                                         {editingStream?.streamId === stream.streamId ? (
                                             <div className="flex gap-2 items-center">
-                                                <input 
-                                                    type="text" 
-                                                    value={editingStream.name} 
-                                                    onChange={e => setEditingStream({...editingStream, name: e.target.value})} 
-                                                    className="form-input py-1 h-8 text-xs font-bold" 
+                                                <input
+                                                    type="text"
+                                                    value={editingStream.name}
+                                                    onChange={e => setEditingStream({ ...editingStream, name: e.target.value })}
+                                                    className="form-input py-1 h-8 text-xs font-bold"
                                                     autoFocus
                                                 />
-                                                <button onClick={handleUpdateStream} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><CheckIcon className="w-3 h-3"/></button>
-                                                <button onClick={() => setEditingStream(null)} className="p-1.5 bg-slate-50 text-slate-500 rounded-lg hover:bg-slate-100"><XIcon className="w-3 h-3"/></button>
+                                                <button onClick={handleUpdateStream} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><CheckIcon className="w-3 h-3" /></button>
+                                                <button onClick={() => setEditingStream(null)} className="p-1.5 bg-slate-50 text-slate-500 rounded-lg hover:bg-slate-100"><XIcon className="w-3 h-3" /></button>
                                             </div>
                                         ) : (
                                             stream.streamName
@@ -1162,13 +1163,13 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     </td>
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button 
+                                            <button
                                                 onClick={() => setEditingStream({ courseId: stream.courseId, streamId: stream.streamId, name: stream.streamName })}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white dark:bg-blue-900/30 dark:text-blue-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 Edit
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const course = courses.find(c => c.id === stream.courseId);
                                                     if (course) setAssigningSubjectsTo(course);
@@ -1177,7 +1178,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             >
                                                 Registry
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => handleDeleteStream(stream.courseId, stream.streamId)}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white dark:bg-red-900/30 dark:text-red-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
@@ -1191,32 +1192,32 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     </table>
                 </div>
             )}
-            
+
             {managerTab === 'pathways' && (
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                         <h4 className="font-bold text-lg mb-4">Option Blocks (Pathways)</h4>
                         <p className="text-sm text-slate-500 mb-6">Group subjects that are taught simultaneously. Students will choose one subject from each block.</p>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Target {courseLabel}</label>
-                                <select 
-                                    value={selectedPathwayCourseId} 
-                                    onChange={e => setSelectedPathwayCourseId(e.target.value)} 
+                                <select
+                                    value={selectedPathwayCourseId}
+                                    onChange={e => setSelectedPathwayCourseId(e.target.value)}
                                     className="form-select h-12"
                                 >
                                     <option value="">-- Select {courseLabel} --</option>
                                     {(visibleCourses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
-                            
-                             <div>
+
+                            <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Subjects in Block</label>
-                                <select 
-                                    multiple 
-                                    value={newPathwaySubjectIds} 
-                                    onChange={e => setNewPathwaySubjectIds(Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value))} 
+                                <select
+                                    multiple
+                                    value={newPathwaySubjectIds}
+                                    onChange={e => setNewPathwaySubjectIds(Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value))}
                                     className="form-input h-32"
                                     disabled={!selectedPathwayCourseId}
                                 >
@@ -1230,7 +1231,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     <div className="space-y-4">
                         <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Active Blocks</h5>
                         {(pathwayConstraints || []).map(constraint => (
-                             <div key={constraint.id} className="flex justify-between items-center p-4 bg-white dark:bg-slate-800 border-2 border-slate-50 dark:border-slate-700 rounded-2xl hover:border-indigo-100 transition-all group">
+                            <div key={constraint.id} className="flex justify-between items-center p-4 bg-white dark:bg-slate-800 border-2 border-slate-50 dark:border-slate-700 rounded-2xl hover:border-indigo-100 transition-all group">
                                 <div className="flex gap-4 items-start">
                                     <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600">
                                         <RectangleStackIcon className="w-5 h-5" />
@@ -1245,7 +1246,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                         </div>
                                     </div>
                                 </div>
-                                <button onClick={() => handleDeletePathway(constraint.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-50 rounded-lg"><XIcon className="w-5 h-5"/></button>
+                                <button onClick={() => handleDeletePathway(constraint.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-50 rounded-lg"><XIcon className="w-5 h-5" /></button>
                             </div>
                         ))}
                         {(!pathwayConstraints || pathwayConstraints.length === 0) && (
@@ -1291,14 +1292,14 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-[11px] font-bold text-slate-500 uppercase tracking-tight">{lesson.structure}</td>
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button 
+                                            <button
                                                 onClick={() => handleEditLesson(lesson)}
                                                 className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white dark:bg-emerald-900/30 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 <PencilIcon className="w-3.5 h-3.5" />
                                                 Modify
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => handleRemoveLesson(lesson)}
                                                 className="flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white dark:bg-red-900/30 dark:text-red-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
@@ -1339,7 +1340,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     scheduleProfiles={currentInstitution?.scheduleProfiles || []}
                 />
             )}
-            
+
             {assigningSubjectsTo && onUpdateCourse && (
                 <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setAssigningSubjectsTo(null)}>
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
@@ -1348,7 +1349,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 <h3 className="text-2xl font-black tracking-tighter uppercase">{assigningSubjectsTo.name} Structure</h3>
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Registry Alignment</p>
                             </div>
-                            <button onClick={() => setAssigningSubjectsTo(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6"/></button>
+                            <button onClick={() => setAssigningSubjectsTo(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
                         <div className="flex-grow overflow-y-auto p-8 space-y-10 bg-slate-50 dark:bg-slate-950">
                             {(assigningSubjectsTo.levels || []).map((level) => (
@@ -1366,7 +1367,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                         <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{s.name}</p>
                                                         <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">{s.code}</p>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
                                                             handleStructureSave(assigningSubjectsTo.id, updated);
@@ -1379,7 +1380,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             ) : null;
                                         })}
                                         <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center p-2 bg-white/50 dark:bg-slate-900/20 group hover:border-indigo-300 transition-all">
-                                            <select 
+                                            <select
                                                 className="w-full bg-transparent border-none text-[10px] font-black uppercase text-slate-400 focus:ring-0 cursor-pointer"
                                                 onChange={e => {
                                                     const sid = e.target.value;
@@ -1401,14 +1402,17 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 </div>
             )}
 
-            {isSmartImportOpen && onImportCourses && (
+            {isSmartImportOpen && (
                 <SmartCourseImporterModal
                     onClose={() => setIsSmartImportOpen(false)}
-                    onImport={onImportCourses}
+                    onImport={async (courses) => {
+                        if (onImportCourses) await onImportCourses(courses);
+                    }}
                     existingCourses={courses}
                     departments={departments}
                     academicLevels={academicLevels}
                     isSchool={isSchool}
+                    aiModelTier={currentInstitution?.aiModelTier}
                 />
             )}
 

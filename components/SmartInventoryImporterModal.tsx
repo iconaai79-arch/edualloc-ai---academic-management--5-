@@ -8,9 +8,10 @@ declare var XLSX: any;
 interface SmartInventoryImporterModalProps {
     onImport: (items: any[]) => void;
     onClose: () => void;
+    aiModelTier?: string;
 }
 
-export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalProps> = ({ onImport, onClose }) => {
+export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalProps> = ({ onImport, onClose, aiModelTier }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -34,8 +35,8 @@ export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalPr
             const rows = XLSX.utils.sheet_to_json(worksheet);
 
             try {
-                const mapping = await analyzeInventorySpreadsheet(headers);
-                
+                const mapping = await analyzeInventorySpreadsheet(headers, aiModelTier);
+
                 const mappedItems = rows.map((row: any) => {
                     const item: any = {};
                     // Basic mapping logic based on AI response keys
@@ -45,7 +46,7 @@ export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalPr
                     if (mapping['unit']) item.unit = row[mapping['unit']!] || 'pcs';
                     if (mapping['reorderLevel']) item.reorderLevel = Number(row[mapping['reorderLevel']!]) || 10;
                     if (mapping['location']) item.location = row[mapping['location']!] || 'Store';
-                    
+
                     if (!item.name) return null; // Skip invalid
                     return item;
                 }).filter(Boolean);
@@ -70,9 +71,9 @@ export const SmartInventoryImporterModal: React.FC<SmartInventoryImporterModalPr
                     Smart Inventory Import
                 </h3>
                 <p className="text-sm text-slate-500 mb-4">Upload an Excel file. AI will map columns automatically.</p>
-                
+
                 <input type="file" onChange={handleFileChange} accept=".xlsx, .xls, .csv" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                
+
                 <div className="flex justify-end gap-2 mt-6">
                     <button onClick={onClose} className="px-4 py-2 border rounded-md text-slate-600 hover:bg-slate-100">Cancel</button>
                     <button onClick={handleImport} disabled={!file || isProcessing} className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-md hover:brightness-90 disabled:opacity-50">

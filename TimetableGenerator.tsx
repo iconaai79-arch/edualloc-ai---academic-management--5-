@@ -135,7 +135,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
             };
 
             const subjectsWithExams = subjects.filter(s => s.hasExam !== false);
-            const rawTimetable = await generateExamTimetable(subjectsWithExams, courses, lecturers, rooms, examPeriod, courseSizes, examTimetableSettings);
+            const rawTimetable = await generateExamTimetable(subjectsWithExams, courses, lecturers, rooms, examPeriod, courseSizes, examTimetableSettings, currentInstitution?.aiModelTier);
             onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
             onLogAction?.('Generated New Exam Timetable');
         } catch (err: any) {

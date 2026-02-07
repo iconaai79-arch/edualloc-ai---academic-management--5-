@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { getChatResponse } from '../services/geminiService';
 import { XIcon, SparklesIcon, PaperAirplaneIcon, ChatBubbleBottomCenterTextIcon } from './icons';
 
+import { Institution } from '../types';
+
 interface ChatMessage {
     role: 'user' | 'model';
     text: string;
@@ -10,7 +12,7 @@ interface ChatMessage {
 
 interface ChatBotProps {
     welcomeMessage?: string;
-    currentInstitution?: any;
+    currentInstitution?: Institution | null;
 }
 
 export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage, currentInstitution }) => {
@@ -98,8 +100,8 @@ export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage, currentInstitu
                             >
                                 <div
                                     className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user'
-                                            ? 'bg-[var(--color-primary)] text-white rounded-br-none'
-                                            : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-bl-none shadow-sm'
+                                        ? 'bg-[var(--color-primary)] text-white rounded-br-none'
+                                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-bl-none shadow-sm'
                                         }`}
                                 >
                                     {msg.text}

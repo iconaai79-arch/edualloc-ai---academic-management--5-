@@ -210,7 +210,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeUserSpreadsheet(headers);
+                const mapping = await analyzeUserSpreadsheet(headers, currentInstitution?.aiModelTier);
                 setUserMapping(mapping as Record<UserMappingField, string | null>);
                 setStep('mapping');
             } catch (error: any) {

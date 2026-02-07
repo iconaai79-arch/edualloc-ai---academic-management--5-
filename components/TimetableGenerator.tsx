@@ -497,6 +497,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     academicYearId={activeAcademicYear.id}
                     semesterId={activeSemester.id}
                     timetableSettings={timetableSettings}
+                    aiModelTier={currentInstitution?.aiModelTier}
                 />
             )}
         </div>

@@ -131,7 +131,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props) => {
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'communications' | 'settings' | 'migration' | 'user_activity'>('dashboard');
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'chatbot'>('profile');
     const [healthStatus, setHealthStatus] = useState<any>(null);
     const [isRefreshingHealth, setIsRefreshingHealth] = useState(false);
     const [institutionSearchQuery, setInstitutionSearchQuery] = useState('');
@@ -423,8 +423,8 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
                                 <button
                                     onClick={() => setInstitutionSubTab('list')}
                                     className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${institutionSubTab === 'list'
-                                            ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                        ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
                                         }`}
                                 >
                                     Tenants
@@ -432,8 +432,8 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
                                 <button
                                     onClick={() => setInstitutionSubTab('extensions')}
                                     className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${institutionSubTab === 'extensions'
-                                            ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                        ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
                                         }`}
                                 >
                                     Extension Requests
@@ -476,7 +476,7 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
-                                                        inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                                                    inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
                                                     }`}>
                                                     {inst.status}
                                                 </span>
@@ -539,7 +539,7 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                                req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                                            req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                                                             }`}>
                                                             {req.status}
                                                         </span>
@@ -691,6 +691,12 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
                                 className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                             >
                                 <CreditCardIcon className="w-4 h-4" /> Billing Map
+                            </button>
+                            <button
+                                onClick={() => setSettingsSubTab('chatbot')}
+                                className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'chatbot' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <ChatBubbleBottomCenterTextIcon className="w-4 h-4" /> Chat Assistant
                             </button>
                         </nav>
                     </div>
@@ -865,6 +871,46 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, s
 
                                 <div className="pt-6 border-t flex justify-end">
                                     <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Billing Map</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {settingsSubTab === 'chatbot' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
+                                <h3 className="text-lg font-black uppercase mb-6 tracking-tighter">AI Chat Assistant</h3>
+                                <div className="space-y-8">
+                                    <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase tracking-tight">Enable Chatbot</h4>
+                                            <p className="text-xs text-slate-500 mt-1">Activate the AI assistant for all users on the platform.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setLocalCompanyInfo({ ...localCompanyInfo, chatEnabled: !localCompanyInfo.chatEnabled })}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ring-2 ring-offset-2 ring-transparent focus:ring-indigo-500 ${localCompanyInfo.chatEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.chatEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Default Welcome Message</label>
+                                        <textarea
+                                            value={localCompanyInfo.welcomeMessage}
+                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, welcomeMessage: e.target.value })}
+                                            placeholder="Hello! I'm your academic assistant. How can I help you today?"
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm min-h-[120px] focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            onClick={handleSaveGlobalConfigs}
+                                            disabled={isSavingConfigs}
+                                            className="btn-primary h-12 px-10 shadow-indigo-100 uppercase tracking-widest text-xs"
+                                        >
+                                            {isSavingConfigs ? 'Saving...' : 'Deploy Chat Settings'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}

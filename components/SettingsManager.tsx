@@ -145,9 +145,11 @@ const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
     same_time_subjects: 'Option Block (Concurrent)'
 };
 
-export function SettingsManager(props: SettingsManagerProps) {
+type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'finance' | 'facilities';
+
+export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
-    const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'global_config' : 'general');
+    const [activeTab, setActiveTab] = useState<SettingsTab>(isSuperAdmin ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
@@ -487,7 +489,7 @@ export function SettingsManager(props: SettingsManagerProps) {
                     {mainTabs.map((tab: { id: string; label: string; icon: React.ReactNode }) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => setActiveTab(tab.id as SettingsTab)}
                             className={`${activeTab === tab.id
                                 ? 'border-indigo-600 text-indigo-600'
                                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
