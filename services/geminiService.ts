@@ -36,11 +36,17 @@ const sanitizeAndParseJson = (text: string): any => {
     }
 };
 
-export const generateJustification = async (lecturer: User, subject: Subject): Promise<string> => {
+const getModelForTier = (tier?: 'free' | 'premium', isReasoningTask: boolean = false): string => {
+    if (tier === 'premium') return 'gemini-1.5-pro';
+    if (isReasoningTask) return 'gemini-1.5-pro'; // Default to Pro for heavy tasks if tier unknown? No, user wants 'free'.
+    return 'gemini-1.5-flash';
+};
+
+export const generateJustification = async (lecturer: User, subject: Subject, tier?: 'free' | 'premium'): Promise<string> => {
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -50,12 +56,12 @@ export const generateJustification = async (lecturer: User, subject: Subject): P
     }
 };
 
-export const generateBulkJustification = async (lecturer: User, subjects: Subject[]): Promise<string> => {
+export const generateBulkJustification = async (lecturer: User, subjects: Subject[], tier?: 'free' | 'premium'): Promise<string> => {
     try {
         checkAiAvailable();
         const subjectList = subjects.map(s => `- ${s.name} (${s.code})`).join('\n');
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -71,7 +77,8 @@ export const generateBulkJustification = async (lecturer: User, subjects: Subjec
 export const suggestPathwaySubjectUpdates = async (
     subjects: Subject[],
     pathwayName: string,
-    curriculumProfile: string
+    curriculumProfile: string,
+    tier?: 'free' | 'premium'
 ): Promise<Record<string, { lessonStructure: LessonStructure[], hasExam: boolean, description: string }>> => {
     try {
         checkAiAvailable();
@@ -89,7 +96,7 @@ export const suggestPathwaySubjectUpdates = async (
         `;
 
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier, true),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -100,11 +107,11 @@ export const suggestPathwaySubjectUpdates = async (
     }
 };
 
-export const generateInternshipReport = async (student: User, internship: Internship, courseName: string, keywords: string): Promise<string> => {
+export const generateInternshipReport = async (student: User, internship: Internship, courseName: string, keywords: string, tier?: 'free' | 'premium'): Promise<string> => {
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: `Generate a professional internship report for ${student.name} at ${internship.industryName}. Course: ${courseName}. Keywords: ${keywords}`,
         });
         return response.text || "";
@@ -114,12 +121,12 @@ export const generateInternshipReport = async (student: User, internship: Intern
     }
 };
 
-export const analyzeTimetableSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeTimetableSpreadsheet = async (headers: string[], tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map these headers to: startTime, subjectCode, lecturerName, roomName, day, endTime. Headers: ${JSON.stringify(headers)}. Return JSON only.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -139,7 +146,8 @@ export const generateTimetable = async (
     courseSizes: Map<string, number>,
     courses: Course[],
     timeOffRequests: TimeOffRequest[],
-    profiles: ScheduleProfile[]
+    profiles: ScheduleProfile[],
+    tier?: 'free' | 'premium'
 ): Promise<TimetableEntry[]> => {
     try {
         checkAiAvailable();
@@ -164,9 +172,9 @@ export const generateTimetable = async (
         `;
 
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: getModelForTier(tier, true),
             contents: prompt,
-            config: { 
+            config: {
                 responseMimeType: 'application/json',
                 thinkingConfig: { thinkingBudget: 32768 }
             }
@@ -189,15 +197,16 @@ export const generateExamTimetable = async (
     rooms: Room[],
     examPeriod: { start: string; end: string },
     courseSizes: Map<string, number>,
-    settings: ExamTimetableSettings
+    settings: ExamTimetableSettings,
+    tier?: 'free' | 'premium'
 ): Promise<ExamTimetableEntry[]> => {
     try {
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: getModelForTier(tier, true),
             contents: prompt,
-            config: { 
+            config: {
                 responseMimeType: 'application/json',
                 thinkingConfig: { thinkingBudget: 32768 }
             }
@@ -213,12 +222,12 @@ export const generateExamTimetable = async (
     }
 };
 
-export const analyzeUserSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeUserSpreadsheet = async (headers: string[], tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to user fields: name, email, phoneNumber, staffId, role, departmentName, expertise, gender. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -229,12 +238,12 @@ export const analyzeUserSpreadsheet = async (headers: string[]): Promise<Record<
     }
 };
 
-export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: boolean): Promise<Record<string, string | null>> => {
+export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: boolean, tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to course fields: name, code, departmentName, academicLevelName. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -245,12 +254,12 @@ export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: bool
     }
 };
 
-export const analyzeSubjectSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeSubjectSpreadsheet = async (headers: string[], tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to subject fields: name, code, departmentName, description, shortName, lessonStructure, targetCourseLevel. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -261,20 +270,20 @@ export const analyzeSubjectSpreadsheet = async (headers: string[]): Promise<Reco
     }
 };
 
-export const findLocationCoordinates = async (query: string): Promise<{ latitude: number, longitude: number, address: string, googleMapsUri?: string } | null> => {
+export const findLocationCoordinates = async (query: string, tier?: 'free' | 'premium'): Promise<{ latitude: number, longitude: number, address: string, googleMapsUri?: string } | null> => {
     try {
         checkAiAvailable();
         const prompt = `Find GPS coordinates and official address for: "${query}". Return JSON: { latitude: number, longitude: number, address: string }.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { tools: [{ googleSearch: {} }] }
         });
         const data = sanitizeAndParseJson(response.text || "{}");
         if (data.latitude && data.longitude) {
-            return { 
-                latitude: data.latitude, 
-                longitude: data.longitude, 
+            return {
+                latitude: data.latitude,
+                longitude: data.longitude,
                 address: data.address || query,
                 googleMapsUri: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.[0]?.web?.uri
             };
@@ -286,11 +295,11 @@ export const findLocationCoordinates = async (query: string): Promise<{ latitude
     }
 };
 
-export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
+export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string, tier?: 'free' | 'premium'): Promise<string> => {
     try {
         checkAiAvailable();
-        const chat = ai!.chats.create({ 
-            model: 'gemini-3-flash-preview', 
+        const chat = ai!.chats.create({
+            model: getModelForTier(tier),
             config: { history }
         });
         const result = await chat.sendMessage({ message });
@@ -301,12 +310,12 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
     }
 };
 
-export const analyzeInventorySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeInventorySpreadsheet = async (headers: string[], tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to inventory fields: name, category, quantity, unit, reorderLevel, location. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -317,12 +326,12 @@ export const analyzeInventorySpreadsheet = async (headers: string[]): Promise<Re
     }
 };
 
-export const analyzeDepartmentSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeDepartmentSpreadsheet = async (headers: string[], tier?: 'free' | 'premium'): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to department fields: name. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: getModelForTier(tier),
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });

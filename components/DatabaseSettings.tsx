@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { DatabaseConfig } from '../types.ts';
-import { 
-    ShieldIcon, 
-    ArrowPathIcon, 
-    CheckCircleIcon, 
-    XIcon, 
+import {
+    ShieldIcon,
+    ArrowPathIcon,
+    CheckCircleIcon,
+    XIcon,
     InformationCircleIcon,
     LockClosedIcon,
     CommandLineIcon
@@ -23,6 +23,8 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, on
     const [lastCheck, setLastCheck] = useState<string | null>(null);
     const [showEnvKey, setShowEnvKey] = useState(false);
     const [activeConfig, setActiveConfig] = useState(apiService.getActiveConfig());
+    const [isMigrating, setIsMigrating] = useState(false);
+    const [migrationMsg, setMigrationMsg] = useState('');
 
     useEffect(() => { if (dbConfig) setConfig(dbConfig); }, [dbConfig]);
 
@@ -46,9 +48,29 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, on
         }
     };
 
+    const handleMigrateData = async () => {
+        if (!window.confirm("This will push all locally stored data (institutions, users, etc.) to your Supabase cloud instance. Existing records with same IDs will be overwritten. Proceed?")) return;
+
+        setIsMigrating(true);
+        setMigrationMsg('Initializing migration...');
+        try {
+            const result = await apiService.migrateLocalDataToCloud((msg) => setMigrationMsg(msg));
+            alert(result.message);
+            if (result.success) {
+                // Force a reload or notify App to reload data
+                window.location.reload();
+            }
+        } catch (err: any) {
+            alert(`Migration failed: ${err.message}`);
+        } finally {
+            setIsMigrating(false);
+            setMigrationMsg('');
+        }
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setConfig(prev => ({ ...prev, [name]: value }));
+        setConfig((prev: DatabaseConfig) => ({ ...prev, [name]: value }));
         if (testStatus !== 'idle') setTestStatus('idle');
     };
 
@@ -58,6 +80,7 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, on
             alert("Validation required: Please perform a successful 'Ping Registry' test before syncing.");
             return;
         }
+        initSupabaseClient(config.supabaseUrl, config.supabaseAnonKey);
         onSave(config);
     };
 
@@ -69,14 +92,26 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, on
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-inner">
-                <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <CommandLineIcon className="w-6 h-6" />
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none">
+                            <CommandLineIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white">Live Monitor</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registry parameters currently loaded in the application runtime.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white">Live Monitor</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Registry parameters currently loaded in the application runtime.</p>
-                    </div>
+                    {testStatus === 'success' && (
+                        <button
+                            onClick={handleMigrateData}
+                            disabled={isMigrating}
+                            className="h-10 px-6 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {isMigrating ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <ShieldIcon className="w-4 h-4" />}
+                            {isMigrating ? `Migrating: ${migrationMsg}` : 'Migrate Local Data to Cloud'}
+                        </button>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

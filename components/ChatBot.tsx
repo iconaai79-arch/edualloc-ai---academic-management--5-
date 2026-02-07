@@ -10,9 +10,10 @@ interface ChatMessage {
 
 interface ChatBotProps {
     welcomeMessage?: string;
+    currentInstitution?: any;
 }
 
-export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage }) => {
+export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage, currentInstitution }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -39,7 +40,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage }) => {
 
         const userMessage = inputValue.trim();
         setInputValue('');
-        
+
         const newMessages: ChatMessage[] = [
             ...messages,
             { role: 'user', text: userMessage }
@@ -54,7 +55,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage }) => {
             parts: [{ text: m.text }]
         }));
 
-        const responseText = await getChatResponse(history, userMessage);
+        const responseText = await getChatResponse(history, userMessage, currentInstitution?.aiModelTier);
 
         setMessages(prev => [
             ...prev,
@@ -96,11 +97,10 @@ export const ChatBot: React.FC<ChatBotProps> = ({ welcomeMessage }) => {
                                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
                                 <div
-                                    className={`max-w-[80%] p-3 rounded-lg text-sm ${
-                                        msg.role === 'user'
+                                    className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user'
                                             ? 'bg-[var(--color-primary)] text-white rounded-br-none'
                                             : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-bl-none shadow-sm'
-                                    }`}
+                                        }`}
                                 >
                                     {msg.text}
                                 </div>

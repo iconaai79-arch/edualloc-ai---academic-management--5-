@@ -87,12 +87,13 @@ export interface Institution {
     location?: { latitude: number; longitude: number };
     customSubscriptionPrice?: { monthly?: number; yearly?: number };
     gradingSystems?: GradingSystem[];
-    gradingSystem?: GradeDefinition[]; 
+    gradingSystem?: GradeDefinition[];
     activeGradingSystemId?: string;
     timetableSettings?: TimetableSettings;
     examTimetableSettings?: ExamTimetableSettings;
     useAllocationRequests?: boolean;
     scheduleProfiles?: ScheduleProfile[];
+    aiModelTier?: 'free' | 'premium';
 }
 
 export interface Department {
@@ -417,7 +418,7 @@ export interface Assessment {
     lecturerId: string;
     subjectId: string;
     title: string;
-    type: string; 
+    type: string;
     description: string;
     maxMarks: number;
     assessmentDate: string;
@@ -443,7 +444,7 @@ export type TimeOffRequestStatus = 'pending' | 'approved' | 'rejected';
 export interface TimeOffRequest {
     id: string;
     lecturerId: string;
-    category: string; 
+    category: string;
     startDate: string;
     endDate: string;
     isFullDay: boolean;
@@ -451,7 +452,7 @@ export interface TimeOffRequest {
     endTime?: string;
     reason: string;
     supportingDocumentUrl?: string | null;
-    status: TimeOffRequestStatus; 
+    status: TimeOffRequestStatus;
     timestamp: string;
     institutionId: string;
 }
@@ -468,7 +469,7 @@ export interface StudentAbsenceRequest {
     endTime?: string;
     reason: string;
     supportingDocumentUrl?: string | null;
-    status: StudentAbsenceRequestStatus; 
+    status: StudentAbsenceRequestStatus;
     timestamp: string;
     institutionId: string;
 }

@@ -1,15 +1,15 @@
 
 import React, { useState, useMemo } from 'react';
-import type { 
-    AllocationRequest, Subject, User, Room, TimetableEntry, 
+import type {
+    AllocationRequest, Subject, User, Room, TimetableEntry,
     TimetableSettings, Course, AcademicYear, Semester, TimeOffRequest,
     Institution
 } from '../types';
 import { generateTimetable } from '../services/geminiService';
 import { generateStandardTimetable } from '../utils/timetableLogic';
-import { 
-    CheckCircleIcon, XIcon, ArrowPathIcon, CalendarDaysIcon, 
-    UserGroupIcon, BuildingOfficeIcon, RectangleStackIcon, 
+import {
+    CheckCircleIcon, XIcon, ArrowPathIcon, CalendarDaysIcon,
+    UserGroupIcon, BuildingOfficeIcon, RectangleStackIcon,
     SparklesIcon, CommandLineIcon, ExclamationTriangleIcon,
     ChevronRightIcon
 } from './icons/index.ts';
@@ -32,8 +32,8 @@ interface TimetableWizardProps {
 }
 
 export const TimetableWizard: React.FC<TimetableWizardProps> = ({
-    onClose, isInline = false, allocations, subjects, lecturers, rooms, courses, timetableSettings, 
-    activeAcademicYear, activeSemester, currentInstitution, courseSizes, 
+    onClose, isInline = false, allocations, subjects, lecturers, rooms, courses, timetableSettings,
+    activeAcademicYear, activeSemester, currentInstitution, courseSizes,
     timeOffRequests, onTimetableGenerated
 }) => {
     const [step, setStep] = useState(1);
@@ -78,13 +78,13 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 
     const handleGenerate = async () => {
         if (!activeAcademicYear || !activeSemester) return;
-        
+
         setIsGenerating(true);
         setError(null);
-        
+
         try {
             let result: any[] = [];
-            
+
             if (mode === 'ai') {
                 result = await generateTimetable(
                     allocations.filter(a => a.status === 'approved'),
@@ -95,7 +95,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     courseSizes,
                     courses,
                     timeOffRequests,
-                    currentInstitution?.scheduleProfiles || []
+                    currentInstitution?.scheduleProfiles || [],
+                    currentInstitution?.aiModelTier
                 );
             } else {
                 result = generateStandardTimetable(
@@ -125,10 +126,10 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
         }
     };
 
-    const containerClasses = isInline 
+    const containerClasses = isInline
         ? "w-full bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up"
         : "bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up";
-    
+
     const content = (
         <div className={containerClasses}>
             {/* Header */}
@@ -151,15 +152,15 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 
             {/* Progress Bar */}
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
-                <div 
-                    className="h-full bg-indigo-600 transition-all duration-500 ease-out" 
-                    style={{ width: `${(step / 4) * 100}%` }} 
+                <div
+                    className="h-full bg-indigo-600 transition-all duration-500 ease-out"
+                    style={{ width: `${(step / 4) * 100}%` }}
                 />
             </div>
 
             {/* Body */}
             <div className="p-8 min-h-[300px] flex flex-col justify-center">
-                
+
                 {step === 1 && (
                     <div className="space-y-6 animate-fade-in">
                         <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">1. Academic Context Verification</h4>
@@ -215,14 +216,14 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Courses</p>
                             </div>
                         </div>
-                            {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
+                        {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
                     </div>
                 )}
 
                 {step === 3 && (
                     <div className="space-y-6 animate-fade-in">
                         <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
-                        
+
                         <div className="flex flex-col gap-4">
                             <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
                                 <div>
@@ -243,50 +244,50 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                             </div>
                         </div>
 
-                            {!canProceedStep3 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-2">No approved allocations found. Go to 'Registry' to approve requests.</p>}
-                            {workloadStatus.pending > 0 && <p className="text-center text-xs text-yellow-600 font-bold uppercase tracking-widest mt-2">Note: Only approved allocations will be scheduled.</p>}
+                        {!canProceedStep3 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-2">No approved allocations found. Go to 'Registry' to approve requests.</p>}
+                        {workloadStatus.pending > 0 && <p className="text-center text-xs text-yellow-600 font-bold uppercase tracking-widest mt-2">Note: Only approved allocations will be scheduled.</p>}
                     </div>
                 )}
 
                 {step === 4 && (
                     <div className="space-y-8 animate-fade-in">
-                            <div className="text-center">
+                        <div className="text-center">
                             <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Ready to Launch</h4>
                             <p className="text-sm text-slate-500 dark:text-slate-400">Select your engine and start the generation process.</p>
-                            </div>
+                        </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <button 
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
                                 onClick={() => setMode('ai')}
                                 className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
                             >
                                 <SparklesIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'ai' ? 'text-indigo-600' : 'text-slate-400'}`} />
                                 <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine</h5>
                                 <p className="text-[10px] text-slate-400 mt-1">Best for complex, constraint-heavy schedules. Optimizes for conflict resolution.</p>
-                                </button>
+                            </button>
 
-                                <button 
+                            <button
                                 onClick={() => setMode('standard')}
                                 className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'standard' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
                             >
                                 <CommandLineIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'standard' ? 'text-indigo-600' : 'text-slate-400'}`} />
                                 <h5 className={`font-bold ${mode === 'standard' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>Standard Algorithm</h5>
                                 <p className="text-[10px] text-slate-400 mt-1">Faster, deterministic generation. Best for simple, linear schedules.</p>
-                                </button>
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
+                                {error}
                             </div>
+                        )}
 
-                            {error && (
-                                <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
-                                    {error}
-                                </div>
-                            )}
-
-                            {isGenerating && (
-                                <div className="flex flex-col items-center justify-center py-4 animate-pulse">
-                                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Processing Logic Matrix...</p>
-                                </div>
-                            )}
+                        {isGenerating && (
+                            <div className="flex flex-col items-center justify-center py-4 animate-pulse">
+                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                                <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Processing Logic Matrix...</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -308,8 +309,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
             {/* Footer Controls */}
             {step < 5 && (
                 <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between">
-                        <button 
-                        onClick={() => setStep(Math.max(1, step - 1))} 
+                    <button
+                        onClick={() => setStep(Math.max(1, step - 1))}
                         disabled={step === 1 || isGenerating}
                         className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
                     >
@@ -317,8 +318,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     </button>
 
                     {step < 4 ? (
-                        <button 
-                            onClick={() => setStep(step + 1)} 
+                        <button
+                            onClick={() => setStep(step + 1)}
                             disabled={
                                 (step === 1 && !canProceedStep1) ||
                                 (step === 2 && !canProceedStep2) ||
@@ -329,8 +330,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                             Next Step <ChevronRightIcon className="w-4 h-4" />
                         </button>
                     ) : (
-                            <button 
-                            onClick={handleGenerate} 
+                        <button
+                            onClick={handleGenerate}
                             disabled={isGenerating}
                             className="btn-primary h-12 px-10 flex items-center gap-2 uppercase text-xs font-black tracking-widest bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 disabled:opacity-70"
                         >

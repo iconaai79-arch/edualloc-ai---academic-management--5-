@@ -1,9 +1,9 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { 
-    AllocationRequest, RequestStatus, User, Institution, 
-    Priority, Department, Subject, Course, CompanyDetails, Room, 
-    AcademicYear, Semester, TimetableEntry, SmsConfig, 
+import type {
+    AllocationRequest, RequestStatus, User, Institution,
+    Priority, Department, Subject, Course, CompanyDetails, Room,
+    AcademicYear, Semester, TimetableEntry, SmsConfig,
     MpesaConfig, EmailConfig, TransactionStatus, InvoiceItem,
     MpesaTransaction, Receipt, Invoice, ExtensionRequest, AcademicLevel,
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
@@ -13,12 +13,12 @@ import type {
 const getSafeEnv = (key: string): string | null => {
     try {
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-             const val = (import.meta as any).env[`VITE_${key}`] || (import.meta as any).env[key];
-             if (val) return val;
+            const val = (import.meta as any).env[`VITE_${key}`] || (import.meta as any).env[key];
+            if (val) return val;
         }
         const localVal = localStorage.getItem(`db_config_${key}`);
         if (localVal && localVal !== "" && localVal !== "null") return localVal;
-    } catch (e) {}
+    } catch (e) { }
     return null;
 };
 
@@ -27,8 +27,9 @@ let _activeUrl: string | null = null;
 let _activeKey: string | null = null;
 
 export const initSupabaseClient = (url?: string, key?: string) => {
-    const finalUrl = url || process.env.SUPABASE_URL || getSafeEnv('SUPABASE_URL');
-    const finalKey = key || process.env.SUPABASE_ANON_KEY || getSafeEnv('SUPABASE_ANON_KEY');
+    const proc = typeof process !== 'undefined' ? process : { env: {} as any };
+    const finalUrl = url || proc.env.SUPABASE_URL || getSafeEnv('SUPABASE_URL');
+    const finalKey = key || proc.env.SUPABASE_ANON_KEY || getSafeEnv('SUPABASE_ANON_KEY');
 
     if (finalUrl && finalKey && finalUrl.startsWith('http')) {
         try {
@@ -38,7 +39,7 @@ export const initSupabaseClient = (url?: string, key?: string) => {
             });
             _activeUrl = finalUrl;
             _activeKey = finalKey;
-            
+
             if (url && key) {
                 localStorage.setItem('db_config_SUPABASE_URL', url);
                 localStorage.setItem('db_config_SUPABASE_ANON_KEY', key);
@@ -103,11 +104,11 @@ const ls = {
 };
 
 export const apiService = {
-    isConfigured() { 
-        return !!_supabase; 
+    isConfigured() {
+        return !!_supabase;
     },
-    getActiveConfig() { 
-        return { url: _activeUrl, key: _activeKey }; 
+    getActiveConfig() {
+        return { url: _activeUrl, key: _activeKey };
     },
     storeSession(user: User) {
         localStorage.setItem('eduai_active_session', JSON.stringify(user));
@@ -125,22 +126,22 @@ export const apiService = {
         const timestamp = new Date().toISOString();
         if (url && key) initSupabaseClient(url, key);
         if (!_supabase) initSupabaseClient();
-        
+
         if (!_supabase) {
             const localInsts = ls.get('institutions');
             if (localInsts.length > 0) {
-                 return { success: true, status: 'online', dbName: 'Local Browser Storage', message: 'Running in Local Storage mode.', timestamp };
+                return { success: true, status: 'online', dbName: 'Local Browser Storage', message: 'Running in Local Storage mode.', timestamp };
             }
             return { success: true, status: 'offline', message: 'No cloud link. Local storage active.', dbName: 'Local Storage', timestamp };
         }
-        
+
         try {
             // Increased timeout to 15 seconds to handle cold starts
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
             const pingPromise = _supabase.from('institutions').select('id').limit(1);
-            
+
             const { error }: any = await Promise.race([pingPromise, timeoutPromise]);
-            
+
             if (error) {
                 if (error.code === '42P01') return { success: true, status: 'setup_required', dbName: 'PostgreSQL', message: 'Registry linked. Table initialization required.', timestamp };
                 throw error;
@@ -189,14 +190,14 @@ export const apiService = {
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<void> {
         const payload = toSnakeCase(data);
-        
+
         if (!_supabase) {
             ls.upsert(module, payload);
             return;
         }
 
         const { error } = await _supabase.from(module as any).upsert(payload).select();
-        
+
         if (error) {
             console.error(`Save Error [${module}]:`, error);
             throw new Error(`Failed to save ${module}: ${error.message} (${error.code})`);
@@ -240,7 +241,7 @@ export const apiService = {
     async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return this.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {
         const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
-        
+
         if (!_supabase) {
             let existing = ls.get('timetable_entries');
             existing = existing.filter((e: any) => !(e.institution_id === institutionId && e.semester_id === semId));
@@ -264,7 +265,7 @@ export const apiService = {
             if (index >= 0) {
                 const existing = records[index];
                 let updates: any = { status, timestamp: new Date().toISOString() };
-                
+
                 if (status === 'change_request_pending') {
                     updates.proposed_changes = { priority: priority || existing.priority, justification: justification || '' };
                 } else if (status === 'approved' && existing.status === 'change_request_pending' && existing.proposed_changes) {
@@ -275,7 +276,7 @@ export const apiService = {
                 } else if (justification !== undefined) {
                     updates.justification = justification;
                 }
-                
+
                 records[index] = { ...existing, ...updates };
                 ls.set('allocation_requests', records);
             }
@@ -331,17 +332,17 @@ export const apiService = {
                 body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config })
             });
             if (!response.ok) {
-                 const errData = await response.json().catch(() => ({}));
-                 throw new Error(errData.message || `Handshake Error: ${response.status}`);
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.message || `Handshake Error: ${response.status}`);
             }
             return await response.json();
-        } catch (e: any) { 
+        } catch (e: any) {
             console.warn("M-Pesa API Handshake Failed. Switching to Demo Mode Emulation.", e);
             // FAIL-SAFE EMULATION: Allow users to test the flow even if the backend route isn't set up.
             return new Promise((resolve) => {
                 setTimeout(() => {
-                    resolve({ 
-                        success: true, 
+                    resolve({
+                        success: true,
                         message: "DEMO MODE: Secure tunnel established via emulation. Check phone for simulated prompt.",
                         isDemo: true
                     });
@@ -397,7 +398,7 @@ export const apiService = {
             return;
         }
 
-        const { data: course } = await _supabase.from('courses').select('*').contains('levels', [{id: levelId}]).single();
+        const { data: course } = await _supabase.from('courses').select('*').contains('levels', [{ id: levelId }]).single();
         if (course) {
             const updatedLevels = course.levels.map((l: any) => {
                 if (l.id === levelId) {
@@ -412,8 +413,8 @@ export const apiService = {
     },
     async onImportUsers(imported: any[], institutionId?: string): Promise<void> {
         if (!_supabase) return;
-        const dataWithInst = institutionId 
-            ? imported.map(u => ({ ...u, institutionId })) 
+        const dataWithInst = institutionId
+            ? imported.map(u => ({ ...u, institutionId }))
             : imported;
         const sanitizedData = dataWithInst.map(u => ({ ...u, role: u.role || 'lecturer' }));
         const snakeData = sanitizedData.map(u => toSnakeCase(u));
@@ -422,8 +423,8 @@ export const apiService = {
     },
     async onImportStudents(imported: any[], institutionId?: string): Promise<void> {
         if (!_supabase) return;
-        const dataWithInst = institutionId 
-            ? imported.map(s => ({ ...s, institutionId })) 
+        const dataWithInst = institutionId
+            ? imported.map(s => ({ ...s, institutionId }))
             : imported;
         const sanitizedData = dataWithInst.map(s => ({ ...s, role: 'student' }));
         const snakeData = sanitizedData.map(s => toSnakeCase(s));
@@ -453,7 +454,7 @@ export const apiService = {
     async onImportRooms(rooms: any[]): Promise<void> {
         const snakeData = rooms.map(r => toSnakeCase(r));
         if (!_supabase) {
-             const existing = ls.get('rooms');
+            const existing = ls.get('rooms');
             ls.set('rooms', [...existing, ...snakeData]);
             return;
         }
@@ -472,7 +473,7 @@ export const apiService = {
     },
     async onImportSubjectsAndAssociate(subjects: any[], institutionId?: string): Promise<void> {
         const subjectsToInsert = subjects.map(s => ({
-            id: `sub_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
+            id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             institutionId: s.institutionId || institutionId,
             name: s.name,
             code: s.code,
@@ -484,8 +485,8 @@ export const apiService = {
         }));
 
         if (!_supabase) {
-             const existing = ls.get('subjects');
-             ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
+            const existing = ls.get('subjects');
+            ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
             for (const subj of subjectsToInsert) {
                 const original = subjects.find(s => s.name === subj.name);
                 if (original && original.targetCourseLevelId) {
@@ -503,6 +504,49 @@ export const apiService = {
             if (original && original.targetCourseLevelId) {
                 await this.onAssociateSubjectToCourseLevel(subj.id, original.targetCourseLevelId);
             }
+        }
+    },
+    async migrateLocalDataToCloud(onProgress?: (msg: string) => void): Promise<{ success: boolean; message: string }> {
+        if (!_supabase) return { success: false, message: "Registry not initialized." };
+
+        const modules = [
+            'institutions', 'users', 'departments', 'subjects', 'courses',
+            'buildings', 'rooms', 'academic_levels', 'academic_years', 'semesters',
+            'allocation_requests', 'timetable_entries', 'exam_timetable_entries',
+            'tasks', 'mpesa_transactions', 'receipts', 'invoices', 'vote_heads',
+            'fee_structures', 'financial_periods', 'extension_requests',
+            'absence_requests', 'assessment_marks', 'submissions', 'assignments',
+            'lesson_ratings', 'ta_assignments', 'assessments', 'books',
+            'library_transactions', 'appointments', 'suppliers', 'stock_transactions',
+            'inventory', 'feedback_submissions', 'student_absence_requests',
+            'enrollment_requests', 'contracts', 'student_attendances', 'activity_log'
+        ];
+
+        try {
+            // Special handling for system_settings (id: 1)
+            onProgress?.("Migrating system settings...");
+            const systemSettings = ls.get('system_settings');
+            if (systemSettings && systemSettings.length > 0) {
+                for (const setting of systemSettings) {
+                    await _supabase.from('system_settings').upsert(setting);
+                }
+            }
+
+            for (const mod of modules) {
+                onProgress?.(`Migrating ${mod}...`);
+                const localData = ls.get(mod);
+                if (localData && localData.length > 0) {
+                    // Using upsert to handle potential duplicates
+                    const { error } = await _supabase.from(mod as any).upsert(localData);
+                    if (error) {
+                        console.warn(`Migration failed for ${mod}:`, error);
+                        // Continue with other modules even if one fails
+                    }
+                }
+            }
+            return { success: true, message: "Data migration completed successfully." };
+        } catch (e: any) {
+            return { success: false, message: `Migration error: ${e.message}` };
         }
     }
 };
