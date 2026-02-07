@@ -45,6 +45,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Adjust check based on standard success responses
                     const isSuccess = (data.status === "success" || data.status === 200 || data.code === 200);
                     return res.status(200).json({ success: isSuccess, data });
+                } else if (provider === 'Sematime') {
+                    const response = await fetch('https://api.sematime.com/api/v1/sms', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                        body: JSON.stringify({ clientId: apiSecret, message, recipient: cleanPhone, senderId: fromNumber || 'EduAlloc' })
+                    });
+                    const data = await response.json();
+                    console.log('Sematime SMS Response:', data);
+                    const isSuccess = (data.status === "success" || response.ok);
+                    return res.status(200).json({ success: isSuccess, data });
                 } else {
                     const params = new URLSearchParams({ userid: apiKey, password: apiSecret, sendMethod: 'quick', mobile: cleanPhone, msg: message || '', senderid: fromNumber || 'ABMIS', msgType: 'text', duplicatecheck: 'true', output: 'json' });
                     const response = await fetch(`https://sms.abmis.co.ke/SMSApi/send?${params.toString()}`);

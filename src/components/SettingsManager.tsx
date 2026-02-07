@@ -466,6 +466,32 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         }
     };
 
+    const handleSendTestSms = async () => {
+        setIsSavingConfigs(true);
+        try {
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'sendSms',
+                    recipient: localCompanyInfo.phone,
+                    message: 'This is a test SMS from EduAlloc to verify your SMS gateway configuration.',
+                    config: localSmsConfig
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('Test SMS sent successfully to ' + localCompanyInfo.phone);
+            } else {
+                alert('Failed to send test SMS: ' + data.message);
+            }
+        } catch (error: any) {
+            alert('Error sending test SMS: ' + error.message);
+        } finally {
+            setIsSavingConfigs(false);
+        }
+    };
+
     const handleLocalImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -639,24 +665,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         >
                                             <option value="ABMIS">ABMIS (Default)</option>
                                             <option value="Zettatel">Zettatel Solutions</option>
+                                            <option value="Sematime">Sematime</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localSmsConfig.provider === 'Zettatel' ? 'Bearer Token / API Key' : 'User ID'}
+                                            {localSmsConfig.provider === 'Zettatel' ? 'Bearer Token / API Key' : localSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID'}
                                         </label>
                                         <input type="text" value={localSmsConfig.apiKey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localSmsConfig.provider === 'Zettatel' ? 'Partner ID' : 'API Password'}
+                                            {localSmsConfig.provider === 'Zettatel' ? 'Partner ID' : localSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password'}
                                         </label>
                                         <input type="password" value={localSmsConfig.apiSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
                                     </div>
                                     <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
                                 </div>
-                                <div className="pt-6 border-t flex justify-end">
-                                    <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Sync Gateway</button>
+                                <div className="pt-6 border-t flex justify-end gap-4">
+                                    <button onClick={handleSendTestSms} disabled={isSavingConfigs} className="btn-secondary px-6 h-12 border-slate-200 uppercase tracking-widest text-xs">Send Test SMS</button>
+                                    <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Sync Gateway</button>
                                 </div>
                             </div>
                         )}
