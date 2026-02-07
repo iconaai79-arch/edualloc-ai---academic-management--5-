@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, RequestStatus, Priority } from '../types';
 
@@ -12,9 +11,7 @@ import { CheckIcon, XIcon, ClockIcon, PrinterIcon, DocumentArrowDownIcon } from 
 interface LecturerInteractionManagerProps {
     requests: AllocationRequest[];
     allocations: AllocationRequest[]; // Added allocations prop
-    // FIXED: Changed from required to optional to handle cases where these aren't provided
     onUpdateRequestStatus?: (requestId: string, newStatus: RequestStatus) => Promise<void>;
-    // FIXED: Changed from required to optional to handle cases where these aren't provided
     onBulkUpdateRequestStatus?: (newStatus: 'hod_approved' | 'approved', departmentId?: string) => Promise<void>;
     onOpenDirectAssign: () => void;
     getLecturerById: (id: string) => User | undefined;
@@ -22,10 +19,8 @@ interface LecturerInteractionManagerProps {
     currentUser: User;
     subjects: Subject[];
     absenceRequests: AbsenceRequest[];
-    // FIXED: Changed from required to optional to match consumer usage
     onUpdateAbsenceRequest?: (requestId: string, newStatus: 'approved' | 'rejected') => void;
     timeOffRequests: TimeOffRequest[];
-    // FIXED: Changed from required to optional to match consumer usage
     onUpdateTimeOffRequestStatus?: (requestId: string, newStatus: TimeOffRequestStatus) => void;
     users: User[];
     generatedTimetable: TimetableEntry[];
@@ -251,8 +246,7 @@ export const LecturerInteractionManager: React.FC<LecturerInteractionManagerProp
             {subTab === 'allocations' && (
                 <RequestManager 
                     requests={requests}
-                    allocations={allocations} // Passed explicit allocations
-                    // FIXED: Provided fallback to satisfy RequestManager required props
+                    allocations={allocations}
                     onUpdateRequestStatus={onUpdateRequestStatus || (async () => {})}
                     onBulkUpdateRequestStatus={onBulkUpdateRequestStatus || (async () => {})}
                     getLecturerById={getLecturerById || (id => undefined)}

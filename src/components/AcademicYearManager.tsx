@@ -1,40 +1,28 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { AcademicYear, Semester, ExamPeriod, Institution } from '../types';
-import { 
-    PlusIcon, 
-    CheckIcon, 
-    XIcon, 
-    Cog8ToothIcon, 
-    CheckCircleIcon, 
-    CalendarDaysIcon, 
-    ArrowPathIcon,
-    InformationCircleIcon,
-    ExclamationTriangleIcon
-} from './icons/index.ts';
+import { PlusIcon, CheckIcon, XIcon, Cog8ToothIcon, CheckCircleIcon, CalendarDaysIcon } from './icons';
 
 interface AcademicYearManagerProps {
     academicYears: AcademicYear[];
     semesters: Semester[];
     onAddAcademicYear?: (data: Omit<AcademicYear, 'id'|'institutionId'|'status'>) => void;
-    onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id'|'institutionId'>>) => void | Promise<void>;
+    onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id'|'institutionId'>>) => void;
     onDeleteAcademicYear?: (yearId: string) => void;
-    onAddSemester?: (data: Omit<Semester, 'id'|'institutionId'>) => void | Promise<void>;
-    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id'|'institutionId'|'academicYearId'>>) => void | Promise<void>;
+    onAddSemester?: (data: Omit<Semester, 'id'|'institutionId'>) => void;
+    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id'|'institutionId'|'academicYearId'>>) => void;
     onDeleteSemester?: (semesterId: string) => void;
     isExamCalendarOnly?: boolean;
     currentInstitution?: Institution | null;
 }
 
-const statusColors: Record<string, string> = {
+const statusColors = {
     active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     inactive: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300",
 };
 
 export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
-    academicYears = [], 
-    semesters = [], 
-    onAddAcademicYear, onUpdateAcademicYear, onDeleteAcademicYear, onAddSemester, onUpdateSemester, onDeleteSemester, isExamCalendarOnly = false, currentInstitution
+    academicYears, semesters, onAddAcademicYear, onUpdateAcademicYear, onDeleteAcademicYear, onAddSemester, onUpdateSemester, onDeleteSemester, isExamCalendarOnly = false, currentInstitution
 }) => {
     const [newYear, setNewYear] = useState({ name: '', startDate: '', endDate: '' });
     const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
@@ -49,18 +37,13 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
     const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
     const [isAddingYear, setIsAddingYear] = useState(false);
     const [semesterSaveStatus, setSemesterSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-    
-    // --- Error & Status Tracking ---
-    const [syncError, setSyncError] = useState<{ message: string; technical?: string } | null>(null);
-    const [showTechnical, setShowTechnical] = useState(false);
-    const [processingId, setProcessingId] = useState<string | null>(null);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const semesterLabel = isSchool ? 'Term' : 'Semester';
     const semesterLabelPlural = isSchool ? 'Terms' : 'Semesters';
 
     const sortedAcademicYears = useMemo(() => {
-        const yearsList = Array.isArray(academicYears) ? academicYears : [];
+        const yearsList = academicYears || [];
         const filtered = filterQuery.trim()
             ? yearsList.filter(year => year.name.toLowerCase().includes(filterQuery.toLowerCase()))
             : yearsList;
@@ -88,60 +71,6 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleActivateYear = async (yearId: string) => {
-        if (!onUpdateAcademicYear) return;
-        setProcessingId(yearId);
-        setSyncError(null);
-        try {
-            const targetYear = academicYears.find(y => y.id === yearId);
-            if (!targetYear) return;
-
-            // 1. Deactivate others first
-            const activeOthers = academicYears.filter(y => y.id !== yearId && y.status === 'active');
-            for (const other of activeOthers) {
-                await onUpdateAcademicYear(other.id, { ...other, status: 'inactive' });
-            }
-
-            // 2. Activate target
-            await onUpdateAcademicYear(yearId, { ...targetYear, status: 'active' });
-            setOpenActionMenu(null);
-        } catch (err: any) {
-            setSyncError({
-                message: "Database failed to activate the year. Check connection or permissions.",
-                technical: JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
-            });
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    const handleActivateSemester = async (semesterId: string) => {
-        if (!onUpdateSemester) return;
-        setProcessingId(semesterId);
-        setSyncError(null);
-        try {
-            const targetSem = semesters.find(s => s.id === semesterId);
-            if (!targetSem) return;
-
-            // 1. Deactivate others in same year
-            const activeOthers = semesters.filter(s => s.id !== semesterId && s.status === 'active');
-            for (const other of activeOthers) {
-                await onUpdateSemester(other.id, { ...other, status: 'inactive' });
-            }
-
-            // 2. Activate target
-            await onUpdateSemester(semesterId, { ...targetSem, status: 'active' });
-        } catch (err: any) {
-            setSyncError({
-                message: `Failed to activate ${semesterLabel}. Database rejected the state change.`,
-                technical: JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
-            });
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    // Shared methods for sessions
     const handleSessionChange = (sessionId: string, field: 'name' | 'startDate' | 'endDate', value: string) => {
         setEditingSemesterData(prev => {
             if (!prev) return prev;
@@ -240,96 +169,41 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         setIsAddingYear(false);
     };
 
-    const handleUpdateYear = async (yearId: string) => {
-        if (!editingYear || !onUpdateAcademicYear) return;
-        setProcessingId(yearId);
-        try {
-            await onUpdateAcademicYear(yearId, editingYear);
-            setEditingYear(null);
-        } catch (error) {
-            alert("Failed to update year.");
-        } finally {
-            setProcessingId(null);
-        }
+    const handleUpdateYear = (yearId: string) => {
+        if (!editingYear) return;
+        onUpdateAcademicYear?.(yearId, { name: editingYear.name, startDate: editingYear.startDate, endDate: editingYear.endDate });
+        setEditingYear(null);
     };
 
-    const handleAddSemesterSubmit = async (e: React.FormEvent) => {
+    const handleAddSemesterSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if(!addingSemesterTo) return;
-        
-        // Clean up empty date strings to undefined to satisfy DB date type
-        const payload = {
-            ...newSemester,
-            academicYearId: addingSemesterTo,
-            status: 'inactive' as const,
-            sessions: [],
-            requestDeadline: newSemester.requestDeadline || undefined,
-            enrollmentDeadline: newSemester.enrollmentDeadline || undefined
-        };
-
-        try {
-            await onAddSemester?.(payload);
-            setNewSemester({ name: '', startDate: '', endDate: '', requestDeadline: '', enrollmentDeadline: '' });
-            setAddingSemesterTo(null);
-        } catch (error) {
-            console.error("Failed to add semester", error);
-            alert("Failed to add semester. Please check dates.");
-        }
+        onAddSemester?.({ ...newSemester, academicYearId: addingSemesterTo, status: 'inactive', sessions: [] });
+        setNewSemester({ name: '', startDate: '', endDate: '', requestDeadline: '', enrollmentDeadline: '' });
+        setAddingSemesterTo(null);
     };
     
-    const handleUpdateSemester = async () => {
+    const handleUpdateSemester = () => {
         if (!editingSemesterData || !onUpdateSemester) return;
         setSemesterSaveStatus('saving');
-        setSyncError(null);
-
-        const payload = { 
-            name: editingSemesterData.name, 
-            startDate: editingSemesterData.startDate, 
-            endDate: editingSemesterData.endDate, 
-            status: editingSemesterData.status, 
-            requestDeadline: editingSemesterData.requestDeadline || undefined, 
-            enrollmentDeadline: editingSemesterData.enrollmentDeadline || undefined,
-            sessions: editingSemesterData.sessions
-        };
-
-        try {
-            await onUpdateSemester(editingSemesterData.id, payload);
+        setTimeout(() => {
+            onUpdateSemester(editingSemesterData.id, { 
+                name: editingSemesterData.name, 
+                startDate: editingSemesterData.startDate, 
+                endDate: editingSemesterData.endDate, 
+                status: editingSemesterData.status, 
+                requestDeadline: editingSemesterData.requestDeadline, 
+                enrollmentDeadline: editingSemesterData.enrollmentDeadline,
+                sessions: editingSemesterData.sessions
+            });
             setSemesterSaveStatus('saved');
             setTimeout(() => {
                 setEditingSemesterId(null);
                 setEditingSemesterData(null);
                 setSemesterSaveStatus('idle');
             }, 1500);
-        } catch (err: any) {
-            setSemesterSaveStatus('idle');
-            setSyncError({
-                message: "Update failed. Ensure all dates are valid and you have network connectivity.",
-                technical: JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
-            });
-        }
+        }, 500);
     };
-
-    if (sortedAcademicYears.length === 0 && !isAddingYear) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 animate-fade-in">
-                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mb-6">
-                    <CalendarDaysIcon className="w-8 h-8 text-slate-400" />
-                </div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">No Academic Years</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm text-center mt-2 mb-8">
-                    Your institutional calendar is empty. Start by defining the current academic year.
-                </p>
-                {onAddAcademicYear && (
-                    <button 
-                        onClick={() => setIsAddingYear(true)} 
-                        className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-indigo-100"
-                    >
-                        Initialize Calendar
-                    </button>
-                )}
-            </div>
-        );
-    }
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -338,51 +212,12 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                 .dark .form-input { border-color: #4b5563; background-color: #374151; color: white; }
                 .btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 500; transition: filter 0.15s; border: none; cursor: pointer; }
                 .btn-primary:hover:not(:disabled) { filter: brightness(0.9); }
-                .btn-secondary { padding: 0.5rem 1rem; background-color: #e5e7eb; color: #1f2937; border-radius: 0.375rem; font-weight: 500; transition: background-color 0.15s; border: 1px solid #e2e8f0; cursor: pointer; }
+                .btn-secondary { padding: 0.5rem 1rem; background-color: #e5e7eb; color: #1f2937; border-radius: 0.375rem; font-weight: 500; transition: background-color 0.15s; border: none; cursor: pointer; }
                 .dark .btn-secondary { background-color: #4b5563; color: #e5e7eb; }
                 .btn-danger { padding: 0.5rem; background-color: #dc2626; color: white; border-radius: 0.375rem; font-weight: 500; border: none; cursor: pointer; }
                 .action-menu-dropdown { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
                 .dark .action-menu-dropdown { border-color: #334155; }
             `}</style>
-
-            {syncError && (
-                 <div className="col-span-full animate-shake mb-6">
-                    <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-[2rem] p-6 shadow-xl shadow-red-100 dark:shadow-none">
-                        <div className="flex items-start gap-4">
-                            <div className="p-3 bg-red-100 dark:bg-red-900 rounded-2xl">
-                                <ExclamationTriangleIcon className="w-6 h-6 text-red-600 dark:text-red-300" />
-                            </div>
-                            <div className="flex-grow">
-                                <h4 className="text-lg font-black text-red-800 dark:text-red-200 uppercase tracking-tight">Sync Failure</h4>
-                                <p className="text-sm text-red-700 dark:text-red-300 font-medium mt-1">{syncError.message}</p>
-                                
-                                <div className="mt-4 flex items-center gap-3">
-                                    <button 
-                                        onClick={() => setShowTechnical(!showTechnical)}
-                                        className="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 hover:underline"
-                                    >
-                                        {showTechnical ? 'Hide Diagnostics' : 'Show Technical Details'}
-                                    </button>
-                                    <button 
-                                        onClick={() => setSyncError(null)}
-                                        className="px-4 py-1.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all"
-                                    >
-                                        Clear
-                                    </button>
-                                </div>
-
-                                {showTechnical && syncError.technical && (
-                                    <div className="mt-4 p-4 bg-slate-900 rounded-2xl border border-slate-800 animate-fade-in">
-                                        <pre className="text-[10px] font-mono text-indigo-300 overflow-x-auto whitespace-pre-wrap">
-                                            {syncError.technical}
-                                        </pre>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             <div className="md:col-span-1 space-y-6" ref={listContainerRef}>
                 <section>
@@ -400,10 +235,8 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                             <h4 className="font-bold text-sm">Initialize Academic Year</h4>
                             <div className="space-y-3">
                                 <div><label className="block text-xs font-semibold mb-1">Display Name</label><input type="text" value={newYear.name} onChange={e => setNewYear({...newYear, name: e.target.value})} placeholder="e.g., 2024/2025" required className="form-input text-sm" /></div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div><label className="block text-xs font-semibold mb-1">Effective Start</label><input type="date" value={newYear.startDate} onChange={e => setNewYear({...newYear, startDate: e.target.value})} required className="form-input text-sm" /></div>
-                                    <div><label className="block text-xs font-semibold mb-1">Effective End</label><input type="date" value={newYear.endDate} onChange={e => setNewYear({...newYear, endDate: e.target.value})} required className="form-input text-sm" /></div>
-                                </div>
+                                <div><label className="block text-xs font-semibold mb-1">Effective Start</label><input type="date" value={newYear.startDate} onChange={e => setNewYear({...newYear, startDate: e.target.value})} required className="form-input text-sm" /></div>
+                                <div><label className="block text-xs font-semibold mb-1">Effective End</label><input type="date" value={newYear.endDate} onChange={e => setNewYear({...newYear, endDate: e.target.value})} required className="form-input text-sm" /></div>
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
                                 <button type="button" onClick={() => setIsAddingYear(false)} className="btn-secondary text-xs">Cancel</button>
@@ -419,17 +252,14 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
 
                     <div className="space-y-3">
                         {sortedAcademicYears.map(year => (
-                            <div key={year.id} className={`p-4 rounded-2xl border transition-all ${selectedYearId === year.id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 ring-1 ring-indigo-500 shadow-md' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}>
+                            <div key={year.id} className={`p-4 rounded-xl border transition-all ${selectedYearId === year.id ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 ring-1 ring-indigo-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
                                 <div className="flex justify-between items-center">
                                     <button onClick={() => setSelectedYearId(year.id)} className="text-left flex-grow">
                                         <div className="flex items-center gap-2">
-                                            <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight text-lg">{year.name}</h4>
-                                            <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${statusColors[year.status]}`}>
-                                                {year.status}
-                                            </span>
-                                            {year.status === 'active' && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)] shrink-0"></span>}
+                                            <h4 className="font-bold text-slate-900 dark:text-white">{year.name}</h4>
+                                            {year.status === 'active' && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>}
                                         </div>
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black mt-1">
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
                                             {new Date(year.startDate).getFullYear()} - {new Date(year.endDate).getFullYear()}
                                         </p>
                                     </button>
@@ -438,17 +268,17 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                             onClick={() => setOpenActionMenu(openActionMenu === year.id ? null : year.id)} 
                                             className={`p-1.5 rounded-lg transition-colors ${openActionMenu === year.id ? 'bg-slate-200 dark:bg-slate-700' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                                         >
-                                            {processingId === year.id ? <ArrowPathIcon className="w-4 h-4 animate-spin text-indigo-600" /> : <Cog8ToothIcon className="w-5 h-5 text-slate-500" />}
+                                            <Cog8ToothIcon className="w-5 h-5 text-slate-500" />
                                         </button>
                                         {openActionMenu === year.id && (
                                             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl action-menu-dropdown z-[100] py-2 overflow-hidden animate-fade-in-up">
                                                 {onUpdateAcademicYear && year.status !== 'active' && (
-                                                    <button onClick={() => handleActivateYear(year.id)} disabled={!!processingId} className="w-full text-left px-4 py-2 text-sm font-semibold text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2 transition-all">
+                                                    <button onClick={() => { onUpdateAcademicYear(year.id, { status: 'active' }); setOpenActionMenu(null); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
                                                         <CheckCircleIcon className="w-4 h-4"/> Activate Year
                                                     </button>
                                                 )}
                                                 {onUpdateAcademicYear && (
-                                                    <button onClick={() => { setEditingYear(year); setSelectedYearId(year.id); setOpenActionMenu(null); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2 transition-all">
+                                                    <button onClick={() => { setEditingYear(year); setSelectedYearId(year.id); setOpenActionMenu(null); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2">
                                                         <PlusIcon className="w-4 h-4 rotate-45"/> Edit Details
                                                     </button>
                                                 )}
@@ -459,7 +289,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                             onDeleteAcademicYear(year.id);
                                                         }
                                                         setOpenActionMenu(null);
-                                                    }} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-all">
+                                                    }} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
                                                         <XIcon className="w-4 h-4"/> Delete Year
                                                     </button>
                                                 )}
@@ -469,14 +299,14 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                 </div>
                                 {editingYear?.id === year.id && (
                                     <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3 animate-fade-in-up">
-                                        <input type="text" value={editingYear.name} onChange={e => setEditingYear({...editingYear, name: e.target.value})} className="form-input text-xs font-bold" />
+                                        <input type="text" value={editingYear.name} onChange={e => setEditingYear({...editingYear, name: e.target.value})} className="form-input text-xs" />
                                         <div className="grid grid-cols-2 gap-2">
                                             <input type="date" value={editingYear.startDate} onChange={e => setEditingYear({...editingYear, startDate: e.target.value})} className="form-input text-xs" />
                                             <input type="date" value={editingYear.endDate} onChange={e => setEditingYear({...editingYear, endDate: e.target.value})} className="form-input text-xs" />
                                         </div>
                                         <div className="flex justify-end gap-2">
-                                            <button onClick={() => setEditingYear(null)} className="btn-secondary text-[10px] h-8 px-4">Cancel</button>
-                                            <button onClick={() => handleUpdateYear(year.id)} className="btn-primary text-[10px] h-8 px-4">Update</button>
+                                            <button onClick={() => setEditingYear(null)} className="btn-secondary text-[10px]">Cancel</button>
+                                            <button onClick={() => handleUpdateYear(year.id)} className="btn-primary text-[10px]">Save</button>
                                         </div>
                                     </div>
                                 )}
@@ -488,13 +318,13 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
 
             <div className="md:col-span-2">
                 {selectedYear ? (
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-6 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
                         <div className="flex justify-between items-center">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">{semesterLabelPlural} Management</h3>
                                 <p className="text-xs text-slate-500 mt-1">Configuring schedule for <span className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedYear.name}</span></p>
                             </div>
-                            <button onClick={() => setAddingSemesterTo(selectedYear.id)} className="btn-primary inline-flex items-center gap-2 text-sm shadow-lg shadow-indigo-100 h-11 px-6">
+                            <button onClick={() => setAddingSemesterTo(selectedYear.id)} className="btn-primary inline-flex items-center gap-2 text-sm">
                                 <PlusIcon className="w-5 h-5"/> New {semesterLabel}
                             </button>
                         </div>
@@ -523,47 +353,26 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                         
                         <div className="space-y-4">
                             {semesters.filter(s => s.academicYearId === selectedYear.id).map(semester => (
-                                <div key={semester.id} className="group border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden transition-all hover:border-indigo-200 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md">
+                                <div key={semester.id} className="group border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden transition-all hover:border-indigo-300">
                                     <div className="p-4 bg-slate-50/50 dark:bg-slate-700/20 flex flex-wrap gap-4 justify-between items-center">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`p-3 rounded-2xl shadow-sm ${semester.status === 'active' ? 'bg-green-50 text-green-600 dark:bg-green-900/30' : 'bg-slate-50 text-slate-400 dark:bg-slate-700/50'}`}>
-                                                <CalendarDaysIcon className="w-6 h-6" />
+                                        <div>
+                                            <div className="flex items-center gap-3">
+                                                <h4 className="font-bold text-slate-900 dark:text-white">{semester.name}</h4>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${statusColors[semester.status]}`}>{semester.status}</span>
                                             </div>
-                                            <div>
-                                                <div className="flex items-center gap-3">
-                                                    <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight text-lg">{semester.name}</h4>
-                                                    <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${statusColors[semester.status]}`}>{semester.status}</span>
-                                                </div>
-                                                <div className="mt-1 flex items-center gap-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    <span>{new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}</span>
-                                                    {!isSchool && semester.requestDeadline && <span className="text-indigo-500">Registry Deadline: {new Date(semester.requestDeadline).toLocaleDateString()}</span>}
-                                                </div>
+                                            <div className="mt-1 flex items-center gap-4 text-[11px] text-slate-500">
+                                                <span>{new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}</span>
+                                                {!isSchool && semester.requestDeadline && <span className="font-bold text-indigo-500">Request DL: {new Date(semester.requestDeadline).toLocaleDateString()}</span>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             {onUpdateSemester && semester.status !== 'active' && (
-                                                <button 
-                                                    onClick={() => handleActivateSemester(semester.id)} 
-                                                    disabled={!!processingId}
-                                                    className="btn-activate flex items-center gap-2 shadow-sm"
-                                                >
-                                                    {processingId === semester.id ? (
-                                                        <>
-                                                            <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                                                            Syncing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <CheckCircleIcon className="w-3.5 h-3.5" />
-                                                            Activate {semesterLabel}
-                                                        </>
-                                                    )}
-                                                </button>
+                                                <button onClick={() => onUpdateSemester(semester.id, { status: 'active' })} className="text-xs font-bold text-green-600 hover:text-green-800">Activate</button>
                                             )}
-                                            <button onClick={() => handleEditSemesterClick(semester)} className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 transition-colors">
+                                            <button onClick={() => handleEditSemesterClick(semester)} className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500">
                                                 <Cog8ToothIcon className="w-5 h-5" />
                                             </button>
-                                            <button onClick={() => onDeleteSemester?.(semester.id)} className="p-2.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-colors">
+                                            <button onClick={() => onDeleteSemester?.(semester.id)} className="p-2 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg">
                                                 <XIcon className="w-5 h-5" />
                                             </button>
                                         </div>
@@ -601,16 +410,14 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Exam Windows</span>
                                                                         <button type="button" onClick={() => handleAddExamPeriod(session.id)} className="text-[10px] font-bold text-indigo-500 hover:underline">Add Period</button>
                                                                     </div>
-                                                                    <div className="grid grid-cols-1 gap-2">
-                                                                        {(session.examPeriods || []).map(exam => (
-                                                                            <div key={exam.id} className="flex gap-2 items-center group">
-                                                                                <input type="text" value={exam.name} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'name', e.target.value)} className="form-input text-[10px] h-8 flex-grow bg-slate-50 dark:bg-slate-900 border-transparent font-bold" placeholder="Exam Name" />
-                                                                                <input type="date" value={exam.startDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'startDate', e.target.value)} className="form-input text-[10px] h-8 w-32 bg-slate-50 dark:bg-slate-900 border-transparent" />
-                                                                                <input type="date" value={exam.endDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'endDate', e.target.value)} className="form-input text-[10px] h-8 w-32 bg-slate-50 dark:bg-slate-900 border-transparent" />
-                                                                                <button type="button" onClick={() => handleDeleteExamPeriod(session.id, exam.id)} className="p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><XIcon className="w-4 h-4"/></button>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
+                                                                    {(session.examPeriods || []).map(exam => (
+                                                                        <div key={exam.id} className="flex gap-2 items-center">
+                                                                            <input type="text" value={exam.name} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'name', e.target.value)} className="form-input text-[10px] h-8 flex-grow" placeholder="Exam Name" />
+                                                                            <input type="date" value={exam.startDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'startDate', e.target.value)} className="form-input text-[10px] h-8 w-32" />
+                                                                            <input type="date" value={exam.endDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'endDate', e.target.value)} className="form-input text-[10px] h-8 w-32" />
+                                                                            <button type="button" onClick={() => handleDeleteExamPeriod(session.id, exam.id)} className="p-1 text-slate-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         ))}

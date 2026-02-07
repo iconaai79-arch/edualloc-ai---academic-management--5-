@@ -1,21 +1,22 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Building, Room, Institution, Subject, Course } from '../types.ts';
-import { 
-    PlusIcon, 
-    XIcon, 
-    PrinterIcon, 
-    ChevronDownIcon, 
-    ChevronRightIcon, 
-    MagnifyingGlassIcon, 
-    BuildingOfficeIcon, 
-    CheckIcon, 
-    CheckCircleIcon, 
-    ArrowPathIcon, 
-    PencilIcon, 
-    ArchiveBoxIcon, 
-    MapPinIcon,
-    RectangleStackIcon
+import {
+    PlusIcon,
+    XIcon,
+    PrinterIcon,
+    MapIcon,
+    ChevronDownIcon,
+    ChevronRightIcon,
+    MagnifyingGlassIcon,
+    BuildingOfficeIcon,
+    CheckIcon,
+    CheckCircleIcon,
+    ArrowPathIcon,
+    PencilIcon,
+    ArchiveBoxIcon,
+    ArrowUpTrayIcon,
+    SparklesIcon,
+    MapPinIcon
 } from './icons/index.ts';
 import { findLocationCoordinates } from '../services/geminiService.ts';
 
@@ -35,38 +36,8 @@ interface BuildingManagerProps {
     onDeleteRoom?: (roomId: string) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
     currentInstitution?: Institution | null;
-    activeView?: 'buildings' | 'rooms'; 
+    activeView?: 'buildings' | 'rooms';
 }
-
-// Helper component for reliable QR Code rendering using qrcodejs
-const QRCodeCanvas: React.FC<{ text: string; size?: number }> = ({ text, size = 128 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (containerRef.current && (window as any).QRCode) {
-            containerRef.current.innerHTML = '';
-            try {
-                new (window as any).QRCode(containerRef.current, {
-                    text: text,
-                    width: size,
-                    height: size,
-                    colorDark : "#000000",
-                    colorLight : "#ffffff",
-                    correctLevel : (window as any).QRCode.CorrectLevel.H
-                });
-            } catch (e) {
-                console.error("QR Generation failed", e);
-                containerRef.current.innerHTML = "QR Error";
-            }
-        }
-    }, [text, size]);
-
-    if (!(window as any).QRCode) {
-        return <div className="text-xs text-red-500">Library Missing</div>;
-    }
-
-    return <div ref={containerRef} className="inline-block" />;
-};
 
 const RoomQrCodeModal: React.FC<{
     room: Room;
@@ -74,107 +45,80 @@ const RoomQrCodeModal: React.FC<{
     institutionName: string;
     onClose: () => void;
 }> = ({ room, buildingName, institutionName, onClose }) => {
-    const qrData = JSON.stringify({ roomId: room.id, roomName: room.name, building: buildingName, institution: institutionName });
+    const [qrCodeUrl, setQrCodeUrl] = useState('');
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let attempts = 0;
+        const maxAttempts = 50;
+        let timeoutId: number;
+
+        const generate = () => {
+            const QRCodeLib = (window as any).QRCode;
+            if (QRCodeLib && typeof QRCodeLib.toDataURL === 'function') {
+                setError(null);
+                const data = JSON.stringify({ roomId: room.id, roomName: room.name, building: buildingName });
+                try {
+                    QRCodeLib.toDataURL(data, { errorCorrectionLevel: 'H', width: 256 }, (err: any, url: string) => {
+                        if (err) {
+                            console.error('Error generating QR code:', err);
+                            setError('Failed to generate QR code.');
+                        } else {
+                            setQrCodeUrl(url);
+                        }
+                    });
+                } catch (e) {
+                    console.error("QR Code library error:", e);
+                    setError("Library error. Please refresh.");
+                }
+            } else {
+                attempts++;
+                if (attempts < maxAttempts) {
+                    timeoutId = window.setTimeout(generate, 100);
+                } else {
+                    setError("Could not initialize QR code library. Please check your internet connection and refresh the page.");
+                }
+            }
+        };
+        generate();
+        return () => { if (timeoutId) clearTimeout(timeoutId); };
+    }, [room, buildingName]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div id="printable-qr-code" className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center no-print bg-slate-50 dark:bg-slate-900">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Room QR Identity</h3>
-                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-5 h-5"/></button>
+            <div id="printable-qr-code" className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-sm flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center no-print">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Room QR Code</h3>
+                    <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><XIcon className="w-6 h-6" /></button>
                 </div>
-                
-                <div className="p-8 flex flex-col items-center gap-6 text-center">
-                    <div className="hidden print:block mb-4">
-                        <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900">{institutionName}</h3>
-                    </div>
-                    
-                    <div className="p-4 bg-white rounded-xl shadow-sm border border-slate-100">
-                        <QRCodeCanvas text={qrData} size={200} />
-                    </div>
-                    
-                    <div>
-                        <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight print:text-black">{room.name}</h4>
-                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-widest mt-1">{buildingName}</p>
-                    </div>
-                    
-                    <div className="bg-slate-50 dark:bg-slate-700/30 px-4 py-2 rounded-lg print:hidden">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Scan to view room details, check-in, or report issues.</p>
+
+                <div className="p-6 flex flex-col items-center gap-4">
+                    <h3 className="text-2xl font-bold hidden print:block print:text-black">{institutionName}</h3>
+                    {error ? (
+                        <div className="w-64 h-64 bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-center p-4 rounded-md">
+                            <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                        </div>
+                    ) : qrCodeUrl ?
+                        <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-64 h-64 bg-white" />
+                        : <div className="w-64 h-64 bg-slate-200 animate-pulse rounded-md flex items-center justify-center text-slate-500 text-xs">Loading QR Library...</div>
+                    }
+                    <div className="text-center">
+                        <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 print:text-black">{buildingName} - {room.name}</h4>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 print:text-black">Scan for room information & check-in</p>
                     </div>
                 </div>
-                
-                <div className="p-6 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 no-print flex justify-end">
-                    <button onClick={() => window.print()} className="btn-primary flex items-center gap-2">
-                        <PrinterIcon className="w-5 h-5" /> Print Label
-                    </button>
+                <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 flex flex-row-reverse no-print">
+                    <button onClick={() => window.print()} className="btn-primary" disabled={!!error || !qrCodeUrl}>Print</button>
                 </div>
             </div>
         </div>
     );
 };
 
-const BulkRoomQrModal: React.FC<{
-    rooms: Room[];
+const AddRoomForm: React.FC<{
     buildings: Building[];
-    institutionName: string;
-    onClose: () => void;
-}> = ({ rooms, buildings, institutionName, onClose }) => {
-    const buildingMap = useMemo(() => new Map(buildings.map(b => [b.id, b.name])), [buildings]);
-
-    return (
-        <div className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 no-print">
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Bulk QR Generator</h3>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Generating {rooms.length} Room Labels</p>
-                    </div>
-                    <div className="flex gap-3">
-                         <button onClick={() => window.print()} className="btn-primary flex items-center gap-2">
-                            <PrinterIcon className="w-5 h-5" /> Print All
-                        </button>
-                        <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
-                            <XIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex-grow overflow-y-auto p-8 bg-slate-100 dark:bg-slate-950 printable-area">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 print:grid-cols-3 print:gap-4">
-                        {rooms.map(room => {
-                            const bName = buildingMap.get(room.buildingId) || 'Unknown Building';
-                            const qrData = JSON.stringify({ roomId: room.id, roomName: room.name, building: bName, institution: institutionName });
-                            return (
-                                <div key={room.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center break-inside-avoid page-break-inside-avoid print:border-2 print:shadow-none">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">{institutionName}</p>
-                                    <QRCodeCanvas text={qrData} size={150} />
-                                    <div className="mt-4">
-                                        <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight">{room.name}</h4>
-                                        <p className="text-xs font-bold text-slate-500 uppercase mt-1">{bName}</p>
-                                        <p className="text-[10px] text-slate-400 mt-2 font-mono">CAP: {room.capacity}</p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-             <style>{`
-                @media print {
-                    .no-print { display: none !important; }
-                    .printable-area { background: white !important; padding: 0 !important; overflow: visible !important; }
-                    body { background: white; }
-                    @page { margin: 1cm; size: auto; }
-                }
-            `}</style>
-        </div>
-    );
-};
-
-const AddRoomForm: React.FC<{ 
-    buildings: Building[]; 
     courses: Course[];
-    onAddRoom: (roomData: Omit<Room, 'id' | 'institutionId'>) => void; 
+    onAddRoom: (roomData: Omit<Room, 'id' | 'institutionId'>) => void;
     onCancel: () => void;
     currentInstitution?: Institution | null;
 }> = ({ buildings, courses, onAddRoom, onCancel, currentInstitution }) => {
@@ -215,7 +159,7 @@ const AddRoomForm: React.FC<{
         setLocationStatus('loading');
         setLocationError(null);
         try {
-            const result = await findLocationCoordinates(searchQuery);
+            const result = await findLocationCoordinates(searchQuery, currentInstitution?.aiModelTier);
             if (result) {
                 setLatitude(result.latitude.toString());
                 setLongitude(result.longitude.toString());
@@ -281,7 +225,7 @@ const AddRoomForm: React.FC<{
         <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 space-y-8 animate-fade-in-up shadow-sm">
             <div>
                 <h5 className="font-black text-xs uppercase tracking-[0.2em] text-slate-400 mb-6">Initialize New Facility Room</h5>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                     <div className="space-y-6">
                         <div>
@@ -291,7 +235,7 @@ const AddRoomForm: React.FC<{
                                 {safeBuildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                             </select>
                         </div>
-                        
+
                         {isSchool && (
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Grade Templates</label>
@@ -322,7 +266,7 @@ const AddRoomForm: React.FC<{
                         <div className="flex justify-between items-center">
                             <label className="block text-[10px] font-black uppercase text-indigo-600 tracking-widest ml-1">GPS Coordinates</label>
                             <div className="flex gap-2">
-                                <button type="button" onClick={handleGetLocation} className="p-1.5 bg-white dark:bg-slate-700 text-indigo-600 rounded-lg shadow-sm border border-indigo-50"><MapPinIcon className="w-4 h-4"/></button>
+                                <button type="button" onClick={handleGetLocation} className="p-1.5 bg-white dark:bg-slate-700 text-indigo-600 rounded-lg shadow-sm border border-indigo-50"><MapPinIcon className="w-4 h-4" /></button>
                             </div>
                         </div>
 
@@ -341,13 +285,13 @@ const AddRoomForm: React.FC<{
                             <label className="block text-[9px] font-black uppercase text-slate-400 mb-1 ml-1">Find on Map</label>
                             <div className="relative">
                                 <MagnifyingGlassIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search location..." 
+                                <input
+                                    type="text"
+                                    placeholder="Search location..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleSearchLocation())}
-                                    className="form-input pl-9 text-xs" 
+                                    className="form-input pl-9 text-xs"
                                 />
                             </div>
                             {locationError && <p className="text-[9px] text-red-500 font-bold mt-1 ml-1 uppercase">{locationError}</p>}
@@ -355,7 +299,7 @@ const AddRoomForm: React.FC<{
                     </div>
                 </div>
             </div>
-            
+
             <div className="flex justify-between items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex gap-6">
                     <label className="flex items-center gap-2 cursor-pointer group">
@@ -391,7 +335,6 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
     const [searchQuery, setSearchQuery] = useState('');
     const [qrRoom, setQrRoom] = useState<Room | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-    const [isBulkQrOpen, setIsBulkQrOpen] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const buildingLabel = isSchool ? 'Block' : 'Building';
@@ -405,7 +348,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
 
     const groupedRooms = useMemo(() => {
         const groups = new Map<string, Room[]>();
-        safeBuildings.forEach(b => { if(b) groups.set(b.id, []); });
+        safeBuildings.forEach(b => { if (b) groups.set(b.id, []); });
         const filtered = searchQuery.trim() ? safeRooms.filter(r => r && r.name.toLowerCase().includes(searchQuery.toLowerCase())) : safeRooms;
         filtered.forEach(r => {
             if (r && groups.has(r.buildingId)) {
@@ -483,7 +426,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                 .btn-secondary { background-color: #f1f5f9; color: #475569; font-weight: 600; padding: 0.625rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; cursor: pointer; }
                 .dark .btn-secondary { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
             `}</style>
-            
+
             {!activeView && (
                 <div className="border-b border-slate-200 dark:border-slate-700">
                     <nav className="-mb-px flex space-x-6">
@@ -514,8 +457,8 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Official Name</label>
                                 <input type="text" value={newBuildingName} onChange={e => setNewBuildingName(e.target.value)} className="form-input" placeholder={`e.g. Science ${buildingLabel}`} required disabled={saveStatus !== 'idle'} />
                             </div>
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 disabled={saveStatus !== 'idle'}
                                 className={`btn-primary h-12 px-10 shadow-lg shadow-indigo-100 min-w-[180px] ${saveStatus === 'saved' ? 'bg-green-600' : ''}`}
                             >
@@ -538,13 +481,13 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                             <div key={b.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 flex justify-between items-center group transition-all hover:border-indigo-200">
                                 {editingBuildingId === b.id ? (
                                     <div className="flex gap-2 w-full">
-                                        <input 
-                                            type="text" 
-                                            value={editBuildingName} 
-                                            onChange={e => setEditBuildingName(e.target.value)} 
-                                            className="form-input flex-grow py-1 text-sm font-bold" 
-                                            autoFocus 
-                                            onKeyDown={e => e.key === 'Enter' && handleSaveBuildingEdit()} 
+                                        <input
+                                            type="text"
+                                            value={editBuildingName}
+                                            onChange={e => setEditBuildingName(e.target.value)}
+                                            className="form-input flex-grow py-1 text-sm font-bold"
+                                            autoFocus
+                                            onKeyDown={e => e.key === 'Enter' && handleSaveBuildingEdit()}
                                         />
                                         <button onClick={handleSaveBuildingEdit} className="btn-primary h-9 w-9 flex items-center justify-center p-0"><CheckIcon className="w-5 h-5" /></button>
                                     </div>
@@ -560,9 +503,9 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => handleEditBuilding(b)} className="text-indigo-600 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-all"><PencilIcon className="w-4 h-4"/></button>
+                                            <button onClick={() => handleEditBuilding(b)} className="text-indigo-600 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-all"><PencilIcon className="w-4 h-4" /></button>
                                             {onDeleteBuilding && (
-                                                <button onClick={() => handleDeleteBuildingWithConfirm(b.id, b.name)} className="text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"><ArchiveBoxIcon className="w-4 h-4"/></button>
+                                                <button onClick={() => handleDeleteBuildingWithConfirm(b.id, b.name)} className="text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"><ArchiveBoxIcon className="w-4 h-4" /></button>
                                             )}
                                         </div>
                                     </>
@@ -580,10 +523,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                             <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Facility Matrix</h3>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Classroom & Lab Registry</p>
                         </div>
-                         <div className="flex items-center gap-2">
-                             <button onClick={() => setIsBulkQrOpen(true)} className="btn-secondary h-11 flex items-center gap-2 px-6 shadow-sm">
-                                <PrinterIcon className="w-5 h-5" /> Bulk QR Labels
-                            </button>
+                        <div className="flex items-center gap-2">
                             {onAddRoom && (
                                 <button onClick={() => setIsAddingRoom(!isAddingRoom)} className="btn-primary h-11 flex items-center gap-2 px-8 shadow-lg shadow-indigo-100">
                                     {isAddingRoom ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
@@ -635,14 +575,14 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                                 <div key={room.id} className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 relative group transition-all hover:border-indigo-200">
                                                     {editingRoomId === room.id ? (
                                                         <div className="space-y-3">
-                                                            <input type="text" value={editRoomData.name || ''} onChange={e => setEditRoomData({...editRoomData, name: e.target.value})} className="form-input py-1 text-sm font-bold" placeholder="Name" />
+                                                            <input type="text" value={editRoomData.name || ''} onChange={e => setEditRoomData({ ...editRoomData, name: e.target.value })} className="form-input py-1 text-sm font-bold" placeholder="Name" />
                                                             <div className="grid grid-cols-2 gap-2">
-                                                                <input type="text" value={editRoomData.shortName || ''} onChange={e => setEditRoomData({...editRoomData, shortName: e.target.value})} className="form-input py-1 text-sm" placeholder="Short Code" />
-                                                                <input type="number" value={editRoomData.capacity || ''} onChange={e => setEditRoomData({...editRoomData, capacity: parseInt(e.target.value) || 0})} className="form-input py-1 text-sm" placeholder="Capacity" />
+                                                                <input type="text" value={editRoomData.shortName || ''} onChange={e => setEditRoomData({ ...editRoomData, shortName: e.target.value })} className="form-input py-1 text-sm" placeholder="Short Code" />
+                                                                <input type="number" value={editRoomData.capacity || ''} onChange={e => setEditRoomData({ ...editRoomData, capacity: parseInt(e.target.value) || 0 })} className="form-input py-1 text-sm" placeholder="Capacity" />
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-2">
-                                                                <input type="number" step="any" value={editRoomData.location?.latitude || ''} onChange={e => setEditRoomData({...editRoomData, location: { latitude: parseFloat(e.target.value) || 0, longitude: editRoomData.location?.longitude || 0 }})} className="form-input py-1 text-xs" placeholder="Lat" />
-                                                                <input type="number" step="any" value={editRoomData.location?.longitude || ''} onChange={e => setEditRoomData({...editRoomData, location: { latitude: editRoomData.location?.latitude || 0, longitude: parseFloat(e.target.value) || 0 }})} className="form-input py-1 text-xs" placeholder="Lon" />
+                                                                <input type="number" step="any" value={editRoomData.location?.latitude || ''} onChange={e => setEditRoomData({ ...editRoomData, location: { latitude: parseFloat(e.target.value) || 0, longitude: editRoomData.location?.longitude || 0 } })} className="form-input py-1 text-xs" placeholder="Lat" />
+                                                                <input type="number" step="any" value={editRoomData.location?.longitude || ''} onChange={e => setEditRoomData({ ...editRoomData, location: { latitude: editRoomData.location?.latitude || 0, longitude: parseFloat(e.target.value) || 0 } })} className="form-input py-1 text-xs" placeholder="Lon" />
                                                             </div>
                                                             <div className="flex gap-2 pt-2">
                                                                 <button onClick={handleSaveRoomEdit} className="btn-primary flex-1 py-1 px-4 text-xs font-black">Save</button>
@@ -661,10 +601,10 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                                             )}
                                                             {!room.location && <div className="h-6 mb-6"></div>}
                                                             <div className="flex items-center gap-3">
-                                                                <button onClick={() => { setEditingRoomId(room.id); setEditRoomData(room); }} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:underline flex items-center gap-1 transition-all"><PencilIcon className="w-3 h-3"/> Edit</button>
+                                                                <button onClick={() => { setEditingRoomId(room.id); setEditRoomData(room); }} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:underline flex items-center gap-1 transition-all"><PencilIcon className="w-3 h-3" /> Edit</button>
                                                                 <button onClick={() => setQrRoom(room)} className="text-[10px] font-black uppercase text-slate-500 tracking-widest hover:underline transition-all">QR Card</button>
                                                                 {onDeleteRoom && (
-                                                                    <button onClick={() => { if(window.confirm('Purge room?')) onDeleteRoom(room.id); }} className="text-[10px] font-black uppercase text-red-500 tracking-widest hover:underline flex items-center gap-1 transition-all"><ArchiveBoxIcon className="w-3 h-3"/> Purge</button>
+                                                                    <button onClick={() => { if (window.confirm('Purge room?')) onDeleteRoom(room.id); }} className="text-[10px] font-black uppercase text-red-500 tracking-widest hover:underline flex items-center gap-1 transition-all"><ArchiveBoxIcon className="w-3 h-3" /> Purge</button>
                                                                 )}
                                                             </div>
                                                         </>
@@ -686,15 +626,6 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                     buildingName={safeBuildings.find(b => b.id === qrRoom.buildingId)?.name || 'Unknown Building'}
                     institutionName={currentInstitution?.name || 'EduAi Institution'}
                     onClose={() => setQrRoom(null)}
-                />
-            )}
-
-            {isBulkQrOpen && (
-                <BulkRoomQrModal
-                    rooms={safeRooms}
-                    buildings={safeBuildings}
-                    institutionName={currentInstitution?.name || 'EduAi Institution'}
-                    onClose={() => setIsBulkQrOpen(false)}
                 />
             )}
         </div>

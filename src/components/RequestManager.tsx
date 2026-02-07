@@ -30,6 +30,9 @@ const RequestTypeBadge: React.FC<{ status: RequestStatus }> = ({ status }) => {
     if (status === 'change_request_pending') {
         return <span className="px-3 py-1 bg-orange-100 text-orange-700 text-[10px] font-black uppercase rounded-lg border border-orange-200 shadow-sm flex items-center gap-1"><ArrowsRightLeftIcon className="w-3 h-3"/> Modification</span>;
     }
+    if (status === 'approved') {
+         return <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase rounded-lg border border-green-200 shadow-sm flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> Active</span>;
+    }
     return <span className="px-3 py-1 bg-blue-100 text-blue-700 text-[10px] font-black uppercase rounded-lg border border-blue-200 shadow-sm flex items-center gap-1"><PlusIcon className="w-3 h-3"/> New Entry</span>;
 };
 
@@ -96,7 +99,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         }
 
         if (statusFilter === 'action_required') {
-             if (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser?.role)) {
+             if (['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser?.role)) {
                 relevantRequests = relevantRequests.filter(req => req && ['pending', 'hod_approved', 'deallocation_pending', 'change_request_pending'].includes(req.status));
             } else if (currentUser?.role === 'hod' || currentUser?.role === 'tto') {
                 relevantRequests = relevantRequests.filter(req => req && req.status === 'pending');
@@ -118,7 +121,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
         }
 
         const isHodViewingPending = currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto') && (statusFilter === 'pending' || statusFilter === 'action_required');
-        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser.role) && (statusFilter === 'hod_approved' || statusFilter === 'action_required' || statusFilter === 'pending');
+        const isAdminViewingFinal = currentUser && ['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser.role) && (statusFilter === 'hod_approved' || statusFilter === 'action_required' || statusFilter === 'pending');
         
         const standardPendingRequests = sortedRequests.filter(r => r.status === 'pending' || r.status === 'hod_approved');
         const allowBulk = (isHodViewingPending || isAdminViewingFinal) && standardPendingRequests.length > 0;
@@ -155,7 +158,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                 }
             } else {
                 let nextStatus: RequestStatus = action === 'approve' ? 'approved' : 'disapproved';
-                if (action === 'approve' && currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto') && !['admin', 'head_teacher', 'deputy'].includes(currentUser.role)) {
+                if (action === 'approve' && currentUser && (currentUser.role === 'hod' || currentUser.role === 'tto') && !['admin', 'head_teacher', 'deputy', 'super_admin'].includes(currentUser.role)) {
                     nextStatus = 'hod_approved';
                 }
                 await onUpdateRequestStatus(requestId, nextStatus);
@@ -217,7 +220,7 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                     const currentLoad = getLecturerWorkload(req.lecturerId);
                     const isProcessing = processingIds.has(req.id);
                     const canAct = currentUser && (((currentUser.role === 'hod' || currentUser.role === 'tto') && req.status === 'pending') || 
-                                   (['admin', 'head_teacher', 'deputy', 'dos'].includes(currentUser.role) && (req.status === 'hod_approved' || req.status === 'deallocation_pending' || req.status === 'pending' || req.status === 'change_request_pending')));
+                                   (['admin', 'head_teacher', 'deputy', 'dos', 'super_admin'].includes(currentUser.role) && (req.status === 'hod_approved' || req.status === 'deallocation_pending' || req.status === 'pending' || req.status === 'change_request_pending')));
 
                     return (
                         <div key={req.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 transition-all hover:shadow-xl ${
@@ -241,7 +244,11 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                                                 </div>
                                                 <div>
                                                     <span className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">{lecturer.name}</span>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{lecturer.role.replace('_', ' ')}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{lecturer.role.replace('_', ' ')}</p>
+                                                        <span className="text-slate-300">•</span>
+                                                        <span className={`text-[10px] font-black uppercase ${currentLoad > 12 ? 'text-amber-600' : 'text-slate-400'}`}>Load: {currentLoad} PDS/WK</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="h-8 w-px bg-slate-100 dark:bg-slate-700"></div>
@@ -306,7 +313,8 @@ export const RequestManager: React.FC<RequestManagerProps> = ({
                                                 disabled={isProcessing}
                                                 className="w-full h-14 flex items-center justify-center gap-3 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 hover:bg-slate-50 transition-all disabled:opacity-50"
                                             >
-                                                <XIcon className="w-5 h-5" /> Reject
+                                                <XIcon className="w-5 h-5" /> 
+                                                {req.status === 'change_request_pending' ? 'Reject Change' : (req.status === 'deallocation_pending' ? 'Deny Removal' : 'Decline')}
                                             </button>
                                         </div>
                                     )}

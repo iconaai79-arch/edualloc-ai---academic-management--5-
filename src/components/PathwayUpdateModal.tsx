@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { Subject, Department, LessonStructure } from '../types.ts';
 import { suggestPathwaySubjectUpdates } from '../services/geminiService';
 import { SparklesIcon, XIcon, CheckCircleIcon, ArrowPathIcon, InformationCircleIcon } from './icons/index.ts';
@@ -24,18 +24,8 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
     const [proposedUpdates, setProposedUpdates] = useState<Record<string, ProposedUpdate>>({});
     const [selectedUpdateIds, setSelectedUpdateIds] = useState<Set<string>>(new Set());
 
-    // FIXED: Ensure selection is synced if departments list loads late or changes
-    useEffect(() => {
-        if (!selectedDeptId && departments.length > 0) {
-            setSelectedDeptId(departments[0].id);
-        } else if (selectedDeptId && departments.length > 0 && !departments.find(d => d.id === selectedDeptId)) {
-            setSelectedDeptId(departments[0].id);
-        }
-    }, [departments, selectedDeptId]);
-
     const pathwaySubjects = useMemo(() => {
-        if (!selectedDeptId) return [];
-        return (subjects || []).filter(s => s && s.departmentId === selectedDeptId);
+        return (subjects || []).filter(s => s.departmentId === selectedDeptId);
     }, [subjects, selectedDeptId]);
 
     const handleAnalyze = async () => {
@@ -43,7 +33,7 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
         
         setIsAnalyzing(true);
         try {
-            const deptName = (departments || []).find(d => d && d.id === selectedDeptId)?.name || '';
+            const deptName = (departments || []).find(d => d.id === selectedDeptId)?.name || '';
             const updates = await suggestPathwaySubjectUpdates(pathwaySubjects, deptName, targetProfile);
             setProposedUpdates(updates);
             setSelectedUpdateIds(new Set(Object.keys(updates)));
@@ -79,7 +69,6 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
     };
 
     const formatStructure = (ls: LessonStructure[]) => {
-        if (!ls || !Array.isArray(ls)) return 'Standard';
         return ls.map(s => `${s.count}x${s.periods}`).join(', ');
     };
 
@@ -106,19 +95,13 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Target Pathway (Dept)</label>
-                                    {departments.length > 0 ? (
-                                        <select 
-                                            value={selectedDeptId} 
-                                            onChange={e => setSelectedDeptId(e.target.value)}
-                                            className="form-select w-full h-14"
-                                        >
-                                            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                        </select>
-                                    ) : (
-                                        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 rounded-2xl text-xs font-bold text-red-600 uppercase tracking-widest text-center">
-                                            No departments registered
-                                        </div>
-                                    )}
+                                    <select 
+                                        value={selectedDeptId} 
+                                        onChange={e => setSelectedDeptId(e.target.value)}
+                                        className="form-select w-full h-14"
+                                    >
+                                        {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                    </select>
                                     <p className="text-[10px] text-slate-500 font-bold uppercase italic">Affects {pathwaySubjects.length} subjects in this registry.</p>
                                 </div>
                                 <div className="space-y-4">
@@ -145,7 +128,7 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
 
                             <button 
                                 onClick={handleAnalyze} 
-                                disabled={isAnalyzing || pathwaySubjects.length === 0 || departments.length === 0}
+                                disabled={isAnalyzing || pathwaySubjects.length === 0}
                                 className="w-full btn-primary h-14 shadow-indigo-100 uppercase tracking-widest text-sm font-black flex items-center justify-center gap-3 disabled:opacity-50"
                             >
                                 {isAnalyzing ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <SparklesIcon className="w-5 h-5" />}
@@ -160,7 +143,7 @@ export const PathwayUpdateModal: React.FC<PathwayUpdateModalProps> = ({ onClose,
                             <div className="grid grid-cols-1 gap-3">
                                 {Object.keys(proposedUpdates).map((id) => {
                                     const update = proposedUpdates[id];
-                                    const subject = (subjects || []).find(s => s && s.id === id);
+                                    const subject = (subjects || []).find(s => s.id === id);
                                     if (!subject) return null;
                                     const isSelected = selectedUpdateIds.has(id);
                                     return (

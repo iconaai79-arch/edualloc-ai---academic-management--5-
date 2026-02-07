@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { LetterheadConfig, Institution } from '../types';
 
@@ -36,7 +35,7 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
                                 {institution?.name || 'Academic Institution'}
                             </h2>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em]">
-                                Official Academic Report
+                                Official Academic Record
                             </p>
                         </div>
                         {institution?.logoUrl && (

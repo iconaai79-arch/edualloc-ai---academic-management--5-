@@ -14,17 +14,11 @@ interface SyncCalendarModalProps {
     buildings: Building[];
 }
 
-export const SyncCalendarModal: React.FC<SyncCalendarModalProps> = ({ onClose, timetableEntries = [], user, activeSemester, getSubjectById, getRoomById, buildings = [] }) => {
+export const SyncCalendarModal: React.FC<SyncCalendarModalProps> = ({ onClose, timetableEntries, user, activeSemester, getSubjectById, getRoomById, buildings }) => {
     const [activeTab, setActiveTab] = useState('google');
 
     const handleDownload = () => {
-        if (!activeSemester) {
-            alert("No active semester found. Cannot generate calendar.");
-            return;
-        }
-        const entries = Array.isArray(timetableEntries) ? timetableEntries : [];
-        const bldgs = Array.isArray(buildings) ? buildings : [];
-        const icsContent = generateIcsContent(entries, user, activeSemester, getSubjectById, getRoomById, bldgs);
+        const icsContent = generateIcsContent(timetableEntries, user, activeSemester, getSubjectById, getRoomById, buildings);
         const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -47,7 +41,7 @@ export const SyncCalendarModal: React.FC<SyncCalendarModalProps> = ({ onClose, t
                 <div className="p-6 flex-grow overflow-y-auto">
                     <div className="bg-sky-50 dark:bg-sky-900/50 p-4 rounded-lg">
                         <p className="text-sm text-sky-800 dark:text-sky-200">
-                            This will download an <strong>.ics file</strong> containing your scheduled classes for the current semester ({activeSemester?.name || 'Academic Period'}). You can then import this file into your preferred calendar application.
+                            This will download an <strong>.ics file</strong> containing your scheduled classes for the current semester ({activeSemester.name}). You can then import this file into your preferred calendar application.
                         </p>
                         <button onClick={handleDownload} className="mt-4 btn-primary inline-flex items-center gap-2">
                             <DocumentArrowDownIcon className="w-5 h-5"/>

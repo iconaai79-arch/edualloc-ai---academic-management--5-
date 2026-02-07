@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppNotification } from '../types';
-import { BellIcon, CheckIcon } from './icons/index';
+import { BellIcon } from './icons/BellIcon';
+import { CheckIcon } from './icons/CheckIcon';
 
 interface NotificationBellProps {
-    notifications: AppNotification[];
-    onMarkAsRead: (notificationId?: string) => void;
+  notifications: AppNotification[];
+  onMarkAsRead: (notificationId?: string) => void;
 }
 
 function formatTimeAgo(timestamp: string): string {
@@ -32,7 +33,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
     const handleToggle = () => {
         setIsOpen(!isOpen);
     };
-
+    
     const handleMarkAllRead = () => {
         onMarkAsRead(); // Calls without ID implies 'all'
     };
@@ -66,7 +67,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                 {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 block h-4 w-4 rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white dark:ring-slate-800 flex items-center justify-center">
                         {unreadCount > 9 ? '9+' : unreadCount}
-                        <span className="absolute -inset-full animate-ping rounded-full bg-red-500 opacity-75"></span>
+                         <span className="absolute -inset-full animate-ping rounded-full bg-red-500 opacity-75"></span>
                     </span>
                 )}
             </button>
@@ -76,7 +77,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                     <div className="flex justify-between items-center px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                         <span className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</span>
                         {unreadCount > 0 && (
-                            <button
+                            <button 
                                 onClick={handleMarkAllRead}
                                 className="text-xs font-medium text-[var(--color-primary)] hover:underline"
                             >
@@ -88,8 +89,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                         {sortedNotifications.length > 0 ? (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {sortedNotifications.map(notification => (
-                                    <li
-                                        key={notification.id}
+                                    <li 
+                                        key={notification.id} 
                                         className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${!notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
                                     >
                                         <div className="flex justify-between items-start gap-3">
@@ -105,15 +106,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                                                 <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{formatTimeAgo(notification.timestamp)}</p>
                                             </div>
                                             {!notification.isRead && (
-                                                <button
+                                                <button 
                                                     onClick={() => handleItemAction(notification)}
                                                     className={`flex-shrink-0 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ${notification.type === 'guest_arrival' ? 'text-green-600 bg-green-50 dark:bg-green-900/30' : 'text-slate-400'}`}
                                                     title={notification.type === 'guest_arrival' ? "Acknowledge & Mark Seen" : "Mark as Read"}
                                                 >
                                                     {notification.type === 'guest_arrival' ? (
                                                         <div className="flex items-center gap-1 px-2 py-1 rounded-md">
-                                                            <CheckIcon className="w-4 h-4" />
-                                                            <span className="text-xs font-bold">Met</span>
+                                                             <CheckIcon className="w-4 h-4" />
+                                                             <span className="text-xs font-bold">Met</span>
                                                         </div>
                                                     ) : (
                                                         <span className="block w-2 h-2 bg-blue-500 rounded-full"></span>

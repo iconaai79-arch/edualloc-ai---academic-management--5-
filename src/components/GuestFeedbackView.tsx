@@ -45,9 +45,9 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
             rating,
             comments,
             status: 'new',
-            timestamp: timestamp, /* FIXED: shorthand property error */
-            isAnonymous: !guestName.trim(), /* FIXED: missing property */
-            title: 'General Guest Feedback' /* FIXED: missing property */
+            timestamp: timestamp,
+            isAnonymous: !guestName.trim(),
+            title: 'General Guest Feedback'
         });
         setIsSubmitted(true);
     };
@@ -71,7 +71,7 @@ export const GuestFeedbackView: React.FC<GuestFeedbackViewProps> = ({ onClose, o
         );
     }
 
-    const selectedInst = institutions.find(i => i.id === selectedInstitutionId);
+    const selectedInst = (institutions || []).find(i => i.id === selectedInstitutionId);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans">

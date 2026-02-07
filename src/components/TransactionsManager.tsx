@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from 'react';
-import type { MpesaTransaction, Institution, TransactionStatus, Receipt, CompanyDetails } from '../types.ts';
-import { downloadReceiptPdf } from '../services/pdfService.ts';
+import type { MpesaTransaction, Institution, TransactionStatus, Receipt, CompanyDetails } from '../types';
+import { downloadReceiptPdf } from '../services/pdfService';
 
 interface TransactionsManagerProps {
     transactions: MpesaTransaction[];
@@ -31,12 +31,9 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
     const [searchQuery, setSearchQuery] = useState('');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);
 
-    // Defensive check: ensure transactions is an array
-    const safeTransactions = Array.isArray(transactions) ? transactions : [];
-
     const sortedTransactions = useMemo(() => {
-        return [...safeTransactions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [safeTransactions]);
+        return [...transactions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [transactions]);
     
     const filteredTransactions = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -48,17 +45,19 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
             return (
                 txn.transactionId.toLowerCase().includes(lowercasedQuery) ||
                 institutionName.includes(lowercasedQuery) ||
+                // Fix: change phone_number to phoneNumber
                 txn.phoneNumber.includes(lowercasedQuery) ||
+                // Fix: change payer_name to payerName
                 txn.payerName.toLowerCase().includes(lowercasedQuery)
             );
         });
     }, [sortedTransactions, searchQuery, institutionMap]);
     
     const totalRevenue = useMemo(() => {
-        return safeTransactions
+        return transactions
             .filter(t => t.status === 'completed')
             .reduce((sum, t) => sum + t.amount, 0);
-    }, [safeTransactions]);
+    }, [transactions]);
 
     return (
         <section>
@@ -102,7 +101,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                         {filteredTransactions.length > 0 ? (
                             filteredTransactions.map(txn => {
-                                // FIXED: Corrected property name from related_transaction_id to relatedTransactionId
+                                // Fix: Property 'related_transaction_id' is camelCase in Receipt type.
                                 const receipt = receipts.find(r => r.relatedTransactionId === txn.id);
                                 const institution = institutionMap.get(txn.institutionId);
 
@@ -119,7 +118,9 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                        {/* Fix: change payer_name to payerName */}
                                         <div>{txn.payerName}</div>
+                                        {/* Fix: change phone_number to phoneNumber */}
                                         <div className="text-xs">{txn.phoneNumber}</div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">

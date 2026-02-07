@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { 
     User, Department, Subject, Building, Room, AllocationRequest, 
@@ -44,8 +43,7 @@ import {
     ArrowPathIcon, 
     ExclamationTriangleIcon,
     BeakerIcon,
-    PlusIcon,
-    ArrowRightOnRectangleIcon
+    PlusIcon
 } from './icons/index.ts';
 import { DirectAssignModal } from './DirectAssignModal.tsx';
 import { AcademicYearManager } from './AcademicYearManager.tsx';
@@ -166,6 +164,7 @@ export interface AdminViewProps {
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
     onUpdateFeeStructures?: (structures: FeeStructure[]) => void;
     onUpdateFinancialPeriods?: (periods: FinancialPeriod[]) => void;
+    onAddBuilding?: (name: string) => Promise<boolean>;
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
     onUpdateBuilding?: (id: string, data: any) => void;
     onDeleteBuilding?: (id: string) => void;
@@ -239,6 +238,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
 
     const isSchool = useMemo(() => {
@@ -513,7 +513,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
                         getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
                         allocations={props.allocations || []} // Explicitly pass allocations to InteractionsManager
-                        enrollmentRequests={props.enrollmentRequests || []}
                     />
                 )}
 
@@ -630,21 +629,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
                                 </button>
                             ))}
-                            {/* Added return button */}
-                            {props.isImpersonating && (
-                                <button 
-                                    onClick={() => {
-                                        props.onSwitchPerspective?.(null as any);
-                                        setIsPerspectiveModalOpen(false);
-                                    }}
-                                    className="flex items-center gap-4 p-5 rounded-3xl border-2 border-red-200 bg-red-50 text-red-700 transition-all text-left group hover:border-red-500 col-span-full"
-                                >
-                                    <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
-                                        <ArrowRightOnRectangleIcon className="w-6 h-6 text-red-600" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">Return to Admin</span>
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>

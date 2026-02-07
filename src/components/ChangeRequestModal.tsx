@@ -2,20 +2,21 @@
 import React, { useState, useCallback } from 'react';
 import type { Subject, User, AllocationRequest, Priority } from '../types';
 import { generateJustification } from '../services/geminiService';
-import { SparklesIcon, XIcon, CheckCircleIcon, PaperAirplaneIcon } from './icons/index.ts';
+import { SparklesIcon, XIcon, CheckCircleIcon, PaperAirplaneIcon, ArrowPathIcon } from './icons/index.ts';
 
 interface ChangeRequestModalProps {
   allocation: AllocationRequest;
   subject: Subject;
   user: User;
   onClose: () => void;
-  onSubmit: (requestId: string, justification: string, newPriority: Priority) => void;
+  onSubmit: (requestId: string, justification: string, newPriority: Priority) => Promise<any> | void;
 }
 
 export const ChangeRequestModal: React.FC<ChangeRequestModalProps> = ({ allocation, subject, user, onClose, onSubmit }) => {
-  const [justification, setJustification] = useState('');
+  const [justification, setJustification] = useState(allocation.justification || '');
   const [priority, setPriority] = useState<Priority>(allocation.priority || 'Medium');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
@@ -29,13 +30,19 @@ export const ChangeRequestModal: React.FC<ChangeRequestModalProps> = ({ allocati
     }
   }, [user, subject]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!justification.trim()) {
         alert("Please provide a justification for the change.");
         return;
     }
-    onSubmit(allocation.id, justification, priority);
+    
+    setIsSubmitting(true);
+    try {
+        await onSubmit(allocation.id, justification, priority);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -46,7 +53,7 @@ export const ChangeRequestModal: React.FC<ChangeRequestModalProps> = ({ allocati
             <h3 className="text-xl font-black uppercase tracking-tight">Allocation Adjustment</h3>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Request a curriculum load modification</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+          <button onClick={onClose} disabled={isSubmitting} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
             <XIcon className="w-6 h-6 text-slate-400" />
           </button>
         </div>
@@ -84,8 +91,8 @@ export const ChangeRequestModal: React.FC<ChangeRequestModalProps> = ({ allocati
                 <button
                     type="button"
                     onClick={handleGenerate}
-                    disabled={isGenerating}
-                    className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline"
+                    disabled={isGenerating || isSubmitting}
+                    className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:underline disabled:opacity-50"
                 >
                     <SparklesIcon className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`}/>
                     {isGenerating ? 'Analyzing...' : 'Draft with AI'}
@@ -104,12 +111,13 @@ export const ChangeRequestModal: React.FC<ChangeRequestModalProps> = ({ allocati
           <div className="flex flex-col gap-2 pt-4 border-t">
             <button 
                 type="submit" 
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                disabled={isSubmitting}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-                <PaperAirplaneIcon className="w-5 h-5" />
-                Submit Modification Request
+                {isSubmitting ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <PaperAirplaneIcon className="w-5 h-5" />}
+                {isSubmitting ? 'Submitting...' : 'Submit Modification Request'}
             </button>
-            <button type="button" onClick={onClose} className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 py-2">Discard & Keep Current Load</button>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 py-2">Discard & Keep Current Load</button>
           </div>
         </form>
       </div>

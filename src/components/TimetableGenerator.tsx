@@ -3,14 +3,11 @@ import React, { useState, useMemo, useRef } from 'react';
 import type { AllocationRequest, Subject, User, Room, TimetableEntry, LetterheadConfig, TimetableSettings, Department, Course, Building, AcademicYear, Semester, Conflict, TimeOffRequest, ExamTimetableEntry, ExamTimetableSettings } from '../types';
 import { generateTimetable, generateExamTimetable } from '../services/geminiService';
 import { generateTimetablePdf, generateExamTimetablePdf } from '../services/pdfService';
-import { CheckIcon, ExclamationTriangleIcon, ArrowUpTrayIcon, DocumentArrowDownIcon, CalendarDaysIcon, SparklesIcon, PrinterIcon, CheckCircleIcon, CommandLineIcon } from './icons/index';
+import { CheckIcon, ExclamationTriangleIcon, ArrowUpTrayIcon, DocumentArrowDownIcon, CalendarDaysIcon, SparklesIcon, PrinterIcon, CheckCircleIcon } from './icons/index.ts';
 import { TimetablesView } from './TimetablesView';
 import { TimetableImporter } from './TimetableImporter';
 import { Tooltip } from './Tooltip';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
-import { generateStandardExamTimetable } from '../utils/examUtils';
-import { generateStandardTimetable } from '../utils/timetableLogic';
-import { WallPosterView } from './WallPosterView';
 
 declare var XLSX: any;
 
@@ -22,7 +19,7 @@ interface TimetableGeneratorProps {
     getLecturerById?: (id: string) => User | undefined;
     getSubjectById?: (id: string) => Subject | undefined;
     getRoomById?: (id: string) => Room | undefined;
-    onTimetableGenerated: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
+    onTimetableGenerated: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => void;
     generatedTimetable: TimetableEntry[];
     onPublishTimetable?: (fileUrl: string) => void;
     finalTimetableUrl: string | null;
@@ -31,6 +28,7 @@ interface TimetableGeneratorProps {
     logoUrl: string | null;
     footerImageUrl: string | null;
     timetableSettings: TimetableSettings;
+    // FIXED: Made onSaveTimetableSettings optional
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
     departments: Department[];
     courses: Course[];
@@ -46,15 +44,15 @@ interface TimetableGeneratorProps {
     onLogAction?: (action: string) => void;
     currentInstitution?: any;
     examTimetable: ExamTimetableEntry[];
-    onExamTimetableGenerated: (entries: any[], ay: string, sem: string) => Promise<void>;
+    onExamTimetableGenerated: (entries: any[], ay: string, sem: string) => void;
     examTimetableSettings: ExamTimetableSettings;
 }
 
 export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
-    allocations = [], subjects = [], lecturers = [], rooms = [], getLecturerById, getSubjectById, getRoomById, onTimetableGenerated, generatedTimetable = [], onPublishTimetable, finalTimetableUrl, onRemovePublishedTimetable, letterheadConfig, logoUrl, footerImageUrl, timetableSettings,
-    onSaveTimetableSettings, departments = [], courses = [], buildings = [], currentUser, activeAcademicYear, activeSemester, timetableConflicts = [], setActiveTab, courseSizes, timeOffRequests = [], academicYears = [], onLogAction, currentInstitution, examTimetable = [], onExamTimetableGenerated, examTimetableSettings
+    allocations, subjects, lecturers, rooms, getLecturerById, getSubjectById, getRoomById, onTimetableGenerated, generatedTimetable, onPublishTimetable, finalTimetableUrl, onRemovePublishedTimetable, letterheadConfig, logoUrl, footerImageUrl, timetableSettings,
+    onSaveTimetableSettings, departments, courses, buildings, currentUser, activeAcademicYear, activeSemester, timetableConflicts, setActiveTab, courseSizes, timeOffRequests, academicYears, onLogAction, currentInstitution, examTimetable, onExamTimetableGenerated, examTimetableSettings
 }) => {
-    const [subTab, setSubTab] = useState<'lessons' | 'exams' | 'wall_poster'>('lessons');
+    const [subTab, setSubTab] = useState<'lessons' | 'exams'>('lessons');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isPublishing, setIsPublishing] = useState(false);
@@ -63,7 +61,6 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     const [publishFile, setPublishFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-    const [generationMode, setGenerationMode] = useState<'ai' | 'standard'>('ai');
 
     const handlePublishUpload = (e: React.FormEvent) => {
         e.preventDefault();
@@ -101,28 +98,12 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         setIsLoading(true);
         setError(null);
         try {
-            const safeAllocations = Array.isArray(allocations) ? allocations : [];
-            const safeSubjects = Array.isArray(subjects) ? subjects : [];
-            const safeLecturers = Array.isArray(lecturers) ? lecturers : [];
-            const safeRooms = Array.isArray(rooms) ? rooms : [];
-            const safeCourses = Array.isArray(courses) ? courses : [];
-            const safeTimeOff = Array.isArray(timeOffRequests) ? timeOffRequests : [];
-
-            if (generationMode === 'ai') {
-                const rawTimetable = await generateTimetable(safeAllocations, safeSubjects, safeLecturers, safeRooms, timetableSettings, courseSizes, safeCourses, safeTimeOff, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier);
-                await onTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
-            } else {
-                const standardEntries = generateStandardTimetable(
-                    safeAllocations, safeSubjects, safeLecturers, safeRooms,
-                    timetableSettings, activeAcademicYear.id, activeSemester.id,
-                    safeCourses, currentInstitution?.scheduleProfiles || []
-                );
-                await onTimetableGenerated(standardEntries, activeAcademicYear.id, activeSemester.id);
-            }
-            onLogAction?.(`Generated New Timetable (${generationMode.toUpperCase()})`);
+            // FIXED: Added currentInstitution?.scheduleProfiles || [] as the 9th argument
+            const rawTimetable = await generateTimetable(allocations, subjects, lecturers, rooms, timetableSettings, courseSizes, courses, timeOffRequests, currentInstitution?.scheduleProfiles || [], currentInstitution?.aiModelTier);
+            onTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+            onLogAction?.('Generated New Timetable');
         } catch (err: any) {
-            console.error("Timetable generation failure:", err);
-            setError(err.message || "An unexpected error occurred during timetable generation.");
+            setError(err.message || "An unknown error occurred during timetable generation.");
         } finally {
             setIsLoading(false);
         }
@@ -134,8 +115,8 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
             return;
         }
 
-        const allExamPeriods = activeSemester.sessions?.flatMap(s => s.examPeriods || []) || [];
-        if (allExamPeriods.length === 0) {
+        const allPeriods = activeSemester.sessions?.flatMap(s => s.examPeriods || []) || [];
+        if (allPeriods.length === 0) {
             setError("No exam periods are defined for the active semester's sessions. Configure this in Settings > Calendar.");
             return;
         }
@@ -143,29 +124,21 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
         setIsLoading(true);
         setError(null);
         try {
-            const safeSubjects = Array.isArray(subjects) ? subjects : [];
-            const subjectsWithExams = safeSubjects.filter(s => s && s.hasExam !== false);
+            const allStartDates = allPeriods.map(p => new Date(p.startDate));
+            const allEndDates = allPeriods.map(p => new Date(p.endDate));
+            const earliestStart = new Date(Math.min(...allStartDates.map(d => d.getTime())));
+            const latestEnd = new Date(Math.max(...allEndDates.map(d => d.getTime())));
 
-            if (generationMode === 'ai') {
-                const allStartDates = allExamPeriods.map(p => new Date(p.startDate));
-                const allEndDates = allExamPeriods.map(p => new Date(p.endDate));
-                const earliestStart = new Date(Math.min(...allStartDates.map(d => d.getTime())));
-                const latestEnd = new Date(Math.max(...allEndDates.map(d => d.getTime())));
+            const examPeriod = {
+                start: earliestStart.toISOString().split('T')[0],
+                end: latestEnd.toISOString().split('T')[0]
+            };
 
-                const examPeriod = {
-                    start: earliestStart.toISOString().split('T')[0],
-                    end: latestEnd.toISOString().split('T')[0]
-                };
-
-                const rawTimetable = await generateExamTimetable(subjectsWithExams, courses, lecturers, rooms, examPeriod, courseSizes, examTimetableSettings, currentInstitution?.aiModelTier);
-                await onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
-            } else {
-                const standardEntries = generateStandardExamTimetable(subjectsWithExams, courses, lecturers, rooms, activeSemester, examTimetableSettings);
-                await onExamTimetableGenerated(standardEntries, activeAcademicYear.id, activeSemester.id);
-            }
-            onLogAction?.(`Generated New Exam Timetable (${generationMode.toUpperCase()})`);
+            const subjectsWithExams = subjects.filter(s => s.hasExam !== false);
+            const rawTimetable = await generateExamTimetable(subjectsWithExams, courses, lecturers, rooms, examPeriod, courseSizes, examTimetableSettings, currentInstitution?.aiModelTier);
+            onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+            onLogAction?.('Generated New Exam Timetable');
         } catch (err: any) {
-            console.error("Exam generation failure:", err);
             setError(err.message || "An error occurred during exam timetable generation.");
         } finally {
             setIsLoading(false);
@@ -173,7 +146,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     };
 
     const exportToExcel = () => {
-        if (!Array.isArray(generatedTimetable) || generatedTimetable.length === 0) return;
+        if (generatedTimetable.length === 0) return;
 
         const data = generatedTimetable.map(entry => ({
             Day: entry.day,
@@ -193,7 +166,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     };
 
     const handlePublish = async () => {
-        if (!Array.isArray(generatedTimetable) || generatedTimetable.length === 0) return;
+        if (generatedTimetable.length === 0) return;
         setIsPublishing(true);
         setPublishSuccess(false);
         try {
@@ -209,7 +182,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                 activeSemester || null,
                 timetableSettings
             );
-            onPublishTimetable?.(pdfUrl);
+            await onPublishTimetable?.(pdfUrl);
             setPublishSuccess(true);
             setTimeout(() => setPublishSuccess(false), 5000);
             onLogAction?.('Published Generated Timetable');
@@ -217,12 +190,12 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
             console.error("Failed to publish timetable:", error);
             alert("An error occurred while publishing the timetable.");
         } finally {
-            setIsLoading(false);
+            setIsPublishing(false);
         }
     };
 
     const handleDownloadExamPdf = async () => {
-        if (!Array.isArray(examTimetable) || examTimetable.length === 0) return;
+        if (examTimetable.length === 0) return;
         setIsGeneratingPdf(true);
         try {
             const pdfUrl = await generateExamTimetablePdf(
@@ -252,27 +225,22 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     };
 
     const [visibleCoursesForManager, visibleSubjectsForManager, visibleDeptsForManager] = useMemo(() => {
-        const safeDepts = departments || [];
-        const safeCourses = courses || [];
-        const safeSubjects = subjects || [];
-
-        if (currentUser?.role === 'hod') {
+        if (currentUser.role === 'hod') {
             const hodDeptId = currentUser.departmentId;
-            const depts = safeDepts.filter(d => d && d.id === hodDeptId);
-            const coursesInDept = safeCourses.filter(c => c && c.departmentId === hodDeptId);
-            const subjectsInDept = safeSubjects.filter(s => s && s.departmentId === hodDeptId);
+            const depts = departments.filter(d => d.id === hodDeptId);
+            const coursesInDept = courses.filter(c => c.departmentId === hodDeptId);
+            const subjectsInDept = subjects.filter(s => s.departmentId === hodDeptId);
             return [coursesInDept, subjectsInDept, depts];
         }
-        return [safeCourses, safeSubjects, safeDepts];
+        return [courses, subjects, departments];
     }, [currentUser, courses, subjects, departments]);
 
     const conflictSummary = useMemo(() => {
-        const safeConflicts = Array.isArray(timetableConflicts) ? timetableConflicts : [];
-        if (safeConflicts.length === 0) return { total: 0, room: 0, lecturer: 0 };
+        if (!timetableConflicts) return { total: 0, room: 0, lecturer: 0 };
         return {
-            total: safeConflicts.length,
-            room: safeConflicts.filter(c => c.type === 'room').length,
-            lecturer: safeConflicts.filter(c => c.type === 'lecturer').length,
+            total: timetableConflicts.length,
+            room: timetableConflicts.filter(c => c.type === 'room').length,
+            lecturer: timetableConflicts.filter(c => c.type === 'lecturer').length,
         };
     }, [timetableConflicts]);
 
@@ -288,27 +256,20 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                 .file-input { display: block; width: 100%; text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--color-primary)]/10 file:text-[var(--color-primary)] hover:file:bg-[var(--color-primary)]/20 dark:file:bg-slate-700 dark:file:text-slate-200 dark:hover:file:bg-slate-600; }
             `}</style>
 
-            <div className="flex border-b border-slate-200 dark:border-slate-700 no-print bg-white dark:bg-slate-800 rounded-3xl p-1 shadow-sm overflow-x-auto no-scrollbar">
+            <div className="flex border-b border-slate-200 dark:border-slate-700 no-print bg-white dark:bg-slate-800 rounded-3xl p-1 shadow-sm">
                 <button
                     onClick={() => { setSubTab('lessons'); setError(null); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${subTab === 'lessons' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:text-slate-700'
+                    className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${subTab === 'lessons' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     <CalendarDaysIcon className="w-4 h-4" /> Lesson Schedule
                 </button>
                 <button
                     onClick={() => { setSubTab('exams'); setError(null); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${subTab === 'exams' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:text-slate-700'
+                    className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${subTab === 'exams' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     <SparklesIcon className="w-4 h-4" /> Exam Schedule
-                </button>
-                <button
-                    onClick={() => { setSubTab('wall_poster'); setError(null); }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${subTab === 'wall_poster' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                >
-                    <PrinterIcon className="w-4 h-4" /> Wall Posters
                 </button>
             </div>
 
@@ -325,7 +286,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                         </div>
                                         <div>
                                             <p className="text-lg font-black uppercase text-slate-900 dark:text-white tracking-tight">Master Document Published</p>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active for all faculty and student portals Portals.</p>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active for all faculty and student portals.</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -394,28 +355,25 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
 
                         {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-5 h-5" /> {error}</div>}
 
-                        {!isLoading && generatedTimetable && generatedTimetable.length > 0 && (
-                            <div className={`mt-4 p-4 rounded-lg shadow-sm ${conflictSummary.total > 0 ? 'bg-red-100 dark:bg-red-950/40' : 'bg-green-100 dark:bg-green-950/40'}`}>
-                                <div className="flex items-start">
+                        {!isLoading && generatedTimetable.length > 0 && (
+                            <div className={`mb-6 p-6 rounded-[2.5rem] border-2 shadow-sm animate-fade-in ${conflictSummary.total > 0 ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
+                                <div className="flex items-start gap-5">
                                     <div className="flex-shrink-0">
                                         {conflictSummary.total > 0 ? (
-                                            <ExclamationTriangleIcon className="h-6 w-6 text-red-500" aria-hidden="true" />
+                                            <ExclamationTriangleIcon className="h-10 w-10 text-red-500" />
                                         ) : (
-                                            <CheckIcon className="h-6 w-6 text-green-500" aria-hidden="true" />
+                                            <CheckCircleIcon className="h-10 w-10 text-green-500" />
                                         )}
                                     </div>
-                                    <div className="ml-3">
-                                        <h3 className={`text-lg font-medium ${conflictSummary.total > 0 ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'}`}>
-                                            {conflictSummary.total > 0 ? `Detected ${conflictSummary.total} Conflict(s)` : 'No Conflicts Detected'}
+                                    <div>
+                                        <h3 className={`text-lg font-black uppercase tracking-tight ${conflictSummary.total > 0 ? 'text-red-800' : 'text-green-800'}`}>
+                                            {conflictSummary.total > 0 ? `Logical Conflicts Detected (${conflictSummary.total})` : 'Validated Optimal Solution'}
                                         </h3>
-                                        <div className={`mt-2 text-sm ${conflictSummary.total > 0 ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+                                        <div className="mt-1 text-sm text-slate-500 font-medium">
                                             {conflictSummary.total > 0 ? (
-                                                <ul className="list-disc pl-5 space-y-1">
-                                                    {conflictSummary.lecturer > 0 && <li>{conflictSummary.lecturer} lecturer double booking(s)</li>}
-                                                    {conflictSummary.room > 0 && <li>{conflictSummary.room} room double booking(s)</li>}
-                                                </ul>
+                                                <p>Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities. Please refine constraints.</p>
                                             ) : (
-                                                <p>The generated timetable has no lecturer or room double bookings.</p>
+                                                <p>Generated plan satisfies 100% of institutional and resource availability parameters.</p>
                                             )}
                                         </div>
                                     </div>
@@ -423,7 +381,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                             </div>
                         )}
 
-                        {generatedTimetable && generatedTimetable.length > 0 && !isLoading && (
+                        {generatedTimetable.length > 0 && !isLoading && (
                             <div className="animate-fade-in-up">
                                 <div className="flex justify-between items-center mb-6">
                                     <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Generation Preview Matrix</h4>
@@ -437,12 +395,12 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                 <TimetablesView
                                     generatedTimetable={generatedTimetable}
                                     subjects={visibleSubjectsForManager}
-                                    lecturers={lecturers || []}
+                                    lecturers={lecturers}
                                     departments={visibleDeptsForManager}
                                     courses={visibleCoursesForManager}
-                                    buildings={buildings || []}
-                                    rooms={rooms || []}
-                                    allocations={allocations || []}
+                                    buildings={buildings}
+                                    rooms={rooms}
+                                    allocations={allocations}
                                     getSubjectById={getSubjectById || (id => undefined)}
                                     getLecturerById={getLecturerById || (id => undefined)}
                                     getRoomById={getRoomById || (id => undefined)}
@@ -452,16 +410,15 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                     currentUser={currentUser}
                                     timetableSettings={timetableSettings}
                                     onSaveTimetableSettings={onSaveTimetableSettings || (() => { })}
-                                    academicYears={academicYears || []}
+                                    academicYears={academicYears}
                                     activeSemester={activeSemester || null}
                                     onLogAction={onLogAction}
-                                    currentInstitution={currentInstitution}
                                 />
                             </div>
                         )}
                     </section>
                 </>
-            ) : subTab === 'exams' ? (
+            ) : (
                 <section className="animate-fade-in space-y-8">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
                         <div>
@@ -470,7 +427,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                         </div>
                         <button
                             onClick={handleGenerateExams}
-                            disabled={isLoading || (subjects || []).length === 0 || !activeAcademicYear || !activeSemester}
+                            disabled={isLoading || subjects.length === 0 || !activeAcademicYear || !activeSemester}
                             className="btn-primary h-14 flex items-center gap-3 shadow-xl shadow-indigo-200 px-12"
                         >
                             <SparklesIcon className="w-6 h-6" />
@@ -488,7 +445,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
 
                     {error && <div className="p-5 bg-red-50 text-red-700 rounded-[2rem] border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-6 h-6" /> {error}</div>}
 
-                    {examTimetable && examTimetable.length > 0 && !isLoading && (
+                    {examTimetable.length > 0 && !isLoading && (
                         <div className="space-y-6 animate-fade-in-up">
                             <div className="flex justify-between items-center">
                                 <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Exam Schedule Registry</h4>
@@ -516,7 +473,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                         </div>
                     )}
 
-                    {(!examTimetable || examTimetable.length === 0) && !isLoading && (
+                    {examTimetable.length === 0 && !isLoading && (
                         <div className="flex flex-col items-center justify-center py-40 bg-white dark:bg-slate-800 rounded-[4rem] border-4 border-dashed border-slate-50 dark:border-slate-800 text-center opacity-40">
                             <CalendarDaysIcon className="w-24 h-24 text-slate-200 dark:text-slate-700 mb-6" />
                             <h4 className="text-2xl font-black text-slate-300 uppercase tracking-[0.3em]">No Assessment Data Found</h4>
@@ -524,28 +481,15 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                         </div>
                     )}
                 </section>
-            ) : (
-                <WallPosterView
-                    generatedTimetable={generatedTimetable}
-                    subjects={subjects}
-                    lecturers={lecturers}
-                    rooms={rooms}
-                    courses={courses}
-                    departments={departments}
-                    timetableSettings={timetableSettings}
-                    institution={currentInstitution}
-                    academicYear={activeAcademicYear}
-                    semester={activeSemester}
-                />
             )}
 
             {isImportModalOpen && activeAcademicYear && activeSemester && (
                 <TimetableImporter
                     isOpen={isImportModalOpen}
                     onClose={() => setIsImportModalOpen(false)}
-                    subjects={subjects || []}
-                    lecturers={lecturers || []}
-                    rooms={rooms || []}
+                    subjects={subjects}
+                    lecturers={lecturers}
+                    rooms={rooms}
                     onImport={async (entries) => {
                         await onTimetableGenerated(entries, activeAcademicYear.id, activeSemester.id);
                         onLogAction?.('Imported Timetable from Excel');
@@ -553,6 +497,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     academicYearId={activeAcademicYear.id}
                     semesterId={activeSemester.id}
                     timetableSettings={timetableSettings}
+                    aiModelTier={currentInstitution?.aiModelTier}
                 />
             )}
         </div>

@@ -1,6 +1,5 @@
-
 import React, { useMemo } from 'react';
-import type { Department, Course, TimetableEntry, Subject, User, Room, TimetableSettings, CourseLevel, Institution } from '../types';
+import type { Department, Course, TimetableEntry, Subject, User, Room, TimetableSettings, CourseLevel } from '../types';
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { generatePastelColor } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
@@ -13,37 +12,26 @@ interface DepartmentalMasterTimetableProps {
     rooms: Room[];
     generatedTimetable: TimetableEntry[];
     timetableSettings: TimetableSettings;
-    currentInstitution?: Institution | null;
 }
 
-export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetableProps> = ({ departments, courses, subjects, lecturers, rooms, generatedTimetable, timetableSettings, currentInstitution }) => {
-    const daysOfWeek = timetableSettings.operatingDays || [];
+export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetableProps> = ({ departments, courses, subjects, lecturers, rooms, generatedTimetable, timetableSettings }) => {
+    const daysOfWeek = timetableSettings.operatingDays;
     const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
-    
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
-    const courseLabel = isSchool ? 'Grade' : 'Course';
-    const levelLabel = isSchool ? 'Stream' : 'Level';
-
-    const safeGeneratedTimetable = Array.isArray(generatedTimetable) ? generatedTimetable : [];
 
     const getCellEntry = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
-        return safeGeneratedTimetable.find(e => 
-            e && e.day === day &&
-            (level.subjectIds || []).includes(e.subjectId) &&
+        return generatedTimetable.find(e => 
+            e.day === day &&
+            level.subjectIds.includes(e.subjectId) &&
             timeToMinutes(e.startTime) === periodStartMinutes
         );
     };
 
-    const safeDepartments = Array.isArray(departments) ? departments : [];
-    const safeCourses = Array.isArray(courses) ? courses : [];
-
     return (
         <div className="space-y-8">
-            {safeDepartments.map(department => {
-                if (!department) return null;
-                const departmentCourses = safeCourses.filter(c => c && c.departmentId === department.id);
+            {departments.map(department => {
+                const departmentCourses = courses.filter(c => c.departmentId === department.id);
                 if (departmentCourses.length === 0) return null;
 
                 return (
@@ -55,8 +43,8 @@ export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetablePr
                             <table className="min-w-full border-collapse text-xs">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-100">
-                                        <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-50 dark:bg-slate-700/50 z-10 print:static print:bg-transparent print:text-black" rowSpan={2}>{courseLabel}</th>
-                                        <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-24 bg-slate-50 dark:bg-slate-700/50 z-10 print:static print:bg-transparent print:text-black" rowSpan={2}>{levelLabel}</th>
+                                        <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-50 dark:bg-slate-700/50 z-10 print:static print:bg-transparent print:text-black" rowSpan={2}>Course</th>
+                                        <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-24 bg-slate-50 dark:bg-slate-700/50 z-10 print:static print:bg-transparent print:text-black" rowSpan={2}>Level</th>
                                         {daysOfWeek.map(day => (
                                             <th key={day} colSpan={periodHeaders.length} className="p-2 border border-slate-200 dark:border-slate-600 font-bold text-slate-900 dark:text-white print:text-black">{day}</th>
                                         ))}
@@ -71,12 +59,12 @@ export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetablePr
                                 </thead>
                                 <tbody>
                                     {departmentCourses.flatMap(course => 
-                                        (course.levels || []).map((level, levelIndex) => {
+                                        course.levels.map((level, levelIndex) => {
                                             const occupiedSlots = new Set<string>();
                                             return (
                                             <tr key={level.id} className="border-t border-slate-200 dark:border-slate-600">
                                                 {levelIndex === 0 && (
-                                                    <td rowSpan={(course.levels || []).length} className="p-2 border border-slate-200 dark:border-slate-600 font-semibold sticky left-0 bg-white dark:bg-slate-800 z-10 align-top print:static print:bg-transparent print:text-black">
+                                                    <td rowSpan={course.levels.length} className="p-2 border border-slate-200 dark:border-slate-600 font-semibold sticky left-0 bg-white dark:bg-slate-800 z-10 align-top print:static print:bg-transparent print:text-black">
                                                         {course.name}
                                                     </td>
                                                 )}
@@ -87,11 +75,11 @@ export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetablePr
 
                                                     const entry = getCellEntry(level, day, period);
                                                     if (entry) {
-                                                        const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === entry.subjectId);
-                                                        const lecturer = (Array.isArray(lecturers) ? lecturers : []).find(l => l && l.id === entry.lecturerId);
-                                                        const room = (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === entry.roomId);
+                                                        const subject = subjects.find(s => s.id === entry.subjectId);
+                                                        const lecturer = lecturers.find(l => l.id === entry.lecturerId);
+                                                        const room = rooms.find(r => r.id === entry.roomId);
                                                         const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+                                                        const colSpan = Math.round(duration / cellSpanMinutes);
                                                         for(let k=0; k<colSpan; k++) occupiedSlots.add(`${day}-${periodIndex + k}`);
 
                                                         return (

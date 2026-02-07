@@ -11,6 +11,7 @@ import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
     UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon,
     CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon,
+    // Added BuildingOfficeIcon to resolve name collision or missing reference errors
     BuildingOfficeIcon, ClockIcon, CheckIcon, ArrowUpTrayIcon, ClipboardListIcon,
     LockClosedIcon,
     MpesaIcon,
@@ -22,15 +23,15 @@ import {
     ExclamationTriangleIcon,
     ArrowPathIcon,
     EnvelopeIcon
-} from './icons/index';
-import { SecurityAlertManager } from './SecurityAlertManager';
-import { LicensePlateScanner } from './LicensePlateScanner';
-import { StoreItemForm } from './StoreItemForm';
-import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
-import { TransactionForm } from './TransactionForm';
-import { ItemQrCodeModal } from './ItemQrCodeModal';
+} from './icons/index.ts';
+import { SecurityAlertManager } from './SecurityAlertManager.tsx';
+import { LicensePlateScanner } from './LicensePlateScanner.tsx';
+import { StoreItemForm } from './StoreItemForm.tsx';
+import { SmartInventoryImporterModal } from './SmartInventoryImporterModal.tsx';
+import { TransactionForm } from './TransactionForm.tsx';
+import { ItemQrCodeModal } from './ItemQrCodeModal.tsx';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
-import { TimetableGrid } from './TimetableGrid';
+import { TimetableGrid } from './TimetableGrid.tsx';
 
 export interface SupportStaffViewProps {
     user: User;
@@ -77,7 +78,6 @@ export interface SupportStaffViewProps {
     financialPeriods?: FinancialPeriod[];
     onUpdateFinancialPeriods?: (periods: FinancialPeriod[]) => void;
     activeTabInitial?: 'dashboard' | 'payroll' | 'billing' | 'payments' | 'requisitions' | 'settings';
-    onAddFinanceTransaction?: (data: any, items: InvoiceItem[]) => Promise<TransactionStatus>;
     supplierProfile?: Supplier;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => void;
     onUpdateSupplier?: (supplierId: string, data: Partial<Supplier>) => void;
@@ -129,16 +129,15 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
     const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
-    const activeVisitors = useMemo(() => visitors.filter(v => !v.timeOut), [visitors]);
+    const activeVisitors = useMemo(() => (visitors || []).filter(v => !v.timeOut), [visitors]);
     const todaysAppointments = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
-        return appointments.filter(a => a.date === today && a.status === 'pending');
+        return (appointments || []).filter(a => a.date === today && a.status === 'pending');
     }, [appointments]);
     const handleVisitorLookup = () => {
         if (!walkInForm.phone) return;
         setLookupStatus('searching');
-        // FIXED: Changed v.phone_number to v.phoneNumber to match type definition
-        const matches = visitors.filter(v => v.phoneNumber === walkInForm.phone);
+        const matches = (visitors || []).filter(v => v.phoneNumber === walkInForm.phone);
         if (matches.length > 0) {
             const returning = [...matches].sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
             setWalkInForm({ ...walkInForm, name: returning.name, vehiclePlate: returning.vehiclePlate || '', vehicleModel: returning.vehicleModel || '' });
@@ -254,13 +253,12 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     );
 };
 
-
-
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const { inventory = [], suppliers = [], users = [], onAddItem, onAddItems, onAddStoreTransaction } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [qrItem, setQrItem] = useState<InventoryItem | null>(null);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
     return (
         <BaseDashboard title="Institutional Store" icon={<ArchiveBoxIcon className="w-6 h-6 text-slate-600" />}>
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'inventory', 'history', 'suppliers'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>))}</nav></div>
@@ -269,6 +267,13 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     <div className="flex justify-between items-center">
                         <h3 className="text-xl font-black uppercase tracking-tight">Active Stock Registry</h3>
                         <div className="flex gap-2">
+                            <button
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="btn-secondary text-[10px] uppercase font-black tracking-widest h-10 px-6 flex items-center gap-2"
+                            >
+                                <SparklesIcon className="w-4 h-4" />
+                                Smart Import
+                            </button>
                             <button onClick={() => setIsAddModalOpen(true)} className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">Add Item</button>
                         </div>
                     </div>
@@ -283,7 +288,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                         <td className="px-6 py-4 text-center">
                                             {item.quantity <= item.reorderLevel ? <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span> : <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>}
                                         </td>
-                                        <td className="px-6 py-4 text-right"><button onClick={() => setQrItem(item)} className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button></td>
+                                        <td className="px-6 py-4 text-right"><button className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -301,7 +306,7 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
         <BaseDashboard title="Visitor Center" icon={<InformationCircleIcon className="w-6 h-6 text-slate-600" />}>
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
                 <h3 className="text-xl font-black uppercase tracking-tight mb-6">Institutional Schedule Hub</h3>
-                <TimetableGrid entries={generatedTimetable} getSubjectById={getSubjectById!} getRoomById={getRoomById!} getLecturerById={getLecturerById!} timetableSettings={timetableSettings!} />
+                <TimetableGrid entries={generatedTimetable!} getSubjectById={getSubjectById!} getRoomById={getRoomById!} getLecturerById={getLecturerById!} timetableSettings={timetableSettings!} />
             </div>
         </BaseDashboard>
     );
@@ -315,9 +320,12 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
 
     return (
         <BaseDashboard title={`Vendor Portal: ${supplierProfile.name}`} icon={<BuildingOfficeIcon className="w-6 h-6 text-slate-600" />}>
-            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'orders', 'catalog', 'profile'].map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>
-            ))}</nav></div>
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">
+                {['dashboard', 'orders', 'catalog', 'profile'].map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+                ))}
+            </nav>
+            </div>
 
             {activeTab === 'orders' && (
                 <div className="space-y-4 animate-fade-in-up">

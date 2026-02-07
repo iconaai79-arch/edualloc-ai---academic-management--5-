@@ -51,8 +51,8 @@ const AssignmentItem: React.FC<{
         printWindow.document.close();
     };
 
-    // FIXED: Changed due_date to dueDate to match type definition
-    const isOverdue = new Date(assignment.dueDate) < new Date();
+    /* FIXED: Changed dueDate to due_date to match type definition */
+    const isOverdue = new Date(assignment.due_date) < new Date();
     const isSubmittingThis = submittingId === assignment.id;
 
     return (
@@ -62,9 +62,9 @@ const AssignmentItem: React.FC<{
                     <p className="font-bold text-slate-800 dark:text-slate-100">{assignment.title}</p>
                     <p className="text-sm text-[var(--color-primary)] font-medium">{subject?.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">From: {lecturer?.name || 'N/A'}</p>
-                    {/* FIXED: Changed due_date to dueDate to match type definition */}
+                    {/* FIXED: Changed dueDate to due_date to match type definition */}
                     <p className={`text-xs font-semibold mt-1 ${isOverdue && !submission ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                        Due: {new Date(assignment.dueDate).toLocaleDateString()} {isOverdue && !submission ? '(Overdue)' : ''}
+                        Due: {new Date(assignment.due_date).toLocaleDateString()} {isOverdue && !submission ? '(Overdue)' : ''}
                     </p>
                 </div>
                 {!submission && (
@@ -96,21 +96,17 @@ const AssignmentItem: React.FC<{
 };
 
 
-export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> = ({ user, assignments = [], submissions = [], getSubjectById, getLecturerById, onAddSubmission }) => {
+export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> = ({ user, assignments, submissions, getSubjectById, getLecturerById, onAddSubmission }) => {
     const [submittingId, setSubmittingId] = useState<string | null>(null);
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
 
-    const safeAssignments = Array.isArray(assignments) ? assignments : [];
-    const safeSubmissions = Array.isArray(submissions) ? submissions : [];
-
     const enrolledSubjectIds = new Set(user.enrolledSubjectIds || []);
-    
-    // FIXED: Changed due_date to dueDate to match type definition in sort comparison
-    const relevantAssignments = safeAssignments.filter(a => enrolledSubjectIds.has(a.subjectId))
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    /* FIXED: Changed dueDate to due_date to match type definition */
+    const relevantAssignments = assignments.filter(a => enrolledSubjectIds.has(a.subjectId))
+        .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
 
-    const studentSubmissions = safeSubmissions.filter(s => s.studentId === user.id);
+    const studentSubmissions = submissions.filter(s => s.studentId === user.id);
     const submittedAssignmentIds = new Set(studentSubmissions.map(s => s.assignmentId));
 
     const newAssignments = relevantAssignments.filter(a => !submittedAssignmentIds.has(a.id));
@@ -130,7 +126,7 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
             return;
         }
 
-        const assignment = safeAssignments.find(a => a.id === assignmentId);
+        const assignment = assignments.find(a => a.id === assignmentId);
         if (!assignment) {
             alert('Could not find the assignment to submit to.');
             return;
@@ -140,8 +136,8 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
         const reader = new FileReader();
         reader.readAsDataURL(fileToSubmit);
         reader.onload = () => {
-            // FIXED: Changed due_date to dueDate to match type definition
-            const isLate = new Date() > new Date(assignment.dueDate);
+            /* FIXED: Changed dueDate to due_date to match type definition */
+            const isLate = new Date() > new Date(assignment.due_date);
             const status: SubmissionStatus = isLate ? 'late' : 'submitted';
 
             onAddSubmission({

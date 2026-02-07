@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, GradeDefinition, GradingSystem } from '../types';
-import { PlusIcon, XIcon, CheckIcon, AcademicCapIcon, ArrowPathIcon, CheckCircleIcon } from './icons/index.ts';
-import { DEFAULT_GRADING_SYSTEMS } from '../constants.ts';
+import { PlusIcon, XIcon, CheckIcon, AcademicCapIcon } from './icons';
+import { DEFAULT_GRADING_SYSTEMS } from '../constants';
 
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;
-    onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => Promise<void> | void;
+    onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
 }
 
 export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ currentInstitution, onUpdateInstitution }) => {
@@ -19,12 +19,21 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
 
     useEffect(() => {
         if (currentInstitution) {
+            // Migration logic: If no gradingSystems but has deprecated gradingSystem, convert it.
+            // Otherwise default.
             let initSystems = currentInstitution.gradingSystems || [];
-            if (initSystems.length === 0) {
+            if (initSystems.length === 0 && currentInstitution.gradingSystem) {
+                 initSystems = [{
+                    id: 'gs_default_migrated',
+                    name: 'Default Grading System',
+                    definitions: currentInstitution.gradingSystem
+                 }];
+            } else if (initSystems.length === 0) {
                 initSystems = DEFAULT_GRADING_SYSTEMS;
             }
 
             setSystems(initSystems);
+            
             const active = currentInstitution.activeGradingSystemId || initSystems[0]?.id || '';
             setActiveSystemId(active);
             
@@ -106,171 +115,185 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({ curr
         }
     };
 
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = () => {
         if (!currentInstitution || !onUpdateInstitution) return;
+        setSaveStatus('saving');
         
+        // Validate current system ranges
         if (selectedSystem) {
-            for (const g of selectedSystem.definitions) {
+            for (let i = 0; i < selectedSystem.definitions.length; i++) {
+                const g = selectedSystem.definitions[i];
                 if (g.minScore > g.maxScore) {
-                    alert(`Logic Error in grade "${g.grade}": Min score > Max score.`);
+                    alert(`Error in grade "${g.grade}": Minimum score cannot be greater than maximum score.`);
+                    setSaveStatus('idle');
                     return;
                 }
             }
         }
 
-        setSaveStatus('saving');
-        try {
-            await onUpdateInstitution(currentInstitution.id, { 
-                gradingSystems: systems,
-                activeGradingSystemId: activeSystemId
-            });
+        onUpdateInstitution(currentInstitution.id, { 
+            gradingSystems: systems,
+            activeGradingSystemId: activeSystemId
+        });
+        
+        setTimeout(() => {
             setSaveStatus('saved');
-            setTimeout(() => setSaveStatus('idle'), 2500);
-        } catch (err) {
-            console.error("Grading save failed:", err);
-            setSaveStatus('idle');
-            alert("Failed to sync grading changes with the cloud registry.");
-        }
+            setTimeout(() => setSaveStatus('idle'), 2000);
+        }, 500);
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Sidebar list of systems */}
             <div className="lg:col-span-1 space-y-4">
-                <div className="flex justify-between items-center px-1">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Grading Map</h3>
-                    <button onClick={() => setIsAddingSystem(true)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors">
-                        <PlusIcon className="w-4 h-4" />
+                <div className="flex justify-between items-center">
+                    <h3 className="font-semibold text-slate-700 dark:text-slate-200">Grading Systems</h3>
+                    <button onClick={() => setIsAddingSystem(true)} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-[var(--color-primary)]">
+                        <PlusIcon className="w-5 h-5" />
                     </button>
                 </div>
                 
                 {isAddingSystem && (
-                    <form onSubmit={handleAddSystem} className="flex gap-2 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-indigo-100 animate-scale-in">
+                    <form onSubmit={handleAddSystem} className="flex gap-2">
                         <input 
                             type="text" 
                             value={newSystemName} 
                             onChange={e => setNewSystemName(e.target.value)} 
-                            className="form-input text-xs py-1 px-2 border-none" 
-                            placeholder="Scheme Name..." 
+                            className="form-input text-sm py-1 px-2" 
+                            placeholder="System Name" 
                             autoFocus
                         />
-                        <button type="submit" className="btn-primary text-[10px] p-1 h-8 w-8"><CheckIcon className="w-4 h-4"/></button>
-                        <button type="button" onClick={() => setIsAddingSystem(false)} className="btn-secondary text-[10px] p-1 h-8 w-8 flex items-center justify-center"><XIcon className="w-4 h-4"/></button>
+                        <button type="submit" className="btn-primary text-xs px-2">Add</button>
                     </form>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-96 overflow-y-auto">
                     {systems.map(system => (
-                        <button 
+                        <div 
                             key={system.id} 
                             onClick={() => setSelectedSystemId(system.id)}
-                            className={`w-full text-left p-4 rounded-2xl border-2 transition-all group ${
+                            className={`p-3 rounded-lg cursor-pointer border transition-all ${
                                 selectedSystemId === system.id 
-                                    ? 'bg-white dark:bg-slate-800 border-indigo-600 shadow-xl shadow-indigo-100 dark:shadow-none' 
-                                    : 'bg-white dark:bg-slate-800 border-slate-50 dark:border-slate-700 hover:border-indigo-200'
+                                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 ring-1 ring-blue-300' 
+                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-300'
                             }`}
                         >
-                            <div className="flex justify-between items-center">
-                                <span className={`text-sm font-black uppercase tracking-tight ${selectedSystemId === system.id ? 'text-indigo-600' : 'text-slate-700 dark:text-slate-300'}`}>
-                                    {system.name}
-                                </span>
+                            <div className="flex justify-between items-start">
+                                <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{system.name}</span>
                                 {activeSystemId === system.id && (
-                                    <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                                    <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Active</span>
                                 )}
                             </div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{system.definitions.length} Grade Tiers</p>
-                        </button>
+                            <p className="text-xs text-slate-500 mt-1">{system.definitions.length} grades defined</p>
+                        </div>
                     ))}
                 </div>
             </div>
 
-            <div className="lg:col-span-3">
+            {/* Main Content Area */}
+            <div className="lg:col-span-3 space-y-6">
                 {selectedSystem ? (
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-                            <div className="flex-grow w-full">
-                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Scheme Designation</label>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
+                            <div className="flex-grow w-full sm:w-auto">
+                                <label className="block text-xs text-slate-500 uppercase font-bold mb-1">System Name</label>
                                 <input 
                                     type="text" 
                                     value={selectedSystem.name} 
                                     onChange={e => handleSystemNameChange(e.target.value)} 
-                                    className="form-input font-black text-xl uppercase tracking-tighter"
+                                    className="form-input font-bold text-lg w-full"
                                 />
                             </div>
-                            <div className="flex gap-2 shrink-0">
+                            <div className="flex gap-2 flex-shrink-0">
                                 {activeSystemId !== selectedSystem.id && (
-                                    <button onClick={() => setActiveSystemId(selectedSystem.id)} className="btn-secondary h-11 text-[10px] font-black uppercase tracking-widest bg-white">Set Default</button>
+                                    <button 
+                                        onClick={() => setActiveSystemId(selectedSystem.id)} 
+                                        className="btn-secondary text-xs"
+                                    >
+                                        Set as Default
+                                    </button>
                                 )}
-                                <button onClick={() => handleDeleteSystem(selectedSystem.id)} className="h-11 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-all">Delete</button>
+                                <button 
+                                    onClick={() => handleDeleteSystem(selectedSystem.id)} 
+                                    className="btn-danger text-xs bg-red-100 text-red-600 hover:bg-red-200 border-none px-3 py-2 rounded"
+                                    disabled={systems.length <= 1}
+                                >
+                                    Delete System
+                                </button>
                             </div>
                         </div>
 
-                        <div className="p-8">
-                            <div className="overflow-hidden border border-slate-100 dark:border-slate-800 rounded-3xl">
-                                <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
-                                    <thead className="bg-slate-50 dark:bg-slate-900/50">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Symbol</th>
-                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Range (%)</th>
-                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Points</th>
-                                            <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Descriptor</th>
-                                            <th className="px-6 py-4"></th>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead className="bg-slate-50 dark:bg-slate-700">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300">Grade</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300">Min Score (%)</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300">Max Score (%)</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300">Points</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300">Comment</th>
+                                        <th className="px-4 py-2"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                                    {selectedSystem.definitions.sort((a,b) => b.minScore - a.minScore).map(grade => (
+                                        <tr key={grade.id}>
+                                            <td className="px-4 py-2">
+                                                <input type="text" value={grade.grade} onChange={e => handleGradeChange(grade.id, 'grade', e.target.value)} className="form-input text-sm w-20" />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input type="number" value={grade.minScore} onChange={e => handleGradeChange(grade.id, 'minScore', parseInt(e.target.value) || 0)} className="form-input text-sm w-24" />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input type="number" value={grade.maxScore} onChange={e => handleGradeChange(grade.id, 'maxScore', parseInt(e.target.value) || 0)} className="form-input text-sm w-24" />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input type="number" value={grade.points} onChange={e => handleGradeChange(grade.id, 'points', parseFloat(e.target.value) || 0)} step="0.1" className="form-input text-sm w-24" />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input type="text" value={grade.comment} onChange={e => handleGradeChange(grade.id, 'comment', e.target.value)} className="form-input text-sm w-full" />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <button onClick={() => handleDeleteGrade(grade.id)} className="text-red-500 hover:text-red-700 p-1">
+                                                    <XIcon className="w-5 h-5" />
+                                                </button>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {selectedSystem.definitions.sort((a,b) => b.minScore - a.minScore).map(grade => (
-                                            <tr key={grade.id} className="hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-6 py-3"><input type="text" value={grade.grade} onChange={e => handleGradeChange(grade.id, 'grade', e.target.value)} className="form-input-sm w-16 font-black text-indigo-600" /></td>
-                                                <td className="px-6 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <input type="number" value={grade.minScore} onChange={e => handleGradeChange(grade.id, 'minScore', parseInt(e.target.value) || 0)} className="form-input-sm w-16 text-center" />
-                                                        <span className="text-slate-300">-</span>
-                                                        <input type="number" value={grade.maxScore} onChange={e => handleGradeChange(grade.id, 'maxScore', parseInt(e.target.value) || 0)} className="form-input-sm w-16 text-center" />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3"><input type="number" value={grade.points} onChange={e => handleGradeChange(grade.id, 'points', parseFloat(e.target.value) || 0)} step="0.1" className="form-input-sm w-16 text-center" /></td>
-                                                <td className="px-6 py-3"><input type="text" value={grade.comment} onChange={e => handleGradeChange(grade.id, 'comment', e.target.value)} className="form-input-sm w-full" placeholder="Excellent..." /></td>
-                                                <td className="px-6 py-3 text-right"><button onClick={() => handleDeleteGrade(grade.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"><XIcon className="w-5 h-5" /></button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                            <div className="mt-8 flex flex-col sm:flex-row justify-between items-center gap-6">
-                                <button onClick={handleAddGrade} className="btn-secondary h-12 flex items-center gap-2 px-6 shadow-sm">
-                                    <PlusIcon className="w-5 h-5"/> Add Threshold
-                                </button>
-                                <div className="flex items-center gap-6">
-                                    {saveStatus === 'saved' && (
-                                        <span className="text-sm font-black text-green-600 uppercase tracking-widest flex items-center gap-2 animate-fade-in">
-                                            <CheckCircleIcon className="w-6 h-6"/> Registry Updated
-                                        </span>
-                                    )}
-                                    <button 
-                                        onClick={handleSaveChanges} 
-                                        className={`btn-primary h-14 px-12 shadow-xl shadow-indigo-100 ${saveStatus === 'saving' ? 'opacity-70 animate-pulse' : ''}`} 
-                                        disabled={saveStatus === 'saving'}
-                                    >
-                                        {saveStatus === 'saving' ? (
-                                            <><ArrowPathIcon className="w-5 h-5 animate-spin"/> Syncing Registry...</>
-                                        ) : 'Commit Grading Scheme'}
+                        <div className="mt-4 flex justify-between items-center border-t border-slate-200 dark:border-slate-700 pt-4">
+                            <button onClick={handleAddGrade} className="btn-secondary inline-flex items-center gap-2 text-sm">
+                                <PlusIcon className="w-4 h-4"/> Add Grade Level
+                            </button>
+                            <div className="flex items-center gap-4">
+                                {saveStatus === 'saved' && <span className="text-sm font-medium text-green-600 flex items-center gap-2"><CheckIcon className="w-5 h-5"/> Saved!</span>}
+                                {onUpdateInstitution && (
+                                    <button onClick={handleSaveChanges} className="btn-primary" disabled={saveStatus === 'saving'}>
+                                        {saveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
                                     </button>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-32 bg-white dark:bg-slate-800 rounded-[3rem] border-4 border-dashed border-slate-50 dark:border-slate-800 text-center opacity-40">
-                        <AcademicCapIcon className="w-16 h-16 text-slate-200 mb-4" />
-                        <h4 className="text-xl font-black text-slate-300 uppercase tracking-[0.3em]">Initialize a Grading Scale</h4>
+                    <div className="flex items-center justify-center h-64 bg-slate-50 dark:bg-slate-800 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-400">
+                        <div className="text-center">
+                            <AcademicCapIcon className="w-12 h-12 mx-auto mb-2 text-slate-300" />
+                            <p>Select a grading system to edit or create a new one.</p>
+                        </div>
                     </div>
                 )}
             </div>
 
             <style>{`
-                .form-input-sm { display: block; border-radius: 0.75rem; border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; background-color: #f8fafc; font-size: 0.75rem; font-weight: bold; transition: all 0.2s; outline: none; }
-                .dark .form-input-sm { border-color: #334155; background-color: #0f172a; color: white; }
-                .form-input-sm:focus { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
+                .form-input { display: block; width: 100%; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
+                .dark .form-input { border-color: #4b5563; background-color: #374151; color: white; }
+                .btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 600; border: none; cursor: pointer; }
+                .btn-secondary { padding: 0.5rem 1rem; background-color: #e5e7eb; color: #1f2937; border-radius: 0.375rem; font-weight: 500; border: none; cursor: pointer; }
+                .dark .btn-secondary { background-color: #4b5563; color: white; }
             `}</style>
         </div>
     );

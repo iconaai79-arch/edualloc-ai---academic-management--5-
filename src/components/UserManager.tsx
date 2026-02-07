@@ -210,7 +210,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeUserSpreadsheet(headers);
+                const mapping = await analyzeUserSpreadsheet(headers, currentInstitution?.aiModelTier);
                 setUserMapping(mapping as Record<UserMappingField, string | null>);
                 setStep('mapping');
             } catch (error: any) {
@@ -505,35 +505,22 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
-    const [institutionId, setInstitutionId] = useState(''); // New State
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId(''); 
         setGender('Male'); setRole('lecturer'); setDepartmentId(''); 
         setCourseId(''); setCourseLevelId('');
-        setInstitutionId('');
     };
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
-        const baseAdminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'];
+        const baseAdminRoles = ['admin', 'head_teacher', 'dos', 'deputy'];
         return baseAdminRoles.includes(currentUser.role);
     }, [currentUser?.role]);
 
     const isSuperAdmin = useMemo(() => currentUser?.role === 'super_admin', [currentUser?.role]);
-
-    // Set default institution ID for form based on user context
-    useEffect(() => {
-        if (!isSuperAdmin && currentUser?.institutionId) {
-            setInstitutionId(currentUser.institutionId);
-        } else if (isSuperAdmin && institutions && institutions.length > 0 && !institutionId) {
-             // Optional: Default to first institution or none
-             // setInstitutionId(institutions[0].id);
-        }
-    }, [isSuperAdmin, currentUser, institutions]);
-
 
     const filteredUsers = useMemo(() => {
         let list = (users || []).filter(u => {
@@ -550,8 +537,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
         if (isSuperAdmin && institutionFilter !== 'all') {
             list = list.filter(u => u.institutionId === institutionFilter);
-        } else if (!isSuperAdmin && currentUser?.institutionId) {
-             list = list.filter(u => u.institutionId === currentUser.institutionId);
         }
 
         if (searchQuery.trim()) {
@@ -559,7 +544,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             list = list.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.staffId?.toLowerCase().includes(q));
         }
         return list;
-    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, currentUser?.institutionId]);
+    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId]);
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -590,18 +575,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Use selected institutionId if super admin, else current user's
-        const finalInstitutionId = isSuperAdmin ? institutionId : (currentUser?.institutionId || '');
-
-        if (isSuperAdmin && !finalInstitutionId) {
-            alert("Please select an institution for the new user.");
-            return;
-        }
-
         const userData: any = {
             name, email, phoneNumber: phone, staffId, gender,
             role: activeTab === 'staff' ? role : 'student',
-            institutionId: finalInstitutionId,
+            institutionId: currentUser?.institutionId || '',
             expertise: []
         };
 
@@ -644,21 +621,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? 'Staff Member' : 'Student'}</h4>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {isSuperAdmin && (
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Institution <span className="text-red-500">*</span></label>
-                                    <select 
-                                        value={institutionId} 
-                                        onChange={e => setInstitutionId(e.target.value)} 
-                                        className="form-select w-full"
-                                        required
-                                    >
-                                        <option value="">-- Select Institution --</option>
-                                        {institutions?.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                                    </select>
-                                </div>
-                            )}
-
                             <div>
                                 <label className="block text-sm font-medium mb-1">Full Name</label>
                                 <input type="text" value={name} onChange={e => setName(e.target.value)} className="form-input w-full" required />
@@ -728,7 +690,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             )}
                         </div>
                         <div className="flex justify-end pt-4">
-                            <button type="submit" className="btn-primary px-8">Save User</button>
+                            <button type="submit" className="btn-primary px-8">Save {activeTab === 'staff' ? 'Staff' : 'Student'}</button>
                         </div>
                     </form>
                 </div>

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { TimetableEntry, Subject, User } from '../types';
-import { StarIcon } from './icons';
+import { StarIcon } from './icons/StarIcon';
 
 interface RatingModalProps {
   lesson: TimetableEntry;
@@ -47,10 +47,11 @@ export const RatingModal: React.FC<RatingModalProps> = ({ lesson, subject, lectu
                     className="p-1"
                   >
                     <StarIcon
-                      className={`w-8 h-8 transition-colors ${(hoverRating || rating) >= star
+                      className={`w-8 h-8 transition-colors ${
+                        (hoverRating || rating) >= star
                           ? 'text-yellow-400'
                           : 'text-slate-300 dark:text-slate-600'
-                        }`}
+                      }`}
                     />
                   </button>
                 ))}

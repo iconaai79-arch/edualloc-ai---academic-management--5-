@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { Subject } from '../types';
-import { ArrowPathIcon } from './icons';
+import { ArrowPathIcon } from './icons/index.ts';
 
 interface DeallocationModalProps {
   subject: Subject;
@@ -17,9 +17,9 @@ export const DeallocationModal: React.FC<DeallocationModalProps> = ({ subject, o
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await onSubmit(justification);
+        await onSubmit(justification);
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   };
 

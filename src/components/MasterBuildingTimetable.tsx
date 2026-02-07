@@ -43,20 +43,22 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
     lecturers = [],
     courses = [],
 }) => {
+    const safeBuildings = Array.isArray(buildings) ? buildings.filter(Boolean) : [];
+    const safeRooms = Array.isArray(rooms) ? rooms.filter(Boolean) : [];
+    
     const [buildingFilter, setBuildingFilter] = useState('all');
-    const [expandedBuildingIds, setExpandedBuildingIds] = useState<Set<string>>(() => new Set((Array.isArray(buildings) ? buildings : []).filter(b => b).map(b => b.id)));
+    const [expandedBuildingIds, setExpandedBuildingIds] = useState<Set<string>>(() => new Set(safeBuildings.map(b => b.id)));
 
     const daysOfWeek = timetableSettings?.operatingDays || [];
     const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
 
     const filteredBuildings = useMemo(() => {
-        const list = Array.isArray(buildings) ? buildings : [];
         if (buildingFilter === 'all') {
-            return list.filter(b => b);
+            return safeBuildings;
         }
-        return list.filter(b => b && b.id === buildingFilter);
-    }, [buildings, buildingFilter]);
+        return safeBuildings.filter(b => b.id === buildingFilter);
+    }, [safeBuildings, buildingFilter]);
 
     const getCellEntry = (roomId: string, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
@@ -87,11 +89,9 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
         const totalAvailableWeeklyHours = operatingHoursPerDay * operatingDays.length;
         if (totalAvailableWeeklyHours <= 0) return [];
 
-        const allRooms = Array.isArray(rooms) ? rooms : [];
-        const roomsToDisplay = buildingFilter === 'all' ? allRooms : allRooms.filter(r => r && r.buildingId === buildingFilter);
+        const roomsToDisplay = buildingFilter === 'all' ? safeRooms : safeRooms.filter(r => r.buildingId === buildingFilter);
 
         return roomsToDisplay.map(room => {
-            if (!room) return null;
             const totalOccupiedMinutes = (Array.isArray(generatedTimetable) ? generatedTimetable : [])
                 .filter(entry => entry && entry.roomId === room.id)
                 .reduce((acc, entry) => acc + (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)), 0);
@@ -100,8 +100,8 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
             const utilizationPercentage = (totalOccupiedHours / totalAvailableWeeklyHours) * 100;
 
             return { room, totalOccupiedHours, utilizationPercentage };
-        }).filter((d): d is NonNullable<typeof d> => d !== null).sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
-    }, [buildingFilter, rooms, generatedTimetable, timetableSettings]);
+        }).sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
+    }, [buildingFilter, safeRooms, generatedTimetable, timetableSettings]);
 
     return (
         <div className="space-y-8">
@@ -117,7 +117,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                         className="mt-1 form-select w-full"
                     >
                         <option value="all">All Buildings</option>
-                        {(Array.isArray(buildings) ? buildings : []).filter(b => b).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        {safeBuildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -142,9 +142,8 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                     </thead>
                     <tbody>
                         {filteredBuildings.flatMap(building => {
-                             if (!building) return null;
                              const isExpanded = expandedBuildingIds.has(building.id);
-                             const buildingRooms = (Array.isArray(rooms) ? rooms : []).filter(r => r && r.buildingId === building.id);
+                             const buildingRooms = safeRooms.filter(r => r.buildingId === building.id);
                              if(buildingRooms.length === 0) return null;
 
                              const rows = [
@@ -165,7 +164,6 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
 
                              if (isExpanded || (typeof window !== 'undefined' && window.matchMedia('print').matches)) { 
                                  buildingRooms.forEach(room => {
-                                     if (!room) return;
                                      const occupiedSlots = new Set<string>();
                                      rows.push(
                                          <tr key={room.id} className="border-t border-slate-200 dark:border-slate-600 print:border-slate-300">

@@ -1,10 +1,8 @@
 
-
 import React, { useState, useMemo } from 'react';
-import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, FeedbackSubmission, LessonRating, EnrollmentRequest, StudentAbsenceRequest, StudentAbsenceRequestStatus, Department, Course, RequestStatus } from '../types.ts';
-// FIXED: Adjusted import path to point to src/LecturerInteractionManager.tsx
-import { LecturerInteractionManager } from '../LecturerInteractionManager.tsx';
-import { StudentInteractionManager } from './StudentInteractionManager.tsx';
+import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, FeedbackSubmission, LessonRating, EnrollmentRequest, StudentAbsenceRequest, StudentAbsenceRequestStatus, Department, Course, RequestStatus } from '../types';
+import { LecturerInteractionManager } from './LecturerInteractionManager';
+import { StudentInteractionManager } from './StudentInteractionManager';
 import { UserGroupIcon, AcademicCapIcon } from './icons/index.ts';
 
 interface InteractionsManagerProps {

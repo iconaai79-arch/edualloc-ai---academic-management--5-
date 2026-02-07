@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { LessonRating, User, Subject, Department } from '../types';
-import { StarIcon } from './icons';
+import { StarIcon } from './icons/StarIcon';
 
 interface LecturerRatingReportProps {
     ratings: LessonRating[];
@@ -61,7 +61,7 @@ export const LecturerRatingReport: React.FC<LecturerRatingReportProps> = ({ rati
         <div className="space-y-6">
             <h3 className="text-xl font-semibold">Lecturer Rating Analysis</h3>
             {lecturerStats.length === 0 ? (
-                <div className="p-6 text-center bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                 <div className="p-6 text-center bg-white dark:bg-slate-800 rounded-lg shadow-sm">
                     <p className="text-slate-500 dark:text-slate-400">No rating data is available yet.</p>
                 </div>
             ) : (
@@ -95,16 +95,15 @@ export const LecturerRatingReport: React.FC<LecturerRatingReportProps> = ({ rati
                                             const entryId = c.timetableEntryId;
                                             const subjectId = ratings.find(r => r.timetableEntryId === entryId)?.timetableEntryId;
                                             const subject = subjectMap.get(subjectId || ''); // This logic is a bit off, need to get subject from timetable entry
-                                            return (
-                                                <li key={index} className="text-sm text-slate-600 dark:text-slate-300 border-l-2 border-slate-300 dark:border-slate-600 pl-3">
-                                                    <p className="italic">"{c.comment}"</p>
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                                        {/* Subject info is not directly on rating; would need to find timetable entry. Omitting for now for simplicity. */}
-                                                        {new Date(c.timestamp).toLocaleString()}
-                                                    </p>
-                                                </li>
-                                            )
-                                        })}
+                                            return(
+                                            <li key={index} className="text-sm text-slate-600 dark:text-slate-300 border-l-2 border-slate-300 dark:border-slate-600 pl-3">
+                                                <p className="italic">"{c.comment}"</p>
+                                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                                    {/* Subject info is not directly on rating; would need to find timetable entry. Omitting for now for simplicity. */}
+                                                    {new Date(c.timestamp).toLocaleString()}
+                                                </p>
+                                            </li>
+                                        )})}
                                     </ul>
                                 </div>
                             )}

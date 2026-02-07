@@ -147,7 +147,6 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
                     border-radius: 0.75rem;
                     border: 1px solid #e2e8f0;
                     background-color: #f8fafc;
-                    color: #0f172a;
                     font-size: 0.875rem;
                     transition: all 0.2s;
                     outline: none;

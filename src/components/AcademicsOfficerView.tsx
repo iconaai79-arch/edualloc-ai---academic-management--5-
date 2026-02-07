@@ -1,13 +1,14 @@
 
 
+
 import React, { useState, useMemo } from 'react';
-import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry } from '../types.ts';
-import { generateExamTimetable } from '../services/geminiService.ts';
-import { generateExamTimetablePdf } from '../services/pdfService.ts';
-import { ExamTimetableGrid } from './ExamTimetableGrid.tsx';
-import { SettingsManager } from './SettingsManager.tsx';
+import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry } from '../types';
+import { generateExamTimetable } from '../services/geminiService';
+import { generateExamTimetablePdf } from '../services/pdfService';
+import { ExamTimetableGrid } from './ExamTimetableGrid';
+import { SettingsManager } from './SettingsManager';
 import { ClipboardListIcon, Cog8ToothIcon, PrinterIcon, DocumentArrowDownIcon, CalendarDaysIcon, BookOpenIcon, CheckCircleIcon, SparklesIcon, CommandLineIcon, BeakerIcon } from './icons/index.ts';
-import { generateStandardExamTimetable } from '../utils/examUtils.ts';
+import { generateStandardExamTimetable } from '../utils/examUtils';
 import { TimetableWizard } from './TimetableWizard.tsx';
 
 interface AcademicsOfficerViewProps {
@@ -19,8 +20,8 @@ interface AcademicsOfficerViewProps {
     users: User[];
     rooms: Room[];
     // Added add/delete/update room
-    onAddRoom?: (roomData: Omit<Room, 'id' | 'institutionId'>) => void;
-    onUpdateRoom?: (roomId: string, data: Partial<Omit<Room, 'id' | 'institutionId'>>) => void;
+    onAddRoom?: (roomData: any) => void;
+    onUpdateRoom?: (roomId: string, data: any) => void;
     onDeleteRoom?: (roomId: string) => void;
     onImportRooms?: (rooms: Omit<Room, 'id' | 'institutionId'>[]) => void;
     
@@ -32,6 +33,7 @@ interface AcademicsOfficerViewProps {
 
     activeAcademicYear: AcademicYear | null;
     activeSemester: Semester | null;
+    // Updated to accept full ExamTimetableEntry array
     onExamTimetableGenerated: (entries: ExamTimetableEntry[], academicYearId: string, semesterId: string) => Promise<void>;
     examTimetable: ExamTimetableEntry[];
     getSubjectById: (id: string) => Subject | undefined;
@@ -68,6 +70,7 @@ interface AcademicsOfficerViewProps {
     themeColor: string;
     examTimetableSettings: ExamTimetableSettings;
     onSaveExamTimetableSettings: (config: ExamTimetableSettings) => void;
+    // Added for Wizard
     onTimetableGenerated?: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
     allocations?: AllocationRequest[];
     timeOffRequests?: TimeOffRequest[];
@@ -79,8 +82,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         activeAcademicYear, activeSemester, onExamTimetableGenerated, examTimetable = [], 
         getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig, 
         logoUrl, footerImageUrl, currentInstitution, timetableSettings, 
-        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
-        allocations = [], timeOffRequests = []
+        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [] 
     } = props;
     
     const [activeTab, setActiveTab] = useState('dashboard');

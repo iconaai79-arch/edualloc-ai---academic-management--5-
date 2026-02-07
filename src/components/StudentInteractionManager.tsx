@@ -31,11 +31,11 @@ interface StudentInteractionManagerProps {
 export const StudentInteractionManager: React.FC<StudentInteractionManagerProps> = (props) => {
     const [subTab, setSubTab] = useState('feedback');
     const { 
-        feedbackSubmissions = [], onUpdateFeedbackStatus, 
-        lessonRatings = [], 
-        enrollmentRequests = [], onUpdateEnrollmentRequest,
-        studentAbsenceRequests = [], onUpdateStudentAbsenceRequestStatus,
-        users = [], subjects = [], departments = [], courses = [], currentUser 
+        feedbackSubmissions, onUpdateFeedbackStatus, 
+        lessonRatings, 
+        enrollmentRequests, onUpdateEnrollmentRequest,
+        studentAbsenceRequests, onUpdateStudentAbsenceRequestStatus,
+        users, subjects, departments, courses, currentUser 
     } = props;
 
     const subTabs = [

@@ -1,14 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types.ts';
-// Added ArrowPathIcon to imports
-import { CheckCircleIcon, ArrowPathIcon } from './icons/index.ts';
 
 interface EditUserModalProps {
   user: User;
   departments: Department[];
   onClose: () => void;
-  onSave: (userId: string, data: UserUpdateData) => Promise<void>;
+  // FIXED: Changed to async to match consumer usage
+  onSave: (lecturerId: string, data: UserUpdateData) => Promise<void> | void;
   currentInstitution?: Institution | null;
   fixedDepartmentId?: string;
 }
@@ -22,7 +20,6 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [role, setRole] = useState<Role>('lecturer');
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
-  const [isSaving, setIsSaving] = useState(false);
 
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -40,7 +37,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     }
   }, [user, fixedDepartmentId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
     const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
@@ -51,25 +48,17 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     }
 
     if (name.trim() && email.trim() && phoneNumber.trim() && staffId.trim()) {
-      setIsSaving(true);
-      try {
-        await onSave(user.id, {
-          name,
-          email,
-          phoneNumber,
-          staffId,
-          expertise: expertiseArray,
-          role,
-          departmentId: rolesWithDepartment.includes(role) ? assignedDepartmentId : undefined,
-          gender
-        });
-        onClose();
-      } catch (err) {
-        console.error("Save failed:", err);
-        alert("Failed to update user record. Please check your connection and try again.");
-      } finally {
-        setIsSaving(false);
-      }
+      onSave(user.id, {
+        name,
+        email,
+        phoneNumber,
+        staffId,
+        expertise: expertiseArray,
+        role,
+        departmentId: rolesWithDepartment.includes(role) ? assignedDepartmentId : undefined,
+        gender
+      });
+      onClose();
     }
   };
 
@@ -78,7 +67,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
         <form onSubmit={handleSubmit}>
           <div className="p-6">
@@ -168,15 +157,20 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                       value={role}
                       onChange={(e) => setRole(e.target.value as Role)}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                      disabled={!!fixedDepartmentId && user.role === role}
+                      disabled={!!fixedDepartmentId && user.role === role} // Disable if restricted (HOD editing within dept)
                   >
                     {isSchool ? (
                         <>
-                            <option value="teacher">TEACHER</option>
+                            <option value="head_teacher">Head Teacher</option>
+                            <option value="deputy">Deputy</option>
                             <option value="dos">DOS</option>
-                            <option value="head_teacher">HEAD TEACHER</option>
-                            <option value="info_desk">INFO DESK</option>
-                            <option value="security">SECURITY</option>
+                            <option value="teacher">Teacher</option>
+                            <option value="practice_teacher">Practice Teacher</option>
+                            <option value="librarian">Librarian</option>
+                            <option value="finance">Finance</option>
+                            <option value="security">Security</option>
+                            <option value="info_desk">Info Desk</option>
+                            <option value="store">Storekeeper</option>
                         </>
                     ) : (
                         <>
@@ -222,20 +216,13 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
           <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
               type="submit"
-              disabled={isSaving}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--color-primary)] text-base font-medium text-white hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--color-primary)] text-base font-medium text-white hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:ml-3 sm:w-auto sm:text-sm"
             >
-              {isSaving ? (
-                <>
-                  <ArrowPathIcon className="w-4 h-4 mr-2 animate-spin" />
-                  Syncing...
-                </>
-              ) : 'Save Changes'}
+              Save Changes
             </button>
             <button
               type="button"
               onClick={onClose}
-              disabled={isSaving}
               className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
             >
               Cancel

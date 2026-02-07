@@ -5,7 +5,6 @@ import { generatePastelColor } from '../utils/colorUtils';
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { getInitials } from '../utils/stringUtils';
 import { RectangleStackIcon, ArrowsRightLeftIcon } from './icons';
-import { TimetableGrid } from './TimetableGrid.tsx';
 
 interface MasterCourseTimetableGridProps {
     entries: TimetableEntry[];
@@ -39,30 +38,26 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     getRoomById
 }) => {
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
-    const daysOfWeek = timetableSettings.operatingDays || [];
+    const daysOfWeek = timetableSettings.operatingDays;
     const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
-    const safeCourses = Array.isArray(courses) ? courses : [];
-    const safeSubjects = Array.isArray(subjects) ? subjects : [];
-    const safeTimetable = Array.isArray(generatedTimetable) ? generatedTimetable : [];
-
     const relevantCourses = useMemo(() => {
         if (selectedCourseId && selectedCourseId !== 'all') {
-            return safeCourses.filter(c => c && c.id === selectedCourseId);
+            return courses.filter(c => c.id === selectedCourseId);
         }
-        return safeCourses.filter(c => c);
-    }, [safeCourses, selectedCourseId]);
+        return courses;
+    }, [courses, selectedCourseId]);
 
     const workloadData = useMemo(() => {
         return relevantCourses.map(course => {
-            const courseSubjects = safeSubjects.filter(s => s && (course.levels || []).some(l => l && (l.subjectIds || []).includes(s.id)));
+            const courseSubjects = subjects.filter(s => course.levels.some(l => l.subjectIds.includes(s.id)));
             const subjectCount = courseSubjects.length;
             const totalPeriods = courseSubjects.reduce((sum, s) => {
                 const structurePeriods = s.lessonStructure?.reduce((pSum, ls) => pSum + (ls.count * ls.periods), 0) || 0;
                 return sum + structurePeriods;
             }, 0);
-            const totalHours = (totalPeriods * (timetableSettings.periodLengthMinutes || 40)) / 60;
+            const totalHours = (totalPeriods * timetableSettings.periodLengthMinutes) / 60;
             return {
                 name: course.name,
                 subjectCount,
@@ -70,7 +65,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                 totalHours,
             };
         });
-    }, [relevantCourses, safeSubjects, timetableSettings]);
+    }, [relevantCourses, subjects, timetableSettings.periodLengthMinutes]);
 
     const overallTotals = useMemo(() => {
         return workloadData.reduce((acc, curr) => {
@@ -84,9 +79,9 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const getCellEntry = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
         
-        const entry = safeTimetable.find(e => 
-            e && e.day === day &&
-            (level.subjectIds || []).includes(e.subjectId) &&
+        const entry = generatedTimetable.find(e => 
+            e.day === day &&
+            level.subjectIds.includes(e.subjectId) &&
             timeToMinutes(e.startTime) === periodStartMinutes
         );
         return entry;
@@ -95,9 +90,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     const renderHorizontalLayout = () => (
         <div className="space-y-8 animate-fade-in">
             {relevantCourses.map(course => {
-                const profile = (currentInstitution?.scheduleProfiles || []).find(p => p && p.id === course.scheduleProfileId);
-                const safeLevels = Array.isArray(course.levels) ? course.levels : [];
-
+                const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === course.scheduleProfileId);
                 return (
                 <div key={course.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:overflow-visible print:shadow-none print:border-none print:break-inside-avoid">
                     <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 print:bg-transparent print:p-0 print:mb-2">
@@ -127,8 +120,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                 </tr>
                             </thead>
                             <tbody>
-                                {safeLevels.map(level => {
-                                    if (!level) return null;
+                                {course.levels.map(level => {
                                     const occupiedSlots = new Set<string>(); // "day-periodIndex"
                                     return (
                                         <tr key={level.id} className="border-t border-slate-200 dark:border-slate-600">
@@ -172,55 +164,82 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                         </table>
                     </div>
                 </div>
-            )})}
+            );
+            })}
         </div>
     );
 
     const renderVerticalLayout = () => (
         <div className="space-y-12 animate-fade-in">
-            {relevantCourses.map(course => {
-                const profile = (currentInstitution?.scheduleProfiles || []).find(p => p && p.id === course.scheduleProfileId);
-                const safeLevels = Array.isArray(course.levels) ? course.levels : [];
-                
-                const courseEntries = safeTimetable.filter(e => {
-                    if (!e) return false;
-                    return safeLevels.some(l => l && (l.subjectIds || []).includes(e.subjectId));
-                });
-
-                return (
+            {relevantCourses.map(course => (
                 <div key={course.id} className="space-y-8">
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter border-b-4 border-indigo-600 pb-2 inline-block print:text-black print:border-black">
                         {course.name} ({course.code})
                     </h3>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:block">
-                        {safeLevels.map(level => {
-                             if (!level) return null;
-                             const levelEntries = courseEntries.filter(e => e && (level.subjectIds || []).includes(e.subjectId));
-
-                             return (
-                                <div key={level.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:shadow-none print:border-2 print:border-slate-200 print:mb-8 print:break-inside-avoid">
-                                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 print:bg-gray-50 print:py-2">
-                                        <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest print:text-black">
-                                            {level.name}
-                                        </h4>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-900 overflow-hidden shadow-inner">
-                                        <TimetableGrid 
-                                            entries={levelEntries}
-                                            getSubjectById={getSubjectById}
-                                            getLecturerById={getLecturerById}
-                                            getRoomById={getRoomById}
-                                            timetableSettings={timetableSettings}
-                                            scheduleProfile={profile}
-                                        />
-                                    </div>
+                        {course.levels.map(level => (
+                            <div key={level.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:shadow-none print:border-2 print:border-slate-200 print:mb-8 print:break-inside-avoid">
+                                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 print:bg-gray-50 print:py-2">
+                                    <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest print:text-black">
+                                        {level.name}
+                                    </h4>
                                 </div>
-                            );
-                        })}
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 print:bg-gray-100">
+                                                <th className="p-3 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest w-24">Day</th>
+                                                {periodHeaders.map((p, i) => (
+                                                    <th key={i} colSpan={p.colSpan} className="p-2 text-center text-[10px] font-black uppercase text-slate-400 border-l border-slate-200/50 dark:border-slate-700/50">
+                                                        {p.label}
+                                                        <span className="block font-mono text-[8px] opacity-60">{p.startTime}</span>
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {daysOfWeek.map(day => {
+                                                const occupiedSlots = new Set<number>();
+                                                return (
+                                                    <tr key={day} className="hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                                                        <td className="p-3 text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">{day}</td>
+                                                        {periodHeaders.map((period, periodIndex) => {
+                                                            if (occupiedSlots.has(periodIndex)) return null;
+
+                                                            const entry = getCellEntry(level, day, period);
+                                                            if (entry) {
+                                                                const subject = subjects.find(s => s.id === entry.subjectId);
+                                                                const lecturer = lecturers.find(l => l.id === entry.lecturerId);
+                                                                const room = rooms.find(r => r.id === entry.roomId);
+                                                                
+                                                                const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                                const colSpan = Math.round(duration / cellSpanMinutes);
+
+                                                                for(let k=0; k<colSpan; k++) occupiedSlots.add(periodIndex + k);
+
+                                                                return (
+                                                                    <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle">
+                                                                        <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{backgroundColor: generatePastelColor(entry.subjectId)}}>
+                                                                            <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{subject?.shortName || subject?.code}</p>
+                                                                            <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.name}</p>
+                                                                        </div>
+                                                                    </td>
+                                                                );
+                                                            }
+                                                            return <td key={periodIndex} className="p-1 border-l border-slate-100 dark:border-slate-800"></td>;
+                                                        })}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
-            )})}
+            ))}
         </div>
     );
 

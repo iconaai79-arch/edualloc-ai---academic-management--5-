@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark } from '../types';
 import { TimetableGrid } from './TimetableGrid';
@@ -216,22 +217,22 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
     }, []);
 
     const { course, level, availableSubjects } = useMemo(() => {
-        const studentCourse = (courses || []).find(c => c.id === user.courseId);
+        const studentCourse = courses.find(c => c.id === user.courseId);
         if (!studentCourse) return { course: null, level: null, availableSubjects: [] };
-        const studentLevel = (studentCourse.levels || []).find(l => l.id === user.courseLevelId);
+        const studentLevel = studentCourse.levels.find(l => l.id === user.courseLevelId);
         if (!studentLevel) return { course: studentCourse, level: null, availableSubjects: [] };
-        const subjectsForLevel = (subjects || []).filter(s => (studentLevel.subjectIds || []).includes(s.id));
+        const subjectsForLevel = subjects.filter(s => studentLevel.subjectIds.includes(s.id));
         return { course: studentCourse, level: studentLevel, availableSubjects: subjectsForLevel };
     }, [user, courses, subjects]);
 
     const studentTimetable = useMemo(() => {
         const enrolledIds = new Set(user.enrolledSubjectIds || []);
-        return (generatedTimetable || []).filter(entry => enrolledIds.has(entry.subjectId));
+        return generatedTimetable.filter(entry => enrolledIds.has(entry.subjectId));
     }, [user.enrolledSubjectIds, generatedTimetable]);
 
     const studentExamTimetable = useMemo(() => {
         const enrolledIds = new Set(user.enrolledSubjectIds || []);
-        return (examTimetable || []).filter(entry => enrolledIds.has(entry.subjectId));
+        return examTimetable.filter(entry => enrolledIds.has(entry.subjectId));
     }, [user.enrolledSubjectIds, examTimetable]);
     
     const handleSubjectSelect = (subjectId: string) => {
@@ -243,8 +244,8 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         });
     };
     
-    const selectedSubjectsForRequest = useMemo(() => (subjects || []).filter(s => selectedSubjectIds.has(s.id)), [subjects, selectedSubjectIds]);
-    const requestedSubjectIds = new Set((enrollmentRequests || []).map(r => r.subjectId));
+    const selectedSubjectsForRequest = useMemo(() => subjects.filter(s => selectedSubjectIds.has(s.id)), [subjects, selectedSubjectIds]);
+    const requestedSubjectIds = new Set(enrollmentRequests.map(r => r.subjectId));
 
     const handleDownloadPdf = async () => {
         if (!course || !level || studentTimetable.length === 0) return;
@@ -310,7 +311,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
 
     const renderCellActions = (entry: TimetableEntry) => {
         const hasCheckedIn = studentCheckIns[`${user.id}-${entry.id}`];
-        const hasRated = (lessonRatings || []).some(r => r.timetableEntryId === entry.id);
+        const hasRated = lessonRatings.some(r => r.timetableEntryId === entry.id);
         const lessonEnd = new Date();
         const [hours, minutes] = entry.endTime.split(':').map(Number);
         lessonEnd.setHours(hours, minutes, 0, 0);

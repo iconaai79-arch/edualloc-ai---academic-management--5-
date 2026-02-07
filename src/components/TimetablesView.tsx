@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { TimetableEntry, Subject, User, Department, Building, Room, LetterheadConfig, Course, TimetableSettings, AllocationRequest, Semester, AcademicYear, Institution } from '../types.ts';
+import type { TimetableEntry, Subject, User, Department, Building, Room, LetterheadConfig, Course, TimetableSettings, AllocationRequest, Semester, AcademicYear, Institution } from '../types';
 import { TimetableGrid } from './TimetableGrid.tsx';
 import { DepartmentWorkloadSummary } from './DepartmentWorkloadSummary.tsx';
 import { RelationsView } from './RelationsView.tsx';
@@ -16,8 +16,7 @@ import {
     UserIcon, 
     RectangleStackIcon,
     EyeIcon,
-    XIcon,
-    ArrowsRightLeftIcon
+    XIcon
 } from './icons/index.ts';
 import { generateMasterCourseTimetablePdf } from '../services/pdfService.ts';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils.ts';
@@ -197,7 +196,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 }
             `}</style>
 
-             <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between no-print bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-slate-900 dark:text-slate-100">
+             <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between no-print bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex flex-wrap gap-2">
                     <button onClick={() => setViewMode('master_course')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_course' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
                         {isSchool ? 'Grade' : 'Course'} Map
@@ -210,21 +209,6 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     </button>
                     <button onClick={() => setViewMode('lecturer_schedule')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'lecturer_schedule' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
                         Single {staffLabel}
-                    </button>
-                    <button onClick={() => setViewMode('workload')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'workload' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <ChartBarIcon className="w-4 h-4 inline mr-1" />
-                        Stats
-                    </button>
-                    <button onClick={() => setViewMode('relations')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'relations' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <UserGroupIcon className="w-4 h-4 inline mr-1" />
-                        Relations
-                    </button>
-                    <button onClick={() => setViewMode('master_department')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_department' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        Dept. Master
-                    </button>
-                     <button onClick={() => setViewMode('master_building')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'master_building' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'}`}>
-                        <BuildingOfficeIcon className="w-4 h-4 inline mr-1" />
-                        Room Master
                     </button>
                 </div>
                 
@@ -253,26 +237,6 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             </button>
                         </>
                     )}
-                    {viewMode === 'lecturer_schedule' && (
-                         <select 
-                            value={selectedLecturerId} 
-                            onChange={e => setSelectedLecturerId(e.target.value)}
-                            className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
-                        >
-                            <option value="">-- Select {staffLabel} --</option>
-                            {filteredLecturers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
-                    )}
-                     {viewMode === 'grid' && (
-                        <select 
-                            value={selectedBuildingId} 
-                            onChange={e => setSelectedBuildingId(e.target.value)}
-                            className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
-                        >
-                            <option value="all">All Buildings</option>
-                            {(buildings || []).map(b => b && <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
-                    )}
                     <button onClick={() => window.print()} className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-slate-900 text-white hover:opacity-90 transition-all flex items-center gap-2 shadow-lg">
                         <PrinterIcon className="w-4 h-4" /> Print View
                     </button>
@@ -280,25 +244,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
             </div>
 
             <div className="printable-area">
-                {viewMode === 'workload' ? (
-                    <DepartmentWorkloadSummary 
-                        departmentWorkload={departments.map(d => ({
-                            departmentName: d.name,
-                            subjectCount: subjects.filter(s => s.departmentId === d.id).length,
-                            totalPeriods: generatedTimetable.filter(e => subjects.find(s => s.id === e.subjectId)?.departmentId === d.id).reduce((acc, curr) => acc + (curr.duration ? Math.ceil(curr.duration / 60) : 1), 0),
-                            totalHours: generatedTimetable.filter(e => subjects.find(s => s.id === e.subjectId)?.departmentId === d.id).reduce((acc, curr) => acc + (curr.duration ? curr.duration/60 : 1), 0)
-                        }))}
-                    />
-                ) : viewMode === 'relations' ? (
-                    <RelationsView 
-                        lecturers={lecturers} 
-                        subjects={subjects} 
-                        courses={courses} 
-                        departments={departments} 
-                        allocations={allocations}
-                        currentInstitution={currentInstitution}
-                    />
-                ) : viewMode === 'master_course' ? (
+                {viewMode === 'master_course' ? (
                         <MasterCourseTimetableGrid
                             courses={courses || []}
                             subjects={subjects || []}
@@ -315,29 +261,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             isSchool={isSchool}
                             currentInstitution={currentInstitution}
                         />
-                ) : viewMode === 'master_department' ? (
-                    <DepartmentalMasterTimetable 
-                        departments={departments} 
-                        courses={courses} 
-                        subjects={subjects} 
-                        lecturers={lecturers} 
-                        rooms={rooms} 
-                        generatedTimetable={generatedTimetable} 
-                        timetableSettings={timetableSettings} 
-                        currentInstitution={currentInstitution}
-                    />
-                ) : viewMode === 'master_building' ? (
-                    <MasterBuildingTimetable 
-                        buildings={buildings}
-                        rooms={rooms}
-                        generatedTimetable={generatedTimetable}
-                        timetableSettings={timetableSettings}
-                        subjects={subjects}
-                        lecturers={lecturers}
-                        courses={courses}
-                    />
                 ) : viewMode === 'grid' ? (
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden text-slate-900 dark:text-slate-100">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 print:bg-transparent print:p-0 print:mb-4 flex justify-between items-center">
                             <h3 className="text-xl font-black uppercase tracking-tighter">Master Facility Grid: {selectedDay}</h3>
                         </div>

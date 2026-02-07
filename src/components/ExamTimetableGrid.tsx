@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import type { ExamTimetableEntry, Subject, User, Room, Building, Course, Institution } from '../types';
 
@@ -10,15 +9,15 @@ interface ExamTimetableGridProps {
     buildings: Building[];
     courses: Course[];
     title: string;
-    // Fix: Added currentInstitution to ExamTimetableGridProps
+    // Added currentInstitution to support dynamic labeling and fix type errors
     currentInstitution?: Institution | null;
 }
 
-export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries = [], getSubjectById, getLecturerById, getRoomById, buildings = [], courses = [], title, currentInstitution }) => {
-    const safeEntries = Array.isArray(entries) ? entries : [];
-    
+export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, getSubjectById, getLecturerById, getRoomById, buildings, courses, title, currentInstitution }) => {
     const groupedByDate = useMemo(() => {
         const groups = new Map<string, ExamTimetableEntry[]>();
+        // Add defensive check for entries array
+        const safeEntries = Array.isArray(entries) ? entries : [];
         safeEntries.forEach(entry => {
             if (!entry) return;
             const date = entry.date;
@@ -28,13 +27,14 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries = 
             groups.get(date)!.push(entry);
         });
         return new Map([...groups.entries()].sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()));
-    }, [safeEntries]);
+    }, [entries]);
 
+    // Support dynamic labeling for Schools vs Universities based on the provided institution type
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const courseLabel = isSchool ? 'Grade' : 'Course';
     const levelLabel = isSchool ? 'Stream' : 'Level';
 
-    if (safeEntries.length === 0) {
+    if (entries.length === 0) {
         return <div className="p-6 text-center text-slate-500">No exam schedule found.</div>;
     }
 
@@ -50,6 +50,7 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries = 
                                 <tr>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Time</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Subject</th>
+                                    {/* Use dynamic labels based on institutional context */}
                                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{courseLabel} & {levelLabel}</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Room</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Invigilator</th>

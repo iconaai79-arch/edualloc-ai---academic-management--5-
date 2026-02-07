@@ -144,104 +144,105 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         }
     };
     
-    const allBillingDocs = useMemo(() => [
-        // FIXED: Corrected property names from issue_date/total_amount to issueDate/totalAmount
+    const allBillingDocs = [
+        // FIXED: Reverted back to correct property names as per types.ts
         ...invoices.map(inv => ({...inv, type: 'Invoice', date: inv.issueDate, number: inv.invoiceNumber, amount: inv.totalAmount })),
-        // FIXED: Corrected property names from payment_date/amount_paid to paymentDate/amountPaid
+        // FIXED: Reverted back to correct property names as per types.ts
         ...receipts.map(rec => ({...rec, type: 'Receipt', date: rec.paymentDate, number: rec.receiptNumber, amount: rec.amountPaid }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [invoices, receipts]);
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return (
         <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Subscription Records</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Subscription Management</h2>
 
             {institution.trialEndsAt && <TrialCountdownBanner trialEndsAt={institution.trialEndsAt} />}
             
             <section>
-                <h3 className="text-xl font-black uppercase tracking-tight mb-4">Active Plan</h3>
+                <h3 className="text-xl font-semibold mb-4">Your Current Plan</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Monthly Billing</h4>
-                        <p className="mt-2 text-3xl font-black text-indigo-600 tracking-tighter">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                        <h4 className="text-lg font-medium text-slate-900 dark:text-white">Monthly Plan</h4>
+                        <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
                             KES {monthlyPrice.toLocaleString()}
-                            <span className="text-xs font-bold text-slate-400 ml-1">/ Month</span>
+                            <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
                         </p>
                         {hasCustomMonthly ? (
-                             <p className="mt-2 text-[10px] font-black uppercase text-teal-600">Tailored Pricing</p>
+                             <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
                         ) : (
-                             <p className="mt-2 text-[10px] font-black uppercase text-slate-400">Standard Tier</p>
+                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
                         )}
                     </div>
-                     <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Annual Billing</h4>
-                        <p className="mt-2 text-3xl font-black text-indigo-600 tracking-tighter">
+                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                        <h4 className="text-lg font-medium text-slate-900 dark:text-white">Yearly Plan</h4>
+                        <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
                             KES {yearlyPrice.toLocaleString()}
-                            <span className="text-xs font-bold text-slate-400 ml-1">/ Year</span>
+                            <span className="text-base font-normal text-slate-500 dark:text-slate-400">/year</span>
                         </p>
                         {hasCustomYearly ? (
-                             <p className="mt-2 text-[10px] font-black uppercase text-teal-600">Tailored Pricing</p>
+                             <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
                         ) : (
-                             <p className="mt-2 text-[10px] font-black uppercase text-slate-400">Standard Tier</p>
+                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
                         )}
-                         <p className="mt-2 text-[10px] font-black uppercase text-green-600">Enterprise Discount Included</p>
+                         <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
                     </div>
                 </div>
             </section>
             
             <section>
-                <h3 className="text-xl font-black uppercase tracking-tight mb-4">Settlement Instructions</h3>
-                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                     <p className="text-sm text-slate-500 mb-6 font-medium">To renew your institutional license, settle via Safaricom M-Pesa. Use your unique Institution ID as the account reference for instant activation.</p>
-                     <div className="flex flex-col md:flex-row gap-8">
-                         <div className="flex-1 p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border">
-                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Paybill Number</p>
-                             <p className="text-2xl font-black tracking-widest">{mpesaConfig.paybillNumber || '7654321'}</p>
+                <h3 className="text-xl font-semibold mb-4">How to Pay</h3>
+                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                     <p className="text-slate-600 dark:text-slate-300 mb-4">To subscribe or renew, please make a payment via M-Pesa using the details below, or use the quick payment button.</p>
+                     <div className="flex flex-col md:flex-row gap-6">
+                         <div className="flex-1">
+                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Paybill Number</p>
+                             <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{mpesaConfig.paybillNumber || 'Not Configured'}</p>
                          </div>
-                         <div className="flex-1 p-6 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl border border-indigo-100">
-                            <p className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-1">Account Reference</p>
-                            <p className="text-2xl font-black tracking-widest text-indigo-700 dark:text-indigo-300 font-mono uppercase">{institution.institutionCode || institution.id.slice(-6)}</p>
+                         <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Account Number</p>
+                            <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{institution.institutionCode || institution.id}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">(Use your unique alphanumeric institution code)</p>
                         </div>
                      </div>
-                     <div className="mt-8 flex justify-center">
+                     <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
                         <button
                             onClick={() => setIsPayModalOpen(true)}
-                            className="inline-flex items-center justify-center px-10 h-14 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl shadow-xl shadow-green-100 dark:shadow-none transition-all active:scale-[0.98]"
+                            className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                         >
                             <MpesaIcon className="w-6 h-6 mr-3" />
-                            Initiate STK Push
+                            Pay Now with M-Pesa
                         </button>
                     </div>
                  </div>
             </section>
 
             {isSubscriptionExpired && onAddExtensionRequest && extensionRequests && (
-                <section className="animate-fade-in-up">
-                    <h3 className="text-xl font-black uppercase tracking-tight mb-4">Grace Period Application</h3>
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                <section>
+                    <h3 className="text-xl font-semibold mb-4">Subscription Extension</h3>
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
                         <form onSubmit={handleExtensionRequestSubmit} className="space-y-4">
                             <div>
-                                <label htmlFor="extension-reason" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 ml-1">Justification for extension</label>
-                                <textarea id="extension-reason" value={extensionReason} onChange={(e) => setExtensionReason(e.target.value)} rows={3} className="w-full rounded-2xl border-slate-200 dark:border-slate-600 dark:bg-slate-700 focus:ring-4 focus:ring-indigo-500/10 p-4 transition-all" placeholder="Explain the necessity for a temporary access window..." required></textarea>
+                                <label htmlFor="extension-reason" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Reason for Extension Request</label>
+                                <textarea id="extension-reason" value={extensionReason} onChange={(e) => setExtensionReason(e.target.value)} rows={3} className="mt-1 shadow-sm block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="Please provide a reason for requesting a subscription or trial extension..." required></textarea>
                             </div>
                             <div className="flex justify-end">
-                                <button type="submit" className="btn-primary h-12 px-10">Submit Registry Request</button>
+                                <button type="submit" className="btn-primary">Submit Request</button>
                             </div>
                         </form>
                         {extensionRequests.length > 0 && (
-                            <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
-                                <h4 className="text-xs font-black uppercase text-slate-400 tracking-widest mb-4">Tracked Extension Applications</h4>
-                                <ul className="space-y-3">
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                                <h4 className="font-semibold">My Extension Requests</h4>
+                                <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-700">
                                     {extensionRequests.map(req => (
-                                        <li key={req.id} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{req.reason}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase font-black mt-0.5">Applied: {new Date(req.requestedAt).toLocaleDateString()}</p>
+                                        <li key={req.id} className="py-3">
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-sm text-slate-600 dark:text-slate-300">{req.reason}</p>
+                                                <span className={`text-xs font-semibold capitalize px-2 py-1 rounded-full ${
+                                                    req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                    req.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                                    'bg-red-100 text-red-800'
+                                                }`}>{req.status}</span>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                                req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                req.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                'bg-red-100 text-red-700'
-                                            }`}>{req.status}</span>
+                                            <p className="text-xs text-slate-400 mt-1">Requested on {new Date(req.requestedAt).toLocaleDateString()}</p>
                                         </li>
                                     ))}
                                 </ul>
@@ -253,55 +254,57 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
 
             <section>
                  <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
-                    <h3 className="text-xl font-black uppercase tracking-tight">Billing Archive</h3>
+                    <h3 className="text-xl font-semibold">Billing History</h3>
                 </div>
-                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
-                        <thead className="bg-slate-50 dark:bg-slate-900/50">
+                 <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <thead className="bg-slate-50 dark:bg-slate-700">
                             <tr>
-                                <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Document Date</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Registry ID</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Doc Type</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Value (KES)</th>
-                                <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th>
-                                <th className="px-8 py-5 text-right text-[10px] font-black uppercase text-slate-500 tracking-widest">Actions</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Date</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Document #</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Type</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Amount</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                                <th scope="col" className="relative px-6 py-3">
+                                    <span className="sr-only">Download</span>
+                                </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                             {allBillingDocs.length > 0 ? (
                                 allBillingDocs.map(doc => {
                                     const handleDownload = () => {
                                         if (doc.type === 'Invoice') {
                                             downloadInvoicePdf(doc as Invoice, institution, companyDetails, logoUrl);
                                         } else {
-                                            // FIXED: Corrected property name from related_transaction_id to relatedTransactionId
+                                            // Unified camelCase property
                                             const transaction = transactions.find(t => t.id === (doc as Receipt).relatedTransactionId);
                                             if (transaction) {
                                                 downloadReceiptPdf(doc as Receipt, transaction, institution, companyDetails, logoUrl);
                                             } else {
-                                                alert("Could not find related transaction record.");
+                                                alert("Could not find related transaction to generate receipt.");
                                             }
                                         }
                                     };
                                     return (
-                                        <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-600 dark:text-slate-400">{new Date(doc.date).toLocaleDateString()}</td>
-                                            <td className="px-8 py-5 whitespace-nowrap text-sm font-mono font-black text-indigo-600 dark:text-indigo-400">{doc.number}</td>
-                                            <td className="px-8 py-5 whitespace-nowrap text-sm font-black uppercase tracking-tight">{doc.type}</td>
-                                            <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">KES {doc.amount.toLocaleString()}</td>
-                                            <td className="px-8 py-5 whitespace-nowrap">
-                                                {doc.type === 'Invoice' ? <InvoiceStatusBadge status={(doc as Invoice).status} /> : <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">COMPLETED</span>}
+                                        <tr key={doc.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{new Date(doc.date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{doc.number}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{doc.type}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {doc.amount.toLocaleString()}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                {doc.type === 'Invoice' ? <InvoiceStatusBadge status={(doc as Invoice).status} /> : <TransactionStatusBadge status="completed" />}
                                             </td>
-                                            <td className="px-8 py-5 whitespace-nowrap text-right">
-                                                <button onClick={handleDownload} className="text-indigo-600 hover:text-indigo-800 font-black text-[10px] uppercase tracking-widest transition-colors">Download PDF</button>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button onClick={handleDownload} className="text-[var(--color-primary)] hover:brightness-125">Download PDF</button>
                                             </td>
                                         </tr>
                                     );
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-20 text-center text-slate-400 font-black uppercase text-xs tracking-widest opacity-30">
-                                        No financial documents recorded
+                                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                                        No billing documents found for this institution.
                                     </td>
                                 </tr>
                             )}

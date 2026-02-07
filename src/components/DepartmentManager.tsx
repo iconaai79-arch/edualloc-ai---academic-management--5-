@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Department } from '../types.ts';
 import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index.ts';
@@ -11,12 +12,15 @@ interface DepartmentManagerProps {
     onUpdateDepartment?: (departmentId: string, name: string) => void;
     onDeleteDepartment?: (departmentId: string) => void;
     onImportDepartments?: (departments: Omit<Department, 'id' | 'institutionId'>[]) => Promise<void>;
+    currentInstitution?: Institution | null;
 }
 
+// ... [SmartDepartmentImporterModal component remains unchanged] ...
 const SmartDepartmentImporterModal: React.FC<{
     onClose: () => void;
     onImport: (departments: Omit<Department, 'id' | 'institutionId'>[]) => Promise<void>;
-}> = ({ onClose, onImport }) => {
+    aiModelTier?: string;
+}> = ({ onClose, onImport, aiModelTier }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'success'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [mapping, setMapping] = useState<Record<string, string | null>>({});
@@ -36,10 +40,10 @@ const SmartDepartmentImporterModal: React.FC<{
                 const headers = data[0] as string[];
                 setFileHeaders(headers);
                 setRawData(XLSX.utils.sheet_to_json(ws));
-                
+
                 setIsAnalyzing(true);
                 try {
-                    const aiMapping = await analyzeDepartmentSpreadsheet(headers);
+                    const aiMapping = await analyzeDepartmentSpreadsheet(headers, aiModelTier);
                     setMapping(aiMapping);
                     setStep('mapping');
                 } catch (error) {
@@ -74,9 +78,9 @@ const SmartDepartmentImporterModal: React.FC<{
             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                     <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2 text-slate-800 dark:text-white">
-                        <SparklesIcon className="w-5 h-5 text-indigo-500"/> Smart Import
+                        <SparklesIcon className="w-5 h-5 text-indigo-500" /> Smart Import
                     </h3>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5 text-slate-400"/></button>
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5 text-slate-400" /></button>
                 </div>
                 <div className="p-8">
                     {step === 'upload' && (
@@ -88,11 +92,11 @@ const SmartDepartmentImporterModal: React.FC<{
                                 </div>
                             ) : (
                                 <>
-                                    <ArrowUpTrayIcon className="w-12 h-12 mx-auto text-slate-300 mb-4"/>
+                                    <ArrowUpTrayIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
                                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-6">Upload Excel (.xlsx) file with department names</p>
                                     <label className="btn-primary cursor-pointer px-8 py-3 inline-block shadow-lg shadow-indigo-100">
                                         Select File
-                                        <input type="file" onChange={handleFileSelect} className="hidden" accept=".xlsx, .xls, .csv"/>
+                                        <input type="file" onChange={handleFileSelect} className="hidden" accept=".xlsx, .xls, .csv" />
                                     </label>
                                 </>
                             )}
@@ -103,7 +107,7 @@ const SmartDepartmentImporterModal: React.FC<{
                             <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">Confirm Column Mapping</p>
                             <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <label className="w-24 text-[10px] font-black uppercase text-slate-500">Dept Name</label>
-                                <select value={mapping['name'] || ''} onChange={e => setMapping({...mapping, name: e.target.value})} className="form-select flex-grow h-10 text-sm">
+                                <select value={mapping['name'] || ''} onChange={e => setMapping({ ...mapping, name: e.target.value })} className="form-select flex-grow h-10 text-sm">
                                     <option value="">-- Select Column --</option>
                                     {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                                 </select>
@@ -132,7 +136,7 @@ const SmartDepartmentImporterModal: React.FC<{
                     {step === 'success' && (
                         <div className="text-center py-12">
                             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-100">
-                                <CheckCircleIcon className="w-8 h-8"/>
+                                <CheckCircleIcon className="w-8 h-8" />
                             </div>
                             <h4 className="text-xl font-black uppercase tracking-tight mb-2 text-slate-900 dark:text-white">Success!</h4>
                             <p className="text-sm text-slate-500 mb-8">{parsedData.length} departments added.</p>
@@ -147,7 +151,8 @@ const SmartDepartmentImporterModal: React.FC<{
 
 export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
     departments,
-    onAddDepartment, onUpdateDepartment, onDeleteDepartment, onImportDepartments
+    onAddDepartment, onUpdateDepartment, onDeleteDepartment, onImportDepartments,
+    currentInstitution
 }) => {
     const [newDepartmentName, setNewDepartmentName] = useState('');
     const [editingDept, setEditingDept] = useState<{ id: string; name: string } | null>(null);
@@ -157,56 +162,53 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const filteredDepartments = useMemo(() => {
-        const list = Array.isArray(departments) ? departments : [];
-        if (!searchQuery.trim()) return list;
+        if (!searchQuery.trim()) {
+            return departments;
+        }
         const lowercasedQuery = searchQuery.toLowerCase();
-        return list.filter(dept => dept && dept.name.toLowerCase().includes(lowercasedQuery));
+        return departments.filter(dept =>
+            dept.name.toLowerCase().includes(lowercasedQuery)
+        );
     }, [departments, searchQuery]);
-    
+
     const handleAddDepartmentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!onAddDepartment) {
-            alert("Administrative link to registry not found. Please refresh the portal.");
+            alert("Administrative permissions required to add departments. Please contact your system administrator.");
             return;
         }
 
-        const nameToSave = newDepartmentName.trim();
-        if (nameToSave) {
+        if (newDepartmentName.trim()) {
             setIsSaving(true);
             try {
-                await onAddDepartment(nameToSave);
+                await onAddDepartment(newDepartmentName.trim());
                 setNewDepartmentName('');
                 setIsAddingDepartment(false);
             } catch (err: any) {
-                console.error("Department registration failure:", err);
-                alert(`Error saving department: ${err.message || 'Registry refused the operation.'}`);
+                alert(`Error saving department: ${err.message}`);
             } finally {
                 setIsSaving(false);
             }
         }
     };
-    
-    const handleUpdateSubmit = async (id: string) => {
+
+    const handleUpdateSubmit = (id: string) => {
         if (editingDept && editingDept.name.trim() && onUpdateDepartment) {
-            try {
-                await onUpdateDepartment(id, editingDept.name.trim());
-                setEditingDept(null);
-            } catch (err) {
-                alert("Failed to update registry entry.");
-            }
+            onUpdateDepartment(id, editingDept.name.trim());
+            setEditingDept(null);
         }
     };
 
     const handleExport = () => {
         if (typeof XLSX !== 'undefined') {
-            const data = filteredDepartments.map(d => ({ Name: d.name }));
+            const data = departments.map(d => ({ Name: d.name }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Departments");
-            XLSX.writeFile(wb, "Registry_Departments.xlsx");
+            XLSX.writeFile(wb, "Departments_List.xlsx");
         } else {
-            alert("Document Export Library (XLSX) not available.");
+            alert("Export library not loaded.");
         }
     };
 
@@ -221,28 +223,37 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                 .btn-primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
                 .btn-secondary { background-color: #fff; color: #475569; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
                 .dark .btn-secondary { background-color: #1e293b; color: #f1f5f9; border-color: #334155; }
+                .btn-secondary:hover { border-color: #cbd5e1; }
             `}</style>
-            
+
             <section className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                     <div>
                         <h3 className="text-2xl font-black uppercase tracking-tighter">Academic Departments</h3>
-                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Institutional Structure Registry</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Organizational Structure</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {onImportDepartments && (
-                            <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary h-11 px-6 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
-                                <SparklesIcon className="w-4 h-4 text-indigo-500"/> Smart Import
+                            <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary h-11 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                                <SparklesIcon className="w-4 h-4 text-indigo-500" /> Smart Import
                             </button>
                         )}
-                        <button onClick={handleExport} className="btn-secondary h-11 px-6 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
-                            <DocumentArrowDownIcon className="w-4 h-4"/> Export Excel
+                        <button onClick={() => window.print()} className="btn-secondary h-11 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                            <PrinterIcon className="w-4 h-4" /> Print
                         </button>
-                        <button 
-                            onClick={() => setIsAddingDepartment(!isAddingDepartment)} 
+                        <button onClick={handleExport} className="btn-secondary h-11 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm">
+                            <DocumentArrowDownIcon className="w-4 h-4" /> Export
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (onAddDepartment) setIsAddingDepartment(prev => !prev);
+                                else alert("Feature disabled or restricted.");
+                            }}
                             className="btn-primary h-11 px-8 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
+                            disabled={!onAddDepartment}
+                            title={!onAddDepartment ? "Missing permission" : ""}
                         >
-                            {isAddingDepartment ? <XIcon className="w-5 h-5"/> : <PlusIcon className="w-5 h-5"/>} {isAddingDepartment ? 'Cancel' : 'New Dept'}
+                            <PlusIcon className="w-5 h-5" /> {isAddingDepartment ? 'Cancel' : 'New Dept'}
                         </button>
                     </div>
                 </div>
@@ -250,21 +261,21 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                 {isAddingDepartment && (
                     <form onSubmit={handleAddDepartmentSubmit} className="flex flex-col sm:flex-row gap-4 items-end bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-scale-in">
                         <div className="flex-grow w-full">
-                            <label htmlFor="department-name" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Official Designation</label>
-                            <input 
-                                type="text" 
-                                id="department-name" 
-                                value={newDepartmentName} 
-                                onChange={(e) => setNewDepartmentName(e.target.value)} 
-                                className="form-input h-12" 
-                                placeholder="e.g. Faculty of Biological Sciences" 
-                                required 
+                            <label htmlFor="department-name" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">New Department Name</label>
+                            <input
+                                type="text"
+                                id="department-name"
+                                value={newDepartmentName}
+                                onChange={(e) => setNewDepartmentName(e.target.value)}
+                                className="form-input h-12"
+                                placeholder="e.g., School of Computer Science"
+                                required
                                 autoFocus
                                 disabled={isSaving}
                             />
                         </div>
-                        <button type="submit" disabled={isSaving || !newDepartmentName.trim()} className="btn-primary h-12 px-10 shadow-lg min-w-[160px]">
-                            {isSaving ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Register Dept'}
+                        <button type="submit" disabled={isSaving || !newDepartmentName.trim()} className="btn-primary h-12 px-10 shadow-lg min-w-[140px]">
+                            {isSaving ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : 'Create Record'}
                         </button>
                     </form>
                 )}
@@ -275,12 +286,12 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Filter existing departments by title..."
+                            placeholder="Filter departments..."
                             className="form-input pl-10 h-12"
                         />
                         <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
                     </div>
-                    
+
                     <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-700">
                         <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
                             <thead className="bg-slate-50 dark:bg-slate-900/50">
@@ -295,13 +306,13 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                                         <td className="px-6 py-4">
                                             {editingDept?.id === dept.id ? (
                                                 <div className="flex items-center gap-2">
-                                                    <input 
-                                                        type="text" 
-                                                        value={editingDept.name} 
-                                                        onChange={(e) => setEditingDept({ ...editingDept, name: e.target.value })} 
-                                                        className="form-input py-1 text-sm font-bold h-10 flex-grow" 
-                                                        autoFocus 
-                                                        onKeyDown={e => e.key === 'Enter' && handleUpdateSubmit(dept.id)} 
+                                                    <input
+                                                        type="text"
+                                                        value={editingDept.name}
+                                                        onChange={(e) => setEditingDept({ ...editingDept, name: e.target.value })}
+                                                        className="form-input py-1 text-sm font-bold h-10 flex-grow"
+                                                        autoFocus
+                                                        onKeyDown={e => e.key === 'Enter' && handleUpdateSubmit(dept.id)}
                                                     />
                                                     <button onClick={() => handleUpdateSubmit(dept.id)} className="btn-primary h-10 px-4 text-xs">Save</button>
                                                     <button onClick={() => setEditingDept(null)} className="btn-secondary h-10 px-4 text-xs">Cancel</button>
@@ -317,8 +328,8 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                                                         <button onClick={() => setEditingDept({ id: dept.id, name: dept.name })} className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Edit</button>
                                                     )}
                                                     {onDeleteDepartment && (
-                                                        <button 
-                                                            onClick={() => { if(window.confirm(`Are you sure you want to purge ${dept.name}?`)) onDeleteDepartment(dept.id); }} 
+                                                        <button
+                                                            onClick={() => { if (window.confirm(`Are you sure you want to delete ${dept.name}?`)) onDeleteDepartment(dept.id); }}
                                                             className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                                         >
                                                             Archive
@@ -331,8 +342,8 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                                 ))}
                                 {filteredDepartments.length === 0 && (
                                     <tr>
-                                        <td colSpan={2} className="px-6 py-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] opacity-30">
-                                            Registry Empty
+                                        <td colSpan={2} className="px-6 py-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">
+                                            No departments found in registry.
                                         </td>
                                     </tr>
                                 )}
@@ -341,11 +352,14 @@ export const DepartmentManager: React.FC<DepartmentManagerProps> = ({
                     </div>
                 </div>
             </section>
-            
-            {isImportModalOpen && onImportDepartments && (
-                <SmartDepartmentImporterModal 
-                    onClose={() => setIsImportModalOpen(false)} 
-                    onImport={onImportDepartments}
+
+            {isImportModalOpen && (
+                <SmartDepartmentImporterModal
+                    onClose={() => setIsImportModalOpen(false)}
+                    onImport={async (depts) => {
+                        if (onImportDepartments) await onImportDepartments(depts);
+                    }}
+                    aiModelTier={currentInstitution?.aiModelTier}
                 />
             )}
         </div>
