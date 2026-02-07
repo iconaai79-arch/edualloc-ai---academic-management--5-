@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import type { User, Subject, Department, AllocationRequest, TimetableEntry, Room, Course, Visitor } from '../types';
 
@@ -78,23 +77,21 @@ const SimpleBarChart: React.FC<{ data: { label: string; value: number }[]; color
     if (safeData.length === 0) return <div className="flex items-center justify-center h-64 text-slate-400">No data available</div>;
 
     return (
-        <div className="h-80 flex items-end justify-between gap-2 pt-6 pb-16">
+        <div className="h-64 flex items-end justify-between gap-2 pt-6 pb-2">
             {safeData.map((item, index) => {
                 const heightPercentage = ((item.value || 0) / maxValue) * 100;
                 return (
-                    <div key={index} className="flex flex-col items-center flex-1 group relative h-full justify-end">
-                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest rounded py-1 px-2 whitespace-nowrap z-10 shadow-xl">
+                    <div key={index} className="flex flex-col items-center flex-1 group relative">
+                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
                             {item.label}: {item.value}
                         </div>
                         <div 
-                            className="w-full rounded-t-lg transition-all duration-500 hover:brightness-110 shadow-sm" 
+                            className="w-full rounded-t-md transition-all duration-500 hover:brightness-110" 
                             style={{ height: `${heightPercentage}%`, backgroundColor: color, minHeight: '4px' }} 
                         />
-                        <div className="absolute top-full pt-2 w-full">
-                            <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 -rotate-45 origin-top-left whitespace-nowrap uppercase tracking-tighter">
-                                {item.label.length > 12 ? item.label.substring(0, 10) + '..' : item.label}
-                            </p>
-                        </div>
+                        <p className="text-[10px] mt-2 text-slate-500 dark:text-slate-400 -rotate-45 origin-left translate-y-2 w-full overflow-hidden text-ellipsis whitespace-nowrap text-right px-1">
+                            {item.label}
+                        </p>
                     </div>
                 );
             })}
@@ -125,9 +122,9 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
         const counts = { approved: 0, pending: 0, rejected: 0 };
         safeRequests.forEach(r => {
             if (!r) return;
-            if (r.status === 'approved') counts.approved++;
-            else if (r.status === 'disapproved') counts.rejected++;
-            else counts.pending++;
+            if (r.status === 'approved') counts.approved += 1;
+            else if (r.status === 'disapproved') counts.rejected += 1;
+            else counts.pending += 1;
         });
         return [
             { label: 'Approved', value: counts.approved, color: '#10b981' },
@@ -161,7 +158,7 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
                 return { label: lecturer.name?.split(' ').slice(0, 2).join(' ') || 'Unknown', value: count };
             })
             .sort((a, b) => b.value - a.value)
-            .slice(0, 10);
+            .slice(0, 8);
     }, [safeLecturers, safeAllocations]);
 
     const courseDistributionData = useMemo(() => {
@@ -178,9 +175,9 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
             .forEach(u => {
                 if (!u) return;
                 const gender = u.gender || 'Male';
-                if (gender === 'Male') counts.Male++;
-                else if (gender === 'Female') counts.Female++;
-                else counts.Other++;
+                if (gender === 'Male') counts.Male += 1;
+                else if (gender === 'Female') counts.Female += 1;
+                else counts.Other += 1;
             });
         
         return [
@@ -197,9 +194,9 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
             .forEach(u => {
                 if (!u) return;
                 const gender = u.gender || 'Male';
-                if (gender === 'Male') counts.Male++;
-                else if (gender === 'Female') counts.Female++;
-                else counts.Other++;
+                if (gender === 'Male') counts.Male += 1;
+                else if (gender === 'Female') counts.Female += 1;
+                else counts.Other += 1;
             });
         
         return [
@@ -241,40 +238,53 @@ export const VisualReports: React.FC<VisualReportsProps> = ({
     }, [safeVisitors]);
 
     return (
-        <div className="space-y-10">
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                <h3 className="text-2xl font-black uppercase tracking-tighter mb-8 text-slate-900 dark:text-white">Graphical Insights</h3>
+        <div className="space-y-6">
+            <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Graphical Insights</h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Request Status Overview</h4>
+                    <SimpleDonutChart data={requestStatusData} />
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Subject Allocation Progress</h4>
+                    <SimpleDonutChart data={allocationStatusData} />
+                </div>
+
+                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Staff Gender Distribution</h4>
+                    <SimpleDonutChart data={staffGenderData} />
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Student Gender Distribution</h4>
+                    <SimpleDonutChart data={studentGenderData} />
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-4 text-slate-700 dark:text-slate-200">Visitor Purpose</h4>
+                    <SimpleDonutChart data={visitorPurposeData} />
+                </div>
+
+                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Visitor Traffic (Last 7 Active Days)</h4>
+                    <SimpleBarChart data={visitorTrafficData} color="#f43f5e" />
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Subjects per Department</h4>
+                    <SimpleBarChart data={deptWorkloadData} color="#8b5cf6" />
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Top Staff by Allocations</h4>
+                    <SimpleBarChart data={topLecturersData} color="#0ea5e9" />
+                </div>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Request Lifecycle</h4>
-                        <SimpleDonutChart data={requestStatusData} />
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Allocation Progress</h4>
-                        <SimpleDonutChart data={allocationStatusData} />
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Top Staff by Load</h4>
-                        <SimpleBarChart data={topLecturersData} color="#4f46e5" />
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Visitor Traffic (Week)</h4>
-                        <SimpleBarChart data={visitorTrafficData} color="#f43f5e" />
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Staff Demographics</h4>
-                        <SimpleDonutChart data={staffGenderData} />
-                    </div>
-
-                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                        <h4 className="text-sm font-black uppercase tracking-widest mb-6 text-slate-500">Student Demographics</h4>
-                        <SimpleDonutChart data={studentGenderData} />
-                    </div>
+                <div className="col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h4 className="text-lg font-medium mb-6 text-slate-700 dark:text-slate-200">Courses per Department</h4>
+                    <SimpleBarChart data={courseDistributionData} color="#ec4899" />
                 </div>
             </div>
         </div>
