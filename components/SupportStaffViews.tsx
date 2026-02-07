@@ -8,7 +8,7 @@ import type {
     FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument
 } from '../types';
 import {
-    CurrencyIcon, ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
+    ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
     UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon,
     CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon,
     // Added BuildingOfficeIcon to resolve name collision or missing reference errors

@@ -13,7 +13,7 @@ import { SuspendedAccountView } from './SuspendedAccountView';
 import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
-import { SecurityView, StoreView, InfoDeskView, FinanceView, SupplierView } from './SupportStaffViews';
+import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
 import { LibrarianView } from './LibrarianView';
 import { AcademicsOfficerView } from '../AcademicsOfficerView';
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -917,22 +917,7 @@ export const App: React.FC<any> = (props) => {
                                     }
                                 }}
                             />
-                        ) : activeRole === 'finance' ? (
-                            <FinanceView
-                                user={currentUser}
-                                invoices={invoices}
-                                receipts={receipts}
-                                voteHeads={voteHeads}
-                                feeStructures={feeStructures}
-                                financialPeriods={financialPeriods}
-                                transactions={transactions}
-                                currentInstitution={activeInstitution}
-                                onAddFinanceTransaction={apiService.onAddTransaction.bind(apiService)}
-                                onUpdateVoteHeads={async (heads) => { for (const h of heads) await apiService.saveModuleRecord('vote_heads', h); loadData(); }}
-                                onUpdateFeeStructures={async (structs) => { for (const s of structs) await apiService.saveModuleRecord('fee_structures', s); loadData(); }}
-                                onUpdateFinancialPeriods={async (periods) => { for (const p of periods) await apiService.saveModuleRecord('financial_periods', p); loadData(); }}
-                                onUpdateInstitution={onUpdateInstitution}
-                            />
+
                         ) : isAdminCatchAll ? (
                             <AdminView
                                 currentUser={currentUser}
