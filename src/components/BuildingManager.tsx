@@ -236,26 +236,52 @@ const BulkRoomQrPrintModal: React.FC<{
                                     const doc = new jsPDFClass();
 
                                     filteredRooms.forEach((room, index) => {
-                                        if (index > 0) doc.addPage();
+                                        const itemsPerPage = 4;
+                                        const pageIndex = Math.floor(index / itemsPerPage);
+                                        const itemOnPageIndex = index % itemsPerPage;
+
+                                        if (index > 0 && itemOnPageIndex === 0) {
+                                            doc.addPage();
+                                        }
+
                                         const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
                                         const qr = qrCodes[room.id];
+
                                         if (qr) {
-                                            doc.setFontSize(22);
-                                            doc.setTextColor(79, 70, 229);
-                                            doc.text(institutionName, 105, 30, { align: 'center' });
-                                            doc.setDrawColor(200, 200, 200);
-                                            doc.line(20, 40, 190, 40);
-                                            doc.addImage(qr, 'PNG', 55, 60, 100, 100);
-                                            doc.setTextColor(0, 0, 0);
-                                            doc.setFontSize(24);
-                                            doc.setFont('helvetica', 'bold');
-                                            doc.text(room.name, 105, 180, { align: 'center' });
+                                            const col = itemOnPageIndex % 2;
+                                            const row = Math.floor(itemOnPageIndex / 2);
+
+                                            const pageWidth = 210;
+                                            const pageHeight = 297;
+                                            const xOffset = col * (pageWidth / 2);
+                                            const yOffset = row * (pageHeight / 2);
+                                            const centerX = xOffset + (pageWidth / 4);
+
                                             doc.setFontSize(14);
-                                            doc.setFont('helvetica', 'normal');
-                                            doc.text(bldg, 105, 195, { align: 'center' });
+                                            doc.setTextColor(79, 70, 229);
+                                            doc.text(institutionName, centerX, yOffset + 15, { align: 'center' });
+
+                                            doc.setDrawColor(230, 230, 230);
+                                            doc.line(xOffset + 10, yOffset + 22, xOffset + (pageWidth / 2) - 10, yOffset + 22);
+
+                                            doc.addImage(qr, 'PNG', centerX - 35, yOffset + 30, 70, 70);
+
+                                            doc.setTextColor(0, 0, 0);
+                                            doc.setFontSize(18);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.text(room.name, centerX, yOffset + 115, { align: 'center' });
+
                                             doc.setFontSize(10);
-                                            doc.setTextColor(150, 150, 150);
-                                            doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 270, { align: 'center' });
+                                            doc.setFont('helvetica', 'normal');
+                                            doc.text(bldg, centerX, yOffset + 125, { align: 'center' });
+
+                                            doc.setFontSize(7);
+                                            doc.setTextColor(180, 180, 180);
+                                            doc.text(`Generated on ${new Date().toLocaleDateString()}`, centerX, yOffset + 140, { align: 'center' });
+
+                                            doc.setDrawColor(245, 245, 245);
+                                            if (col === 0) doc.line(105, yOffset + 5, 105, yOffset + 140);
+                                            if (row === 0) doc.line(xOffset + 5, 148.5, xOffset + 100, 148.5);
                                         }
                                     });
                                     doc.save(`Bulk_Room_QRs_${new Date().toISOString().split('T')[0]}.pdf`);

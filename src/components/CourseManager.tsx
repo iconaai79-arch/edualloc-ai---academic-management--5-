@@ -1062,6 +1062,41 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 </div>
             )}
 
+            {isAddingStream && managerTab === 'streams' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                            <PlusIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <h4 className="font-bold text-lg">Initialize New {streamOrLevelLabel}</h4>
+                    </div>
+                    <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Target {courseLabel}</label>
+                            <select value={newStreamCourseId} onChange={e => setNewStreamCourseId(e.target.value)} required className="form-select">
+                                <option value="">-- Choose {courseLabel} --</option>
+                                {(visibleCourses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">{streamOrLevelLabel} Title</label>
+                            <input
+                                type="text"
+                                value={newStreamName}
+                                onChange={e => setNewStreamName(e.target.value)}
+                                placeholder={`e.g. ${isSchool ? 'West' : 'Level 1'}`}
+                                required
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t">
+                            <button type="button" onClick={() => setIsAddingStream(false)} className="btn-secondary h-12 px-6">Discard</button>
+                            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create {streamOrLevelLabel}</button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="relative">
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Search Registry</label>

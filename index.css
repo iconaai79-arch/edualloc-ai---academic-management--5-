@@ -6,8 +6,10 @@
   :root {
     --color-primary: #4f46e5;
   }
-  
-  html, body, #root {
+
+  html,
+  body,
+  #root {
     height: 100%;
     margin: 0;
     padding: 0;
@@ -26,19 +28,27 @@
   .btn-primary {
     @apply bg-[var(--color-primary)] text-white font-bold py-2 px-4 rounded-xl transition-all hover:brightness-110 active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  
+
   .btn-secondary {
     @apply bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold py-2 px-4 rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95;
   }
 
-  .form-input, .form-select {
+  .form-input,
+  .form-select {
     @apply block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all;
   }
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in-up {
@@ -46,8 +56,15 @@
 }
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .animate-scale-in {
@@ -57,52 +74,93 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
 }
+
 .animate-shake {
   animation: shake 0.2s ease-in-out 2;
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
+
 .animate-fade-in {
   animation: fade-in 0.4s ease-out forwards;
 }
 
 @media print {
+  body {
+    visibility: hidden !important;
+    background: white !important;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible !important;
+  }
+
+  .print-only {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
   .no-print {
     display: none !important;
   }
-  .print-only {
-    display: block !important;
-  }
-  body {
-    background: white !important;
-    color: black !important;
-  }
+
   .qr-bulk-grid {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 2rem !important;
+    gap: 15mm !important;
+    padding: 10mm !important;
   }
+
   .qr-print-card {
     break-inside: avoid;
     page-break-inside: avoid;
-    border: 1px solid #eee;
-    padding: 1rem;
+    border: 1px dashed #ddd;
+    padding: 15mm;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-align: center;
+    height: 135mm;
+    background: white !important;
+  }
+
+  .qr-print-card img {
+    width: 65mm !important;
+    height: 65mm !important;
+    margin-bottom: 5mm;
   }
 }
