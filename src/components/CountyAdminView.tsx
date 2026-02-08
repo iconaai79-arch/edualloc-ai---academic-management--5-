@@ -5,7 +5,9 @@ import {
     UserGroupIcon,
     ChartPieIcon,
     ArrowRightOnRectangleIcon,
-    AcademicCapIcon
+    AcademicCapIcon,
+    Cog8ToothIcon,
+    SparklesIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -16,6 +18,7 @@ interface CountyAdminViewProps {
     users: User[];
     onLogout: () => void;
     onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
+    onUpdateCounty?: (id: string, data: Partial<County>) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -24,9 +27,11 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     institutions,
     users,
     onLogout,
-    onUpdateInstitution
+    onUpdateInstitution,
+    onUpdateCounty
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
+    const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
 
     // Logic to find the admin's county. 
     // We match by adminName (text field) or email.
@@ -91,8 +96,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                     <button
                         onClick={() => setActiveTab('dashboard')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'dashboard'
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                             }`}
                     >
                         <ChartPieIcon className="w-5 h-5" />
@@ -101,8 +106,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                     <button
                         onClick={() => setActiveTab('institutions')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'institutions'
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                             }`}
                     >
                         <AcademicCapIcon className="w-5 h-5" />
@@ -110,6 +115,16 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
                             {myInstitutions.length}
                         </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            }`}
+                    >
+                        <Cog8ToothIcon className="w-5 h-5" />
+                        Settings
                     </button>
                 </nav>
 
@@ -204,7 +219,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             🏫
                                         </div>
                                         <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
-                                                inst.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                            inst.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
                                             }`}>
                                             {inst.status}
                                         </span>
@@ -229,6 +244,80 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 </div>
                             )}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'settings' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        <div className="mb-8">
+                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                                Portal Settings
+                            </h2>
+                            <p className="text-slate-500 font-medium">
+                                Configure portal preferences and appearance
+                            </p>
+                        </div>
+
+                        <div className="flex border-b border-slate-200 mb-6">
+                            <button
+                                onClick={() => setSettingsSubTab('branding')}
+                                className={`px-4 py-2 border-b-2 font-bold text-sm uppercase tracking-wide transition-colors ${settingsSubTab === 'branding'
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                                    }`}
+                            >
+                                <SparklesIcon className="w-4 h-4 inline mr-2" />
+                                Branding
+                            </button>
+                        </div>
+
+                        {settingsSubTab === 'branding' && (
+                            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 max-w-2xl">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                                        <SparklesIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Visual Identity</h3>
+                                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Manage Logo & Colors</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">County Coat of Arms / Logo URL</label>
+                                        <input type="url" placeholder="https://example.com/logo.png" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-mono text-slate-600" />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Primary Brand Color</label>
+                                            <div className="flex items-center gap-3">
+                                                <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#4f46e5" />
+                                                <div className="flex-1">
+                                                    <input type="text" defaultValue="#4f46e5" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Secondary Brand Color</label>
+                                            <div className="flex items-center gap-3">
+                                                <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#1e293b" />
+                                                <div className="flex-1">
+                                                    <input type="text" defaultValue="#1e293b" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t border-slate-100 flex justify-end">
+                                        <button className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-wide rounded-xl shadow-xl shadow-indigo-500/20 transition-all">
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
