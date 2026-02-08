@@ -463,6 +463,16 @@ export const App: React.FC = () => {
         loadData();
     };
 
+    const handleImportSubjectsAndAssociate = async (subjects: any[]) => {
+        await apiService.onImportSubjectsAndAssociate(subjects, currentUser?.institutionId);
+        loadData();
+    };
+
+    const handleAssociateSubjectToCourseLevel = async (subjectId: string, levelId: string) => {
+        await apiService.onAssociateSubjectToCourseLevel(subjectId, levelId);
+        loadData();
+    };
+
     const handleAddSubject = async (data: any, levelIds?: string[]) => {
         const id = `sub_${Date.now()}`;
         const subject = { ...data, id, institutionId: currentUser?.institutionId };
@@ -752,7 +762,7 @@ export const App: React.FC = () => {
                                 onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 smsConfig={companyDetails.smsConfig}
                                 emailConfig={companyDetails.emailConfig}
-                                onImportSubjectsAndAssociate={apiService.onImportSubjectsAndAssociate.bind(apiService)}
+                                onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
                                 onSwitchPerspective={(role) => setImpersonatedRole(role)}
                                 onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
                                 onDeleteParent={() => { }}
@@ -1057,8 +1067,8 @@ export const App: React.FC = () => {
                                 onSaveEmailConfig={() => { }}
                                 onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
                                 onUpdateFooterImage={(footer) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
-                                onImportSubjectsAndAssociate={apiService.onImportSubjectsAndAssociate.bind(apiService)}
-                                onAssociateSubjectToCourseLevel={apiService.onAssociateSubjectToCourseLevel.bind(apiService)}
+                                onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
+                                onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                 onDisassociateSubjectFromCourseLevel={() => { }}
                                 onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                 onAddExtensionRequest={() => { }}
