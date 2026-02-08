@@ -19,6 +19,7 @@ import {
     MapPinIcon
 } from './icons/index';
 import { findLocationCoordinates } from '../services/geminiService';
+import { SmartRoomImporterModal } from './SmartRoomImporterModal';
 
 declare var XLSX: any;
 
@@ -335,6 +336,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
     const [searchQuery, setSearchQuery] = useState('');
     const [qrRoom, setQrRoom] = useState<Room | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const [isSmartImporting, setIsSmartImporting] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const buildingLabel = isSchool ? 'Block' : 'Building';
@@ -524,6 +526,12 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Classroom & Lab Registry</p>
                         </div>
                         <div className="flex items-center gap-2">
+                            {onImportRooms && (
+                                <button onClick={() => setIsSmartImporting(true)} className="btn-secondary h-11 flex items-center gap-2 px-6 border-indigo-100 hover:border-indigo-300 transition-all">
+                                    <SparklesIcon className="w-5 h-5 text-indigo-500" />
+                                    Smart Import
+                                </button>
+                            )}
                             {onAddRoom && (
                                 <button onClick={() => setIsAddingRoom(!isAddingRoom)} className="btn-primary h-11 flex items-center gap-2 px-8 shadow-lg shadow-indigo-100">
                                     {isAddingRoom ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
@@ -626,6 +634,19 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                     buildingName={safeBuildings.find(b => b.id === qrRoom.buildingId)?.name || 'Unknown Building'}
                     institutionName={currentInstitution?.name || 'EduAi Institution'}
                     onClose={() => setQrRoom(null)}
+                />
+            )}
+
+            {isSmartImporting && onImportRooms && (
+                <SmartRoomImporterModal
+                    buildings={safeBuildings}
+                    onClose={() => setIsSmartImporting(false)}
+                    onImport={async (rooms) => {
+                        await onImportRooms(rooms);
+                        setIsSmartImporting(false);
+                    }}
+                    aiModelTier={currentInstitution?.aiModelTier}
+                    currentInstitution={currentInstitution}
                 />
             )}
         </div>

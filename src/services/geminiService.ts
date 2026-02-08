@@ -269,14 +269,13 @@ export const analyzeSubjectSpreadsheet = async (headers: string[], aiModelTier?:
     }
 };
 
-export const findLocationCoordinates = async (query: string): Promise<{ latitude: number, longitude: number, address: string, googleMapsUri?: string } | null> => {
+export const findLocationCoordinates = async (query: string, aiModelTier?: string): Promise<{ latitude: number, longitude: number, address: string, googleMapsUri?: string } | null> => {
     try {
         checkAiAvailable();
-        const prompt = `Find GPS coordinates and official address for: "${query}". Return JSON: { latitude: number, longitude: number, address: string }.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: { tools: [{ googleSearch: {} }] }
+            model: aiModelTier === 'premium' ? 'gemini-2.0-pro-exp-02-05' : 'gemini-3-flash-preview',
+            contents: `Find GPS coordinates for "${query}". Return JSON: {latitude, longitude, address, googleMapsUri}. Use null if not found.`,
+            config: { responseMimeType: 'application/json', tools: [{ googleSearch: {} }] }
         });
         const data = sanitizeAndParseJson(response.text || "{}");
         if (data.latitude && data.longitude) {
@@ -337,6 +336,22 @@ export const analyzeDepartmentSpreadsheet = async (headers: string[]): Promise<R
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI department map error:", error);
+        return {};
+    }
+};
+
+export const analyzeRoomSpreadsheet = async (headers: string[], aiModelTier?: string): Promise<Record<string, string | null>> => {
+    try {
+        checkAiAvailable();
+        const prompt = `Map headers to room fields: name, shortName, capacity, buildingName, equipment. Headers: ${JSON.stringify(headers)}. Return JSON mapping fields to headers. Use null for missing.`;
+        const response = await ai!.models.generateContent({
+            model: aiModelTier === 'premium' ? 'gemini-2.0-pro-exp-02-05' : 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+        return sanitizeAndParseJson(response.text || "{}");
+    } catch (error) {
+        console.error("AI room map error:", error);
         return {};
     }
 };
