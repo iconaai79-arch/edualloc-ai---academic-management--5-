@@ -471,7 +471,11 @@ export const apiService = {
         if (error) throw error;
     },
     async onImportDepartments(departments: any[]): Promise<void> {
-        const snakeData = departments.map(d => toSnakeCase(d));
+        const enriched = departments.map((d, i) => ({
+            ...d,
+            id: d.id || `dept_${Date.now()}_${i}`
+        }));
+        const snakeData = enriched.map(d => toSnakeCase(d));
         if (!_supabase) {
             const existing = ls.get('departments');
             ls.set('departments', [...existing, ...snakeData]);
@@ -481,7 +485,11 @@ export const apiService = {
         if (error) throw error;
     },
     async onImportRooms(rooms: any[]): Promise<void> {
-        const snakeData = rooms.map(r => toSnakeCase(r));
+        const enriched = rooms.map((r, i) => ({
+            ...r,
+            id: r.id || `room_${Date.now()}_${i}`
+        }));
+        const snakeData = enriched.map(r => toSnakeCase(r));
         if (!_supabase) {
             const existing = ls.get('rooms');
             ls.set('rooms', [...existing, ...snakeData]);
@@ -491,7 +499,11 @@ export const apiService = {
         if (error) throw error;
     },
     async onImportBuildings(buildings: any[]): Promise<void> {
-        const snakeData = buildings.map(b => toSnakeCase(b));
+        const enriched = buildings.map((b, i) => ({
+            ...b,
+            id: b.id || `bldg_${Date.now()}_${i}`
+        }));
+        const snakeData = enriched.map(b => toSnakeCase(b));
         if (!_supabase) {
             const existing = ls.get('buildings');
             ls.set('buildings', [...existing, ...snakeData]);
