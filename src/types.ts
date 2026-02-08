@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'county_admin' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto';
+export type Role = 'super_admin' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto';
 
 
 export interface Unavailability {
@@ -32,6 +32,7 @@ export interface User {
     profilePhotoUrl?: string | null;
     passwordLastUpdated?: string;
     passwordExpiresAt?: string;
+    countyId?: string;
 }
 
 export interface GradeDefinition {

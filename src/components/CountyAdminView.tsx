@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Institution, County, AllocationRequest } from '../types';
+import { User, Institution, County, AllocationRequest, Role } from '../types';
 import {
     BuildingOfficeIcon,
     UserGroupIcon,
@@ -9,7 +9,13 @@ import {
     Cog8ToothIcon,
     SparklesIcon,
     ArrowUpTrayIcon,
-    PlusIcon
+    PlusIcon,
+    EnvelopeIcon,
+    PhoneIcon,
+    PencilIcon,
+    UserIcon,
+    XIcon,
+    FingerPrintIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
@@ -25,6 +31,9 @@ interface CountyAdminViewProps {
     onAddInstitution?: (data: any) => Promise<void>;
     onLoginAsAdmin?: (institutionId: string) => void;
     onImportInstitutions?: (data: any[]) => Promise<void>;
+    onAddUser?: (data: any) => Promise<void>;
+    onUpdateUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -37,9 +46,12 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onUpdateCounty,
     onAddInstitution,
     onLoginAsAdmin,
-    onImportInstitutions
+    onImportInstitutions,
+    onAddUser,
+    onUpdateUser,
+    onDeleteUser
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
@@ -65,6 +77,40 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     );
 
     const myInstitutions = institutions.filter(i => i.countyId === myCounty?.id);
+    const myStaff = users.filter(u => u.institutionId === (myCounty?.id || '') && (u.role === 'county_admin' || u.role === 'county_staff'));
+
+    const [showStaffModal, setShowStaffModal] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<User | null>(null);
+    const [staffForm, setStaffForm] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        role: 'county_staff' as Role,
+        staffId: ''
+    });
+
+    const handleStaffSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!myCounty) return;
+
+        try {
+            if (editingStaff) {
+                if (onUpdateUser) await onUpdateUser(editingStaff.id, staffForm);
+            } else {
+                if (onAddUser) await onAddUser({
+                    ...staffForm,
+                    institutionId: myCounty.id,
+                    expertise: ['County Management'],
+                    password: Math.random().toString(36).slice(-8) // Temporary password
+                });
+            }
+            setShowStaffModal(false);
+            setEditingStaff(null);
+            setStaffForm({ name: '', email: '', phoneNumber: '', role: 'county_staff', staffId: '' });
+        } catch (err) {
+            alert("Failed to save staff record.");
+        }
+    };
 
     useEffect(() => {
         if (myCounty?.logoUrl) setLogoPreview(myCounty.logoUrl);
@@ -214,6 +260,19 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         Institutions
                         <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
                             {myInstitutions.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('staff')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'staff'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            }`}
+                    >
+                        <UserGroupIcon className="w-5 h-5" />
+                        County Staff
+                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                            {myStaff.length}
                         </span>
                     </button>
                     <button
@@ -394,6 +453,107 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 </td>
                                             </tr>
                                         )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'staff' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        <div className="flex justify-between items-end mb-8">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                                    County Staff
+                                </h2>
+                                <p className="text-slate-500 font-medium">
+                                    Manage administrators and support staff for {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setEditingStaff(null);
+                                    setStaffForm({ name: '', email: '', phoneNumber: '', role: 'county_staff', staffId: '' });
+                                    setShowStaffModal(true);
+                                }}
+                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                            >
+                                <PlusIcon className="w-5 h-5 text-white" /> Add Staff Member
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Staff Member</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Role & ID</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Contact</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {myStaff.map(staff => (
+                                            <tr key={staff.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">
+                                                            👤
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{staff.name}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400">{staff.email}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${staff.role === 'county_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
+                                                            }`}>
+                                                            {staff.role.replace('_', ' ')}
+                                                        </span>
+                                                        <span className="text-[10px] font-mono text-slate-400 mt-1">{staff.staffId || 'No ID'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-xs font-medium text-slate-600">{staff.phoneNumber || 'No Phone'}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingStaff(staff);
+                                                                setStaffForm({
+                                                                    name: staff.name,
+                                                                    email: staff.email,
+                                                                    phoneNumber: staff.phoneNumber || '',
+                                                                    role: staff.role,
+                                                                    staffId: staff.staffId || ''
+                                                                });
+                                                                setShowStaffModal(true);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                        {staff.id !== currentUser.id && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm("Remove this staff member?")) {
+                                                                        onDeleteUser && onDeleteUser(staff.id);
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                            >
+                                                                <XIcon className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -668,6 +828,117 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         }}
                         countyId={myCounty.id}
                     />
+                )}
+
+                {showStaffModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                        {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">County Internal Registry</p>
+                                </div>
+                                <button onClick={() => setShowStaffModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                    <XIcon className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleStaffSubmit} className="p-8 space-y-5">
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Full Name</label>
+                                        <div className="relative">
+                                            <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                            <input
+                                                type="text"
+                                                required
+                                                value={staffForm.name}
+                                                onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                                placeholder="e.g. John Doe"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Email Address</label>
+                                            <div className="relative">
+                                                <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="email"
+                                                    required
+                                                    value={staffForm.email}
+                                                    onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                                    placeholder="john@county.go.ke"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Phone Number</label>
+                                            <div className="relative">
+                                                <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="tel"
+                                                    value={staffForm.phoneNumber}
+                                                    onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })}
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                                    placeholder="0712 345 678"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Role</label>
+                                            <select
+                                                required
+                                                value={staffForm.role}
+                                                onChange={e => setStaffForm({ ...staffForm, role: e.target.value as Role })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                            >
+                                                <option value="county_staff">County Staff</option>
+                                                <option value="county_admin">County Admin</option>
+                                            </select>
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Staff ID</label>
+                                            <div className="relative">
+                                                <FingerPrintIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                                <input
+                                                    type="text"
+                                                    value={staffForm.staffId}
+                                                    onChange={e => setStaffForm({ ...staffForm, staffId: e.target.value })}
+                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium uppercase"
+                                                    placeholder="CS-001"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowStaffModal(false)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        {editingStaff ? 'Update Record' : 'Create Account'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 )}
             </main>
         </div>

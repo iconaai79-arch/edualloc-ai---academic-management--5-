@@ -1120,6 +1120,9 @@ export const App: React.FC = () => {
                                 onAddInstitution={handleAddCountyInstitution}
                                 onLoginAsAdmin={onLoginAsAdmin}
                                 onImportInstitutions={handleImportCountyInstitutions}
+                                onAddUser={async (data) => { await apiService.saveUser({ ...data, id: `u_county_${Date.now()}` }); loadData(); }}
+                                onUpdateUser={onEditUser}
+                                onDeleteUser={onDeleteUser}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
