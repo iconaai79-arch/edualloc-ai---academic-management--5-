@@ -759,13 +759,23 @@ export const App: React.FC = () => {
             await apiService.saveInstitution(newInstitution);
             await apiService.saveUser(newAdmin);
 
+            if (companyDetails.emailConfig?.username) {
+                const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+
+                try {
+                    await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                } catch (e) {
+                    console.error("Email notification failed", e);
+                }
+            }
+
             await loadData();
-            alert(`Institution registered successfully!\n\nAdmin Credentials:\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}`);
+            alert(`Institution registered successfully!\n\nAdmin Credentials:\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\n(Account details have been sent to ${newAdmin.email})`);
         } catch (error) {
             console.error("Failed to register institution:", error);
             alert("Failed to register institution.");
         }
-    }, [loadData]);
+    }, [loadData, companyDetails]);
 
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
@@ -806,6 +816,16 @@ export const App: React.FC = () => {
                 await apiService.saveUser(newAdmin);
 
                 await loadData(true);
+
+                if (companyDetails.emailConfig?.username) {
+                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${adminPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                    try {
+                        await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody, companyDetails.emailConfig);
+                    } catch (e) {
+                        console.error("Email notification failed", e);
+                    }
+                }
+
                 return { success: true, message: 'County Portal registered successfully.', credentials: { email: newAdmin.email, password: adminPassword } };
             } catch (error: any) {
                 console.error("County Registration Error:", error);
@@ -840,6 +860,16 @@ export const App: React.FC = () => {
                     ]);
                 }
                 await loadData(true);
+
+                if (companyDetails.emailConfig?.username) {
+                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                    try {
+                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                    } catch (e) {
+                        console.error("Email notification failed", e);
+                    }
+                }
+
                 return { success: true, message: 'Registration successful.', credentials: { email: newAdmin.email, password: generatedPassword } };
             } catch (e: any) { return { success: false, message: 'Registration failed: ' + e.message }; }
         },

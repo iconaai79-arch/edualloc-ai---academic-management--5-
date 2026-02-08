@@ -16,8 +16,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     phoneNumber: '',
     institutionType: 'University',
     customSubscriptionPrice: {
-        monthly: '',
-        yearly: '',
+      monthly: '',
+      yearly: '',
     }
   });
 
@@ -29,8 +29,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         phoneNumber: institution.phoneNumber,
         institutionType: institution.institutionType,
         customSubscriptionPrice: {
-            monthly: institution.customSubscriptionPrice?.monthly?.toString() || '',
-            yearly: institution.customSubscriptionPrice?.yearly?.toString() || '',
+          monthly: institution.customSubscriptionPrice?.monthly?.toString() || '',
+          yearly: institution.customSubscriptionPrice?.yearly?.toString() || '',
         }
       });
     }
@@ -43,12 +43,12 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ 
-        ...prev, 
-        customSubscriptionPrice: {
-            ...prev.customSubscriptionPrice,
-            [name]: value,
-        }
+    setFormData(prev => ({
+      ...prev,
+      customSubscriptionPrice: {
+        ...prev.customSubscriptionPrice,
+        [name]: value,
+      }
     }));
   };
 
@@ -75,7 +75,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         <form onSubmit={handleSubmit}>
           <div className="p-6">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white">Edit Institution: {institution.name}</h3>
-            
+
             <div className="mt-6 space-y-4">
               <div>
                 <label htmlFor="edit-inst-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Institution Name</label>
@@ -128,39 +128,41 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                   <option>College</option>
                   <option>Institute</option>
                   <option>Polytechnic</option>
+                  <option>ECD</option>
+                  <option>International</option>
                 </select>
               </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                 <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Subscription Price</h4>
-                 <p className="text-xs text-slate-500 dark:text-slate-400">Leave blank to use the system default price.</p>
-                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="edit-inst-monthly" className="sr-only">Custom Monthly Price</label>
-                        <input
-                            type="number"
-                            id="edit-inst-monthly"
-                            name="monthly"
-                            value={formData.customSubscriptionPrice.monthly}
-                            onChange={handlePriceChange}
-                            className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            placeholder={`Default: KES ${defaultPrices.defaultMonthlyPrice}/mo`}
-                            min="0"
-                        />
-                    </div>
-                     <div>
-                        <label htmlFor="edit-inst-yearly" className="sr-only">Custom Yearly Price</label>
-                        <input
-                            type="number"
-                            id="edit-inst-yearly"
-                            name="yearly"
-                            value={formData.customSubscriptionPrice.yearly}
-                            onChange={handlePriceChange}
-                            className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            placeholder={`Default: KES ${defaultPrices.defaultYearlyPrice}/yr`}
-                            min="0"
-                        />
-                    </div>
-                 </div>
+                <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Subscription Price</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Leave blank to use the system default price.</p>
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="edit-inst-monthly" className="sr-only">Custom Monthly Price</label>
+                    <input
+                      type="number"
+                      id="edit-inst-monthly"
+                      name="monthly"
+                      value={formData.customSubscriptionPrice.monthly}
+                      onChange={handlePriceChange}
+                      className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                      placeholder={`Default: KES ${defaultPrices.defaultMonthlyPrice}/mo`}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-inst-yearly" className="sr-only">Custom Yearly Price</label>
+                    <input
+                      type="number"
+                      id="edit-inst-yearly"
+                      name="yearly"
+                      value={formData.customSubscriptionPrice.yearly}
+                      onChange={handlePriceChange}
+                      className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                      placeholder={`Default: KES ${defaultPrices.defaultYearlyPrice}/yr`}
+                      min="0"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -801,6 +801,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     <option value="College">College</option>
                                                     <option value="Institute">Institute</option>
                                                     <option value="Polytechnic">Polytechnic</option>
+                                                    <option value="ECD">ECD Center</option>
+                                                    <option value="International">International School</option>
                                                 </select>
                                             </div>
                                         </div>

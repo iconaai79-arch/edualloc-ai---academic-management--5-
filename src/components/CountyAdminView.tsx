@@ -309,7 +309,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 onClick={() => setShowRegisterModal(true)}
                                 className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
                             >
-                                <plusIcon className="w-5 h-5 text-white" /> Register New
+                                <PlusIcon className="w-5 h-5 text-white" /> Register New
                             </button>
                         </div>
 
@@ -550,6 +550,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 <option value="College">College</option>
                                                 <option value="Polytechnic">Polytechnic</option>
                                                 <option value="Institute">Institute</option>
+                                                <option value="ECD">ECD Center</option>
+                                                <option value="International">International School</option>
                                             </select>
                                         </div>
                                     </div>

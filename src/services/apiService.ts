@@ -344,14 +344,26 @@ export const apiService = {
         } catch (e: any) { return { success: false, message: "Gateway error." }; }
     },
     async sendEmail(recipient: string, subject: string, message: string, config: EmailConfig): Promise<any> {
+        if (!_supabase) {
+            console.log('[DEV] Email to:', recipient, 'Subject:', subject, 'Body:', message);
+            return { success: true, message: "Email simulated (Local)" };
+        }
+
         try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            let headers: any = { 'Content-Type': 'application/json' };
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config })
             });
             return await response.json();
-        } catch (e: any) { return { success: false, message: "Email error." }; }
+        } catch (e: any) {
+            console.error("Email Gateway Error:", e);
+            return { success: false, message: "Email gateway error." };
+        }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
         try {

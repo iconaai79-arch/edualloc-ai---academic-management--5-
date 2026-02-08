@@ -91,7 +91,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International';
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
     trialEndsAt?: string;

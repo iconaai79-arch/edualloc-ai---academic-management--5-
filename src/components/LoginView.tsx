@@ -245,6 +245,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="College">College</option>
                                                 <option value="Institute">Institute</option>
                                                 <option value="Polytechnic">Polytechnic</option>
+                                                <option value="ECD">ECD Center</option>
+                                                <option value="International">International School</option>
                                             </select>
                                         </div>
                                         <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
