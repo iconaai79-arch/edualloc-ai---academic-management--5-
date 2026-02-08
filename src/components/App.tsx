@@ -657,16 +657,45 @@ export const App: React.FC = () => {
 
     const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
         try {
+            console.log('🏛️ Adding county with data:', data);
+
             const newCounty: County = {
                 ...data,
                 id: `county_${Date.now()}`,
                 createdAt: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('counties', newCounty);
+
+            console.log('🏛️ County object to save:', newCounty);
+
+            const result = await apiService.saveModuleRecord('counties', newCounty);
+            console.log('✅ County saved successfully:', result);
+
             await loadData();
-        } catch (error) {
-            console.error("Failed to add county:", error);
-            alert("Failed to add county.");
+            alert('County added successfully!');
+        } catch (error: any) {
+            console.error('❌ Failed to add county:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                stack: error.stack
+            });
+
+            let errorMessage = 'Failed to add county.';
+
+            // Provide specific error messages
+            if (error.message?.includes('counties')) {
+                if (error.message?.includes('does not exist') || error.code === '42P01') {
+                    errorMessage = 'Counties table does not exist. Please run the database migration first.';
+                } else if (error.message?.includes('duplicate') || error.code === '23505') {
+                    errorMessage = 'A county with this code already exists.';
+                } else if (error.message?.includes('permission') || error.code === '42501') {
+                    errorMessage = 'Permission denied. Please check your database permissions.';
+                }
+            }
+
+            alert(errorMessage + '\n\nCheck the browser console for details.');
         }
     }, [loadData]);
 

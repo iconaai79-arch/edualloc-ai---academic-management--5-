@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Diagnostic Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .status-box {
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            font-family: monospace;
+        }
+
+        .status-loading {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .status-success {
+            background: #d1fae5;
+            border: 2px solid #10b981;
+            color: #065f46;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+        }
+
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+
+        .button:hover {
+            background: #5568d3;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .log-entry {
+            padding: 8px;
+            margin: 5px 0;
+            border-left: 3px solid #667eea;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Database Diagnostic Tool</h1>
+            <p>Check if counties table exists and diagnose issues</p>
+        </div>
+
+        <div class="content">
+            <div id="status" class="status-box status-loading">
+                ⏳ Initializing...
+            </div>
+
+            <div id="logs"></div>
+
+            <div style="margin-top: 20px;">
+                <button class="button" onclick="runDiagnostics()">🔄 Run Diagnostics</button>
+                <button class="button" onclick="testCountyCreation()">🧪 Test County Creation</button>
+                <button class="button" onclick="clearLogs()">🗑️ Clear Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        const logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ timestamp, message, type });
+            updateLogsDisplay();
+        }
+
+        function updateLogsDisplay() {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = logs.map(l =>
+                `<div class="log-entry">[${l.timestamp}] ${l.message}</div>`
+            ).join('');
+        }
+
+        function clearLogs() {
+            logs.length = 0;
+            updateLogsDisplay();
+        }
+
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status-box status-${type}`;
+            statusDiv.textContent = message;
+        }
+
+        async function initSupabase() {
+            log('🔧 Initializing Supabase client...');
+
+            // Try to get credentials from localStorage
+            const url = localStorage.getItem('db_config_SUPABASE_URL');
+            const key = localStorage.getItem('db_config_SUPABASE_ANON_KEY');
+
+            if (!url || !key) {
+                updateStatus('❌ Supabase credentials not found in localStorage', 'error');
+                log('❌ Please login to your application first to save credentials');
+                return false;
+            }
+
+            log(`✅ Found credentials: ${url.substring(0, 30)}...`);
+
+            try {
+                const { createClient } = supabase;
+                supabase = createClient(url, key);
+                log('✅ Supabase client initialized');
+                updateStatus('✅ Connected to Supabase', 'success');
+                return true;
+            } catch (error) {
+                updateStatus('❌ Failed to initialize Supabase', 'error');
+                log(`❌ Error: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function runDiagnostics() {
+            clearLogs();
+            log('🚀 Starting diagnostics...');
+
+            if (!supabase) {
+                const initialized = await initSupabase();
+                if (!initialized) return;
+            }
+
+            // Test 1: Check if counties table exists
+            log('📊 Test 1: Checking if counties table exists...');
+            try {
+                const { data, error } = await supabase
+                    .from('counties')
+                    .select('count')
+                    .limit(1);
+
+                if (error) {
+                    if (error.code === '42P01') {
+                        updateStatus('❌ Counties table does NOT exist!', 'error');
+                        log('❌ Counties table not found in database');
+                        log('💡 Solution: Run the migration SQL in Supabase SQL Editor');
+                        log('📄 File: database/county_management_migration.sql');
+                    } else {
+                        log(`⚠️ Error checking table: ${error.message} (Code: ${error.code})`);
+                    }
+                } else {
+                    updateStatus('✅ Counties table exists!', 'success');
+                    log('✅ Counties table found');
+
+                    // Test 2: Count existing counties
+                    const { count } = await supabase
+                        .from('counties')
+                        .select('*', { count: 'exact', head: true });
+
+                    log(`📊 Found ${count || 0} counties in database`);
+                }
+            } catch (error) {
+                log(`❌ Unexpected error: ${error.message}`);
+            }
+
+            // Test 3: Check institutions table for county_id column
+            log('📊 Test 2: Checking if institutions.county_id exists...');
+            try {
+                const { data, error } = await supabase
+                    .from('institutions')
+                    .select('county_id')
+                    .limit(1);
+
+                if (error) {
+                    log(`⚠️ county_id column might not exist: ${error.message}`);
+                } else {
+                    log('✅ institutions.county_id column exists');
+                }
+            } catch (error) {
+                log(`❌ Error checking institutions: ${error.message}`);
+            }
+
+            // Test 4: Check current user permissions
+            log('📊 Test 3: Checking user authentication...');
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+
+                if (error || !user) {
+                    log('⚠️ No authenticated user found');
+                    log('💡 You may need to login to the application first');
+                } else {
+                    log(`✅ Authenticated as: ${user.email}`);
+                }
+            } catch (error) {
+                log(`⚠️ Auth check failed: ${error.message}`);
+            }
+
+            log('✅ Diagnostics complete!');
+        }
+
+        async function testCountyCreation() {
+            log('🧪 Testing county creation...');
+
+            if (!supabase) {
+                const initialized = await initSupabase();
+                if (!initialized) return;
+            }
+
+            const testCounty = {
+                id: `county_test_${Date.now()}`,
+                name: 'Test County',
+                code: `TEST-${Date.now()}`,
+                email: 'test@county.com',
+                phone_number: '+254700000000',
+                status: 'active',
+                created_at: new Date().toISOString()
+            };
+
+            log(`📝 Attempting to create test county: ${testCounty.name}`);
+
+            try {
+                const { data, error } = await supabase
+                    .from('counties')
+                    .insert([testCounty])
+                    .select();
+
+                if (error) {
+                    updateStatus(`❌ Failed to create county: ${error.message}`, 'error');
+                    log(`❌ Error: ${error.message}`);
+                    log(`❌ Code: ${error.code}`);
+                    log(`❌ Details: ${JSON.stringify(error.details)}`);
+
+                    if (error.code === '42P01') {
+                        log('💡 Counties table does not exist - run migration first!');
+                    } else if (error.code === '42501') {
+                        log('💡 Permission denied - check RLS policies');
+                    }
+                } else {
+                    updateStatus('✅ Test county created successfully!', 'success');
+                    log('✅ County created successfully!');
+                    log(`📊 Created county: ${JSON.stringify(data, null, 2)}`);
+
+                    // Clean up test data
+                    log('🧹 Cleaning up test county...');
+                    await supabase.from('counties').delete().eq('id', testCounty.id);
+                    log('✅ Test county deleted');
+                }
+            } catch (error) {
+                log(`❌ Unexpected error: ${error.message}`);
+            }
+        }
+
+        // Auto-run diagnostics on load
+        window.addEventListener('load', () => {
+            setTimeout(runDiagnostics, 500);
+        });
+    </script>
+</body>
+
+</html>
