@@ -16,6 +16,8 @@ import {
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
+import { TimeOffRequestModal } from './TimeOffRequestModal';
+import { ClockIcon } from './icons/index';
 
 declare var XLSX: any;
 
@@ -210,7 +212,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeUserSpreadsheet(headers, currentInstitution?.aiModelTier);
+                const mapping = await analyzeUserSpreadsheet(headers);
                 setUserMapping(mapping as Record<UserMappingField, string | null>);
                 setStep('mapping');
             } catch (error: any) {
@@ -474,6 +476,7 @@ interface UserManagerProps {
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
     onLogAction?: (action: string) => Promise<void>;
+    onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -481,7 +484,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         allocations = [], users = [], institutions = [], onAddUser, onImportUsers, onImportStudents, departments = [],
         courses = [], subjects = [], onDirectAssign, onWithdrawRequest, onDeleteUser,
         onEditUser, currentUser, currentInstitution,
-        onAddParent, onDeleteParent,
+        onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly
     } = props;
 
@@ -491,6 +494,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [managingParentsFor, setManagingParentsFor] = useState<User | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
+    const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [institutionFilter, setInstitutionFilter] = useState('all');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -791,6 +795,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         <PencilIcon className="w-3.5 h-3.5" />
                                                         Edit
                                                     </button>
+                                                    {u.role !== 'student' && onAddTimeOffRequest && (
+                                                        <button
+                                                            onClick={() => setRequestingTimeOffFor(u)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 rounded-md text-xs font-bold transition-all"
+                                                        >
+                                                            <ClockIcon className="w-3.5 h-3.5" />
+                                                            Time Off
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => { if (window.confirm(`Archive ${u.name}?`)) onDeleteUser(u.id); }}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 rounded-md text-xs font-bold transition-all"
@@ -817,6 +830,18 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     departments={departments}
                     currentInstitution={currentInstitution}
                     currentUser={currentUser}
+                />
+            )}
+
+            {requestingTimeOffFor && (
+                <TimeOffRequestModal
+                    onClose={() => setRequestingTimeOffFor(null)}
+                    onSubmit={async (data) => {
+                        if (props.onAddTimeOffRequest && requestingTimeOffFor) {
+                            await props.onAddTimeOffRequest(requestingTimeOffFor.id, data);
+                            setRequestingTimeOffFor(null);
+                        }
+                    }}
                 />
             )}
 

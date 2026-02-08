@@ -633,6 +633,25 @@ export const App: React.FC = () => {
         } catch (e) { return false; }
     };
 
+    const handleAddTimeOffRequest = useCallback(async (userId: string, data: any) => {
+        try {
+            const req: TimeOffRequest = {
+                ...data,
+                id: `to_${Date.now()}`,
+                lecturerId: userId,
+                status: 'pending',
+                institutionId: currentUser?.institutionId || '',
+                timestamp: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('time_off_requests', req);
+            await loadData();
+            alert("Time off request submitted successfully.");
+        } catch (error) {
+            console.error("Failed to submit time off request:", error);
+            alert("Failed to submit time off request.");
+        }
+    }, [currentUser, loadData]);
+
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
@@ -1082,6 +1101,7 @@ export const App: React.FC = () => {
                                 onUpdateFinancialPeriods={() => { }}
                                 onAddBuildings={async (b) => { }}
                                 timeOffRequests={timeOffRequests}
+                                onAddTimeOffRequest={handleAddTimeOffRequest}
                                 onUpdateTimeOffRequestStatus={() => { }}
                                 enrollmentRequests={enrollmentRequests}
                                 absenceRequests={absenceRequests}

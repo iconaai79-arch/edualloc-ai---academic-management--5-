@@ -172,6 +172,7 @@ export interface AdminViewProps {
     onUpdateBuilding?: (id: string, data: any) => void;
     onDeleteBuilding?: (id: string) => void;
     timeOffRequests: TimeOffRequest[];
+    onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
     onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => void;
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
@@ -554,6 +555,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onEditUser={props.onEditUser}
                         onDeleteUser={props.onDeleteUser}
                         onAddUser={props.onAddUser}
+                        onAddTimeOffRequest={props.onAddTimeOffRequest}
                     />
                 )}
 
