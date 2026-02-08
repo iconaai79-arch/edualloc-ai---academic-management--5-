@@ -187,15 +187,16 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                 {contextStatus.settings ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                             </div>
                         </div>
-                    </div>
                         {!canProceedStep1 && (
-                    <div className="flex justify-center mt-4">
-                        <button
-                            onClick={() => onNavigateToSettings?.('calendar')}
-                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest underline decoration-2 underline-offset-4"
-                        >
-                            Configure in Settings &rarr;
-                        </button>
+                            <div className="flex justify-center mt-4">
+                                <button
+                                    onClick={() => onNavigateToSettings?.('calendar')}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest underline decoration-2 underline-offset-4"
+                                >
+                                    Configure in Settings &rarr;
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
