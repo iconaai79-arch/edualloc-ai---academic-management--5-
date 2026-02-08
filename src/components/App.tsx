@@ -574,7 +574,7 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string>) => {
+    const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
         if (!activeInstitution) return;
         const now = new Date().toISOString();
         const promises = subjectIds.map(subjectId => {
@@ -592,7 +592,7 @@ export const App: React.FC = () => {
                 reviewedAt: now,
                 academicYearId: activeAcademicYear?.id || '',
                 semesterId: activeSemester?.id || '',
-                courseLevelIds: courseLevelSelections?.[subjectId] ? [courseLevelSelections[subjectId]] : []
+                courseLevelIds: courseLevelSelections?.[subjectId] || []
             };
             return apiService.saveModuleRecord('allocation_requests', req);
         });
@@ -605,7 +605,7 @@ export const App: React.FC = () => {
             console.error("Failed to assign subjects:", error);
             alert("Failed to assign subjects. Please try again.");
         }
-    }, [activeInstitution, currentUser, loadData]);
+    }, [activeInstitution, currentUser, loadData, activeAcademicYear, activeSemester]);
 
     const onGenerateReceipt = useCallback(async (txn: MpesaTransaction) => {
         const id = `rec_${Date.now()}`;
