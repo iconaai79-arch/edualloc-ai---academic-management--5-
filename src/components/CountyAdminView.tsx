@@ -8,7 +8,8 @@ import {
     AcademicCapIcon,
     Cog8ToothIcon,
     SparklesIcon,
-    ArrowUpTrayIcon
+    ArrowUpTrayIcon,
+    PlusIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -20,6 +21,7 @@ interface CountyAdminViewProps {
     onLogout: () => void;
     onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
     onUpdateCounty?: (id: string, data: Partial<County>) => Promise<void>;
+    onAddInstitution?: (data: any) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -29,13 +31,25 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     users,
     onLogout,
     onUpdateInstitution,
-    onUpdateCounty
+    onUpdateCounty,
+    onAddInstitution
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+
+    // Institution Registration State
+    const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [registerData, setRegisterData] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        type: 'University',
+        adminName: '',
+        adminEmail: ''
+    });
 
     // Logic to find the admin's county. 
     // We match by adminName (text field) or email.
@@ -89,6 +103,36 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             alert("An error occurred during upload.");
         } finally {
             setIsUploading(false);
+        }
+    };
+
+    const handleRegisterSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onAddInstitution || !myCounty) {
+            alert("Registration not available");
+            return;
+        }
+
+        if (!registerData.name || !registerData.email || !registerData.adminEmail) {
+            alert("Please fill in required fields");
+            return;
+        }
+
+        try {
+            await onAddInstitution({
+                name: registerData.name,
+                email: registerData.email,
+                phoneNumber: registerData.phoneNumber,
+                institutionType: registerData.type,
+                adminName: registerData.adminName,
+                adminEmail: registerData.adminEmail,
+                countyId: myCounty.id
+            });
+            setShowRegisterModal(false);
+            setRegisterData({ name: '', email: '', phoneNumber: '', type: 'University', adminName: '', adminEmail: '' });
+        } catch (error) {
+            console.error(error);
+            // Alert handled by parent usually, but just in case
         }
     };
 
@@ -252,13 +296,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
                 {activeTab === 'institutions' && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <div className="mb-8">
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
-                                Institutions
-                            </h2>
-                            <p className="text-slate-500 font-medium">
-                                Schools and colleges within {myCounty.name}
-                            </p>
+                        <div className="flex justify-between items-end mb-8">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                                    Institutions
+                                </h2>
+                                <p className="text-slate-500 font-medium">
+                                    Schools and colleges within {myCounty.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowRegisterModal(true)}
+                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                            >
+                                <plusIcon className="w-5 h-5 text-white" /> Register New
+                            </button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -432,6 +484,123 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Registration Modal */}
+                {showRegisterModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+                            <div className="bg-indigo-600 px-8 py-6 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-black text-white p-0 m-0 leading-tight">New Institution</h3>
+                                    <p className="text-indigo-200 text-xs font-medium mt-1">Register a new school in {myCounty.name}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowRegisterModal(false)}
+                                    className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleRegisterSubmit} className="p-8 space-y-5">
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">School Details</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2">
+                                            <input
+                                                required
+                                                type="text"
+                                                placeholder="Institution Name"
+                                                value={registerData.name}
+                                                onChange={e => setRegisterData({ ...registerData, name: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <input
+                                                required
+                                                type="email"
+                                                placeholder="Official Email"
+                                                value={registerData.email}
+                                                onChange={e => setRegisterData({ ...registerData, email: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
+                                        <div>
+                                            <input
+                                                required
+                                                type="tel"
+                                                placeholder="Phone Number"
+                                                value={registerData.phoneNumber}
+                                                onChange={e => setRegisterData({ ...registerData, phoneNumber: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <select
+                                                value={registerData.type}
+                                                onChange={e => setRegisterData({ ...registerData, type: e.target.value })}
+                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer appearance-none"
+                                            >
+                                                <option value="Primary">Primary School</option>
+                                                <option value="Secondary">Secondary School</option>
+                                                <option value="University">University</option>
+                                                <option value="College">College</option>
+                                                <option value="Polytechnic">Polytechnic</option>
+                                                <option value="Institute">Institute</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Administrator Account</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    placeholder="Admin Full Name"
+                                                    value={registerData.adminName}
+                                                    onChange={e => setRegisterData({ ...registerData, adminName: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <input
+                                                    required
+                                                    type="email"
+                                                    placeholder="Admin Email"
+                                                    value={registerData.adminEmail}
+                                                    onChange={e => setRegisterData({ ...registerData, adminEmail: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                                            * A temporary password will be generated and shown after registration.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRegisterModal(false)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        Create Account
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
             </main>
