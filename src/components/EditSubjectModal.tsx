@@ -74,7 +74,8 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
             if (!course) return;
             (course.levels || []).forEach(level => {
                 if (!level) return;
-                if ((level.subjectIds || []).includes(subject.id)) {
+                const ids = level.subjectIds || (level as any).subject_ids || [];
+                if (ids.includes(subject.id)) {
                     associations.push({
                         courseName: course.name,
                         levelName: level.name,
