@@ -576,6 +576,12 @@ export const App: React.FC = () => {
 
     const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
         if (!activeInstitution) return;
+
+        if (!activeAcademicYear || !activeSemester) {
+            alert("Please set an active Academic Year and Semester in Settings before assigning subjects.");
+            return;
+        }
+
         const now = new Date().toISOString();
         const promises = subjectIds.map(subjectId => {
             const req: AllocationRequest = {
@@ -590,8 +596,8 @@ export const App: React.FC = () => {
                 timestamp: now,
                 reviewedBy: currentUser!.id,
                 reviewedAt: now,
-                academicYearId: activeAcademicYear?.id || '',
-                semesterId: activeSemester?.id || '',
+                academicYearId: activeAcademicYear.id,
+                semesterId: activeSemester.id,
                 courseLevelIds: courseLevelSelections?.[subjectId] || []
             };
             return apiService.saveModuleRecord('allocation_requests', req);
@@ -601,9 +607,9 @@ export const App: React.FC = () => {
             await Promise.all(promises);
             await loadData(); // Refresh data
             alert("Subjects assigned successfully.");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to assign subjects:", error);
-            alert("Failed to assign subjects. Please try again.");
+            alert(`Failed to assign subjects: ${error.message || "Unknown error"}`);
         }
     }, [activeInstitution, currentUser, loadData, activeAcademicYear, activeSemester]);
 
