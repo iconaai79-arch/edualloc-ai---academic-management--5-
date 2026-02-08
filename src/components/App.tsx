@@ -1017,6 +1017,9 @@ export const App: React.FC = () => {
                                 onAddSubject={handleAddSubject}
                                 onUpdateSubject={handleUpdateSubject}
                                 onDeleteSubject={handleDeleteSubject}
+                                onAddBuilding={handleAddBuilding}
+                                onUpdateBuilding={handleUpdateBuilding}
+                                onDeleteBuilding={handleDeleteBuilding}
                                 onAddRoom={handleAddRoom}
                                 onUpdateRoom={handleUpdateRoom}
                                 onDeleteRoom={handleDeleteRoom}
