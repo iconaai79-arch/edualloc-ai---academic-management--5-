@@ -7,7 +7,7 @@ import type {
     UserUpdateData, MpesaConfig, SubscriptionConfig, EmailConfig, TransactionStatus,
     Room, Building, AcademicLevel, TimetableSettings, ExamTimetableSettings, RequestStatus, AcademicYear, TimetableEntry, Conflict, TimeOffRequest, TimeOffRequestStatus, EnrollmentRequest, AbsenceRequest, LecturerContract, FeedbackSubmission, LessonRating,
     Invoice, VoteHead, FeeStructure, FinancialPeriod, UserTask, BiometricConfig, StudentAbsenceRequest, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, StudentAttendance, Assessment, AssessmentMark, ExamTimetableEntry, Role,
-    Assignment, Submission
+    Assignment, Submission, County
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -84,9 +84,11 @@ import { ChatBot } from './ChatBot';
 import { SuspendedAccountView } from './SuspendedAccountView';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { TimetableWizard } from './TimetableWizard';
+import { CountyManager } from './CountyManager';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
+    counties: County[];
     users: User[];
     requests: AllocationRequest[];
     allocations: AllocationRequest[];
@@ -198,6 +200,9 @@ export interface SuperAdminViewProps {
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
     onUpdateFeeStructures?: (structures: FeeStructure[]) => void;
     onUpdateFinancialPeriods?: (periods: FinancialPeriod[]) => void;
+    onAddCounty?: (data: Omit<County, 'id' | 'createdAt'>) => void;
+    onUpdateCounty?: (id: string, data: Partial<County>) => void;
+    onDeleteCounty?: (id: string) => void;
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
 
     onAddBuilding?: (name: string) => Promise<boolean>;
@@ -269,6 +274,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     // Fixed: Defensive empty arrays to handle potentially undefined prop data
     const {
         institutions = [],
+        counties = [],
         users = [],
         subjects = [],
         departments = [],
@@ -333,11 +339,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         finalTimetableUrl,
         examTimetable = [],
         themeColor,
-        footerImageUrl
+        footerImageUrl,
+        onAddCounty,
+        onUpdateCounty,
+        onDeleteCounty
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'timetable' | 'interactions'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'requests' | 'transactions'>('list'); // Modified for Requests
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'requests' | 'transactions'>('list'); // Modified for Counties
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -721,6 +730,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 Tenant Registry
                             </button>
                             <button
+                                onClick={() => setInstitutionsSubTab('counties')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'counties' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Counties
+                            </button>
+                            <button
                                 onClick={() => setInstitutionsSubTab('requests')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'requests' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -841,6 +856,28 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     </table>
                                 </div>
                             </>
+                        )}
+
+                        {institutionsSubTab === 'counties' && (
+                            <CountyManager
+                                counties={counties}
+                                users={users}
+                                onAddCounty={(data) => {
+                                    if (onAddCounty) {
+                                        onAddCounty(data);
+                                    }
+                                }}
+                                onUpdateCounty={(id, data) => {
+                                    if (onUpdateCounty) {
+                                        onUpdateCounty(id, data);
+                                    }
+                                }}
+                                onDeleteCounty={(id) => {
+                                    if (onDeleteCounty) {
+                                        onDeleteCounty(id);
+                                    }
+                                }}
+                            />
                         )}
 
                         {institutionsSubTab === 'requests' && (

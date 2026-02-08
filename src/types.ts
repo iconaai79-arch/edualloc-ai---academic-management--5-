@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto';
+export type Role = 'super_admin' | 'county_admin' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto';
 
 
 export interface Unavailability {
@@ -72,6 +72,18 @@ export interface ScheduleProfile {
     breaks: Break[];
 }
 
+export interface County {
+    id: string;
+    name: string;
+    code: string;
+    email: string;
+    phoneNumber: string;
+    adminId?: string;
+    status: 'active' | 'suspended';
+    createdAt: string;
+    location?: { latitude: number; longitude: number };
+}
+
 export interface Institution {
     id: string;
     name: string;
@@ -96,7 +108,9 @@ export interface Institution {
     useAllocationRequests?: boolean;
     scheduleProfiles?: ScheduleProfile[];
     aiModelTier?: 'free' | 'premium';
+    countyId?: string;
 }
+
 
 export interface Department {
     id: string;

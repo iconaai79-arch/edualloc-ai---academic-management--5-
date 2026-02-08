@@ -33,7 +33,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, Conflict
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, Conflict, County
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -108,6 +108,7 @@ export const App: React.FC = () => {
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
+    const [counties, setCounties] = useState<County[]>([]);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(INITIAL_COMPANY_DETAILS);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
@@ -257,8 +258,9 @@ export const App: React.FC = () => {
 
             const instId = currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : undefined;
 
-            const [insts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs] = await Promise.all([
+            const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
+                apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 apiService.fetchUsers(instId).catch(() => []),
                 apiService.fetchDepartments(instId).catch(() => []),
@@ -277,6 +279,7 @@ export const App: React.FC = () => {
             ]);
 
             if (insts && insts.length > 0) setInstitutions(insts);
+            if (cnts && cnts.length > 0) setCounties(cnts);
             if (sett) setCompanyDetails(sett);
 
             let finalUsers = u || [];
@@ -652,6 +655,44 @@ export const App: React.FC = () => {
         }
     }, [currentUser, loadData]);
 
+    const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
+        try {
+            const newCounty: County = {
+                ...data,
+                id: `county_${Date.now()}`,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('counties', newCounty);
+            await loadData();
+        } catch (error) {
+            console.error("Failed to add county:", error);
+            alert("Failed to add county.");
+        }
+    }, [loadData]);
+
+    const handleUpdateCounty = useCallback(async (id: string, data: Partial<County>) => {
+        try {
+            const existing = counties.find(c => c.id === id);
+            if (existing) {
+                await apiService.saveModuleRecord('counties', { ...existing, ...data });
+                await loadData();
+            }
+        } catch (error) {
+            console.error("Failed to update county:", error);
+            alert("Failed to update county.");
+        }
+    }, [counties, loadData]);
+
+    const handleDeleteCounty = useCallback(async (id: string) => {
+        try {
+            await apiService.deleteModuleRecord('counties', id);
+            await loadData();
+        } catch (error) {
+            console.error("Failed to delete county:", error);
+            alert("Failed to delete county.");
+        }
+    }, [loadData]);
+
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
@@ -723,7 +764,10 @@ export const App: React.FC = () => {
                     <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
                         {activeRole === 'super_admin' ? (
                             <SuperAdminView
-                                currentUser={currentUser} institutions={institutions} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { await apiService.saveInstitution(d as any); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
+                                currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { await apiService.saveInstitution(d as any); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
+                                onAddCounty={handleAddCounty}
+                                onUpdateCounty={handleUpdateCounty}
+                                onDeleteCounty={handleDeleteCounty}
                                 rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
                                 logoUrl={activeLogoUrl}
                                 finalTimetableUrl={null}
