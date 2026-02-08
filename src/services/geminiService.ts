@@ -253,7 +253,7 @@ export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: bool
     }
 };
 
-export const analyzeSubjectSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeSubjectSpreadsheet = async (headers: string[], aiModelTier?: string): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to subject fields: name, code, departmentName, description, shortName, lessonStructure, targetCourseLevel. Headers: ${JSON.stringify(headers)}. Return JSON.`;
