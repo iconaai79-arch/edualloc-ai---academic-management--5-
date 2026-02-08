@@ -7,6 +7,7 @@ import { generatePastelColor } from '../utils/colorUtils';
 import { EditSubjectModal } from './EditSubjectModal';
 import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
+import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 
 declare var XLSX: any;
 
@@ -79,6 +80,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
     const [constraintSubject, setConstraintSubject] = useState<Subject | null>(null);
     const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
+    const [isBulkStructureOpen, setIsBulkStructureOpen] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -128,6 +130,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm"
                     >
                         <ArrowsRightLeftIcon className="w-5 h-5 text-indigo-500" /> Pathway Sync
+                    </button>
+
+                    <button
+                        onClick={() => setIsBulkStructureOpen(true)}
+                        className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm"
+                    >
+                        <ClockIcon className="w-5 h-5 text-indigo-500" /> Default Matrix
                     </button>
 
                     <button
@@ -279,6 +288,16 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     timetableSettings={timetableSettings}
                     onSaveTimetableSettings={onSaveTimetableSettings!}
                     onClose={() => setConstraintSubject(null)}
+                />,
+                document.body
+            )}
+
+            {isBulkStructureOpen && createPortal(
+                <BulkSubjectStructureModal
+                    onClose={() => setIsBulkStructureOpen(false)}
+                    departments={visibleDepartments}
+                    subjects={subjects}
+                    onBulkUpdate={handleBulkPathwayUpdate}
                 />,
                 document.body
             )}
