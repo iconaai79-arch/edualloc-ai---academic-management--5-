@@ -28,12 +28,13 @@ interface TimetableWizardProps {
     courseSizes: Map<string, number>;
     timeOffRequests: TimeOffRequest[];
     onTimetableGenerated: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
+    onNavigateToSettings?: (tab?: string) => void;
 }
 
 export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     onClose, isInline = false, allocations, subjects, lecturers, rooms, courses, timetableSettings,
     activeAcademicYear, activeSemester, currentInstitution, courseSizes,
-    timeOffRequests, onTimetableGenerated
+    timeOffRequests, onTimetableGenerated, onNavigateToSettings
 }) => {
     const [step, setStep] = useState(1);
     const [mode, setMode] = useState<'ai' | 'standard'>('ai');
@@ -186,169 +187,181 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                 {contextStatus.settings ? <CheckCircleIcon className="w-6 h-6 text-green-600" /> : <XIcon className="w-6 h-6 text-red-600" />}
                             </div>
                         </div>
-                        {!canProceedStep1 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest">Please configure calendar & hours in Settings to proceed.</p>}
+                    </div>
+                        {!canProceedStep1 && (
+                    <div className="flex justify-center mt-4">
+                        <button
+                            onClick={() => onNavigateToSettings?.('calendar')}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-widest underline decoration-2 underline-offset-4"
+                        >
+                            Configure in Settings &rarr;
+                        </button>
                     </div>
                 )}
-
-                {step === 2 && (
-                    <div className="space-y-6 animate-fade-in">
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">2. Resource Availability</h4>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <BuildingOfficeIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.rooms}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rooms</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <UserGroupIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.lecturers}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Faculty</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <RectangleStackIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.subjects}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subjects</p>
-                            </div>
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                                <CommandLineIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                                <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.courses}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Courses</p>
-                            </div>
-                        </div>
-                        {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
-                    </div>
-                )}
-
-                {step === 3 && (
-                    <div className="space-y-6 animate-fade-in">
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
-
-                        <div className="flex flex-col gap-4">
-                            <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
-                                    <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Approved Allocations</p>
-                                </div>
-                                <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
-                            </div>
-
-                            <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-yellow-100 dark:border-yellow-900 rounded-2xl">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Pending Approval</p>
-                                    <p className="text-3xl font-black text-yellow-600 dark:text-yellow-400 mt-1">{workloadStatus.pending}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Excluded from generation</p>
-                                </div>
-                                <ExclamationTriangleIcon className="w-10 h-10 text-yellow-500 opacity-20" />
-                            </div>
-                        </div>
-
-                        {!canProceedStep3 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-2">No approved allocations found. Go to 'Registry' to approve requests.</p>}
-                        {workloadStatus.pending > 0 && <p className="text-center text-xs text-yellow-600 font-bold uppercase tracking-widest mt-2">Note: Only approved allocations will be scheduled.</p>}
-                    </div>
-                )}
-
-                {step === 4 && (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="text-center">
-                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Ready to Launch</h4>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Select your engine and start the generation process.</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <button
-                                onClick={() => setMode('ai')}
-                                className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
-                            >
-                                <SparklesIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'ai' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine</h5>
-                                <p className="text-[10px] text-slate-400 mt-1">Best for complex, constraint-heavy schedules. Optimizes for conflict resolution.</p>
-                            </button>
-
-                            <button
-                                onClick={() => setMode('standard')}
-                                className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'standard' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
-                            >
-                                <CommandLineIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'standard' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <h5 className={`font-bold ${mode === 'standard' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>Standard Algorithm</h5>
-                                <p className="text-[10px] text-slate-400 mt-1">Faster, deterministic generation. Best for simple, linear schedules.</p>
-                            </button>
-                        </div>
-
-                        {error && (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
-                                {error}
-                            </div>
-                        )}
-
-                        {isGenerating && (
-                            <div className="flex flex-col items-center justify-center py-4 animate-pulse">
-                                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Processing Logic Matrix...</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {step === 5 && (
-                    <div className="text-center py-8 animate-scale-in">
-                        <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-[3rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-100 dark:shadow-none">
-                            <CheckCircleIcon className="w-12 h-12" />
-                        </div>
-                        <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Generation Complete</h2>
-                        <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">Successfully scheduled <span className="text-indigo-600 font-bold">{generatedCount}</span> lesson entries.</p>
-                        {onClose && (
-                            <button onClick={onClose} className="btn-primary h-14 px-12 uppercase tracking-widest text-xs shadow-indigo-100">View Master Timetable</button>
-                        )}
-                    </div>
-                )}
-
             </div>
+                )}
 
-            {/* Footer Controls */}
-            {step < 5 && (
-                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between">
-                    <button
-                        onClick={() => setStep(Math.max(1, step - 1))}
-                        disabled={step === 1 || isGenerating}
-                        className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
-                    >
-                        Back
-                    </button>
+            {step === 2 && (
+                <div className="space-y-6 animate-fade-in">
+                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">2. Resource Availability</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                            <BuildingOfficeIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                            <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.rooms}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rooms</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                            <UserGroupIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                            <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.lecturers}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Faculty</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                            <RectangleStackIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                            <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.subjects}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subjects</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
+                            <CommandLineIcon className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                            <p className="text-2xl font-black text-slate-800 dark:text-white">{resourceStatus.courses}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Courses</p>
+                        </div>
+                    </div>
+                    {!canProceedStep2 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-4">Missing critical resources. Add rooms, staff, or subjects first.</p>}
+                </div>
+            )}
 
-                    {step < 4 ? (
+            {step === 3 && (
+                <div className="space-y-6 animate-fade-in">
+                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">3. Registry Load Check</h4>
+
+                    <div className="flex flex-col gap-4">
+                        <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-green-100 dark:border-green-900 rounded-2xl">
+                            <div>
+                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Ready for Scheduling</p>
+                                <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">{workloadStatus.approved}</p>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Approved Allocations</p>
+                            </div>
+                            <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-20" />
+                        </div>
+
+                        <div className="flex justify-between items-center p-5 bg-white dark:bg-slate-800 border-2 border-yellow-100 dark:border-yellow-900 rounded-2xl">
+                            <div>
+                                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Pending Approval</p>
+                                <p className="text-3xl font-black text-yellow-600 dark:text-yellow-400 mt-1">{workloadStatus.pending}</p>
+                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Excluded from generation</p>
+                            </div>
+                            <ExclamationTriangleIcon className="w-10 h-10 text-yellow-500 opacity-20" />
+                        </div>
+                    </div>
+
+                    {!canProceedStep3 && <p className="text-center text-xs text-red-500 font-bold uppercase tracking-widest mt-2">No approved allocations found. Go to 'Registry' to approve requests.</p>}
+                    {workloadStatus.pending > 0 && <p className="text-center text-xs text-yellow-600 font-bold uppercase tracking-widest mt-2">Note: Only approved allocations will be scheduled.</p>}
+                </div>
+            )}
+
+            {step === 4 && (
+                <div className="space-y-8 animate-fade-in">
+                    <div className="text-center">
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Ready to Launch</h4>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Select your engine and start the generation process.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={() => setStep(step + 1)}
-                            disabled={
-                                (step === 1 && !canProceedStep1) ||
-                                (step === 2 && !canProceedStep2) ||
-                                (step === 3 && !canProceedStep3)
-                            }
-                            className="btn-primary h-12 px-8 flex items-center gap-2 uppercase text-xs font-black tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => setMode('ai')}
+                            className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
                         >
-                            Next Step <ChevronRightIcon className="w-4 h-4" />
+                            <SparklesIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'ai' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                            <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine</h5>
+                            <p className="text-[10px] text-slate-400 mt-1">Best for complex, constraint-heavy schedules. Optimizes for conflict resolution.</p>
                         </button>
-                    ) : (
+
                         <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating}
-                            className="btn-primary h-12 px-10 flex items-center gap-2 uppercase text-xs font-black tracking-widest bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 disabled:opacity-70"
+                            onClick={() => setMode('standard')}
+                            className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'standard' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
                         >
-                            {isGenerating ? 'Processing...' : 'Run Generator'}
+                            <CommandLineIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'standard' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                            <h5 className={`font-bold ${mode === 'standard' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>Standard Algorithm</h5>
+                            <p className="text-[10px] text-slate-400 mt-1">Faster, deterministic generation. Best for simple, linear schedules.</p>
                         </button>
+                    </div>
+
+                    {error && (
+                        <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
+                            {error}
+                        </div>
+                    )}
+
+                    {isGenerating && (
+                        <div className="flex flex-col items-center justify-center py-4 animate-pulse">
+                            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                            <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Processing Logic Matrix...</p>
+                        </div>
                     )}
                 </div>
             )}
-        </div>
-    );
 
-    if (isInline) {
-        return content;
+            {step === 5 && (
+                <div className="text-center py-8 animate-scale-in">
+                    <div className="w-24 h-24 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-[3rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-green-100 dark:shadow-none">
+                        <CheckCircleIcon className="w-12 h-12" />
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">Generation Complete</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">Successfully scheduled <span className="text-indigo-600 font-bold">{generatedCount}</span> lesson entries.</p>
+                    {onClose && (
+                        <button onClick={onClose} className="btn-primary h-14 px-12 uppercase tracking-widest text-xs shadow-indigo-100">View Master Timetable</button>
+                    )}
+                </div>
+            )}
+
+        </div>
+
+            {/* Footer Controls */ }
+    {
+        step < 5 && (
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between">
+                <button
+                    onClick={() => setStep(Math.max(1, step - 1))}
+                    disabled={step === 1 || isGenerating}
+                    className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
+                >
+                    Back
+                </button>
+
+                {step < 4 ? (
+                    <button
+                        onClick={() => setStep(step + 1)}
+                        disabled={
+                            (step === 1 && !canProceedStep1) ||
+                            (step === 2 && !canProceedStep2) ||
+                            (step === 3 && !canProceedStep3)
+                        }
+                        className="btn-primary h-12 px-8 flex items-center gap-2 uppercase text-xs font-black tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Next Step <ChevronRightIcon className="w-4 h-4" />
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        className="btn-primary h-12 px-10 flex items-center gap-2 uppercase text-xs font-black tracking-widest bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 disabled:opacity-70"
+                    >
+                        {isGenerating ? 'Processing...' : 'Run Generator'}
+                    </button>
+                )}
+            </div>
+        )
     }
-
-    return (
-        <div className="fixed inset-0 bg-slate-900/95 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
-            {content}
-        </div>
+        </div >
     );
+
+if (isInline) {
+    return content;
+}
+
+return (
+    <div className="fixed inset-0 bg-slate-900/95 z-[300] flex items-center justify-center p-4 backdrop-blur-md">
+        {content}
+    </div>
+);
 };

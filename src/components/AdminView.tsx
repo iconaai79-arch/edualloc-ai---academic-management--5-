@@ -467,6 +467,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     courseSizes={courseSizes}
                                     timeOffRequests={props.timeOffRequests || []}
                                     onTimetableGenerated={props.onTimetableGenerated}
+                                    onNavigateToSettings={(tab) => {
+                                        if (tab === 'calendar') {
+                                            setTimetableSubTab('calendar');
+                                        } else {
+                                            setActiveTab('settings');
+                                            if (tab) setRequestedSettingsTab(tab);
+                                        }
+                                    }}
                                 />
                             ) : timetableSubTab === 'calendar' ? (
                                 <AcademicYearManager
