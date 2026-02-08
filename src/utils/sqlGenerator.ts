@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS institutions (
     timetable_settings JSONB,
     exam_timetable_settings JSONB,
     use_allocation_requests BOOLEAN DEFAULT TRUE,
-    schedule_profiles JSONB DEFAULT '[]'::jsonb
+    schedule_profiles JSONB DEFAULT '[]'::jsonb,
+    county_id TEXT REFERENCES counties(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS counties (

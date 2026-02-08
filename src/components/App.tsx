@@ -771,9 +771,9 @@ export const App: React.FC = () => {
 
             await loadData();
             alert(`Institution registered successfully!\n\nAdmin Credentials:\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\n(Account details have been sent to ${newAdmin.email})`);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to register institution:", error);
-            alert("Failed to register institution.");
+            alert(`Failed to register institution: ${error.message || 'Unknown error'}`);
         }
     }, [loadData, companyDetails]);
 
