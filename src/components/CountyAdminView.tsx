@@ -91,7 +91,22 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     );
 
     const myInstitutions = institutions.filter(i => i.countyId === myCounty?.id);
-    const myStaff = users.filter(u => u.institutionId === (myCounty?.id || '') && (u.role === 'county_admin' || u.role === 'county_staff'));
+    const myStaff = users.filter(u => u.institutionId === (myCounty?.id || '') && u.role.startsWith('county_'));
+
+    const formatRole = (role: string) => {
+        if (role === 'county_admin') return 'County Admin';
+        if (role === 'county_staff') return 'County Staff';
+        if (role === 'county_secretary') return 'Secretary';
+        if (role === 'county_driver') return 'Driver';
+        if (role === 'county_store_keeper') return 'Store Keeper';
+        if (role === 'county_teacher') return 'Teacher';
+        if (role === 'county_director') return 'Director';
+        if (role === 'county_co') return 'CO';
+        if (role === 'county_cec') return 'CEC';
+        if (role === 'county_deputy_governor') return 'Deputy Governor';
+        if (role === 'county_governor') return 'Governor';
+        return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
 
     const [showStaffModal, setShowStaffModal] = useState(false);
     const [editingStaff, setEditingStaff] = useState<User | null>(null);
@@ -597,7 +612,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     <div className="flex flex-col">
                                                         <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${staff.role === 'county_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
                                                             }`}>
-                                                            {staff.role.replace('_', ' ')}
+                                                            {formatRole(staff.role)}
                                                         </span>
                                                         <span className="text-[10px] font-mono text-slate-400 mt-1">{staff.staffId || 'No ID'}</span>
                                                     </div>
@@ -1159,6 +1174,15 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             >
                                                 <option value="county_staff">County Staff</option>
                                                 <option value="county_admin">County Admin</option>
+                                                <option value="county_secretary">Secretary</option>
+                                                <option value="county_driver">Driver</option>
+                                                <option value="county_store_keeper">Store Keeper</option>
+                                                <option value="county_teacher">Teacher</option>
+                                                <option value="county_director">Director</option>
+                                                <option value="county_co">CO</option>
+                                                <option value="county_cec">CEC</option>
+                                                <option value="county_deputy_governor">Deputy Governor</option>
+                                                <option value="county_governor">Governor</option>
                                             </select>
                                         </div>
                                         <div className="group">
