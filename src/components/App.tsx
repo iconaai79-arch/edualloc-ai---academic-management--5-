@@ -1371,7 +1371,7 @@ export const App: React.FC = () => {
                                 onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
                                 onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                 onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
-                                onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
+                                onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
                                 onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                 onDirectAssign={handleDirectAssign}
                                 onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
@@ -1387,8 +1387,8 @@ export const App: React.FC = () => {
                                 onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
                                 onSaveSmsConfig={() => { }}
-                                onUpdateRequest={(id, data) => apiService.saveModuleRecord('allocation_requests', { id, ...data })}
-                                onWithdrawRequest={(id) => apiService.deleteModuleRecord('allocation_requests', id)}
+                                onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
+                                onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}
                                 onAddUnavailability={() => { }}
                                 onUpdateUnavailability={() => { }}
                                 onDeleteUnavailability={() => { }}
