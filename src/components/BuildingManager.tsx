@@ -116,6 +116,103 @@ const RoomQrCodeModal: React.FC<{
     );
 };
 
+const BulkRoomQrPrintModal: React.FC<{
+    rooms: Room[];
+    buildings: Building[];
+    institutionName: string;
+    onClose: () => void;
+}> = ({ rooms, buildings, institutionName, onClose }) => {
+    const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const generateAll = async () => {
+            const QRCodeLib = (window as any).QRCode || (window as any).QRCodeLib;
+            if (!QRCodeLib) return;
+
+            const results: Record<string, string> = {};
+            for (const room of rooms) {
+                const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
+                const data = JSON.stringify({ roomId: room.id, roomName: room.name, building: bldg });
+                try {
+                    const url = await new Promise<string>((resolve, reject) => {
+                        QRCodeLib.toDataURL(data, { width: 180, margin: 1 }, (err: any, url: string) => {
+                            if (err) reject(err);
+                            else resolve(url);
+                        });
+                    });
+                    results[room.id] = url;
+                } catch (e) {
+                    console.error("Bulk QR Error:", e);
+                }
+            }
+            setQrCodes(results);
+            setLoading(false);
+        };
+        generateAll();
+    }, [rooms, buildings]);
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 overflow-y-auto no-print">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col my-8 shadow-indigo-500/10">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-800 rounded-t-2xl z-10">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">Bulk QR Print</h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{rooms.length} Rooms Selected</p>
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="btn-secondary">Cancel</button>
+                        <button onClick={() => window.print()} className="btn-primary flex items-center gap-2" disabled={loading}>
+                            <PrinterIcon className="w-5 h-5" />
+                            Print All
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-8">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
+                            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                            <h4 className="text-lg font-bold">Generating Batch...</h4>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {rooms.map(room => {
+                                const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown';
+                                return (
+                                    <div key={room.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl flex flex-col items-center text-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                        <img src={qrCodes[room.id]} alt={room.name} className="w-32 h-32 bg-white" />
+                                        <div className="mt-2">
+                                            <p className="text-sm font-bold truncate w-full">{room.name}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase font-black">{bldg}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="print-only hidden">
+                <div className="qr-bulk-grid">
+                    {rooms.map(room => (
+                        <div key={room.id} className="qr-print-card">
+                            <h2 className="text-xl font-bold mb-2">{institutionName}</h2>
+                            <img src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4 shadow-sm" />
+                            <h3 className="text-2xl font-black">{room.name}</h3>
+                            <p className="text-lg text-slate-600 uppercase font-bold">
+                                {buildings.find(b => b.id === room.buildingId)?.name || 'Unknown'}
+                            </p>
+                            <p className="text-sm text-slate-400 mt-2">Facility Access QR - {new Date().toLocaleDateString()}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AddRoomForm: React.FC<{
     buildings: Building[];
     courses: Course[];
@@ -337,6 +434,7 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
     const [qrRoom, setQrRoom] = useState<Room | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [isSmartImporting, setIsSmartImporting] = useState(false);
+    const [isBulkQrPrinting, setIsBulkQrPrinting] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const buildingLabel = isSchool ? 'Block' : 'Building';
@@ -532,6 +630,10 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                     Smart Import
                                 </button>
                             )}
+                            <button onClick={() => setIsBulkQrPrinting(true)} className="btn-secondary h-11 flex items-center gap-2 px-6 border-slate-200 hover:border-slate-300 transition-all">
+                                <PrinterIcon className="w-5 h-5" />
+                                Bulk Print QR
+                            </button>
                             {onAddRoom && (
                                 <button onClick={() => setIsAddingRoom(!isAddingRoom)} className="btn-primary h-11 flex items-center gap-2 px-8 shadow-lg shadow-indigo-100">
                                     {isAddingRoom ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
@@ -647,6 +749,15 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                     }}
                     aiModelTier={currentInstitution?.aiModelTier}
                     currentInstitution={currentInstitution}
+                />
+            )}
+
+            {isBulkQrPrinting && (
+                <BulkRoomQrPrintModal
+                    rooms={safeRooms}
+                    buildings={safeBuildings}
+                    institutionName={currentInstitution?.name || 'Academic Institution'}
+                    onClose={() => setIsBulkQrPrinting(false)}
                 />
             )}
         </div>
