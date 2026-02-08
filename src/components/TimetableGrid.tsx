@@ -32,7 +32,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
     isEditable = false,
 }) => {
     const daysOfWeek = useMemo(() => daysToShow || timetableSettings.operatingDays, [daysToShow, timetableSettings]);
-    
+
     // `periodHeaders` define the main column structure
     const periodHeaders = useMemo(() => {
         return generatePeriodLabels(timetableSettings);
@@ -40,7 +40,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
     // `displaySlots` are the actual time slots used for the <td> elements
     const displaySlots = useMemo(() => generateDisplaySlots(timetableSettings), [timetableSettings]);
-    const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60; 
+    const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
 
@@ -98,7 +98,7 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
                     {daysOfWeek.map(day => {
                         const rowCells: React.ReactNode[] = [];
-                        const rowOccupiedSlots = new Set<number>(); 
+                        const rowOccupiedSlots = new Set<number>();
 
                         for (let i = 0; i < displaySlots.length; i++) {
                             const slot = displaySlots[i];
@@ -108,24 +108,30 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                 continue;
                             }
 
-                            const entriesStartingInSlot = entries.filter(entry => 
-                                entry.day === day && 
+                            const entriesStartingInSlot = entries.filter(entry =>
+                                entry.day === day &&
                                 timeToMinutes(entry.startTime) === slotStartMinutes
                             );
 
                             if (entriesStartingInSlot.length > 0) {
-                                const entry = entriesStartingInSlot[0]; 
+                                const entry = entriesStartingInSlot[0];
                                 const subject = getSubjectById(entry.subjectId);
                                 const lecturer = getLecturerById(entry.lecturerId);
                                 const room = getRoomById(entry.roomId);
 
                                 if (!subject || !lecturer || !room) continue;
 
-                                const entryDurationMinutes = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                const colSpan = Math.round(entryDurationMinutes / cellSpanMinutes);
+                                const entryEndMinutes = timeToMinutes(entry.endTime);
+                                let colSpan = 1;
 
-                                for(let k = 0; k < colSpan; k++) {
-                                    rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                                for (let j = i + 1; j < displaySlots.length; j++) {
+                                    const nextSlotStart = timeToMinutes(displaySlots[j].start);
+                                    if (nextSlotStart < entryEndMinutes) {
+                                        colSpan++;
+                                        rowOccupiedSlots.add(nextSlotStart);
+                                    } else {
+                                        break;
+                                    }
                                 }
 
                                 const bgColor = generatePastelColor(subject.id);
@@ -146,8 +152,8 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                             onDragStart={(e) => handleDragStart(e, entry)}
                                             onDragEnd={handleDragEnd}
                                             className={`h-full flex flex-col rounded-lg shadow-sm hover:shadow-md transition-all border-l-[6px] overflow-hidden ${isEditable ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5' : ''}`}
-                                            style={{ 
-                                                backgroundColor: bgColor, 
+                                            style={{
+                                                backgroundColor: bgColor,
                                                 color: textColor,
                                                 borderLeftColor: borderColor,
                                                 opacity: draggedEntryId === entry.id ? 0.5 : 1
@@ -159,16 +165,16 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                                     <ExclamationTriangleIcon className="w-4 h-4 text-white" />
                                                 </div>
                                             )}
-                                            
+
                                             <div className="p-2 flex flex-col h-full justify-between">
                                                 <div className="space-y-1">
-                                                     <div className="flex justify-between items-start gap-1">
+                                                    <div className="flex justify-between items-start gap-1">
                                                         <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 leading-tight">{subject.code}</span>
                                                         <span className="text-[9px] font-mono bg-black/10 px-1.5 py-0.5 rounded text-slate-800 font-semibold">{room.shortName || room.name}</span>
-                                                     </div>
+                                                    </div>
                                                     <p className="font-bold text-xs leading-snug line-clamp-2 text-slate-900">{subject.name}</p>
                                                 </div>
-                                                
+
                                                 <div className="mt-2 pt-1 border-t border-black/10 flex flex-col gap-0.5">
                                                     <p className="text-[10px] font-medium text-slate-700 truncate flex items-center gap-1">
                                                         <span className="w-4 h-4 bg-slate-200 rounded-full flex items-center justify-center text-[8px] font-bold text-slate-600">{getInitials(lecturer.name)}</span>
@@ -185,17 +191,25 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                     </td>
                                 );
 
-                                i += colSpan - 1; 
+                                i += colSpan - 1;
                             } else {
                                 const breakHere = timetableSettings.breaks.find(b => b.status !== 'inactive' && timeToMinutes(b.startTime) < timeToMinutes(slot.end) && timeToMinutes(b.endTime) > timeToMinutes(slot.start));
 
                                 if (breakHere && timeToMinutes(breakHere.startTime) === slotStartMinutes) {
-                                    const breakDuration = timeToMinutes(breakHere.endTime) - timeToMinutes(breakHere.startTime);
-                                    const colSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
+                                    const breakEndMinutes = timeToMinutes(breakHere.endTime);
+                                    let colSpan = 1;
 
-                                    for (let k = 0; k < colSpan; k++) {
-                                        rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
-                                    }
+                                    // Breaks usually interrupt slots, but if we are here, we are filling empty space.
+                                    // Simple logic: if break is longer than cellSpan, try to span? 
+                                    // But breaks are usually not in displaySlots. 
+                                    // If we are strictly Period-based, this break logic might be legacy or for "Grid" mode only.
+                                    // Let's keep a simplified duration-based fallback for breaks if they aren't in displaySlots structure.
+                                    const breakDuration = timeToMinutes(breakHere.endTime) - timeToMinutes(breakHere.startTime);
+                                    colSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
+
+                                    // Occupy future slots? Breaks are usually gaps. 
+                                    // If break covers multiple displaySlots (unlikely if filteredOut), we'd need loop.
+                                    // For now, keep simple duration calc for breaks as they are "interstitials".
                                     rowCells.push(
                                         <td key={`break-${day}-${breakHere.id}`} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 align-top bg-slate-50/50 dark:bg-slate-700/30">
                                             <div className="h-full flex items-center justify-center rounded-sm">
@@ -208,9 +222,9 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                     i += colSpan - 1;
                                 } else if (!rowOccupiedSlots.has(slotStartMinutes)) {
                                     rowCells.push(
-                                        <td 
-                                            key={`${day}-${slot.start}`} 
-                                            className="p-1 border border-slate-200 dark:border-slate-600 align-top hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" 
+                                        <td
+                                            key={`${day}-${slot.start}`}
+                                            className="p-1 border border-slate-200 dark:border-slate-600 align-top hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                                             style={{ minWidth: '64px' }}
                                             onDragOver={handleDragOver}
                                             onDrop={(e) => handleDrop(e, day, slot.start)}

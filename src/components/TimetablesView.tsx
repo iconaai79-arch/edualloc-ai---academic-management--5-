@@ -317,8 +317,20 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                                     if (entry) {
                                                         const subject = (subjects || []).find(s => s && s.id === entry.subjectId);
                                                         const lecturer = (lecturers || []).find(l => l && l.id === entry.lecturerId);
-                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+                                                        const startIdx = periodHeaders.findIndex(p => timeToMinutes(p.startTime) === timeToMinutes(entry.startTime));
+                                                        let colSpan = 1;
+
+                                                        if (startIdx !== -1) {
+                                                            const entryEnd = timeToMinutes(entry.endTime);
+                                                            for (let k = startIdx + 1; k < periodHeaders.length; k++) {
+                                                                if (periodHeaders[k] && timeToMinutes(periodHeaders[k].startTime) < entryEnd) {
+                                                                    colSpan++;
+                                                                } else {
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+
                                                         for (let k = 0; k < colSpan; k++) if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
 
                                                         return (
