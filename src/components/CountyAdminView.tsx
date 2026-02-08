@@ -200,6 +200,12 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         }
     };
     useEffect(() => {
+        if (currentUser.role === 'county_store_keeper') {
+            setActiveTab('inventory');
+        }
+    }, [currentUser.role]);
+
+    useEffect(() => {
         if (myCounty?.logoUrl) setLogoPreview(myCounty.logoUrl);
         if (myCounty?.letterheadUrl) setLetterheadPreview(myCounty.letterheadUrl);
     }, [myCounty]);
@@ -349,19 +355,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             {myInstitutions.length}
                         </span>
                     </button>
-                    <button
-                        onClick={() => setActiveTab('staff')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'staff'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
-                            }`}
-                    >
-                        <UserGroupIcon className="w-5 h-5" />
-                        County Staff
-                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
-                            {myStaff.length}
-                        </span>
-                    </button>
+                    {currentUser.role !== 'county_store_keeper' && (
+                        <button
+                            onClick={() => setActiveTab('staff')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'staff'
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                        >
+                            <UserGroupIcon className="w-5 h-5" />
+                            County Staff
+                            <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                                {myStaff.length}
+                            </span>
+                        </button>
+                    )}
                     <button
                         onClick={() => setActiveTab('inventory')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'inventory'
@@ -375,16 +383,18 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             {inventoryItems.length}
                         </span>
                     </button>
-                    <button
-                        onClick={() => setActiveTab('settings')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
-                            }`}
-                    >
-                        <Cog8ToothIcon className="w-5 h-5" />
-                        Settings
-                    </button>
+                    {currentUser.role !== 'county_store_keeper' && (
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings'
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                        >
+                            <Cog8ToothIcon className="w-5 h-5" />
+                            Settings
+                        </button>
+                    )}
                 </nav>
 
                 <div className="pt-6 border-t border-slate-800">
