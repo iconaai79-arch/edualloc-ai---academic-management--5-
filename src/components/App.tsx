@@ -394,8 +394,11 @@ export const App: React.FC = () => {
     };
 
     const handleUpdateDepartment = async (id: string, name: string) => {
-        await apiService.saveModuleRecord('departments', { id, name });
-        loadData();
+        const existing = departments.find(d => d.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('departments', { ...existing, name, id });
+            loadData();
+        }
     };
 
     const handleDeleteDepartment = async (id: string) => {
@@ -417,8 +420,11 @@ export const App: React.FC = () => {
     };
 
     const handleUpdateBuilding = async (id: string, data: any) => {
-        await apiService.saveModuleRecord('buildings', { id, ...data });
-        loadData();
+        const existing = buildings.find(b => b.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('buildings', { ...existing, ...data, id });
+            loadData();
+        }
     };
 
     const handleDeleteBuilding = async (id: string) => {
@@ -433,8 +439,11 @@ export const App: React.FC = () => {
     };
 
     const handleUpdateRoom = async (id: string, data: any) => {
-        await apiService.saveModuleRecord('rooms', { id, ...data });
-        loadData();
+        const existing = rooms.find(r => r.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('rooms', { ...existing, ...data, id });
+            loadData();
+        }
     };
 
     const handleDeleteRoom = async (id: string) => {
@@ -455,8 +464,11 @@ export const App: React.FC = () => {
     };
 
     const handleUpdateAcademicLevel = async (id: string, name: string) => {
-        await apiService.saveModuleRecord('academic_levels', { id, name });
-        loadData();
+        const existing = academicLevels.find(l => l.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('academic_levels', { ...existing, name, id });
+            loadData();
+        }
     };
 
     const handleDeleteAcademicLevel = async (id: string) => {
@@ -467,8 +479,11 @@ export const App: React.FC = () => {
     // --- Academic Handlers ---
 
     const handleUpdateSubject = async (id: string, data: any) => {
-        await apiService.saveSubject({ ...data, id });
-        loadData();
+        const existing = subjects.find(s => s.id === id);
+        if (existing) {
+            await apiService.saveSubject({ ...existing, ...data, id });
+            loadData();
+        }
     };
 
     const handleDeleteSubject = async (id: string) => {
@@ -504,8 +519,11 @@ export const App: React.FC = () => {
     };
 
     const handleUpdateCourse = async (id: string, data: any) => {
-        await apiService.saveModuleRecord('courses', { id, ...data });
-        loadData();
+        const existing = courses.find(c => c.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('courses', { ...existing, ...data, id });
+            loadData();
+        }
     };
 
     const handleDeleteCourse = async (id: string) => {
@@ -537,8 +555,11 @@ export const App: React.FC = () => {
     };
 
     const onEditUser = async (id: string, data: any) => {
-        await apiService.saveModuleRecord('users', { id, ...data });
-        loadData();
+        const existing = users.find(u => u.id === id);
+        if (existing) {
+            await apiService.saveModuleRecord('users', { ...existing, ...data, id });
+            loadData();
+        }
     };
 
     const onDeleteInstitution = async (id: string) => {
