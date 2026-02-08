@@ -87,58 +87,71 @@ const RoomQrCodeModal: React.FC<{
     }, [room, buildingName]);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div id="printable-qr-code" className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-sm flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center no-print">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Room QR Code</h3>
-                    <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><XIcon className="w-6 h-6" /></button>
-                </div>
+        <>
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 no-print" onClick={onClose}>
+                <div id="printable-qr-code" className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-sm flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center no-print">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Room QR Preview</h3>
+                        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><XIcon className="w-6 h-6" /></button>
+                    </div>
 
-                <div className="p-6 flex flex-col items-center gap-4">
-                    <h3 className="text-2xl font-bold hidden print:block print:text-black">{institutionName}</h3>
-                    {error ? (
-                        <div className="w-64 h-64 bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-center p-4 rounded-md">
-                            <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                    <div className="p-6 flex flex-col items-center gap-4">
+                        {error ? (
+                            <div className="w-64 h-64 bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-center p-4 rounded-md">
+                                <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                            </div>
+                        ) : qrCodeUrl ? (
+                            <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-64 h-64 bg-white shadow-sm rounded-lg" />
+                        ) : (
+                            <div className="w-64 h-64 bg-slate-200 animate-pulse rounded-md flex items-center justify-center text-slate-500 text-xs text-center p-4">
+                                Loading QR Library...
+                            </div>
+                        )}
+                        <div className="text-center">
+                            <h4 className="text-xl font-bold text-slate-800 dark:text-slate-100">{buildingName} - {room.name}</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Scan for room information & check-in</p>
                         </div>
-                    ) : qrCodeUrl ?
-                        <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-64 h-64 bg-white" />
-                        : <div className="w-64 h-64 bg-slate-200 animate-pulse rounded-md flex items-center justify-center text-slate-500 text-xs">Loading QR Library...</div>
-                    }
-                    <div className="text-center">
-                        <h4 className="text-xl font-semibold text-slate-800 dark:text-slate-100 print:text-black">{buildingName} - {room.name}</h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 print:text-black">Scan for room information & check-in</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 flex flex-row-reverse gap-2 rounded-b-lg no-print">
+                        <button onClick={() => window.print()} className="btn-primary" disabled={!!error || !qrCodeUrl}>Print</button>
+                        <button
+                            onClick={() => {
+                                const lib = (window as any).jspdf || (window as any).jsPDF;
+                                if (!lib) {
+                                    alert("PDF library not loaded. Please refresh.");
+                                    return;
+                                }
+                                const jsPDFClass = lib.jsPDF || lib;
+                                const doc = new jsPDFClass();
+                                doc.setFontSize(18);
+                                doc.text(institutionName, 105, 20, { align: 'center' });
+                                doc.addImage(qrCodeUrl, 'PNG', 55, 30, 100, 100);
+                                doc.setFontSize(16);
+                                doc.text(`${buildingName} - ${room.name}`, 105, 140, { align: 'center' });
+                                doc.setFontSize(10);
+                                doc.text("Scan for room information & check-in", 105, 150, { align: 'center' });
+                                doc.save(`${room.name.replace(/\s+/g, '_')}_QR.pdf`);
+                            }}
+                            className="btn-secondary flex items-center gap-2"
+                            disabled={!!error || !qrCodeUrl}
+                        >
+                            <DocumentArrowDownIcon className="w-5 h-5 text-slate-600" />
+                            Download PDF
+                        </button>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 flex flex-row-reverse gap-2 no-print">
-                    <button onClick={() => window.print()} className="btn-primary" disabled={!!error || !qrCodeUrl}>Print</button>
-                    <button
-                        onClick={() => {
-                            const lib = (window as any).jspdf || (window as any).jsPDF;
-                            if (!lib) {
-                                alert("PDF library not loaded. Please refresh.");
-                                return;
-                            }
-                            const jsPDFClass = lib.jsPDF || lib;
-                            const doc = new jsPDFClass();
+            </div>
 
-                            doc.setFontSize(18);
-                            doc.text(institutionName, 105, 20, { align: 'center' });
-                            doc.addImage(qrCodeUrl, 'PNG', 55, 30, 100, 100);
-                            doc.setFontSize(16);
-                            doc.text(`${buildingName} - ${room.name}`, 105, 140, { align: 'center' });
-                            doc.setFontSize(10);
-                            doc.text("Scan for room information & check-in", 105, 150, { align: 'center' });
-                            doc.save(`${room.name.replace(/\s+/g, '_')}_QR.pdf`);
-                        }}
-                        className="btn-secondary flex items-center gap-2"
-                        disabled={!!error || !qrCodeUrl}
-                    >
-                        <DocumentArrowDownIcon className="w-5 h-5" />
-                        Download PDF
-                    </button>
+            <div className="print-only hidden">
+                <div className="flex flex-col items-center justify-center min-h-screen text-center p-8 bg-white">
+                    <h2 className="text-3xl font-bold mb-8 text-black">{institutionName}</h2>
+                    {qrCodeUrl && <img src={qrCodeUrl} alt={`QR Code for ${room.name}`} className="w-80 h-80 bg-white mb-8 border border-slate-100" />}
+                    <h3 className="text-4xl font-black text-black">{room.name}</h3>
+                    <p className="text-xl text-slate-600 uppercase font-bold mt-2">{buildingName}</p>
+                    <p className="text-sm text-slate-400 mt-6 pt-10 border-t border-slate-100 w-full max-w-md">Facility Access QR • {new Date().toLocaleDateString()}</p>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 
@@ -179,100 +192,97 @@ const BulkRoomQrPrintModal: React.FC<{
     }, [rooms, buildings]);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 overflow-y-auto no-print">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col my-8 shadow-indigo-500/10">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-800 rounded-t-2xl z-10">
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight">Bulk QR Print</h3>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{rooms.length} Rooms Selected</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="btn-secondary">Cancel</button>
-                        <button
-                            onClick={async () => {
-                                const lib = (window as any).jspdf || (window as any).jsPDF;
-                                if (!lib) {
-                                    alert("PDF library not loaded. Please refresh.");
-                                    return;
-                                }
-                                const jsPDFClass = lib.jsPDF || lib;
-                                const doc = new jsPDFClass();
-
-                                rooms.forEach((room, index) => {
-                                    if (index > 0) doc.addPage();
-                                    const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
-                                    const qr = qrCodes[room.id];
-                                    if (qr) {
-                                        doc.setFontSize(22);
-                                        doc.setTextColor(79, 70, 229); // Indigo color
-                                        doc.text(institutionName, 105, 30, { align: 'center' });
-
-                                        doc.setDrawColor(200, 200, 200);
-                                        doc.line(20, 40, 190, 40);
-
-                                        doc.addImage(qr, 'PNG', 55, 60, 100, 100);
-
-                                        doc.setTextColor(0, 0, 0);
-                                        doc.setFontSize(24);
-                                        doc.setFont('helvetica', 'bold');
-                                        doc.text(room.name, 105, 180, { align: 'center' });
-
-                                        doc.setFontSize(14);
-                                        doc.setFont('helvetica', 'normal');
-                                        doc.text(bldg, 105, 195, { align: 'center' });
-
-                                        doc.setFontSize(10);
-                                        doc.setTextColor(150, 150, 150);
-                                        doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 270, { align: 'center' });
+        <>
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto no-print">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col my-8">
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-800 rounded-t-2xl z-10">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Bulk QR Print Preview</h3>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{rooms.length} Rooms Selected</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={onClose} className="btn-secondary">Cancel</button>
+                            <button
+                                onClick={async () => {
+                                    const lib = (window as any).jspdf || (window as any).jsPDF;
+                                    if (!lib) {
+                                        alert("PDF library not loaded. Please refresh.");
+                                        return;
                                     }
-                                });
-                                doc.save(`Bulk_Room_QRs_${new Date().toISOString().split('T')[0]}.pdf`);
-                            }}
-                            className="btn-secondary flex items-center gap-2"
-                            disabled={loading}
-                        >
-                            <DocumentArrowDownIcon className="w-5 h-5 text-indigo-600" />
-                            Download PDF (Bulk)
-                        </button>
-                        <button onClick={() => window.print()} className="btn-primary flex items-center gap-2" disabled={loading}>
-                            <PrinterIcon className="w-5 h-5" />
-                            Print All
-                        </button>
-                    </div>
-                </div>
+                                    const jsPDFClass = lib.jsPDF || lib;
+                                    const doc = new jsPDFClass();
 
-                <div className="p-8">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
-                            <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-                            <h4 className="text-lg font-bold">Generating Batch...</h4>
+                                    rooms.forEach((room, index) => {
+                                        if (index > 0) doc.addPage();
+                                        const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
+                                        const qr = qrCodes[room.id];
+                                        if (qr) {
+                                            doc.setFontSize(22);
+                                            doc.setTextColor(79, 70, 229);
+                                            doc.text(institutionName, 105, 30, { align: 'center' });
+                                            doc.setDrawColor(200, 200, 200);
+                                            doc.line(20, 40, 190, 40);
+                                            doc.addImage(qr, 'PNG', 55, 60, 100, 100);
+                                            doc.setTextColor(0, 0, 0);
+                                            doc.setFontSize(24);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.text(room.name, 105, 180, { align: 'center' });
+                                            doc.setFontSize(14);
+                                            doc.setFont('helvetica', 'normal');
+                                            doc.text(bldg, 105, 195, { align: 'center' });
+                                            doc.setFontSize(10);
+                                            doc.setTextColor(150, 150, 150);
+                                            doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 270, { align: 'center' });
+                                        }
+                                    });
+                                    doc.save(`Bulk_Room_QRs_${new Date().toISOString().split('T')[0]}.pdf`);
+                                }}
+                                className="btn-secondary flex items-center gap-2"
+                                disabled={loading}
+                            >
+                                <DocumentArrowDownIcon className="w-5 h-5 text-indigo-600" />
+                                Download PDF
+                            </button>
+                            <button onClick={() => window.print()} className="btn-primary flex items-center gap-2" disabled={loading}>
+                                <PrinterIcon className="w-5 h-5" />
+                                Print All
+                            </button>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                            {rooms.map(room => {
-                                const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown';
-                                return (
-                                    <div key={room.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl flex flex-col items-center text-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                                        <img src={qrCodes[room.id]} alt={room.name} className="w-32 h-32 bg-white" />
-                                        <div className="mt-2">
-                                            <p className="text-sm font-bold truncate w-full">{room.name}</p>
-                                            <p className="text-[10px] text-slate-500 uppercase font-black">{bldg}</p>
+                    </div>
+
+                    <div className="p-8">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
+                                <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                                <h4 className="text-lg font-bold">Generating Batch...</h4>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {rooms.map(room => {
+                                    const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown';
+                                    return (
+                                        <div key={room.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl flex flex-col items-center text-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                            {qrCodes[room.id] && <img src={qrCodes[room.id]} alt={room.name} className="w-32 h-32 bg-white rounded-lg shadow-sm" />}
+                                            <div className="mt-2 text-slate-900 dark:text-white">
+                                                <p className="text-sm font-bold truncate w-full">{room.name}</p>
+                                                <p className="text-[10px] text-slate-500 uppercase font-black">{bldg}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             <div className="print-only hidden">
                 <div className="qr-bulk-grid">
                     {rooms.map(room => (
-                        <div key={room.id} className="qr-print-card">
-                            <h2 className="text-xl font-bold mb-2">{institutionName}</h2>
-                            <img src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4 shadow-sm" />
-                            <h3 className="text-2xl font-black">{room.name}</h3>
+                        <div key={room.id} className="qr-print-card bg-white">
+                            <h2 className="text-xl font-bold mb-2 text-black">{institutionName}</h2>
+                            {qrCodes[room.id] && <img src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4" />}
+                            <h3 className="text-2xl font-black text-black">{room.name}</h3>
                             <p className="text-lg text-slate-600 uppercase font-bold">
                                 {buildings.find(b => b.id === room.buildingId)?.name || 'Unknown'}
                             </p>
@@ -281,7 +291,7 @@ const BulkRoomQrPrintModal: React.FC<{
                     ))}
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 
