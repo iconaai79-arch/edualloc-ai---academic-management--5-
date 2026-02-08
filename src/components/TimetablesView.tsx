@@ -136,8 +136,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
     const filteredEntries = useMemo(() => {
         const list = Array.isArray(generatedTimetable) ? generatedTimetable : [];
-        if (viewMode === 'lecturer_schedule' && selectedLecturerId) {
-            return list.filter(e => e && e.lecturerId === selectedLecturerId);
+        if (viewMode === 'lecturer_schedule') {
+            return selectedLecturerId ? list.filter(e => e && e.lecturerId === selectedLecturerId) : [];
         }
         return list;
     }, [generatedTimetable, viewMode, selectedLecturerId]);
@@ -220,6 +220,18 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             className="form-select text-[10px] font-black uppercase tracking-widest h-11 w-36"
                         >
                             {(timetableSettings?.operatingDays || []).map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                    )}
+                    {viewMode === 'lecturer_schedule' && (
+                        <select
+                            value={selectedLecturerId}
+                            onChange={e => setSelectedLecturerId(e.target.value)}
+                            className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
+                        >
+                            <option value="">Select {staffLabel}...</option>
+                            {filteredLecturers.map(l => (
+                                <option key={l.id} value={l.id}>{l.name}</option>
+                            ))}
                         </select>
                     )}
                     {viewMode === 'master_course' && (
