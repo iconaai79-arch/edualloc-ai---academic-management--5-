@@ -22,6 +22,7 @@ interface CountyAdminViewProps {
     onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
     onUpdateCounty?: (id: string, data: Partial<County>) => Promise<void>;
     onAddInstitution?: (data: any) => Promise<void>;
+    onLoginAsAdmin?: (institutionId: string) => void;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -32,7 +33,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onLogout,
     onUpdateInstitution,
     onUpdateCounty,
-    onAddInstitution
+    onAddInstitution,
+    onLoginAsAdmin
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
@@ -322,6 +324,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Type & Code</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Contact Details</th>
                                             <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -360,6 +363,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         }`}>
                                                         {inst.status}
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <button 
+                                                        onClick={() => onLoginAsAdmin && onLoginAsAdmin(inst.id)}
+                                                        className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                                                    >
+                                                        Enter Portal
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}

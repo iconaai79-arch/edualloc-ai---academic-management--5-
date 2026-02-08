@@ -1059,6 +1059,7 @@ export const App: React.FC = () => {
                                 onUpdateInstitution={onUpdateInstitution}
                                 onUpdateCounty={handleUpdateCounty}
                                 onAddInstitution={handleAddCountyInstitution}
+                                onLoginAsAdmin={onLoginAsAdmin}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
