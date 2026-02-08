@@ -125,6 +125,8 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         return (course?.levels || []);
     }, [selectedCourseId, courses]);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const handleAddAssociation = async () => {
         if (!selectedCourseId) {
             alert('Please select a grade/course first.');
@@ -134,44 +136,61 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         const course = (courses || []).find(c => c && c.id === selectedCourseId);
         if (!course) return;
 
-        let levelId = selectedLevelId;
+        setIsSubmitting(true);
+        try {
+            let levelId = selectedLevelId;
 
-        // Auto-initialize if no streams exist
-        if ((course.levels || []).length === 0) {
-            const defaultLevel: CourseLevel = {
-                id: `cl_${Date.now()}`,
-                name: 'Main Stream',
-                subjectIds: []
-            };
-            if (onUpdateCourse) {
-                await onUpdateCourse(course.id, { levels: [defaultLevel] });
-                levelId = defaultLevel.id;
-            } else {
-                alert('This grade has no streams configured. Please initialize a stream in the Registry first.');
+            // Auto-initialize if no streams exist
+            if ((course.levels || []).length === 0) {
+                const defaultLevel: CourseLevel = {
+                    id: `cl_${Date.now()}`,
+                    name: 'Main Stream',
+                    subjectIds: []
+                };
+                if (onUpdateCourse) {
+                    await onUpdateCourse(course.id, { levels: [defaultLevel] });
+                    levelId = defaultLevel.id;
+                } else {
+                    alert('This grade has no streams configured. Please initialize a stream in the Registry first.');
+                    return;
+                }
+            }
+
+            if (!levelId) {
+                levelId = (course.levels || [])[0]?.id || '';
+            }
+
+            if (!levelId) {
+                alert("No valid stream found.");
                 return;
             }
-        }
 
-        if (!levelId) {
-            levelId = (course.levels || [])[0]?.id || '';
-        }
-
-        if (!levelId) {
-            alert("No valid stream found.");
-            return;
-        }
-
-        if (isNew) {
-            if (!pendingLevelIds.includes(levelId)) {
-                setPendingLevelIds(prev => [...prev, levelId]);
+            if (isNew) {
+                if (!pendingLevelIds.includes(levelId)) {
+                    setPendingLevelIds(prev => [...prev, levelId]);
+                }
+            } else {
+                await onAssociateSubjectToCourseLevel(subject.id, levelId);
             }
-        } else {
-            onAssociateSubjectToCourseLevel(subject.id, levelId);
-        }
 
-        setSelectedCourseId('');
-        setSelectedLevelId('');
-        setCourseSearchQuery('');
+            // If we initialized a stream, we select it now (for the UI ref)
+            if (!selectedLevelId && levelId) {
+                setSelectedLevelId(levelId);
+            }
+
+        } catch (error: any) {
+            console.error("Association failed:", error);
+            alert(`Failed to link: ${error.message || "Unknown error"}`);
+        } finally {
+            setIsSubmitting(false);
+            if (!isNew && (course.levels || []).length > 0) {
+                // only clear if we are not in the middle of initializing
+                // Actually, if successful, we usually clear selection to allow adding another
+                setSelectedCourseId('');
+                setSelectedLevelId('');
+                setCourseSearchQuery('');
+            }
+        }
     };
 
     const handleRemoveAssociation = (levelId: string) => {
@@ -185,14 +204,22 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     const handleAddDefaultStream = async (courseId: string) => {
         const course = (courses || []).find(c => c && c.id === courseId);
         if (course && onUpdateCourse) {
-            const defaultLevel: CourseLevel = {
-                id: `cl_${Date.now()}`,
-                name: 'Main Stream',
-                subjectIds: []
-            };
-            await onUpdateCourse(courseId, { levels: [defaultLevel] });
-            setSelectedCourseId(courseId); // Refresh selection
-            setSelectedLevelId(defaultLevel.id);
+            setIsSubmitting(true);
+            try {
+                const defaultLevel: CourseLevel = {
+                    id: `cl_${Date.now()}`,
+                    name: 'Main Stream',
+                    subjectIds: []
+                };
+                await onUpdateCourse(courseId, { levels: [defaultLevel] });
+                setSelectedCourseId(courseId); // Refresh selection
+                setSelectedLevelId(defaultLevel.id);
+            } catch (error: any) {
+                console.error("Stream init failed:", error);
+                alert(`Failed to initialize stream: ${error.message}`);
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -353,7 +380,9 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                             <div className="flex flex-col">
                                                 <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">{isSchool ? 'Stream' : 'Level'}</label>
                                                 {selectedCourseId && levelsForSelectedCourse.length === 0 ? (
-                                                    <button type="button" onClick={() => handleAddDefaultStream(selectedCourseId)} className="flex-grow border-2 border-dashed border-indigo-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-indigo-50 transition-all flex items-center justify-center gap-2">+ Initialize Main Stream</button>
+                                                    <button type="button" onClick={() => handleAddDefaultStream(selectedCourseId)} disabled={isSubmitting} className="flex-grow border-2 border-dashed border-indigo-200 text-indigo-600 rounded-2xl text-[10px] font-black uppercase hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                                        {isSubmitting ? 'Initializing...' : '+ Initialize Main Stream'}
+                                                    </button>
                                                 ) : (
                                                     <select value={selectedLevelId} onChange={e => setSelectedLevelId(e.target.value)} className="form-select !py-2.5 !text-[11px] bg-white dark:bg-slate-900" disabled={!selectedCourseId}>
                                                         <option value="">-- Choose Variant --</option>
@@ -365,11 +394,11 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                         <button
                                             type="button"
                                             onClick={handleAddAssociation}
-                                            disabled={!selectedCourseId || (levelsForSelectedCourse.length > 0 && !selectedLevelId)}
+                                            disabled={!selectedCourseId || (levelsForSelectedCourse.length > 0 && !selectedLevelId) || isSubmitting}
                                             className="mt-6 w-full py-3.5 bg-indigo-600 border border-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
                                         >
                                             <PlusIcon className="w-4 h-4" />
-                                            {selectedCourseId && levelsForSelectedCourse.length === 0 ? 'Initialize & Link' : 'Establish Link'}
+                                            {isSubmitting ? 'Processing...' : (selectedCourseId && levelsForSelectedCourse.length === 0 ? 'Initialize & Link' : 'Establish Link')}
                                         </button>
                                     </div>
                                 </div>
