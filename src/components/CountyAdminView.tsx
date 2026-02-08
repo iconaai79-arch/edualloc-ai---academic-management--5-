@@ -7,7 +7,8 @@ import {
     ArrowRightOnRectangleIcon,
     AcademicCapIcon,
     Cog8ToothIcon,
-    SparklesIcon
+    SparklesIcon,
+    ArrowUpTrayIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -32,6 +33,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
+    const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead') => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (type === 'logo') setLogoPreview(reader.result as string);
+                else setLetterheadPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     // Logic to find the admin's county. 
     // We match by adminName (text field) or email.
@@ -284,9 +299,73 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 </div>
 
                                 <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">County Coat of Arms / Logo URL</label>
-                                        <input type="url" placeholder="https://example.com/logo.png" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-mono text-slate-600" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Logo Section */}
+                                        <div>
+                                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Logo / Coat of Arms</h4>
+                                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleFileUpload(e, 'logo')}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                />
+                                                {logoPreview ? (
+                                                    <div className="relative z-0 w-full">
+                                                        <img src={logoPreview} alt="Logo Preview" className="h-24 mx-auto object-contain mb-2" />
+                                                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Image Selected</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3 pointer-events-none">
+                                                        <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mx-auto group-hover:bg-indigo-100 transition-colors">
+                                                            <ArrowUpTrayIcon className="w-6 h-6" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-slate-700">Click to Upload Logo</p>
+                                                            <p className="text-[10px] text-slate-400">PNG, SVG or JPG (Max 2MB)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="mt-4">
+                                                <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Or use Image URL</label>
+                                                <input type="url" placeholder="https://example.com/logo.png" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-600" />
+                                            </div>
+                                        </div>
+
+                                        {/* Letterhead Section */}
+                                        <div>
+                                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Letterhead Header</h4>
+                                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => handleFileUpload(e, 'letterhead')}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                                />
+                                                {letterheadPreview ? (
+                                                    <div className="relative z-0 w-full">
+                                                        <img src={letterheadPreview} alt="Letterhead Preview" className="h-24 w-full object-cover rounded-lg mb-2 opacity-90" />
+                                                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Header Selected</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3 pointer-events-none">
+                                                        <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center mx-auto group-hover:bg-slate-100 transition-colors">
+                                                            <ArrowUpTrayIcon className="w-6 h-6" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-slate-700">Upload Header Graphic</p>
+                                                            <p className="text-[10px] text-slate-400">Full Width Banner (PNG/JPG)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="mt-4">
+                                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                                    This header image will appear on all official PDF reports generated by institutions within your county.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-6">
