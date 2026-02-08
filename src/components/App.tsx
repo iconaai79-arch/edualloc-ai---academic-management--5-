@@ -34,7 +34,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, Conflict, County
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -730,6 +730,44 @@ export const App: React.FC = () => {
         users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, registrationProgress: null, registrationMessage: "",
         onOpenGuestPortal: () => setShowGuestPortal(true), onOpenGuestFeedback: () => setShowGuestFeedback(true), themeColor: companyDetails.themeColor || "#4f46e5",
         onParentRequestOtp: () => ({ success: true, message: '' }), onParentVerifyOtp: () => ({ success: true, message: '' }), companyDetails: companyDetails,
+        onCountyRegister: async (data: CountyRegistrationData) => {
+            try {
+                const countyId = `county_${Date.now()}`;
+                const adminPassword = Math.random().toString(36).slice(-8);
+
+                const newCounty: County = {
+                    id: countyId,
+                    name: data.countyName,
+                    code: data.countyCode,
+                    email: data.countyEmail,
+                    phoneNumber: data.countyPhone,
+                    adminName: data.adminName,
+                    status: 'active',
+                    createdAt: new Date().toISOString()
+                };
+
+                const newAdmin: User = {
+                    id: `u_admin_${Date.now()}`,
+                    name: data.adminName,
+                    email: data.adminEmail,
+                    phoneNumber: data.countyPhone,
+                    institutionId: countyId,
+                    role: 'county_admin',
+                    password: adminPassword,
+                    expertise: ['Administration'],
+                    staffId: 'COUNTY_ADMIN'
+                };
+
+                await apiService.saveModuleRecord('counties', newCounty);
+                await apiService.saveUser(newAdmin);
+
+                await loadData(true);
+                return { success: true, message: 'County Portal registered successfully.', credentials: { email: newAdmin.email, password: adminPassword } };
+            } catch (error: any) {
+                console.error("County Registration Error:", error);
+                return { success: false, message: error.message || 'Failed to register county.' };
+            }
+        },
         onInstitutionRegister: async (data: InstitutionRegistrationData) => {
             try {
                 const instId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

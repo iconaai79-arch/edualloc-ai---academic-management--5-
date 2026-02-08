@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
-import type { User, Institution, InstitutionRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
-import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon } from './icons/index';
+import type { User, Institution, InstitutionRegistrationData, CountyRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
+import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon } from './icons/index';
 
 interface LoginViewProps {
     // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx
     onLogin: (email: string, password: string) => 'success' | 'expired' | 'failed' | 'suspended';
     onInstitutionRegister: (data: InstitutionRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
+    onCountyRegister: (data: CountyRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
     onStudentRegister: (data: StudentRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
     users: User[];
     institutions: Institution[];
@@ -25,7 +26,7 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
-    onLogin, onInstitutionRegister, logoUrl, applicationTitle,
+    onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, companyDetails
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent'>('login');
@@ -36,6 +37,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const [generatedCreds, setGeneratedCreds] = useState<{ email: string; password: string } | null>(null);
     const [isRegistering, setIsRegistering] = useState(false);
 
+    // New State for County Registration Toggle
+    const [regType, setRegType] = useState<'institution' | 'county'>('institution');
+
     const [regData, setRegData] = useState<InstitutionRegistrationData>({
         institutionName: '',
         institutionEmail: '',
@@ -44,6 +48,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
         adminName: '',
         adminEmail: '',
         loadDemoData: false,
+    });
+
+    const [countyRegData, setCountyRegData] = useState<CountyRegistrationData>({
+        countyName: '',
+        countyCode: '',
+        countyEmail: '',
+        countyPhone: '',
+        adminName: '',
+        adminEmail: ''
     });
 
     const handleLoginSubmit = (e: React.FormEvent) => {
@@ -75,15 +88,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
         setError('');
         setIsRegistering(true);
         try {
-            const result = await onInstitutionRegister(regData);
+            let result;
+            if (regType === 'institution') {
+                result = await onInstitutionRegister(regData);
+                if (result.success) {
+                    setGeneratedCreds(result.credentials || { email: regData.adminEmail, password: 'password123' });
+                }
+            } else {
+                result = await onCountyRegister(countyRegData);
+                if (result.success) {
+                    setGeneratedCreds(result.credentials || { email: countyRegData.adminEmail, password: 'password123' });
+                }
+            }
+
             if (result.success) {
-                setGeneratedCreds(result.credentials || { email: regData.adminEmail, password: 'password123' });
                 setView('reg_success');
             } else {
                 setError(result.message);
             }
         } catch (err: any) {
-            setError("Registration failed. Please verify connection to the central registry.");
+            // setError("Registration failed. Please verify connection to the central registry.");
+            setError(err.message || "Registration failed.");
         } finally {
             setIsRegistering(false);
         }
@@ -185,64 +210,116 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     <XIcon className="w-4 h-4" /> Cancel
                                 </button>
                             </div>
+                            <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl mb-6">
+                                <button type="button" onClick={() => setRegType('institution')} className={`flex-1 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${regType === 'institution' ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    <AcademicCapIcon className="w-4 h-4 inline mr-2" /> Institution
+                                </button>
+                                <button type="button" onClick={() => setRegType('county')} className={`flex-1 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${regType === 'county' ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    <BuildingOfficeIcon className="w-4 h-4 inline mr-2" /> County Govt
+                                </button>
+                            </div>
+
                             <form onSubmit={handleRegisterSubmit} className="space-y-5">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className={labelClasses}>Institution Name</label>
-                                        <input type="text" className={inputClasses} value={regData.institutionName} onChange={e => setRegData({ ...regData, institutionName: e.target.value })} placeholder="e.g. Global Tech University" required />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                {regType === 'institution' ? (
+                                    <div className="space-y-4">
                                         <div>
-                                            <label className={labelClasses}>Official Email</label>
-                                            <input type="email" className={inputClasses} value={regData.institutionEmail} onChange={e => setRegData({ ...regData, institutionEmail: e.target.value })} required />
+                                            <label className={labelClasses}>Institution Name</label>
+                                            <input type="text" className={inputClasses} value={regData.institutionName} onChange={e => setRegData({ ...regData, institutionName: e.target.value })} placeholder="e.g. Global Tech University" required={regType === 'institution'} />
                                         </div>
-                                        <div>
-                                            <label className={labelClasses}>Phone</label>
-                                            <input type="tel" className={inputClasses} value={regData.institutionPhone} onChange={e => setRegData({ ...regData, institutionPhone: e.target.value })} required />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className={labelClasses}>Institution Type</label>
-                                        <select className={inputClasses} value={regData.institutionType} onChange={e => setRegData({ ...regData, institutionType: e.target.value })}>
-                                            <option value="Primary">Primary School</option>
-                                            <option value="Secondary">Secondary School</option>
-                                            <option value="University">University</option>
-                                            <option value="College">College</option>
-                                            <option value="Institute">Institute</option>
-                                            <option value="Polytechnic">Polytechnic</option>
-                                        </select>
-                                    </div>
-                                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
-                                        <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
-                                            <SparklesIcon className="w-4 h-4" /> Demo Configuration
-                                        </h4>
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <div className="relative flex items-center justify-center">
-                                                <input type="checkbox" checked={regData.loadDemoData} onChange={e => setRegData({ ...regData, loadDemoData: e.target.checked })} className="peer h-5 w-5 rounded-lg border-2 border-indigo-200 dark:border-indigo-800 text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 appearance-none bg-white dark:bg-slate-800 transition-all checked:bg-indigo-600 checked:border-indigo-600" />
-                                                <CheckIcon className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Load Sample Demo Data</span>
-                                                <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Pre-populate all modules with dummy records for evaluation.</p>
-                                            </div>
-                                        </label>
-                                    </div>
-                                    <div className="pt-2">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-400 border-b pb-1 mb-3">Primary Administrator</h4>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className={labelClasses}>Name</label>
-                                                <input type="text" className={inputClasses} value={regData.adminName} onChange={e => setRegData({ ...regData, adminName: e.target.value })} required />
+                                                <label className={labelClasses}>Official Email</label>
+                                                <input type="email" className={inputClasses} value={regData.institutionEmail} onChange={e => setRegData({ ...regData, institutionEmail: e.target.value })} required={regType === 'institution'} />
                                             </div>
                                             <div>
-                                                <label className={labelClasses}>Email</label>
-                                                <input type="email" className={inputClasses} value={regData.adminEmail} onChange={e => setRegData({ ...regData, adminEmail: e.target.value })} required />
+                                                <label className={labelClasses}>Phone</label>
+                                                <input type="tel" className={inputClasses} value={regData.institutionPhone} onChange={e => setRegData({ ...regData, institutionPhone: e.target.value })} required={regType === 'institution'} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className={labelClasses}>Institution Type</label>
+                                            <select className={inputClasses} value={regData.institutionType} onChange={e => setRegData({ ...regData, institutionType: e.target.value })}>
+                                                <option value="Primary">Primary School</option>
+                                                <option value="Secondary">Secondary School</option>
+                                                <option value="University">University</option>
+                                                <option value="College">College</option>
+                                                <option value="Institute">Institute</option>
+                                                <option value="Polytechnic">Polytechnic</option>
+                                            </select>
+                                        </div>
+                                        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
+                                            <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
+                                                <SparklesIcon className="w-4 h-4" /> Demo Configuration
+                                            </h4>
+                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                <div className="relative flex items-center justify-center">
+                                                    <input type="checkbox" checked={regData.loadDemoData} onChange={e => setRegData({ ...regData, loadDemoData: e.target.checked })} className="peer h-5 w-5 rounded-lg border-2 border-indigo-200 dark:border-indigo-800 text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 appearance-none bg-white dark:bg-slate-800 transition-all checked:bg-indigo-600 checked:border-indigo-600" />
+                                                    <CheckIcon className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Load Sample Demo Data</span>
+                                                    <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Pre-populate all modules with dummy records for evaluation.</p>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <div className="pt-2">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 border-b pb-1 mb-3">Primary Administrator</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className={labelClasses}>Name</label>
+                                                    <input type="text" className={inputClasses} value={regData.adminName} onChange={e => setRegData({ ...regData, adminName: e.target.value })} required={regType === 'institution'} />
+                                                </div>
+                                                <div>
+                                                    <label className={labelClasses}>Email</label>
+                                                    <input type="email" className={inputClasses} value={regData.adminEmail} onChange={e => setRegData({ ...regData, adminEmail: e.target.value })} required={regType === 'institution'} />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                                <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50">
-                                    {isRegistering ? 'Provisioning Infrastructure...' : 'Register Portal'}
+                                ) : (
+                                    <div className="space-y-4 animate-fade-in-up">
+                                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800 mb-2">
+                                            <p className="text-xs text-blue-800 dark:text-blue-200 font-medium leading-relaxed">
+                                                Register your County Government to oversee and manage education institutions within your jurisdiction.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className={labelClasses}>County Name</label>
+                                            <input type="text" className={inputClasses} value={countyRegData.countyName} onChange={e => setCountyRegData({ ...countyRegData, countyName: e.target.value })} placeholder="e.g. Nairobi County" required={regType === 'county'} />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className={labelClasses}>County Code</label>
+                                                <input type="text" className={inputClasses} value={countyRegData.countyCode} onChange={e => setCountyRegData({ ...countyRegData, countyCode: e.target.value })} placeholder="e.g. 047" required={regType === 'county'} />
+                                            </div>
+                                            <div>
+                                                <label className={labelClasses}>Phone</label>
+                                                <input type="tel" className={inputClasses} value={countyRegData.countyPhone} onChange={e => setCountyRegData({ ...countyRegData, countyPhone: e.target.value })} required={regType === 'county'} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className={labelClasses}>Official Email</label>
+                                            <input type="email" className={inputClasses} value={countyRegData.countyEmail} onChange={e => setCountyRegData({ ...countyRegData, countyEmail: e.target.value })} required={regType === 'county'} />
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 border-b pb-1 mb-3">County Administrator</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className={labelClasses}>Full Name</label>
+                                                    <input type="text" className={inputClasses} value={countyRegData.adminName} onChange={e => setCountyRegData({ ...countyRegData, adminName: e.target.value })} required={regType === 'county'} />
+                                                </div>
+                                                <div>
+                                                    <label className={labelClasses}>Office Email</label>
+                                                    <input type="email" className={inputClasses} value={countyRegData.adminEmail} onChange={e => setCountyRegData({ ...countyRegData, adminEmail: e.target.value })} required={regType === 'county'} />
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-2 font-medium">An administrator account will be created automatically.</p>
+                                        </div>
+                                    </div>
+                                )}
+                                <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50 mt-4">
+                                    {isRegistering ? 'Provisioning Infrastructure...' : (regType === 'institution' ? 'Register Institution' : 'Register County Portal')}
                                 </button>
                             </form>
                         </div>

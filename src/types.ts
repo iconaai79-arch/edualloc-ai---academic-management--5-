@@ -979,3 +979,12 @@ export interface PayrollRun {
     status: 'Draft' | 'Finalized' | 'Paid';
     payslips: any[];
 }
+
+export interface CountyRegistrationData {
+    countyName: string;
+    countyCode: string;
+    countyEmail: string;
+    countyPhone: string;
+    adminName: string;
+    adminEmail: string;
+}
