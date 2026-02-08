@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types';
 import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon, ClockIcon } from './icons/index';
 import { SmartSubjectImporterModal } from './SmartSubjectImporterModal';
@@ -228,16 +229,17 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 </table>
             </div>
 
-            {isPathwaySyncOpen && (
+            {isPathwaySyncOpen && createPortal(
                 <PathwayUpdateModal
                     onClose={() => setIsPathwaySyncOpen(false)}
                     departments={visibleDepartments}
                     subjects={subjects}
                     onBulkUpdate={handleBulkPathwayUpdate}
-                />
+                />,
+                document.body
             )}
 
-            {isSmartImportOpen && onImportSubjectsAndAssociate && (
+            {isSmartImportOpen && onImportSubjectsAndAssociate && createPortal(
                 <SmartSubjectImporterModal
                     onClose={() => setIsSmartImportOpen(false)}
                     onImport={onImportSubjectsAndAssociate}
@@ -246,10 +248,11 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     courses={courses}
                     aiModelTier={currentInstitution?.aiModelTier}
                     currentUserDepartmentId={currentUser.departmentId}
-                />
+                />,
+                document.body
             )}
 
-            {editingSubject && (
+            {editingSubject && createPortal(
                 <EditSubjectModal
                     subject={editingSubject}
                     departments={visibleDepartments}
@@ -266,16 +269,18 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     onDeleteSubject={onDeleteSubject}
                     currentUser={currentUser}
                     onUpdateCourse={onUpdateCourse}
-                />
+                />,
+                document.body
             )}
 
-            {constraintSubject && (
+            {constraintSubject && createPortal(
                 <SubjectConstraintsModal
                     subject={constraintSubject}
                     timetableSettings={timetableSettings}
                     onSaveTimetableSettings={onSaveTimetableSettings!}
                     onClose={() => setConstraintSubject(null)}
-                />
+                />,
+                document.body
             )}
         </div>
     );

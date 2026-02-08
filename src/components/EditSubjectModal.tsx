@@ -262,7 +262,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     const [activeTab, setActiveTab] = useState<'details' | 'academic' | 'sessions'>('details');
 
     return (
-        <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                 <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
                     <div>
