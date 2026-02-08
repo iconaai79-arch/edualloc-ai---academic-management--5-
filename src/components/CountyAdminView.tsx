@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Institution, County, AllocationRequest, Role } from '../types';
+import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem } from '../types';
 import {
     BuildingOfficeIcon,
     UserGroupIcon,
@@ -15,7 +15,13 @@ import {
     PencilIcon,
     UserIcon,
     XIcon,
-    FingerPrintIcon
+    FingerPrintIcon,
+    ArchiveBoxIcon,
+    TruckIcon,
+    QrCodeIcon,
+    MapPinIcon,
+    CheckCircleIcon,
+    ChevronRightIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
@@ -34,6 +40,10 @@ interface CountyAdminViewProps {
     onAddUser?: (data: any) => Promise<void>;
     onUpdateUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
+    inventoryItems?: CountyInventoryItem[];
+    onAddInventoryItem?: (data: any) => Promise<void>;
+    onUpdateInventoryItem?: (id: string, data: Partial<CountyInventoryItem>) => Promise<void>;
+    onDeleteInventoryItem?: (id: string) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -49,9 +59,13 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onImportInstitutions,
     onAddUser,
     onUpdateUser,
-    onDeleteUser
+    onDeleteUser,
+    inventoryItems = [],
+    onAddInventoryItem,
+    onUpdateInventoryItem,
+    onDeleteInventoryItem
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
@@ -112,6 +126,64 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         }
     };
 
+    const [showInventoryModal, setShowInventoryModal] = useState(false);
+    const [editingInventory, setEditingInventory] = useState<CountyInventoryItem | null>(null);
+    const [showQrModal, setShowQrModal] = useState<CountyInventoryItem | null>(null);
+    const [inventoryForm, setInventoryForm] = useState({
+        name: '',
+        category: '',
+        quantity: 1,
+        unit: 'Units',
+        supplierName: '',
+        targetInstitutionId: '',
+        deliveryMethod: 'driver' as 'driver' | 'parcel',
+        driverName: '',
+        trackingNumber: ''
+    });
+
+    const handleInventorySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!myCounty) return;
+
+        try {
+            if (editingInventory) {
+                if (onUpdateInventoryItem) {
+                    await onUpdateInventoryItem(editingInventory.id, inventoryForm);
+                }
+            } else {
+                if (onAddInventoryItem) {
+                    await onAddInventoryItem({
+                        ...inventoryForm,
+                        countyId: myCounty.id,
+                        status: 'at_hq',
+                        atHqDate: new Date().toISOString(),
+                        qrCode: `INV-${Date.now()}`
+                    });
+                }
+            }
+            setShowInventoryModal(false);
+            setEditingInventory(null);
+            setInventoryForm({
+                name: '', category: '', quantity: 1, unit: 'Units',
+                supplierName: '', targetInstitutionId: '',
+                deliveryMethod: 'driver', driverName: '', trackingNumber: ''
+            });
+        } catch (err) {
+            alert("Failed to save inventory record.");
+        }
+    };
+
+    const handleDispatch = async (item: CountyInventoryItem) => {
+        if (!onUpdateInventoryItem) return;
+        try {
+            await onUpdateInventoryItem(item.id, {
+                status: 'in_transit',
+                dispatchedDate: new Date().toISOString()
+            });
+        } catch (err) {
+            alert("Failed to dispatch item.");
+        }
+    };
     useEffect(() => {
         if (myCounty?.logoUrl) setLogoPreview(myCounty.logoUrl);
         if (myCounty?.letterheadUrl) setLetterheadPreview(myCounty.letterheadUrl);
@@ -273,6 +345,19 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         County Staff
                         <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
                             {myStaff.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('inventory')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'inventory'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            }`}
+                    >
+                        <ArchiveBoxIcon className="w-5 h-5" />
+                        Inventory
+                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                            {inventoryItems.length}
                         </span>
                     </button>
                     <button
@@ -554,6 +639,177 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 </td>
                                             </tr>
                                         ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'inventory' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        <div className="flex justify-between items-end mb-8">
+                            <div>
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                                    County Inventory
+                                </h2>
+                                <p className="text-slate-500 font-medium">
+                                    Manage supplies from HQ to schools via drivers and parcels
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setEditingInventory(null);
+                                    setInventoryForm({
+                                        name: '', category: '', quantity: 1, unit: 'Units',
+                                        supplierName: '', targetInstitutionId: '',
+                                        deliveryMethod: 'driver', driverName: '', trackingNumber: ''
+                                    });
+                                    setShowInventoryModal(true);
+                                }}
+                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                            >
+                                <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
+                                    <ArchiveBoxIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'at_hq').length}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">At Headquarters</div>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                    <TruckIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'in_transit').length}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">In Transit</div>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                                    <CheckCircleIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'received').length}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Detail</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status & Path</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {inventoryItems.map(item => (
+                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                                                            <ArchiveBoxIcon className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{item.name}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.quantity} {item.unit} • {item.category}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${item.status === 'at_hq' ? 'bg-slate-100 text-slate-600' :
+                                                            item.status === 'in_transit' ? 'bg-indigo-100 text-indigo-700' :
+                                                                'bg-emerald-100 text-emerald-700'
+                                                            }`}>
+                                                            {item.status.replace('_', ' ')}
+                                                        </span>
+                                                        <div className="text-[10px] font-medium text-slate-400 flex items-center gap-1 uppercase tracking-tight">
+                                                            HQ <ChevronRightIcon className="w-3 h-3" /> {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                            {item.deliveryMethod === 'driver' ? <UserIcon className="w-3 h-3" /> : <MapPinIcon className="w-3 h-3" />}
+                                                            {item.deliveryMethod === 'driver' ? (item.driverName || 'No Driver') : (item.trackingNumber || 'No Parcel ID')}
+                                                        </div>
+                                                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                                                            {item.deliveryMethod} delivery
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        {item.status === 'at_hq' && (
+                                                            <button
+                                                                onClick={() => handleDispatch(item)}
+                                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-colors shadow-sm"
+                                                            >
+                                                                Dispatch
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => setShowQrModal(item)}
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                            title="View QR Code"
+                                                        >
+                                                            <QrCodeIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingInventory(item);
+                                                                setInventoryForm({
+                                                                    name: item.name,
+                                                                    category: item.category,
+                                                                    quantity: item.quantity,
+                                                                    unit: item.unit,
+                                                                    supplierName: item.supplierName,
+                                                                    targetInstitutionId: item.targetInstitutionId || '',
+                                                                    deliveryMethod: item.deliveryMethod,
+                                                                    driverName: item.driverName || '',
+                                                                    trackingNumber: item.trackingNumber || ''
+                                                                });
+                                                                setShowInventoryModal(true);
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm("Delete this inventory record?")) {
+                                                                    onDeleteInventoryItem && onDeleteInventoryItem(item.id);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {inventoryItems.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">
+                                                    No inventory items found. Add items received at HQ to get started.
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -940,7 +1196,188 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         </div>
                     </div>
                 )}
+
+                {showInventoryModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                        {editingInventory ? 'Edit Inventory Log' : 'Log HQ Receipt'}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">HQ Registry • Supplies Management</p>
+                                </div>
+                                <button onClick={() => setShowInventoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                    <XIcon className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleInventorySubmit} className="p-8 space-y-6">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Item Name</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={inventoryForm.name}
+                                                onChange={e => setInventoryForm({ ...inventoryForm, name: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                                placeholder="e.g. Science Lab Kits"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    min="1"
+                                                    value={inventoryForm.quantity}
+                                                    onChange={e => setInventoryForm({ ...inventoryForm, quantity: parseInt(e.target.value) })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold"
+                                                />
+                                            </div>
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Unit</label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={inventoryForm.unit}
+                                                    onChange={e => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                                    placeholder="Boxes"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Supplier</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={inventoryForm.supplierName}
+                                                onChange={e => setInventoryForm({ ...inventoryForm, supplierName: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                                placeholder="e.g. Apex Scientific Ltd"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Target School/Institution</label>
+                                            <select
+                                                required
+                                                value={inventoryForm.targetInstitutionId}
+                                                onChange={e => setInventoryForm({ ...inventoryForm, targetInstitutionId: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                            >
+                                                <option value="">Select Destination</option>
+                                                {institutions.map(inst => (
+                                                    <option key={inst.id} value={inst.id}>{inst.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Delivery Method</label>
+                                            <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'driver' })}
+                                                    className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'driver' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                                                >
+                                                    County Driver
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'parcel' })}
+                                                    className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'parcel' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                                                >
+                                                    Parcel Service
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {inventoryForm.deliveryMethod === 'driver' ? (
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Driver Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={inventoryForm.driverName}
+                                                    onChange={e => setInventoryForm({ ...inventoryForm, driverName: e.target.value })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                                    placeholder="Enter driver name"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Tracking/Parcel ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={inventoryForm.trackingNumber}
+                                                    onChange={e => setInventoryForm({ ...inventoryForm, trackingNumber: e.target.value })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                                    placeholder="e.g. G4S-12345"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowInventoryModal(false)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        {editingInventory ? 'Update Record' : 'Log Receipt'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showQrModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-scale-in">
+                            <div className="p-8 text-center bg-slate-50/50">
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">QR Receipt Code</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Scan at Destination</p>
+                            </div>
+                            <div className="p-10 flex flex-col items-center gap-8">
+                                <div className="p-4 bg-white rounded-3xl shadow-xl border border-slate-100">
+                                    {/* Using a simple container for the QR. In a real app we'd use a canvas renderer */}
+                                    <div className="w-48 h-48 bg-slate-100 flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 group relative">
+                                        <QrCodeIcon className="w-24 h-24 text-slate-300" />
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white/90 transition-opacity rounded-2xl p-4 text-center">
+                                            <p className="text-[10px] font-bold text-slate-600 uppercase leading-loose">
+                                                ID: {showQrModal.qrCode}<br />
+                                                Click to Print Label
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">{showQrModal.name}</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">{showQrModal.quantity} {showQrModal.unit}</div>
+                                </div>
+                                <button
+                                    onClick={() => setShowQrModal(null)}
+                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
-        </div>
+        </div >
     );
 };

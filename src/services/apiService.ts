@@ -178,13 +178,20 @@ export const apiService = {
             }
             const { error } = await _supabase.storage.from(bucket).upload(path, file, { upsert: true });
             if (error) {
-                console.error("Upload Error:", error);
+                console.error("Supabase Storage Error:", error);
+                // Specifically alert for common policy issues
+                if ((error as any).status === 403 || error.message.includes('row-level security')) {
+                    alert(`Storage Error: Access Denied. Please ensure your 'eduai' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
+                } else {
+                    alert(`Storage Error: ${error.message}`);
+                }
                 return null;
             }
             const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);
             return publicUrl;
-        } catch (err) {
-            console.error("Upload Service Error:", err);
+        } catch (err: any) {
+            console.error("Upload Service Exception:", err);
+            alert(`Upload Service Exception: ${err.message || 'Unknown error'}`);
             return null;
         }
     },

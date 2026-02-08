@@ -7,20 +7,18 @@ VALUES ('eduai', 'eduai', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Set up RLS Policies for the 'eduai' bucket
--- Allow public access to read files
+-- Allow public (anon and authenticated) access to read files
 CREATE POLICY "Public Access" ON storage.objects
 FOR SELECT USING (bucket_id = 'eduai');
 
--- Allow authenticated users to upload files
-CREATE POLICY "Authenticated Upload" ON storage.objects
-FOR INSERT WITH CHECK (
-    bucket_id = 'eduai' 
-    AND auth.role() = 'authenticated'
-);
+-- Allow public (anon and authenticated) to upload files
+-- This is necessary because the app uses a custom users table rather than Supabase Auth
+CREATE POLICY "Public Upload" ON storage.objects
+FOR INSERT WITH CHECK (bucket_id = 'eduai');
 
--- Allow owners to update/delete their own files
-CREATE POLICY "Owner Updates" ON storage.objects
-FOR UPDATE USING (bucket_id = 'eduai' AND auth.uid() = owner);
+-- Allow public to update and delete files
+CREATE POLICY "Public Update" ON storage.objects
+FOR UPDATE USING (bucket_id = 'eduai');
 
-CREATE POLICY "Owner Deletions" ON storage.objects
-FOR DELETE USING (bucket_id = 'eduai' AND auth.uid() = owner);
+CREATE POLICY "Public Delete" ON storage.objects
+FOR DELETE USING (bucket_id = 'eduai');

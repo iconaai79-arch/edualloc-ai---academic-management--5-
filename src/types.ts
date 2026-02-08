@@ -738,6 +738,28 @@ export interface InventoryItem {
     institutionId: string;
 }
 
+export type CountyInventoryStatus = 'at_hq' | 'in_transit' | 'received';
+
+export interface CountyInventoryItem {
+    id: string;
+    countyId: string;
+    name: string;
+    category: string;
+    quantity: number;
+    unit: string;
+    supplierName: string;
+    status: CountyInventoryStatus;
+    targetInstitutionId?: string;
+    driverName?: string;
+    deliveryMethod: 'driver' | 'parcel';
+    trackingNumber?: string;
+    qrCode: string; // Used for scanning on arrival
+    atHqDate: string;
+    dispatchedDate?: string;
+    receivedDate?: string;
+    receivedBy?: string;
+}
+
 export interface StockTransaction {
     id: string;
     itemId: string;

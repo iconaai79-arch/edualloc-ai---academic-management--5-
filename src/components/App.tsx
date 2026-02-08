@@ -34,7 +34,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -148,6 +148,7 @@ export const App: React.FC = () => {
     const [studentAttendances, setStudentAttendances] = useState<StudentAttendance[]>([]);
     const [studentCheckIns, setStudentCheckIns] = useState<Record<string, string>>({});
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [countyInventory, setCountyInventory] = useState<CountyInventoryItem[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -330,6 +331,7 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
                 apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
                 apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
             ]);
 
             setInvoices(inv || []);
@@ -344,6 +346,10 @@ export const App: React.FC = () => {
             setContracts(con || []);
             setStudentAttendances(att || []);
             setInventory(item || []);
+            const [cinv] = await Promise.all([
+                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
+            ]);
+            setCountyInventory(cinv || []);
             setGeneratedTimetable(tt || []);
             setExamTimetable(et || []);
             setAssignments(asg || []);
@@ -1123,6 +1129,19 @@ export const App: React.FC = () => {
                                 onAddUser={async (data) => { await apiService.saveUser({ ...data, id: `u_county_${Date.now()}` }); loadData(); }}
                                 onUpdateUser={onEditUser}
                                 onDeleteUser={onDeleteUser}
+                                inventoryItems={countyInventory}
+                                onAddInventoryItem={async (data) => {
+                                    await apiService.saveModuleRecord('county_inventory', { ...data, id: `cinv_${Date.now()}` });
+                                    loadData();
+                                }}
+                                onUpdateInventoryItem={async (id, data) => {
+                                    await apiService.saveModuleRecord('county_inventory', { ...data, id });
+                                    loadData();
+                                }}
+                                onDeleteInventoryItem={async (id) => {
+                                    await apiService.deleteModuleRecord('county_inventory', id);
+                                    loadData();
+                                }}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView

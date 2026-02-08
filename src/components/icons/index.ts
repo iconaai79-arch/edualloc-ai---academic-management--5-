@@ -56,3 +56,5 @@ export { CommandLineIcon } from './CommandLineIcon';
 export { EnvelopeIcon } from './EnvelopeIcon';
 export { PlayIcon } from './PlayIcon';
 export { BeakerIcon } from './BeakerIcon';
+export { TruckIcon } from './TruckIcon';
+export { QrCodeIcon } from './QrCodeIcon';
