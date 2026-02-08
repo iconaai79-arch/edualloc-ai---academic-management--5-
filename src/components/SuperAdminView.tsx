@@ -861,7 +861,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         {institutionsSubTab === 'counties' && (
                             <CountyManager
                                 counties={counties}
-                                users={users}
                                 onAddCounty={(data) => {
                                     if (onAddCounty) {
                                         onAddCounty(data);

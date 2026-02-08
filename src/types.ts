@@ -78,7 +78,7 @@ export interface County {
     code: string;
     email: string;
     phoneNumber: string;
-    adminId?: string;
+    adminName?: string;
     status: 'active' | 'suspended';
     createdAt: string;
     location?: { latitude: number; longitude: number };

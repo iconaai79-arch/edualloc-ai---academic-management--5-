@@ -218,6 +218,24 @@
                 log(`❌ Unexpected error: ${error.message}`);
             }
 
+            // Test 1.5: Check for admin_name column in counties
+            log('📊 Test 1.5: Checking if admin_name column exists...');
+            try {
+                const { data, error } = await supabase
+                    .from('counties')
+                    .select('admin_name')
+                    .limit(1);
+
+                if (error) {
+                    log(`⚠️ admin_name column missing: ${error.message}`);
+                    log('💡 You need to run the "Update Schema" Step 3B in migration executor');
+                } else {
+                    log('✅ admin_name column exists in counties table');
+                }
+            } catch (error) {
+                log(`❌ Error checking admin_name: ${error.message}`);
+            }
+
             // Test 3: Check institutions table for county_id column
             log('📊 Test 2: Checking if institutions.county_id exists...');
             try {

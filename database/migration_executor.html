@@ -76,7 +76,7 @@
             border-radius: 50%;
             display: flex;
             align-items: center;
-            justify-center;
+            justify-content: center;
             font-weight: bold;
             font-size: 14px;
         }
@@ -268,6 +268,46 @@
 
             <div class="step">
                 <h2>
+                    <span class="step-number">3A</span>
+                    (Optional) Fix UUID Error
+                </h2>
+                <div class="alert alert-info show">
+                    <strong>⚠️ Run this ONLY if you see error: "operator does not exist: text = uuid"</strong>
+                </div>
+                <p>If you see a UUID type mismatch error, click below to get the fix script:</p>
+                <button class="button" onclick="copyFixSQLToClipboard()">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                        </path>
+                    </svg>
+                    Copy FIX SQL to Clipboard
+                </button>
+                <div class="sql-box" id="fixSqlContent" style="display:none;">Loading FIX SQL...</div>
+            </div>
+
+            <div class="step">
+                <h2>
+                    <span class="step-number">3B</span>
+                    (Update) Add Admin Name Column
+                </h2>
+                <div class="alert alert-info show">
+                    <strong>ℹ️ Run this if you already created the table before we added the text field.</strong>
+                </div>
+                <p>We switched from a dropdown to a text field. If your table exists but creates errors saving the name,
+                    run this:</p>
+                <button class="button" onclick="copyColumnSQLToClipboard()">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Copy Update SQL to Clipboard
+                </button>
+                <div class="sql-box" id="columnSqlContent" style="display:none;">Loading Update SQL...</div>
+            </div>
+
+            <div class="step">
+                <h2>
                     <span class="step-number">4</span>
                     Verify & Restart
                 </h2>
@@ -299,22 +339,48 @@
             }
         }
 
+        // Load Fix SQL
+        async function loadFixSQL() {
+            try {
+                const response = await fetch('./fix_uuid_type_mismatch.sql');
+                const sql = await response.text();
+                document.getElementById('fixSqlContent').textContent = sql;
+            } catch (error) {
+                document.getElementById('fixSqlContent').textContent = 'Error loading Fix SQL file.';
+                console.error(error);
+            }
+        }
+
         // Copy SQL to clipboard
         async function copySQLToClipboard() {
             const sqlContent = document.getElementById('sqlContent').textContent;
+            copyTextToClipboard(sqlContent, 'sqlContent');
+        }
 
-            if (sqlContent.includes('Error loading')) {
+        // Copy Fix SQL to clipboard
+        async function copyFixSQLToClipboard() {
+            const sqlContent = document.getElementById('fixSqlContent').textContent;
+            copyTextToClipboard(sqlContent, 'fixSqlContent');
+        }
+
+        async function copyTextToClipboard(text, elementId) {
+            const element = document.getElementById(elementId);
+            if (element && element.textContent.includes('Error loading')) {
                 showAlert('Cannot copy - SQL file not loaded', 'error');
+                return;
+            }
+            if (element && element.textContent.includes('Loading')) {
+                showAlert('Cannot copy - SQL file still loading', 'error');
                 return;
             }
 
             try {
-                await navigator.clipboard.writeText(sqlContent);
+                await navigator.clipboard.writeText(text);
                 showAlert('✅ SQL copied to clipboard! Now paste it into Supabase SQL Editor.', 'success');
             } catch (error) {
                 // Fallback for older browsers
                 const textArea = document.createElement('textarea');
-                textArea.value = sqlContent;
+                textArea.value = text;
                 document.body.appendChild(textArea);
                 textArea.select();
                 try {
@@ -338,8 +404,28 @@
             }, 5000);
         }
 
+        // Load Column Update SQL
+        async function loadColumnSQL() {
+            try {
+                const response = await fetch('./add_admin_name_to_counties.sql');
+                const sql = await response.text();
+                document.getElementById('columnSqlContent').textContent = sql;
+            } catch (error) {
+                document.getElementById('columnSqlContent').textContent = 'Error loading Column Update SQL file.';
+                console.error(error);
+            }
+        }
+
+        // Copy Column SQL
+        async function copyColumnSQLToClipboard() {
+            const sqlContent = document.getElementById('columnSqlContent').textContent;
+            copyTextToClipboard(sqlContent, 'columnSqlContent');
+        }
+
         // Load SQL on page load
         loadSQL();
+        loadFixSQL();
+        loadColumnSQL();
     </script>
 </body>
 
