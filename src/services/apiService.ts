@@ -426,7 +426,12 @@ export const apiService = {
         const dataWithInst = institutionId
             ? imported.map(u => ({ ...u, institutionId }))
             : imported;
-        const sanitizedData = dataWithInst.map(u => ({ ...u, role: u.role || 'lecturer' }));
+        const sanitizedData = dataWithInst.map(u => ({
+            ...u,
+            role: u.role || 'lecturer',
+            id: u.id || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
+            password: u.password || 'password123' // Default password if missing
+        }));
         const snakeData = sanitizedData.map(u => toSnakeCase(u));
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
@@ -436,7 +441,12 @@ export const apiService = {
         const dataWithInst = institutionId
             ? imported.map(s => ({ ...s, institutionId }))
             : imported;
-        const sanitizedData = dataWithInst.map(s => ({ ...s, role: 'student' }));
+        const sanitizedData = dataWithInst.map(s => ({
+            ...s,
+            role: 'student',
+            id: s.id || `u_s_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
+            password: s.password || 'student123' // Default password if missing
+        }));
         const snakeData = sanitizedData.map(s => toSnakeCase(s));
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
