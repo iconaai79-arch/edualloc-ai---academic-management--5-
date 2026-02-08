@@ -140,7 +140,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     </div>
                     <div>
                         <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Timetable Wizard</h3>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Step {step} of 4</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Step {step} of 5</p>
                     </div>
                 </div>
                 {!isInline && onClose && (
@@ -154,7 +154,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
                 <div
                     className="h-full bg-indigo-600 transition-all duration-500 ease-out"
-                    style={{ width: `${(step / 4) * 100}%` }}
+                    style={{ width: `${(step / 5) * 100}%` }}
                 />
             </div>
 
