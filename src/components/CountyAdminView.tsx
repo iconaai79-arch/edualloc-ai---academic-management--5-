@@ -313,38 +313,67 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myInstitutions.map(inst => (
-                                <div key={inst.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-all">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-                                            🏫
-                                        </div>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
-                                            inst.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                                            }`}>
-                                            {inst.status}
-                                        </span>
-                                    </div>
-                                    <h3 className="text-lg font-black uppercase tracking-tight mb-1">{inst.name}</h3>
-                                    <p className="text-xs font-mono text-slate-500 mb-4">{inst.institutionCode} • {inst.institutionType}</p>
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Institution</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Type & Code</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Contact Details</th>
+                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {myInstitutions.map(inst => (
+                                            <tr key={inst.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                                                            🏫
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{inst.name}</div>
+                                                            <div className="text-[10px] font-bold text-slate-400">{inst.id}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-slate-700 uppercase">{inst.institutionType}</span>
+                                                        <span className="text-[10px] font-mono text-slate-400">{inst.institutionCode}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                                                            <span className="opacity-70 text-[10px]">📧</span> {inst.email}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                                                            <span className="opacity-70 text-[10px]">📞</span> {inst.phoneNumber}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                    <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
+                                                        inst.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                                        }`}>
+                                                        {inst.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
 
-                                    <div className="space-y-2 text-sm text-slate-600 mb-6">
-                                        <div className="flex items-center gap-2">
-                                            <span>📧</span> {inst.email}
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span>📞</span> {inst.phoneNumber}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {myInstitutions.length === 0 && (
-                                <div className="col-span-full text-center py-12 bg-white rounded-[2rem] border border-slate-100">
-                                    <p className="text-slate-400 font-bold">No institutions found in this county.</p>
-                                </div>
-                            )}
+                                        {myInstitutions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-6 py-12 text-center">
+                                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No institutions found in this county.</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 )}
