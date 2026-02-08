@@ -16,6 +16,7 @@ import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
 import { LibrarianView } from './LibrarianView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
+import { CountyAdminView } from './CountyAdminView';
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
@@ -935,6 +936,15 @@ export const App: React.FC = () => {
                                 currentInstitution={activeInstitution}
                                 assessments={assessments}
                                 assessmentMarks={assessmentMarks}
+                            />
+                        ) : activeRole === 'county_admin' ? (
+                            <CountyAdminView
+                                currentUser={currentUser}
+                                counties={counties}
+                                institutions={institutions}
+                                users={users}
+                                onLogout={handleLogout}
+                                onUpdateInstitution={onUpdateInstitution}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
