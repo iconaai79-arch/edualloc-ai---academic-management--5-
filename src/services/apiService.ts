@@ -169,13 +169,16 @@ export const apiService = {
     async uploadFile(bucket: string, path: string, file: File): Promise<string | null> {
         try {
             if (!_supabase) {
-                console.warn("Supabase not initialized for upload.");
-                return null;
+                // FALLBACK: Return as base64 for local development/offline mode
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(file);
+                });
             }
             const { error } = await _supabase.storage.from(bucket).upload(path, file, { upsert: true });
             if (error) {
                 console.error("Upload Error:", error);
-                // Return null on error
                 return null;
             }
             const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);

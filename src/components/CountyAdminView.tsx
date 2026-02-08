@@ -96,11 +96,11 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 });
                 alert(`${type === 'logo' ? 'Logo' : 'Letterhead'} updated successfully!`);
             } else {
-                alert("Upload failed. Please try again.");
+                alert("Upload failed. Ensure you have created the 'eduai' bucket in Supabase storage and set it to 'Public'.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Upload error:", error);
-            alert("An error occurred during upload.");
+            alert(`An error occurred: ${error.message || 'Check your internet connection'}`);
         } finally {
             setIsUploading(false);
         }
