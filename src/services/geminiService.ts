@@ -140,7 +140,8 @@ export const generateTimetable = async (
     courseSizes: Map<string, number>,
     courses: Course[],
     timeOffRequests: TimeOffRequest[],
-    profiles: ScheduleProfile[]
+    profiles: ScheduleProfile[],
+    aiModelTier?: string
 ): Promise<TimetableEntry[]> => {
     try {
         checkAiAvailable();
@@ -164,12 +165,14 @@ export const generateTimetable = async (
             Return a JSON array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
+        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: modelName,
             contents: prompt,
-            config: { 
+            config: {
                 responseMimeType: 'application/json',
-                thinkingConfig: { thinkingBudget: 32768 }
+                thinkingConfig: aiModelTier === 'premium' ? { thinkingBudget: 32768 } : undefined
             }
         });
         const result = sanitizeAndParseJson(response.text || "[]");
@@ -190,17 +193,21 @@ export const generateExamTimetable = async (
     rooms: Room[],
     examPeriod: { start: string; end: string },
     courseSizes: Map<string, number>,
-    settings: ExamTimetableSettings
+    settings: ExamTimetableSettings,
+    aiModelTier?: string
 ): Promise<ExamTimetableEntry[]> => {
     try {
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
+
+        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: modelName,
             contents: prompt,
-            config: { 
+            config: {
                 responseMimeType: 'application/json',
-                thinkingConfig: { thinkingBudget: 32768 }
+                thinkingConfig: aiModelTier === 'premium' ? { thinkingBudget: 32768 } : undefined
             }
         });
         const result = sanitizeAndParseJson(response.text || "[]");
@@ -273,9 +280,9 @@ export const findLocationCoordinates = async (query: string): Promise<{ latitude
         });
         const data = sanitizeAndParseJson(response.text || "{}");
         if (data.latitude && data.longitude) {
-            return { 
-                latitude: data.latitude, 
-                longitude: data.longitude, 
+            return {
+                latitude: data.latitude,
+                longitude: data.longitude,
                 address: data.address || query,
                 googleMapsUri: response.candidates?.[0]?.groundingMetadata?.groundingChunks?.[0]?.web?.uri
             };
@@ -290,9 +297,9 @@ export const findLocationCoordinates = async (query: string): Promise<{ latitude
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
     try {
         checkAiAvailable();
-        const chat = ai!.chats.create({ 
-            model: 'gemini-3-flash-preview', 
-            config: { history }
+        const chat = ai!.chats.create({
+            model: 'gemini-3-flash-preview',
+            history: history as any
         });
         const result = await chat.sendMessage({ message });
         return result.text || "I'm sorry, I couldn't process that.";

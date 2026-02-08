@@ -9,7 +9,8 @@ import { generateTimetable } from '../services/geminiService';
 import { generateStandardTimetable } from '../utils/timetableLogic';
 import {
     SparklesIcon, CommandLineIcon, ExclamationTriangleIcon,
-    ChevronRightIcon
+    ChevronRightIcon, XIcon, CheckCircleIcon, BuildingOfficeIcon,
+    UserGroupIcon, RectangleStackIcon, CalendarDaysIcon
 } from './icons/index';
 
 interface TimetableWizardProps {

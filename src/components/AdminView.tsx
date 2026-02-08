@@ -85,7 +85,7 @@ export interface AdminViewProps {
     userTasks: UserTask[];
     generatedTimetable: TimetableEntry[];
     allTimetableEntries: TimetableEntry[];
-    timetable: TimetableEntry[];
+    timetable?: TimetableEntry[];
     finalTimetableUrl: string | null;
     letterheadConfig: LetterheadConfig;
     smsConfig: SmsConfig;
@@ -474,7 +474,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 />
                             ) : timetableSubTab === 'scheduler' ? (
                                 <TimetablesView
-                                    generatedTimetable={props.timetable || []}
+                                    generatedTimetable={props.timetable || props.generatedTimetable || []}
                                     subjects={props.subjects || []}
                                     lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
                                     rooms={props.rooms || []}
