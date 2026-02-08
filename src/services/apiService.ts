@@ -431,35 +431,19 @@ export const apiService = {
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
     async onAssociateSubjectToCourseLevel(subjectId: string, levelId: string) {
-        if (!_supabase) {
-            const records = ls.get('courses');
-            const courseIdx = records.findIndex((c: any) => c.levels && c.levels.some((l: any) => l.id === levelId));
-            if (courseIdx >= 0) {
-                const course = records[courseIdx];
-                course.levels = course.levels.map((l: any) => {
-                    if (l.id === levelId) {
-                        const ids = new Set(l.subject_ids || []);
-                        ids.add(subjectId);
-                        return { ...l, subject_ids: Array.from(ids) };
-                    }
-                    return l;
-                });
-                ls.set('courses', records);
-            }
-            return;
-        }
+        const courses = await this.fetchCourses();
+        const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
 
-        const { data: course } = await _supabase.from('courses').select('*').contains('levels', [{ id: levelId }]).single();
         if (course) {
-            const updatedLevels = course.levels.map((l: any) => {
+            const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
-                    const ids = new Set(l.subject_ids || []);
+                    const ids = new Set(l.subjectIds || []);
                     ids.add(subjectId);
-                    return { ...l, subject_ids: Array.from(ids) };
+                    return { ...l, subjectIds: Array.from(ids) };
                 }
                 return l;
             });
-            await _supabase.from('courses').update({ levels: updatedLevels }).eq('id', course.id);
+            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
         }
     },
     async onImportUsers(imported: any[], institutionId?: string): Promise<void> {
