@@ -6,11 +6,11 @@ import { PlusIcon, CheckIcon, XIcon, Cog8ToothIcon, CheckCircleIcon, CalendarDay
 interface AcademicYearManagerProps {
     academicYears: AcademicYear[];
     semesters: Semester[];
-    onAddAcademicYear?: (data: Omit<AcademicYear, 'id'|'institutionId'|'status'>) => void;
-    onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id'|'institutionId'>>) => void;
+    onAddAcademicYear?: (data: Omit<AcademicYear, 'id' | 'institutionId' | 'status'>) => void;
+    onUpdateAcademicYear?: (yearId: string, data: Partial<Omit<AcademicYear, 'id' | 'institutionId'>>) => void;
     onDeleteAcademicYear?: (yearId: string) => void;
-    onAddSemester?: (data: Omit<Semester, 'id'|'institutionId'>) => void;
-    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id'|'institutionId'|'academicYearId'>>) => void;
+    onAddSemester?: (data: Omit<Semester, 'id' | 'institutionId'>) => void;
+    onUpdateSemester?: (semesterId: string, data: Partial<Omit<Semester, 'id' | 'institutionId' | 'academicYearId'>>) => void;
     onDeleteSemester?: (semesterId: string) => void;
     isExamCalendarOnly?: boolean;
     currentInstitution?: Institution | null;
@@ -47,7 +47,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         const filtered = filterQuery.trim()
             ? yearsList.filter(year => year.name.toLowerCase().includes(filterQuery.toLowerCase()))
             : yearsList;
-        
+
         return [...filtered].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
     }, [academicYears, filterQuery]);
 
@@ -102,7 +102,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
             return { ...prev, sessions: updatedSessions };
         });
     };
-    
+
     const handleExamPeriodChange = (sessionId: string, examPeriodId: string, field: 'name' | 'startDate' | 'endDate', value: string) => {
         setEditingSemesterData(prev => {
             if (!prev) return prev;
@@ -118,7 +118,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
             return { ...prev, sessions: newSessions };
         });
     };
-    
+
     const handleAddExamPeriod = (sessionId: string) => {
         setEditingSemesterData(prev => {
             if (!prev) return prev;
@@ -139,9 +139,9 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
     };
 
     const handleDeleteExamPeriod = (sessionId: string, examPeriodId: string) => {
-         setEditingSemesterData(prev => {
+        setEditingSemesterData(prev => {
             if (!prev) return prev;
-             const newSessions = prev.sessions?.map(s => {
+            const newSessions = prev.sessions?.map(s => {
                 if (s.id === sessionId) {
                     const newExamPeriods = s.examPeriods?.filter(ep => ep.id !== examPeriodId);
                     return { ...s, examPeriods: newExamPeriods };
@@ -151,7 +151,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
             return { ...prev, sessions: newSessions };
         });
     };
-    
+
     const handleEditSemesterClick = (semester: Semester) => {
         if (editingSemesterId === semester.id) {
             setEditingSemesterId(null);
@@ -177,22 +177,22 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
 
     const handleAddSemesterSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if(!addingSemesterTo) return;
+        if (!addingSemesterTo) return;
         onAddSemester?.({ ...newSemester, academicYearId: addingSemesterTo, status: 'inactive', sessions: [] });
         setNewSemester({ name: '', startDate: '', endDate: '', requestDeadline: '', enrollmentDeadline: '' });
         setAddingSemesterTo(null);
     };
-    
+
     const handleUpdateSemester = () => {
         if (!editingSemesterData || !onUpdateSemester) return;
         setSemesterSaveStatus('saving');
         setTimeout(() => {
-            onUpdateSemester(editingSemesterData.id, { 
-                name: editingSemesterData.name, 
-                startDate: editingSemesterData.startDate, 
-                endDate: editingSemesterData.endDate, 
-                status: editingSemesterData.status, 
-                requestDeadline: editingSemesterData.requestDeadline, 
+            onUpdateSemester(editingSemesterData.id, {
+                name: editingSemesterData.name,
+                startDate: editingSemesterData.startDate,
+                endDate: editingSemesterData.endDate,
+                status: editingSemesterData.status,
+                requestDeadline: editingSemesterData.requestDeadline,
                 enrollmentDeadline: editingSemesterData.enrollmentDeadline,
                 sessions: editingSemesterData.sessions
             });
@@ -225,18 +225,18 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                         <h3 className="text-xl font-bold">Academic Years</h3>
                         {onAddAcademicYear && (
                             <button onClick={() => setIsAddingYear(true)} className="btn-primary inline-flex items-center gap-1 text-xs">
-                                <PlusIcon className="w-4 h-4"/> New Year
+                                <PlusIcon className="w-4 h-4" /> New Year
                             </button>
                         )}
                     </div>
-                    
+
                     {isAddingYear && onAddAcademicYear && (
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4 mb-6 animate-fade-in-up">
                             <h4 className="font-bold text-sm">Initialize Academic Year</h4>
                             <div className="space-y-3">
-                                <div><label className="block text-xs font-semibold mb-1">Display Name</label><input type="text" value={newYear.name} onChange={e => setNewYear({...newYear, name: e.target.value})} placeholder="e.g., 2024/2025" required className="form-input text-sm" /></div>
-                                <div><label className="block text-xs font-semibold mb-1">Effective Start</label><input type="date" value={newYear.startDate} onChange={e => setNewYear({...newYear, startDate: e.target.value})} required className="form-input text-sm" /></div>
-                                <div><label className="block text-xs font-semibold mb-1">Effective End</label><input type="date" value={newYear.endDate} onChange={e => setNewYear({...newYear, endDate: e.target.value})} required className="form-input text-sm" /></div>
+                                <div><label className="block text-xs font-semibold mb-1">Display Name</label><input type="text" value={newYear.name} onChange={e => setNewYear({ ...newYear, name: e.target.value })} placeholder="e.g., 2024/2025" required className="form-input text-sm" /></div>
+                                <div><label className="block text-xs font-semibold mb-1">Effective Start</label><input type="date" value={newYear.startDate} onChange={e => setNewYear({ ...newYear, startDate: e.target.value })} required className="form-input text-sm" /></div>
+                                <div><label className="block text-xs font-semibold mb-1">Effective End</label><input type="date" value={newYear.endDate} onChange={e => setNewYear({ ...newYear, endDate: e.target.value })} required className="form-input text-sm" /></div>
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
                                 <button type="button" onClick={() => setIsAddingYear(false)} className="btn-secondary text-xs">Cancel</button>
@@ -244,10 +244,10 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                             </div>
                         </div>
                     )}
-                    
+
                     <div className="relative mb-4">
                         <input type="text" value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && setFilterQuery(searchInput)} placeholder="Search years..." className="form-input pr-12 text-sm" />
-                        <button onClick={() => setFilterQuery(searchInput)} className="absolute right-2 top-1.5 p-1 text-[var(--color-primary)]"><CheckIcon className="w-5 h-5"/></button>
+                        <button onClick={() => setFilterQuery(searchInput)} className="absolute right-2 top-1.5 p-1 text-[var(--color-primary)]"><CheckIcon className="w-5 h-5" /></button>
                     </div>
 
                     <div className="space-y-3">
@@ -263,9 +263,9 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                             {new Date(year.startDate).getFullYear()} - {new Date(year.endDate).getFullYear()}
                                         </p>
                                     </button>
-                                     <div className="relative">
-                                        <button 
-                                            onClick={() => setOpenActionMenu(openActionMenu === year.id ? null : year.id)} 
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setOpenActionMenu(openActionMenu === year.id ? null : year.id)}
                                             className={`p-1.5 rounded-lg transition-colors ${openActionMenu === year.id ? 'bg-slate-200 dark:bg-slate-700' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                                         >
                                             <Cog8ToothIcon className="w-5 h-5 text-slate-500" />
@@ -273,13 +273,28 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                         {openActionMenu === year.id && (
                                             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl action-menu-dropdown z-[100] py-2 overflow-hidden animate-fade-in-up">
                                                 {onUpdateAcademicYear && year.status !== 'active' && (
-                                                    <button onClick={() => { onUpdateAcademicYear(year.id, { status: 'active' }); setOpenActionMenu(null); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
-                                                        <CheckCircleIcon className="w-4 h-4"/> Activate Year
+                                                    <button onClick={async () => {
+                                                        // Deactivate all other years first (optimistic UI update or batch)
+                                                        /* 
+                                                           Ideally, the backend should handle this "single active" constraint. 
+                                                           But if we are using Supabase/simple storage, we might need to enforce it here.
+                                                           However, let's debug why "nothing happens". 
+                                                           It might be an async issue or error swallowing.
+                                                        */
+                                                        try {
+                                                            await onUpdateAcademicYear(year.id, { status: 'active' });
+                                                            setOpenActionMenu(null);
+                                                        } catch (e) {
+                                                            console.error("Failed to activate year", e);
+                                                            alert("Failed to activate year");
+                                                        }
+                                                    }} className="w-full text-left px-4 py-2 text-sm font-semibold text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
+                                                        <CheckCircleIcon className="w-4 h-4" /> Activate Year
                                                     </button>
                                                 )}
                                                 {onUpdateAcademicYear && (
                                                     <button onClick={() => { setEditingYear(year); setSelectedYearId(year.id); setOpenActionMenu(null); }} className="w-full text-left px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2">
-                                                        <PlusIcon className="w-4 h-4 rotate-45"/> Edit Details
+                                                        <PlusIcon className="w-4 h-4 rotate-45" /> Edit Details
                                                     </button>
                                                 )}
                                                 <div className="h-px bg-slate-100 dark:bg-slate-700 my-1"></div>
@@ -290,7 +305,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                         }
                                                         setOpenActionMenu(null);
                                                     }} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
-                                                        <XIcon className="w-4 h-4"/> Delete Year
+                                                        <XIcon className="w-4 h-4" /> Delete Year
                                                     </button>
                                                 )}
                                             </div>
@@ -299,10 +314,10 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                 </div>
                                 {editingYear?.id === year.id && (
                                     <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3 animate-fade-in-up">
-                                        <input type="text" value={editingYear.name} onChange={e => setEditingYear({...editingYear, name: e.target.value})} className="form-input text-xs" />
+                                        <input type="text" value={editingYear.name} onChange={e => setEditingYear({ ...editingYear, name: e.target.value })} className="form-input text-xs" />
                                         <div className="grid grid-cols-2 gap-2">
-                                            <input type="date" value={editingYear.startDate} onChange={e => setEditingYear({...editingYear, startDate: e.target.value})} className="form-input text-xs" />
-                                            <input type="date" value={editingYear.endDate} onChange={e => setEditingYear({...editingYear, endDate: e.target.value})} className="form-input text-xs" />
+                                            <input type="date" value={editingYear.startDate} onChange={e => setEditingYear({ ...editingYear, startDate: e.target.value })} className="form-input text-xs" />
+                                            <input type="date" value={editingYear.endDate} onChange={e => setEditingYear({ ...editingYear, endDate: e.target.value })} className="form-input text-xs" />
                                         </div>
                                         <div className="flex justify-end gap-2">
                                             <button onClick={() => setEditingYear(null)} className="btn-secondary text-[10px]">Cancel</button>
@@ -325,22 +340,22 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                 <p className="text-xs text-slate-500 mt-1">Configuring schedule for <span className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedYear.name}</span></p>
                             </div>
                             <button onClick={() => setAddingSemesterTo(selectedYear.id)} className="btn-primary inline-flex items-center gap-2 text-sm">
-                                <PlusIcon className="w-5 h-5"/> New {semesterLabel}
+                                <PlusIcon className="w-5 h-5" /> New {semesterLabel}
                             </button>
                         </div>
 
-                         {addingSemesterTo === selectedYear.id && (
+                        {addingSemesterTo === selectedYear.id && (
                             <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 animate-fade-in-up">
                                 <form onSubmit={handleAddSemesterSubmit} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Name</label><input type="text" value={newSemester.name} onChange={e => setNewSemester({...newSemester, name: e.target.value})} placeholder={`e.g., ${semesterLabel} 1`} required className="form-input text-sm" /></div>
-                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Start Date</label><input type="date" value={newSemester.startDate} onChange={e => setNewSemester({...newSemester, startDate: e.target.value})} required className="form-input text-sm" /></div>
-                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">End Date</label><input type="date" value={newSemester.endDate} onChange={e => setNewSemester({...newSemester, endDate: e.target.value})} required className="form-input text-sm" /></div>
+                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Name</label><input type="text" value={newSemester.name} onChange={e => setNewSemester({ ...newSemester, name: e.target.value })} placeholder={`e.g., ${semesterLabel} 1`} required className="form-input text-sm" /></div>
+                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Start Date</label><input type="date" value={newSemester.startDate} onChange={e => setNewSemester({ ...newSemester, startDate: e.target.value })} required className="form-input text-sm" /></div>
+                                        <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">End Date</label><input type="date" value={newSemester.endDate} onChange={e => setNewSemester({ ...newSemester, endDate: e.target.value })} required className="form-input text-sm" /></div>
                                     </div>
                                     {!isSchool && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Lecturer Request Deadline</label><input type="date" value={newSemester.requestDeadline} onChange={e => setNewSemester({...newSemester, requestDeadline: e.target.value})} className="form-input text-sm" /></div>
-                                            <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Student Enrollment Deadline</label><input type="date" value={newSemester.enrollmentDeadline} onChange={e => setNewSemester({...newSemester, enrollmentDeadline: e.target.value})} className="form-input text-sm" /></div>
+                                            <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Lecturer Request Deadline</label><input type="date" value={newSemester.requestDeadline} onChange={e => setNewSemester({ ...newSemester, requestDeadline: e.target.value })} className="form-input text-sm" /></div>
+                                            <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Student Enrollment Deadline</label><input type="date" value={newSemester.enrollmentDeadline} onChange={e => setNewSemester({ ...newSemester, enrollmentDeadline: e.target.value })} className="form-input text-sm" /></div>
                                         </div>
                                     )}
                                     <div className="flex justify-end gap-3 pt-2">
@@ -350,7 +365,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                 </form>
                             </div>
                         )}
-                        
+
                         <div className="space-y-4">
                             {semesters.filter(s => s.academicYearId === selectedYear.id).map(semester => (
                                 <div key={semester.id} className="group border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden transition-all hover:border-indigo-300">
@@ -378,23 +393,23 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                         </div>
                                     </div>
 
-                                     {editingSemesterId === semester.id && editingSemesterData && (
+                                    {editingSemesterId === semester.id && editingSemesterData && (
                                         <div className="p-6 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 animate-fade-in-up">
                                             <div className="space-y-6">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Internal Name</label><input type="text" value={editingSemesterData.name} onChange={e => setEditingSemesterData({...editingSemesterData, name: e.target.value})} className="form-input text-sm" /></div>
-                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Start Date</label><input type="date" value={editingSemesterData.startDate} onChange={e => setEditingSemesterData({...editingSemesterData, startDate: e.target.value})} className="form-input text-sm" /></div>
-                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">End Date</label><input type="date" value={editingSemesterData.endDate} onChange={e => setEditingSemesterData({...editingSemesterData, endDate: e.target.value})} className="form-input text-sm" /></div>
+                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Internal Name</label><input type="text" value={editingSemesterData.name} onChange={e => setEditingSemesterData({ ...editingSemesterData, name: e.target.value })} className="form-input text-sm" /></div>
+                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Start Date</label><input type="date" value={editingSemesterData.startDate} onChange={e => setEditingSemesterData({ ...editingSemesterData, startDate: e.target.value })} className="form-input text-sm" /></div>
+                                                    <div><label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">End Date</label><input type="date" value={editingSemesterData.endDate} onChange={e => setEditingSemesterData({ ...editingSemesterData, endDate: e.target.value })} className="form-input text-sm" /></div>
                                                 </div>
 
                                                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                                                     <div className="flex justify-between items-center mb-3">
                                                         <h6 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Academic Sessions</h6>
                                                         <button type="button" onClick={handleAddSession} className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1">
-                                                            <PlusIcon className="w-4 h-4"/> Add Session
+                                                            <PlusIcon className="w-4 h-4" /> Add Session
                                                         </button>
                                                     </div>
-                                                    
+
                                                     <div className="space-y-3">
                                                         {(editingSemesterData.sessions || []).map((session) => (
                                                             <div key={session.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4">
@@ -402,9 +417,9 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                                     <div className="flex-grow"><label className="block text-[10px] font-bold text-slate-400 mb-1">Session Name</label><input type="text" value={session.name} onChange={(e) => handleSessionChange(session.id, 'name', e.target.value)} className="form-input text-xs" /></div>
                                                                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1">Start</label><input type="date" value={session.startDate} onChange={(e) => handleSessionChange(session.id, 'startDate', e.target.value)} className="form-input text-xs" /></div>
                                                                     <div><label className="block text-[10px] font-bold text-slate-400 mb-1">End</label><input type="date" value={session.endDate} onChange={(e) => handleSessionChange(session.id, 'endDate', e.target.value)} className="form-input text-xs" /></div>
-                                                                    <button type="button" onClick={() => handleDeleteSession(session.id)} className="p-2 text-red-400 hover:text-red-600"><XIcon className="w-5 h-5"/></button>
+                                                                    <button type="button" onClick={() => handleDeleteSession(session.id)} className="p-2 text-red-400 hover:text-red-600"><XIcon className="w-5 h-5" /></button>
                                                                 </div>
-                                                                
+
                                                                 <div className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-3">
                                                                     <div className="flex justify-between items-center">
                                                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Exam Windows</span>
@@ -415,7 +430,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                                             <input type="text" value={exam.name} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'name', e.target.value)} className="form-input text-[10px] h-8 flex-grow" placeholder="Exam Name" />
                                                                             <input type="date" value={exam.startDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'startDate', e.target.value)} className="form-input text-[10px] h-8 w-32" />
                                                                             <input type="date" value={exam.endDate} onChange={(e) => handleExamPeriodChange(session.id, exam.id, 'endDate', e.target.value)} className="form-input text-[10px] h-8 w-32" />
-                                                                            <button type="button" onClick={() => handleDeleteExamPeriod(session.id, exam.id)} className="p-1 text-slate-400 hover:text-red-500"><XIcon className="w-4 h-4"/></button>
+                                                                            <button type="button" onClick={() => handleDeleteExamPeriod(session.id, exam.id)} className="p-1 text-slate-400 hover:text-red-500"><XIcon className="w-4 h-4" /></button>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -424,10 +439,10 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                     </div>
                                                 </div>
 
-                                                 <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-700">
+                                                <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-700">
                                                     <button type="button" onClick={() => { setEditingSemesterId(null); setEditingSemesterData(null); }} className="btn-secondary text-sm">Cancel</button>
-                                                    <button 
-                                                        onClick={handleUpdateSemester} 
+                                                    <button
+                                                        onClick={handleUpdateSemester}
                                                         disabled={semesterSaveStatus === 'saving'}
                                                         className={`btn-primary text-sm ${semesterSaveStatus === 'saved' ? 'bg-green-600' : ''}`}
                                                     >
@@ -436,7 +451,7 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                 </div>
                                             </div>
                                         </div>
-                                     )}
+                                    )}
                                 </div>
                             ))}
                         </div>
