@@ -301,6 +301,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [editingStream, setEditingStream] = useState<{ courseId: string, streamId: string, name: string } | null>(null);
     const [assigningSubjectsTo, setAssigningSubjectsTo] = useState<Course | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
+    const [managingLessonsForCourse, setManagingLessonsForCourse] = useState<Course | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [academicLevelFilter, setAcademicLevelFilter] = useState('all');
@@ -1167,7 +1168,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => setEditingCourse(course)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button>
-                                            <button onClick={() => { setManagerTab('lessons'); setSearchQuery(course.name); }} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Lessons</button>
+                                            <button onClick={() => setManagingLessonsForCourse(course)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Lessons</button>
                                             <button onClick={() => setAssigningSubjectsTo(course)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registry</button>
                                             <button onClick={() => handleDeleteCourseSubmit(course.id, course.name)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Delete</button>
                                         </div>
@@ -1389,6 +1390,128 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     onUpdateAllocation={onUpdateRequest!}
                     onDeallocate={onWithdrawRequest!}
                 />
+            )}
+
+            {managingLessonsForCourse && (
+                <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingLessonsForCourse(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl">
+                                    <ClipboardListIcon className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black tracking-tighter uppercase">{managingLessonsForCourse.name} Lessons</h3>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Manage Class Subject Allocations</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setManagingLessonsForCourse(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
+                        </div>
+
+                        <div className="flex-grow overflow-y-auto p-8 bg-slate-50 dark:bg-slate-950">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm mb-8">
+                                <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                    <PlusIcon className="w-5 h-5 text-indigo-600" />
+                                    Add New Lesson
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                                    <div className="md:col-span-5">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Stream / Level</label>
+                                        <select
+                                            value={newLessonLevelId}
+                                            onChange={e => setNewLessonLevelId(e.target.value)}
+                                            className="form-select w-full"
+                                        >
+                                            <option value="">-- Select --</option>
+                                            {(managingLessonsForCourse.levels || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-5">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Subject</label>
+                                        <select
+                                            value={newLessonSubjectId}
+                                            onChange={e => setNewLessonSubjectId(e.target.value)}
+                                            className="form-select w-full"
+                                        >
+                                            <option value="">-- Select Subject --</option>
+                                            {(subjects || [])
+                                                .filter(s => !managingLessonsForCourse.departmentId || s.departmentId === managingLessonsForCourse.departmentId)
+                                                .map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <button
+                                            onClick={() => {
+                                                if (newLessonLevelId && newLessonSubjectId && onAssociateSubjectToCourseLevel) {
+                                                    onAssociateSubjectToCourseLevel(newLessonSubjectId, newLessonLevelId);
+                                                    setNewLessonLevelId('');
+                                                    setNewLessonSubjectId('');
+                                                }
+                                            }}
+                                            disabled={!newLessonLevelId || !newLessonSubjectId}
+                                            className="btn-primary w-full h-11 flex items-center justify-center shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:shadow-none"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {lessonsList
+                                    .filter(l => l.courseId === managingLessonsForCourse.id)
+                                    .map(lesson => (
+                                        <div key={lesson.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-indigo-200 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black shadow-sm ${lesson.lecturerId ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {(lesson.subjectCode || "??").substring(0, 2)}
+                                                </div>
+                                                <div>
+                                                    <h5 className="font-bold text-slate-900 dark:text-white uppercase tracking-tight">{lesson.subjectName}</h5>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                                        <span>{lesson.levelName}</span>
+                                                        <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                        <span>{lesson.structure}</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-6">
+                                                <div className="hidden md:block text-right">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Assigned To</p>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <span className={`text-xs font-bold ${lesson.lecturerId ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                                            {lesson.lecturer}
+                                                        </span>
+                                                        {lesson.lecturerId && (
+                                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-black text-slate-500">
+                                                                {getInitials(lesson.lecturer)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 border-l border-slate-100 dark:border-slate-800 pl-4">
+                                                    <button
+                                                        onClick={() => handleRemoveLesson(lesson)}
+                                                        className="p-2 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors"
+                                                        title="Remove Lesson"
+                                                    >
+                                                        <XIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                {lessonsList.filter(l => l.courseId === managingLessonsForCourse.id).length === 0 && (
+                                    <div className="text-center py-12 opacity-50">
+                                        <p className="text-xs font-black uppercase tracking-widest">No lessons configured for this course yet.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {editingCourse && onUpdateCourse && (
