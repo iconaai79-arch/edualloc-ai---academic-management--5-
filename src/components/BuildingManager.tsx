@@ -55,7 +55,7 @@ const RoomQrCodeModal: React.FC<{
         let timeoutId: number;
 
         const generate = () => {
-            const QRCodeLib = (window as any).QRCode;
+            const QRCodeLib = (window as any).QRCode || (window as any).QRCodeLib;
             if (QRCodeLib && typeof QRCodeLib.toDataURL === 'function') {
                 setError(null);
                 const data = JSON.stringify({ roomId: room.id, roomName: room.name, building: buildingName });
