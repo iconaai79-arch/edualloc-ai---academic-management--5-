@@ -1131,7 +1131,7 @@ export const App: React.FC = () => {
                                 onDeleteUser={onDeleteUser}
                                 inventoryItems={countyInventory}
                                 onAddInventoryItem={async (data) => {
-                                    await apiService.saveModuleRecord('county_inventory', { ...data, id: `cinv_${Date.now()}` });
+                                    await apiService.saveModuleRecord('county_inventory', { ...data, id: `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` });
                                     loadData();
                                 }}
                                 onUpdateInventoryItem={async (id, data) => {

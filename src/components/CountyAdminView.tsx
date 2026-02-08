@@ -25,6 +25,7 @@ import {
 } from './icons/index';
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
+import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 
 interface CountyAdminViewProps {
     currentUser: User;
@@ -142,6 +143,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     };
 
     const [showInventoryModal, setShowInventoryModal] = useState(false);
+    const [showInventoryImportModal, setShowInventoryImportModal] = useState(false);
     const [editingInventory, setEditingInventory] = useState<CountyInventoryItem | null>(null);
     const [showQrModal, setShowQrModal] = useState<CountyInventoryItem | null>(null);
     const [inventoryForm, setInventoryForm] = useState({
@@ -682,20 +684,28 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     Manage supplies from HQ to schools via drivers and parcels
                                 </p>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setEditingInventory(null);
-                                    setInventoryForm({
-                                        name: '', category: '', quantity: 1, unit: 'Units',
-                                        supplierName: '', targetInstitutionId: '',
-                                        deliveryMethod: 'driver', driverName: '', trackingNumber: ''
-                                    });
-                                    setShowInventoryModal(true);
-                                }}
-                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                            >
-                                <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowInventoryImportModal(true)}
+                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="w-5 h-5 text-indigo-400" /> Bulk Import
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingInventory(null);
+                                        setInventoryForm({
+                                            name: '', category: '', quantity: 1, unit: 'Units',
+                                            supplierName: '', targetInstitutionId: '',
+                                            deliveryMethod: 'driver', driverName: '', trackingNumber: ''
+                                        });
+                                        setShowInventoryModal(true);
+                                    }}
+                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -1108,6 +1118,22 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             }
                         }}
                         countyId={myCounty.id}
+                    />
+                )}
+
+                {showInventoryImportModal && myCounty && (
+                    <SmartInventoryImporterModal
+                        onClose={() => setShowInventoryImportModal(false)}
+                        onImport={async (items) => {
+                            if (onAddInventoryItem) {
+                                for (const item of items) {
+                                    await onAddInventoryItem(item);
+                                }
+                            }
+                            setShowInventoryImportModal(false);
+                        }}
+                        countyId={myCounty.id}
+                        institutions={institutions}
                     />
                 )}
 

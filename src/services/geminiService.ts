@@ -308,10 +308,10 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
     }
 };
 
-export const analyzeInventorySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeCountyInventorySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
-        const prompt = `Map headers to inventory fields: name, category, quantity, unit, reorderLevel, location. Headers: ${JSON.stringify(headers)}. Return JSON.`;
+        const prompt = `Map these spreadsheet headers to county inventory fields: name, category, quantity, unit, supplierName, targetInstitutionId, deliveryMethod. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
         const response = await ai!.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
@@ -319,7 +319,7 @@ export const analyzeInventorySpreadsheet = async (headers: string[]): Promise<Re
         });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
-        console.error("AI inventory map error:", error);
+        console.error("AI county inventory map error:", error);
         return {};
     }
 };
