@@ -49,7 +49,7 @@ export interface SupportStaffViewProps {
     getRoomById?: (id: string) => Room | undefined;
     getLecturerById?: (id: string) => User | undefined;
     securityAlerts?: SecurityAlert[];
-    onAddAlert?: (alert: Omit<SecurityAlert, 'id' | 'createdAt' | 'status'>) => void;
+    onAddAlert?: (alert: Omit<SecurityAlert, 'id' | 'institutionId' | 'createdBy' | 'createdAt' | 'status'>) => void;
     onResolveAlert?: (id: string) => void;
     appointments?: Appointment[];
     onUpdateAppointmentStatus?: (id: string, status: Appointment['status']) => void;
@@ -244,7 +244,86 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     </div>
                 </div>
             )}
+
             {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
+
+            {isRegistering && (
+                <div className="fixed inset-0 bg-slate-900/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <h3 className="text-2xl font-black uppercase tracking-tight">Visitor Entry Card</h3>
+                            <button onClick={() => setIsRegistering(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleRegisterWalkIn} className="p-8 space-y-5">
+                            <div className="relative">
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Phone Number (Lookup)</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="tel"
+                                        className="form-input"
+                                        value={walkInForm.phone}
+                                        onChange={(e) => setWalkInForm({ ...walkInForm, phone: e.target.value })}
+                                        placeholder="07..."
+                                        required
+                                    />
+                                    <button type="button" onClick={handleVisitorLookup} className="px-4 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors">
+                                        {lookupStatus === 'searching' ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <MagnifyingGlassIcon className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                                {lookupStatus === 'found' && <p className="text-[10px] font-bold text-emerald-600 mt-2 uppercase">Returning Visitor Identified</p>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Full Name</label>
+                                    <input type="text" className="form-input" value={walkInForm.name} onChange={(e) => setWalkInForm({ ...walkInForm, name: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Purpose of Visit</label>
+                                    <select className="form-select" value={walkInForm.purpose} onChange={(e) => setWalkInForm({ ...walkInForm, purpose: e.target.value })} required>
+                                        <option value="">Select Purpose</option>
+                                        <option value="Official">Official Business</option>
+                                        <option value="Personal">Personal Visit</option>
+                                        <option value="Delivery">Delivery / Courier</option>
+                                        <option value="Service">Maintenance / Service</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host / Personnel To See</label>
+                                <select className="form-select" value={walkInForm.hostId} onChange={(e) => setWalkInForm({ ...walkInForm, hostId: e.target.value })} required>
+                                    <option value="">Select Host</option>
+                                    {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Vehicle Plate (Optional)</label>
+                                    <input type="text" className="form-input font-mono uppercase" value={walkInForm.vehiclePlate} onChange={(e) => setWalkInForm({ ...walkInForm, vehiclePlate: e.target.value })} placeholder="KAA 001A" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Vehicle Model</label>
+                                    <input type="text" className="form-input" value={walkInForm.vehicleModel} onChange={(e) => setWalkInForm({ ...walkInForm, vehicleModel: e.target.value })} placeholder="e.g. Toyota Prado" />
+                                </div>
+                            </div>
+                            <button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 mt-4">
+                                Authorize Entry
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isScanning && (
+                <LicensePlateScanner
+                    onClose={() => setIsScanning(false)}
+                    onPlateDetected={(plate) => {
+                        setWalkInForm(prev => ({ ...prev, vehiclePlate: plate }));
+                        setIsScanning(false);
+                        setIsRegistering(true);
+                    }}
+                />
+            )}
+
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; }
                 .dark .form-input { border-color: #334155; background-color: #0f172a; color: #fff; }

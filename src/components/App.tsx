@@ -927,7 +927,7 @@ export const App: React.FC = () => {
                                 users={users}
                                 visitors={visitors}
                                 securityAlerts={securityAlerts}
-                                appointments={[]} // Appointments not fetched into dedicated state but used in view? 
+                                appointments={appointments}
                                 // Actually appointments are used. Adding fetching for them.
                                 onAddVisitor={async (v) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` }); loadData(); }}
                                 onCheckoutVisitor={async (id) => { const v = visitors.find(x => x.id === id); if (v) await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() }); loadData(); }}
