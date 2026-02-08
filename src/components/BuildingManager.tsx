@@ -16,6 +16,7 @@ import {
     ArchiveBoxIcon,
     ArrowUpTrayIcon,
     SparklesIcon,
+    DocumentArrowDownIcon,
     MapPinIcon
 } from './icons/index';
 import { findLocationCoordinates } from '../services/geminiService';
@@ -108,8 +109,33 @@ const RoomQrCodeModal: React.FC<{
                         <p className="text-sm text-slate-500 dark:text-slate-400 print:text-black">Scan for room information & check-in</p>
                     </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 flex flex-row-reverse no-print">
+                <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 flex flex-row-reverse gap-2 no-print">
                     <button onClick={() => window.print()} className="btn-primary" disabled={!!error || !qrCodeUrl}>Print</button>
+                    <button
+                        onClick={() => {
+                            const lib = (window as any).jspdf || (window as any).jsPDF;
+                            if (!lib) {
+                                alert("PDF library not loaded. Please refresh.");
+                                return;
+                            }
+                            const jsPDFClass = lib.jsPDF || lib;
+                            const doc = new jsPDFClass();
+
+                            doc.setFontSize(18);
+                            doc.text(institutionName, 105, 20, { align: 'center' });
+                            doc.addImage(qrCodeUrl, 'PNG', 55, 30, 100, 100);
+                            doc.setFontSize(16);
+                            doc.text(`${buildingName} - ${room.name}`, 105, 140, { align: 'center' });
+                            doc.setFontSize(10);
+                            doc.text("Scan for room information & check-in", 105, 150, { align: 'center' });
+                            doc.save(`${room.name.replace(/\s+/g, '_')}_QR.pdf`);
+                        }}
+                        className="btn-secondary flex items-center gap-2"
+                        disabled={!!error || !qrCodeUrl}
+                    >
+                        <DocumentArrowDownIcon className="w-5 h-5" />
+                        Download PDF
+                    </button>
                 </div>
             </div>
         </div>
@@ -162,6 +188,52 @@ const BulkRoomQrPrintModal: React.FC<{
                     </div>
                     <div className="flex gap-3">
                         <button onClick={onClose} className="btn-secondary">Cancel</button>
+                        <button
+                            onClick={async () => {
+                                const lib = (window as any).jspdf || (window as any).jsPDF;
+                                if (!lib) {
+                                    alert("PDF library not loaded. Please refresh.");
+                                    return;
+                                }
+                                const jsPDFClass = lib.jsPDF || lib;
+                                const doc = new jsPDFClass();
+
+                                rooms.forEach((room, index) => {
+                                    if (index > 0) doc.addPage();
+                                    const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
+                                    const qr = qrCodes[room.id];
+                                    if (qr) {
+                                        doc.setFontSize(22);
+                                        doc.setTextColor(79, 70, 229); // Indigo color
+                                        doc.text(institutionName, 105, 30, { align: 'center' });
+
+                                        doc.setDrawColor(200, 200, 200);
+                                        doc.line(20, 40, 190, 40);
+
+                                        doc.addImage(qr, 'PNG', 55, 60, 100, 100);
+
+                                        doc.setTextColor(0, 0, 0);
+                                        doc.setFontSize(24);
+                                        doc.setFont('helvetica', 'bold');
+                                        doc.text(room.name, 105, 180, { align: 'center' });
+
+                                        doc.setFontSize(14);
+                                        doc.setFont('helvetica', 'normal');
+                                        doc.text(bldg, 105, 195, { align: 'center' });
+
+                                        doc.setFontSize(10);
+                                        doc.setTextColor(150, 150, 150);
+                                        doc.text(`Generated on ${new Date().toLocaleDateString()}`, 105, 270, { align: 'center' });
+                                    }
+                                });
+                                doc.save(`Bulk_Room_QRs_${new Date().toISOString().split('T')[0]}.pdf`);
+                            }}
+                            className="btn-secondary flex items-center gap-2"
+                            disabled={loading}
+                        >
+                            <DocumentArrowDownIcon className="w-5 h-5 text-indigo-600" />
+                            Download PDF (Bulk)
+                        </button>
                         <button onClick={() => window.print()} className="btn-primary flex items-center gap-2" disabled={loading}>
                             <PrinterIcon className="w-5 h-5" />
                             Print All
