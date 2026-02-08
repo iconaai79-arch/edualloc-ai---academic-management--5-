@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types';
 import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon, ClockIcon } from './icons/index';
-import { analyzeSubjectSpreadsheet } from '../services/geminiService';
+import { SmartSubjectImporterModal } from './SmartSubjectImporterModal';
 import { generatePastelColor } from '../utils/colorUtils';
 import { EditSubjectModal } from './EditSubjectModal';
 import { PathwayUpdateModal } from './PathwayUpdateModal';
@@ -77,8 +77,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [completionFilter, setCompletionFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
     const [constraintSubject, setConstraintSubject] = useState<Subject | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isImporting, setIsImporting] = useState(false);
+    const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -105,84 +104,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         setEditingSubject(null);
     };
 
-    const handleSmartImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !onImportSubjectsAndAssociate) return;
 
-        setIsImporting(true);
-        try {
-            const reader = new FileReader();
-            reader.onload = async (evt) => {
-                try {
-                    const bstr = evt.target?.result;
-                    const wb = XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    const ws = wb.Sheets[wsname];
-                    const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
-                    if (data.length < 2) {
-                        alert("The file seems empty or missing data.");
-                        setIsImporting(false);
-                        return;
-                    }
-
-                    const headers = data[0].map(h => String(h || '').trim());
-                    const rows = data.slice(1);
-
-                    // Call Gemini AI to map headers
-                    const mapping = await analyzeSubjectSpreadsheet(headers, currentInstitution?.aiModelTier);
-
-                    const importedSubjects = rows.map(row => {
-                        const subject: Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string } = {
-                            code: '',
-                            name: '',
-                            departmentId: visibleDepartments[0]?.id || '',
-                            lessonStructure: [],
-                            description: '',
-                            isComplete: false
-                        };
-
-                        headers.forEach((header, index) => {
-                            const field = mapping[header];
-                            if (field && row[index] !== undefined && row[index] !== null) {
-                                const value = String(row[index]).trim();
-                                if (field === 'departmentName') {
-                                    const dept = departments.find(d => d.name.toLowerCase() === value.toLowerCase());
-                                    if (dept) subject.departmentId = dept.id;
-                                } else if (field === 'targetCourseLevel') {
-                                    subject.targetCourseLevelId = value;
-                                } else if (field === 'lessonStructure') {
-                                    // Basic structure parsing or leave it for later enhancement
-                                } else if (field in subject) {
-                                    (subject as any)[field] = value;
-                                }
-                            }
-                        });
-
-                        return subject;
-                    }).filter(s => s.name && s.code);
-
-                    if (importedSubjects.length === 0) {
-                        alert("No valid subjects found. Ensure your Excel has 'name' and 'code' columns.");
-                    } else {
-                        await onImportSubjectsAndAssociate(importedSubjects);
-                        alert(`Successfully imported ${importedSubjects.length} subjects!`);
-                    }
-                } catch (err) {
-                    console.error("Import processing error:", err);
-                    alert("Failed to process the Excel file.");
-                } finally {
-                    setIsImporting(false);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                }
-            };
-            reader.readAsBinaryString(file);
-        } catch (err) {
-            console.error("File reading error:", err);
-            alert("Failed to read the file.");
-            setIsImporting(false);
-        }
-    };
 
     const handleBulkPathwayUpdate = async (updates: Record<string, Partial<Subject>>) => {
         if (!onUpdateSubject) return;
@@ -207,25 +129,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         <ArrowsRightLeftIcon className="w-5 h-5 text-indigo-500" /> Pathway Sync
                     </button>
 
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleSmartImport}
-                        accept=".xlsx, .xls, .csv"
-                        className="hidden"
-                    />
-
                     <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isImporting}
+                        onClick={() => setIsSmartImportOpen(true)}
+                        disabled={!onImportSubjectsAndAssociate}
                         className="btn-secondary h-11 flex items-center gap-2 px-6 text-[10px] font-black uppercase tracking-widest hover:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
                     >
-                        {isImporting ? (
-                            <SparklesIcon className="w-5 h-5 text-indigo-500 animate-pulse" />
-                        ) : (
-                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-500" />
-                        )}
-                        {isImporting ? 'Mapping...' : 'Smart Import'}
+                        <SparklesIcon className="w-5 h-5 text-indigo-500" />
+                        Smart Import
                     </button>
 
                     {onAddSubject && (
@@ -324,6 +234,18 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     departments={visibleDepartments}
                     subjects={subjects}
                     onBulkUpdate={handleBulkPathwayUpdate}
+                />
+            )}
+
+            {isSmartImportOpen && onImportSubjectsAndAssociate && (
+                <SmartSubjectImporterModal
+                    onClose={() => setIsSmartImportOpen(false)}
+                    onImport={onImportSubjectsAndAssociate}
+                    existingSubjects={subjects}
+                    departments={departments}
+                    courses={courses}
+                    aiModelTier={currentInstitution?.aiModelTier}
+                    currentUserDepartmentId={currentUser.departmentId}
                 />
             )}
 
