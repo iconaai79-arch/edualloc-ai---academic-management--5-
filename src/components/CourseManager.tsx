@@ -220,6 +220,14 @@ const SmartCourseImporterModal: React.FC<{
                         </div>
                     )}
 
+                    {step === 'importing' && (
+                        <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
+                            <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                            <h4 className="text-xl font-bold mb-2">Analyzing Spreadsheet...</h4>
+                            <p className="text-sm text-slate-500">AI is mapping your data structure</p>
+                        </div>
+                    )}
+
                     {step === 'success' && (
                         <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
                             <div className="w-24 h-24 bg-green-100 text-green-600 rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-green-100">
@@ -228,6 +236,20 @@ const SmartCourseImporterModal: React.FC<{
                             <h4 className="text-3xl font-black tracking-tight mb-2 uppercase">Import Complete</h4>
                             <p className="text-slate-500 mb-10">All curriculum records have been successfully added.</p>
                             <button onClick={onClose} className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Return to Portal</button>
+                        </div>
+                    )}
+
+                    {step === 'error' && (
+                        <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+                            <div className="w-24 h-24 bg-red-100 text-red-600 rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-red-100">
+                                <XIcon className="w-12 h-12" />
+                            </div>
+                            <h4 className="text-3xl font-black tracking-tight mb-2 uppercase text-red-600">Import Failed</h4>
+                            <p className="text-slate-500 mb-10 max-w-md mx-auto">{errorMessage || "An unexpected error occurred during the import process."}</p>
+                            <div className="flex gap-4">
+                                <button onClick={() => setStep('upload')} className="btn-secondary h-12 px-8">Try Again</button>
+                                <button onClick={onClose} className="btn-primary h-12 px-8 bg-slate-900 shadow-lg shadow-slate-200">Close</button>
+                            </div>
                         </div>
                     )}
                 </div>
