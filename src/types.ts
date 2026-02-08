@@ -82,6 +82,8 @@ export interface County {
     status: 'active' | 'suspended';
     createdAt: string;
     location?: { latitude: number; longitude: number };
+    logoUrl?: string;
+    letterheadUrl?: string;
 }
 
 export interface Institution {

@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS institutions (
     schedule_profiles JSONB DEFAULT '[]'::jsonb
 );
 
+CREATE TABLE IF NOT EXISTS counties (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    phone_number TEXT,
+    admin_name TEXT,
+    logo_url TEXT,
+    letterhead_url TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    location JSONB
+);
+
 CREATE TABLE IF NOT EXISTS system_settings (
     id INTEGER PRIMARY KEY,
     data JSONB NOT NULL

@@ -35,18 +35,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
-
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead') => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (type === 'logo') setLogoPreview(reader.result as string);
-                else setLetterheadPreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+    const [isUploading, setIsUploading] = useState(false);
 
     // Logic to find the admin's county. 
     // We match by adminName (text field) or email.
@@ -56,6 +45,52 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     );
 
     const myInstitutions = institutions.filter(i => i.countyId === myCounty?.id);
+
+    useEffect(() => {
+        if (myCounty?.logoUrl) setLogoPreview(myCounty.logoUrl);
+        if (myCounty?.letterheadUrl) setLetterheadPreview(myCounty.letterheadUrl);
+    }, [myCounty]);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Preview First
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (type === 'logo') setLogoPreview(reader.result as string);
+            else setLetterheadPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+
+        if (!myCounty || !onUpdateCounty) {
+            console.warn("Cannot save upload: County context missing or update handler not provided.");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'png';
+            const path = `counties/${myCounty.id}/branding/${type}_${timestamp}.${ext}`;
+
+            const publicUrl = await apiService.uploadFile('eduai', path, file);
+
+            if (publicUrl) {
+                await onUpdateCounty(myCounty.id, {
+                    [type === 'logo' ? 'logoUrl' : 'letterheadUrl']: publicUrl
+                });
+                alert(`${type === 'logo' ? 'Logo' : 'Letterhead'} updated successfully!`);
+            } else {
+                alert("Upload failed. Please try again.");
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("An error occurred during upload.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     // Calculate stats
     const totalStudents = users.filter(u =>

@@ -166,6 +166,25 @@ export const apiService = {
             return { success: false, message: e.message || "Execution engine failure." };
         }
     },
+    async uploadFile(bucket: string, path: string, file: File): Promise<string | null> {
+        try {
+            if (!_supabase) {
+                console.warn("Supabase not initialized for upload.");
+                return null;
+            }
+            const { error } = await _supabase.storage.from(bucket).upload(path, file, { upsert: true });
+            if (error) {
+                console.error("Upload Error:", error);
+                // Return null on error
+                return null;
+            }
+            const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);
+            return publicUrl;
+        } catch (err) {
+            console.error("Upload Service Error:", err);
+            return null;
+        }
+    },
     async fetchModuleRecords<T>(module: string, institutionId?: string): Promise<T[]> {
         if (!_supabase) {
             let records = ls.get(module);
