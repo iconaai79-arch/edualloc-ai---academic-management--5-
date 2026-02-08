@@ -12,6 +12,7 @@ import {
     PlusIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
+import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
 
 interface CountyAdminViewProps {
     currentUser: User;
@@ -23,6 +24,7 @@ interface CountyAdminViewProps {
     onUpdateCounty?: (id: string, data: Partial<County>) => Promise<void>;
     onAddInstitution?: (data: any) => Promise<void>;
     onLoginAsAdmin?: (institutionId: string) => void;
+    onImportInstitutions?: (data: any[]) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -34,13 +36,15 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onUpdateInstitution,
     onUpdateCounty,
     onAddInstitution,
-    onLoginAsAdmin
+    onLoginAsAdmin,
+    onImportInstitutions
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'settings'>('dashboard');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     // Institution Registration State
     const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -307,12 +311,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     Schools and colleges within {myCounty.name}
                                 </p>
                             </div>
-                            <button
-                                onClick={() => setShowRegisterModal(true)}
-                                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                            >
-                                <PlusIcon className="w-5 h-5 text-white" /> Register New
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowImportModal(true)}
+                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="w-5 h-5 text-indigo-400" /> Bulk Import
+                                </button>
+                                <button
+                                    onClick={() => setShowRegisterModal(true)}
+                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-5 h-5 text-white" /> Register New
+                                </button>
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -365,7 +377,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <button 
+                                                    <button
                                                         onClick={() => onLoginAsAdmin && onLoginAsAdmin(inst.id)}
                                                         className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
                                                     >
@@ -644,6 +656,18 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             </form>
                         </div>
                     </div>
+                )}
+
+                {showImportModal && myCounty && (
+                    <SmartInstitutionImporterModal
+                        onClose={() => setShowImportModal(false)}
+                        onImport={async (data) => {
+                            if (onImportInstitutions) {
+                                await onImportInstitutions(data);
+                            }
+                        }}
+                        countyId={myCounty.id}
+                    />
                 )}
             </main>
         </div>

@@ -777,6 +777,65 @@ export const App: React.FC = () => {
         }
     }, [loadData, companyDetails]);
 
+    const handleImportCountyInstitutions = useCallback(async (dataList: any[]) => {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const data of dataList) {
+            try {
+                const instId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                const adminId = `u_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                const generatedPassword = Math.random().toString(36).slice(-8);
+
+                const newInstitution: Institution = {
+                    id: instId,
+                    name: data.name,
+                    email: data.email,
+                    phoneNumber: data.phoneNumber,
+                    institutionType: data.institutionType as any,
+                    status: 'active',
+                    trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+                    institutionCode: `INST-${Date.now().toString().slice(-4)}`,
+                    useAllocationRequests: true,
+                    countyId: data.countyId
+                };
+
+                const adminRole: Role = (data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher';
+                const newAdmin: User = {
+                    id: adminId,
+                    name: data.adminName,
+                    email: data.adminEmail,
+                    phoneNumber: data.phoneNumber || '',
+                    role: adminRole,
+                    institutionId: instId,
+                    password: generatedPassword,
+                    expertise: ['Administration'],
+                    staffId: 'ADMIN-01'
+                };
+
+                await apiService.saveInstitution(newInstitution);
+                await apiService.saveUser(newAdmin);
+
+                if (companyDetails.emailConfig?.username) {
+                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+
+                    try {
+                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                    } catch (e) {
+                        console.error("Email notification failed", e);
+                    }
+                }
+                successCount++;
+            } catch (error) {
+                console.error("Bulk import item failed:", error);
+                failCount++;
+            }
+        }
+
+        await loadData();
+        alert(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount}\nFailed: ${failCount}`);
+    }, [loadData, companyDetails]);
+
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
@@ -1060,6 +1119,7 @@ export const App: React.FC = () => {
                                 onUpdateCounty={handleUpdateCounty}
                                 onAddInstitution={handleAddCountyInstitution}
                                 onLoginAsAdmin={onLoginAsAdmin}
+                                onImportInstitutions={handleImportCountyInstitutions}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
