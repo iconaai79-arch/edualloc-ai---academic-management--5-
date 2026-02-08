@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS counties (
     code TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL,
     phone_number TEXT NOT NULL,
-    admin_id TEXT,
+    admin_id UUID,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     location JSONB,
