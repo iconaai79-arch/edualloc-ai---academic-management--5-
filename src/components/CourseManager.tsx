@@ -1166,8 +1166,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             <div className="flex gap-2 items-center">
                                                 <input
                                                     type="text"
-                                                    value={editingStream.name}
-                                                    onChange={e => setEditingStream({ ...editingStream, name: e.target.value })}
+                                                    value={editingStream ? editingStream.name : ''}
+                                                    onChange={e => {
+                                                        if (editingStream) {
+                                                            setEditingStream({ ...editingStream, name: e.target.value });
+                                                        }
+                                                    }}
                                                     className="form-input py-1 h-8 text-xs font-bold"
                                                     autoFocus
                                                 />
