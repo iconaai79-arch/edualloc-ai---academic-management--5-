@@ -237,8 +237,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'interactions' | 'users' | 'courses' | 'comms' | 'settings' | 'reports'>('dashboard');
-    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects'>('wizard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'comms' | 'settings' | 'reports'>('dashboard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
@@ -253,7 +253,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
-            { id: 'interactions', label: 'Registry', icon: <ArrowsRightLeftIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
@@ -269,7 +268,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return { pendingCount, changesCount, deallocCount, totalActionable: pendingCount + changesCount + deallocCount };
     }, [requests]);
 
-    const handleQuickAction = (tabId: string, settingsSubTab?: string, tTabSub?: 'scheduler' | 'calendar' | 'subjects') => {
+    const handleQuickAction = (tabId: string, settingsSubTab?: string, tTabSub?: 'scheduler' | 'calendar' | 'subjects' | 'registry') => {
         setActiveTab(tabId as any);
         if (settingsSubTab) setRequestedSettingsTab(settingsSubTab);
         if (tTabSub) setTimetableSubTab(tTabSub);
@@ -302,7 +301,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     >
                         {tab.icon}
                         {tab.label}
-                        {tab.id === 'interactions' && stats.totalActionable > 0 && (
+                        {tab.id === 'timetable' && stats.totalActionable > 0 && (
                             <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
                                 {stats.totalActionable}
                             </span>
@@ -441,6 +440,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             <button onClick={() => setTimetableSubTab('scheduler')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'scheduler' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Lesson Scheduler</button>
                             <button onClick={() => setTimetableSubTab('calendar')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'calendar' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Academic Calendar</button>
                             <button onClick={() => setTimetableSubTab('subjects')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'subjects' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>Subject Registry</button>
+                            <button onClick={() => setTimetableSubTab('registry')} className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timetableSubTab === 'registry' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-500'}`}>
+                                Registry
+                                {stats.totalActionable > 0 && (
+                                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse ml-1">
+                                        {stats.totalActionable}
+                                    </span>
+                                )}
+                            </button>
                         </div>
 
                         <div className="animate-fade-in-up">
@@ -509,6 +516,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                                     currentUser={props.currentUser}
                                 />
+                            ) : timetableSubTab === 'registry' ? (
+                                <InteractionsManager
+                                    {...props}
+                                    enrollmentRequests={props.enrollmentRequests || []}
+                                    onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
+                                    onUpdateRequestStatus={props.onUpdateRequestStatus}
+                                    onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
+                                    getLecturerById={props.getLecturerById || ((id) => (props.users || []).find(u => u && u.id === id))}
+                                    getSubjectById={props.getSubjectById || ((id) => (props.subjects || []).find(s => s && s.id === id))}
+                                    allocations={props.allocations || []}
+                                />
                             ) : (
                                 <TimetableGenerator
                                     {...props}
@@ -524,19 +542,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             )}
                         </div>
                     </div>
-                )}
-
-                {activeTab === 'interactions' && (
-                    <InteractionsManager
-                        {...props}
-                        enrollmentRequests={props.enrollmentRequests || []}
-                        onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
-                        onUpdateRequestStatus={props.onUpdateRequestStatus}
-                        onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
-                        getLecturerById={props.getLecturerById || ((id) => (props.users || []).find(u => u && u.id === id))}
-                        getSubjectById={props.getSubjectById || ((id) => (props.subjects || []).find(s => s && s.id === id))}
-                        allocations={props.allocations || []}
-                    />
                 )}
 
                 {activeTab === 'users' && (
