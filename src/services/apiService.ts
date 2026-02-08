@@ -501,9 +501,12 @@ export const apiService = {
         if (error) throw error;
     },
     async onImportSubjectsAndAssociate(subjects: any[], institutionId?: string): Promise<void> {
+        const currentUser = this.getSession();
+        const effectiveInstitutionId = institutionId || currentUser?.institutionId;
+
         const subjectsToInsert = subjects.map(s => ({
             id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            institutionId: s.institutionId || institutionId,
+            institutionId: s.institutionId || effectiveInstitutionId,
             name: s.name,
             code: s.code,
             departmentId: s.departmentId,
