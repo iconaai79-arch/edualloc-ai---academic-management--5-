@@ -115,6 +115,15 @@
 }
 
 @media print {
+
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   body {
     visibility: hidden !important;
     background: white !important;
@@ -131,6 +140,8 @@
     top: 0 !important;
     width: 100% !important;
     display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .no-print {
@@ -154,7 +165,7 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    height: 135mm;
+    height: 130mm;
     background: white !important;
   }
 
