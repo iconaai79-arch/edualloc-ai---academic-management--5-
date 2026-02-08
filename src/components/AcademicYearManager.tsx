@@ -278,10 +278,10 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                                             // Deactivate currently active years first
                                                             const activeYears = academicYears.filter(y => y.status === 'active' && y.id !== year.id);
                                                             for (const ay of activeYears) {
-                                                                await onUpdateAcademicYear(ay.id, { status: 'inactive' });
+                                                                await onUpdateAcademicYear(ay.id, { ...ay, status: 'inactive' });
                                                             }
                                                             // Activate target year
-                                                            await onUpdateAcademicYear(year.id, { status: 'active' });
+                                                            await onUpdateAcademicYear(year.id, { ...year, status: 'active' });
                                                             setOpenActionMenu(null);
                                                         } catch (e) {
                                                             console.error("Failed to activate year", e);

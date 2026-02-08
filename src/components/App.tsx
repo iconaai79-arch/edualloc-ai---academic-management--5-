@@ -872,11 +872,11 @@ export const App: React.FC = () => {
                                 courseSizes={courseSizes}
                                 academicYears={academicYears}
                                 onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                onUpdateAcademicYear={async (id, data) => { await apiService.saveModuleRecord('academic_years', { ...data, id }); loadData(); }}
+                                onUpdateAcademicYear={async (id, data) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
                                 onDeleteAcademicYear={async (id) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
                                 semesters={semesters}
                                 onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                onUpdateSemester={async (id, data) => { await apiService.saveModuleRecord('semesters', { ...data, id }); loadData(); }}
+                                onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                 onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
                                 timetableSettings={timetableSettings}
                                 onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
@@ -1029,10 +1029,10 @@ export const App: React.FC = () => {
                                 onUpdateAcademicLevel={handleUpdateAcademicLevel}
                                 onDeleteAcademicLevel={handleDeleteAcademicLevel}
                                 onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: `ay_${Date.now()}`, institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }}
-                                onUpdateAcademicYear={async (id, data) => { await apiService.saveModuleRecord('academic_years', { ...data, id }); loadData(); }}
+                                onUpdateAcademicYear={async (id, data) => { const existing = academicYears.find(y => y.id === id); await apiService.saveModuleRecord('academic_years', { ...existing, ...data, id }); loadData(); }}
                                 onDeleteAcademicYear={async (id) => { await apiService.deleteModuleRecord('academic_years', id); loadData(); }}
                                 onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: `sem_${Date.now()}`, institutionId: currentUser!.institutionId }); loadData(); }}
-                                onUpdateSemester={async (id, data) => { await apiService.saveModuleRecord('semesters', { ...data, id }); loadData(); }}
+                                onUpdateSemester={async (id, data) => { const existing = semesters.find(s => s.id === id); await apiService.saveModuleRecord('semesters', { ...existing, ...data, id }); loadData(); }}
                                 onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
                                 onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
                                 onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
