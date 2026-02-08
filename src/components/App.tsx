@@ -553,13 +553,6 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleUpdateCounty = async (id: string, data: any) => {
-        const county = counties.find(c => c.id === id);
-        if (county) {
-            await apiService.saveModuleRecord('counties', { ...county, ...data });
-            loadData();
-        }
-    };
 
     const onLoginAsAdmin = (institutionId: string) => {
         const admin = users.find(u => u.institutionId === institutionId && (u.role === 'admin' || u.role === 'head_teacher'));
