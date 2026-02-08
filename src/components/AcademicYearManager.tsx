@@ -274,19 +274,18 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                                             <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl action-menu-dropdown z-[100] py-2 overflow-hidden animate-fade-in-up">
                                                 {onUpdateAcademicYear && year.status !== 'active' && (
                                                     <button onClick={async () => {
-                                                        // Deactivate all other years first (optimistic UI update or batch)
-                                                        /* 
-                                                           Ideally, the backend should handle this "single active" constraint. 
-                                                           But if we are using Supabase/simple storage, we might need to enforce it here.
-                                                           However, let's debug why "nothing happens". 
-                                                           It might be an async issue or error swallowing.
-                                                        */
                                                         try {
+                                                            // Deactivate currently active years first
+                                                            const activeYears = academicYears.filter(y => y.status === 'active' && y.id !== year.id);
+                                                            for (const ay of activeYears) {
+                                                                await onUpdateAcademicYear(ay.id, { status: 'inactive' });
+                                                            }
+                                                            // Activate target year
                                                             await onUpdateAcademicYear(year.id, { status: 'active' });
                                                             setOpenActionMenu(null);
                                                         } catch (e) {
                                                             console.error("Failed to activate year", e);
-                                                            alert("Failed to activate year");
+                                                            alert(`Failed to activate year: ${e instanceof Error ? e.message : 'Unknown error'}`);
                                                         }
                                                     }} className="w-full text-left px-4 py-2 text-sm font-semibold text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
                                                         <CheckCircleIcon className="w-4 h-4" /> Activate Year
