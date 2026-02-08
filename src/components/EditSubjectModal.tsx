@@ -125,19 +125,36 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         return (course?.levels || []);
     }, [selectedCourseId, courses]);
 
-    const handleAddAssociation = () => {
+    const handleAddAssociation = async () => {
         if (!selectedCourseId) {
             alert('Please select a grade/course first.');
             return;
         }
 
         const course = (courses || []).find(c => c && c.id === selectedCourseId);
-        if (!course || (course.levels || []).length === 0) {
-            alert('This grade has no streams configured. Please initialize a stream first.');
-            return;
+        if (!course) return;
+
+        let levelId = selectedLevelId;
+
+        // Auto-initialize if no streams exist
+        if ((course.levels || []).length === 0) {
+            const defaultLevel: CourseLevel = {
+                id: `cl_${Date.now()}`,
+                name: 'Main Stream',
+                subjectIds: []
+            };
+            if (onUpdateCourse) {
+                await onUpdateCourse(course.id, { levels: [defaultLevel] });
+                levelId = defaultLevel.id;
+            } else {
+                alert('This grade has no streams configured. Please initialize a stream in the Registry first.');
+                return;
+            }
         }
 
-        const levelId = selectedLevelId || (course.levels[0] ? course.levels[0].id : '');
+        if (!levelId) {
+            levelId = (course.levels || [])[0]?.id || '';
+        }
 
         if (!levelId) {
             alert("No valid stream found.");
@@ -349,9 +366,10 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                             type="button"
                                             onClick={handleAddAssociation}
                                             disabled={!selectedCourseId || (levelsForSelectedCourse.length > 0 && !selectedLevelId)}
-                                            className="mt-6 w-full py-3.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:grayscale"
+                                            className="mt-6 w-full py-3.5 bg-indigo-600 border border-indigo-500 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
                                         >
-                                            Establish Link
+                                            <PlusIcon className="w-4 h-4" />
+                                            {selectedCourseId && levelsForSelectedCourse.length === 0 ? 'Initialize & Link' : 'Establish Link'}
                                         </button>
                                     </div>
                                 </div>
