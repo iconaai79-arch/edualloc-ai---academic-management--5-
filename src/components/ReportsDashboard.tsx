@@ -221,8 +221,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
     const filteredLecturers = useMemo(() => {
         const list = Array.isArray(lecturers) ? lecturers.filter(l => l) : [];
-        if (departmentFilter === 'all') return list.filter(l => l && l.role !== 'admin');
-        return list.filter(l => l && l.role !== 'admin' && l.departmentId === departmentFilter);
+        if (departmentFilter === 'all') return list.filter(l => l && l.role !== 'admin' && l.role !== 'super_admin' && l.role !== 'student');
+        return list.filter(l => l && l.role !== 'admin' && l.role !== 'super_admin' && l.role !== 'student' && l.departmentId === departmentFilter);
     }, [lecturers, departmentFilter]);
 
     const filteredDepartments = useMemo(() => {

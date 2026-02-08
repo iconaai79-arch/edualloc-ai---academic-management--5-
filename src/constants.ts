@@ -240,16 +240,6 @@ export const DEFAULT_GRADING_SYSTEMS: GradingSystem[] = [
 
 export const INITIAL_USERS: User[] = [
     {
-        id: 'u_super',
-        name: 'System Owner',
-        email: 'super@app.com',
-        phoneNumber: '0700000000',
-        role: 'super_admin',
-        institutionId: 'SYSTEM',
-        expertise: ['System Administration'],
-        password: 'password123'
-    },
-    {
         id: 'u_admin_uni',
         name: 'Principal Newton',
         email: 'admin@edu.com',
