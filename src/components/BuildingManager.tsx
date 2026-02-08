@@ -163,14 +163,23 @@ const BulkRoomQrPrintModal: React.FC<{
 }> = ({ rooms, buildings, institutionName, onClose }) => {
     const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
+    const [selectedBuildingId, setSelectedBuildingId] = useState<string>('all');
+
+    const filteredRooms = useMemo(() => {
+        if (selectedBuildingId === 'all') return rooms;
+        return rooms.filter(r => r.buildingId === selectedBuildingId);
+    }, [rooms, selectedBuildingId]);
 
     useEffect(() => {
         const generateAll = async () => {
+            setLoading(true);
             const QRCodeLib = (window as any).QRCode || (window as any).QRCodeLib;
             if (!QRCodeLib) return;
 
-            const results: Record<string, string> = {};
-            for (const room of rooms) {
+            const results: Record<string, string> = { ...qrCodes };
+            for (const room of filteredRooms) {
+                if (results[room.id]) continue; // Skip if already generated
+
                 const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
                 const data = JSON.stringify({ roomId: room.id, roomName: room.name, building: bldg });
                 try {
@@ -189,19 +198,33 @@ const BulkRoomQrPrintModal: React.FC<{
             setLoading(false);
         };
         generateAll();
-    }, [rooms, buildings]);
+    }, [filteredRooms, buildings]);
 
     return (
         <>
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto no-print">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col my-8">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-800 rounded-t-2xl z-10">
-                        <div>
-                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Bulk QR Print Preview</h3>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{rooms.length} Rooms Selected</p>
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center sticky top-0 bg-white dark:bg-slate-800 rounded-t-2xl z-10 gap-4">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Bulk QR Print Preview</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{filteredRooms.length} Rooms Filtered</p>
+                            </div>
+                            <div className="w-full sm:w-64">
+                                <select
+                                    value={selectedBuildingId}
+                                    onChange={(e) => setSelectedBuildingId(e.target.value)}
+                                    className="form-select w-full text-sm font-bold border-indigo-100 dark:border-slate-700 focus:ring-indigo-500/20"
+                                >
+                                    <option value="all">All Buildings</option>
+                                    {buildings.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
-                        <div className="flex gap-3">
-                            <button onClick={onClose} className="btn-secondary">Cancel</button>
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <button onClick={onClose} className="btn-secondary flex-1 sm:flex-none">Cancel</button>
                             <button
                                 onClick={async () => {
                                     const lib = (window as any).jspdf || (window as any).jsPDF;
@@ -212,7 +235,7 @@ const BulkRoomQrPrintModal: React.FC<{
                                     const jsPDFClass = lib.jsPDF || lib;
                                     const doc = new jsPDFClass();
 
-                                    rooms.forEach((room, index) => {
+                                    filteredRooms.forEach((room, index) => {
                                         if (index > 0) doc.addPage();
                                         const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown Building';
                                         const qr = qrCodes[room.id];
@@ -237,13 +260,17 @@ const BulkRoomQrPrintModal: React.FC<{
                                     });
                                     doc.save(`Bulk_Room_QRs_${new Date().toISOString().split('T')[0]}.pdf`);
                                 }}
-                                className="btn-secondary flex items-center gap-2"
-                                disabled={loading}
+                                className="btn-secondary flex items-center gap-2 flex-1 sm:flex-none"
+                                disabled={loading || filteredRooms.length === 0}
                             >
                                 <DocumentArrowDownIcon className="w-5 h-5 text-indigo-600" />
                                 Download PDF
                             </button>
-                            <button onClick={() => window.print()} className="btn-primary flex items-center gap-2" disabled={loading}>
+                            <button
+                                onClick={() => window.print()}
+                                className="btn-primary flex items-center gap-2 flex-1 sm:flex-none h-10 px-6"
+                                disabled={loading || filteredRooms.length === 0}
+                            >
                                 <PrinterIcon className="w-5 h-5" />
                                 Print All
                             </button>
@@ -254,11 +281,19 @@ const BulkRoomQrPrintModal: React.FC<{
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20 text-center animate-pulse">
                                 <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-                                <h4 className="text-lg font-bold">Generating Batch...</h4>
+                                <h4 className="text-lg font-bold text-slate-400">Filtering & Generating...</h4>
+                            </div>
+                        ) : filteredRooms.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
+                                    <ArchiveBoxIcon className="w-10 h-10 text-slate-300" />
+                                </div>
+                                <h4 className="text-lg font-bold text-slate-700 dark:text-slate-200">No Rooms Found</h4>
+                                <p className="text-sm text-slate-500">No rooms assigned to this specific building yet.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                {rooms.map(room => {
+                                {filteredRooms.map(room => {
                                     const bldg = buildings.find(b => b.id === room.buildingId)?.name || 'Unknown';
                                     return (
                                         <div key={room.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl flex flex-col items-center text-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
@@ -278,7 +313,7 @@ const BulkRoomQrPrintModal: React.FC<{
 
             <div className="print-only hidden">
                 <div className="qr-bulk-grid">
-                    {rooms.map(room => (
+                    {filteredRooms.map(room => (
                         <div key={room.id} className="qr-print-card bg-white">
                             <h2 className="text-xl font-bold mb-2 text-black">{institutionName}</h2>
                             {qrCodes[room.id] && <img src={qrCodes[room.id]} alt={room.name} className="w-48 h-48 mb-4" />}
