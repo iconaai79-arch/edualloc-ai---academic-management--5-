@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem } from '../types';
+import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore } from '../types';
 import {
     BuildingOfficeIcon,
     UserGroupIcon,
@@ -42,9 +42,17 @@ interface CountyAdminViewProps {
     onUpdateUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     inventoryItems?: CountyInventoryItem[];
+    inventoryCategories?: CountyInventoryCategory[];
     onAddInventoryItem?: (data: any) => Promise<void>;
     onUpdateInventoryItem?: (id: string, data: Partial<CountyInventoryItem>) => Promise<void>;
     onDeleteInventoryItem?: (id: string) => Promise<void>;
+    onAddInventoryCategory?: (data: any) => Promise<void>;
+    onUpdateInventoryCategory?: (id: string, data: Partial<CountyInventoryCategory>) => Promise<void>;
+    onDeleteInventoryCategory?: (id: string) => Promise<void>;
+    stores?: CountyStore[];
+    onAddStore?: (data: any) => Promise<void>;
+    onUpdateStore?: (id: string, data: Partial<CountyStore>) => Promise<void>;
+    onDeleteStore?: (id: string) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -62,11 +70,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onUpdateUser,
     onDeleteUser,
     inventoryItems = [],
+    inventoryCategories = [],
+    stores = [],
     onAddInventoryItem,
     onUpdateInventoryItem,
-    onDeleteInventoryItem
+    onDeleteInventoryItem,
+    onAddInventoryCategory,
+    onUpdateInventoryCategory,
+    onDeleteInventoryCategory,
+    onAddStore,
+    onUpdateStore,
+    onDeleteStore
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'settings'>('dashboard');
+    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores'>('items');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
@@ -144,8 +161,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
     const [showInventoryModal, setShowInventoryModal] = useState(false);
     const [showInventoryImportModal, setShowInventoryImportModal] = useState(false);
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [editingInventory, setEditingInventory] = useState<CountyInventoryItem | null>(null);
+    const [editingCategory, setEditingCategory] = useState<CountyInventoryCategory | null>(null);
     const [showQrModal, setShowQrModal] = useState<CountyInventoryItem | null>(null);
+    const [showDispatchModal, setShowDispatchModal] = useState<CountyInventoryItem | null>(null);
+    const [dispatchForm, setDispatchForm] = useState({ recipientName: '' });
+    const canvasRef = React.useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
     const [inventoryForm, setInventoryForm] = useState({
         name: '',
         category: '',
@@ -157,6 +180,71 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         driverName: '',
         trackingNumber: ''
     });
+
+    const [categoryForm, setCategoryForm] = useState({
+        name: '',
+        description: ''
+    });
+
+    const [showStoreModal, setShowStoreModal] = useState(false);
+    const [editingStore, setEditingStore] = useState<CountyStore | null>(null);
+    const [storeForm, setStoreForm] = useState({
+        name: '',
+        locationName: '',
+        latitude: 0,
+        longitude: 0,
+        description: ''
+    });
+
+    const handleCategorySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!myCounty) return;
+
+        try {
+            if (editingCategory) {
+                if (onUpdateInventoryCategory) {
+                    await onUpdateInventoryCategory(editingCategory.id, categoryForm);
+                }
+            } else {
+                if (onAddInventoryCategory) {
+                    await onAddInventoryCategory({
+                        ...categoryForm,
+                        countyId: myCounty.id
+                    });
+                }
+            }
+            setShowCategoryModal(false);
+            setEditingCategory(null);
+            setCategoryForm({ name: '', description: '' });
+        } catch (err) {
+            alert("Failed to save category.");
+        }
+    };
+
+    const handleStoreSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!myCounty) return;
+
+        try {
+            if (editingStore) {
+                if (onUpdateStore) {
+                    await onUpdateStore(editingStore.id, storeForm);
+                }
+            } else {
+                if (onAddStore) {
+                    await onAddStore({
+                        ...storeForm,
+                        countyId: myCounty.id
+                    });
+                }
+            }
+            setShowStoreModal(false);
+            setEditingStore(null);
+            setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+        } catch (err) {
+            alert("Failed to save store.");
+        }
+    };
 
     const handleInventorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -190,16 +278,75 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         }
     };
 
-    const handleDispatch = async (item: CountyInventoryItem) => {
-        if (!onUpdateInventoryItem) return;
+    const handleDispatch = (item: CountyInventoryItem) => {
+        setDispatchForm({ recipientName: item.driverName || '' });
+        setShowDispatchModal(item);
+    };
+
+    const confirmDispatch = async () => {
+        if (!showDispatchModal || !onUpdateInventoryItem) return;
+        
+        const canvas = canvasRef.current;
+        const signature = canvas ? canvas.toDataURL() : undefined;
+
         try {
-            await onUpdateInventoryItem(item.id, {
+            await onUpdateInventoryItem(showDispatchModal.id, {
                 status: 'in_transit',
-                dispatchedDate: new Date().toISOString()
+                dispatchedDate: new Date().toISOString(),
+                recipientName: dispatchForm.recipientName,
+                recipientSignature: signature
             });
+            setShowDispatchModal(null);
         } catch (err) {
             alert("Failed to dispatch item.");
         }
+    };
+
+    const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
+        const y = ('touches' in e) ? e.touches[0].clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        setIsDrawing(true);
+    };
+
+    const draw = (e: React.MouseEvent | React.TouchEvent) => {
+        if (!isDrawing) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
+        const y = ('touches' in e) ? e.touches[0].clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        
+        // Prevent scrolling when drawing on touch devices
+        if ('touches' in e) {
+            (e as any).preventDefault();
+        }
+    };
+
+    const stopDrawing = () => {
+        setIsDrawing(false);
+    };
+
+    const clearSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
     useEffect(() => {
         if (currentUser.role === 'county_store_keeper') {
@@ -685,170 +832,365 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 </p>
                             </div>
                             <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowInventoryImportModal(true)}
-                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"
-                                >
-                                    <SparklesIcon className="w-5 h-5 text-indigo-400" /> Bulk Import
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setEditingInventory(null);
-                                        setInventoryForm({
-                                            name: '', category: '', quantity: 1, unit: 'Units',
-                                            supplierName: '', targetInstitutionId: '',
-                                            deliveryMethod: 'driver', driverName: '', trackingNumber: ''
-                                        });
-                                        setShowInventoryModal(true);
-                                    }}
-                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
-                                </button>
+                                {inventorySubTab === 'items' && (
+                                    <>
+                                        <button
+                                            onClick={() => setShowInventoryImportModal(true)}
+                                            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-2"
+                                        >
+                                            <SparklesIcon className="w-5 h-5 text-indigo-400" /> Bulk Import
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setEditingInventory(null);
+                                                setInventoryForm({
+                                                    name: '', category: '', quantity: 1, unit: 'Units',
+                                                    supplierName: '', targetInstitutionId: '',
+                                                    deliveryMethod: 'driver', driverName: '', trackingNumber: ''
+                                                });
+                                                setShowInventoryModal(true);
+                                            }}
+                                            className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                        >
+                                            <PlusIcon className="w-5 h-5 text-white" /> Log HQ Receipt
+                                        </button>
+                                    </>
+                                )}
+                                {inventorySubTab === 'categories' && (
+                                    <button
+                                        onClick={() => {
+                                            setEditingCategory(null);
+                                            setCategoryForm({ name: '', description: '' });
+                                            setShowCategoryModal(true);
+                                        }}
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                    >
+                                        <PlusIcon className="w-5 h-5 text-white" /> New Category
+                                    </button>
+                                )}
+                                {inventorySubTab === 'stores' && (
+                                    <button
+                                        onClick={() => {
+                                            setEditingStore(null);
+                                            setStoreForm({ name: '', locationName: '', latitude: 0, longitude: 0, description: '' });
+                                            setShowStoreModal(true);
+                                        }}
+                                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                    >
+                                        <PlusIcon className="w-5 h-5 text-white" /> Add Store/Location
+                                    </button>
+                                )}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
-                                <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
-                                    <ArchiveBoxIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'at_hq').length}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">At Headquarters</div>
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
-                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                                    <TruckIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'in_transit').length}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">In Transit</div>
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                                    <CheckCircleIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'received').length}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered</div>
-                                </div>
-                            </div>
+                        <div className="flex gap-4 p-1.5 bg-slate-100 rounded-2xl w-fit mb-8">
+                            <button
+                                onClick={() => setInventorySubTab('items')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'items'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Inventory Items
+                            </button>
+                            <button
+                                onClick={() => setInventorySubTab('categories')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'categories'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Categories
+                            </button>
+                            <button
+                                onClick={() => setInventorySubTab('stores')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'stores'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Stores & Locations
+                            </button>
                         </div>
 
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Detail</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status & Path</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics</th>
-                                            <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {inventoryItems.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
-                                                            <ArchiveBoxIcon className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{item.name}</div>
-                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.quantity} {item.unit} • {item.category}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${item.status === 'at_hq' ? 'bg-slate-100 text-slate-600' :
-                                                            item.status === 'in_transit' ? 'bg-indigo-100 text-indigo-700' :
-                                                                'bg-emerald-100 text-emerald-700'
-                                                            }`}>
-                                                            {item.status.replace('_', ' ')}
-                                                        </span>
-                                                        <div className="text-[10px] font-medium text-slate-400 flex items-center gap-1 uppercase tracking-tight">
-                                                            HQ <ChevronRightIcon className="w-3 h-3" /> {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                                            {item.deliveryMethod === 'driver' ? <UserIcon className="w-3 h-3" /> : <MapPinIcon className="w-3 h-3" />}
-                                                            {item.deliveryMethod === 'driver' ? (item.driverName || 'No Driver') : (item.trackingNumber || 'No Parcel ID')}
-                                                        </div>
-                                                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
-                                                            {item.deliveryMethod} delivery
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        {item.status === 'at_hq' && (
+                        {inventorySubTab === 'items' && (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
+                                            <ArchiveBoxIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'at_hq').length}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">At Headquarters</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                            <TruckIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'in_transit').length}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">In Transit</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                                            <CheckCircleIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'received').length}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Detail</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status & Path</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {inventoryItems.map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                                                                    <ArchiveBoxIcon className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="text-sm font-black text-slate-900 uppercase tracking-tight">{item.name}</div>
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.quantity} {item.unit} • {item.category}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full w-fit ${item.status === 'at_hq' ? 'bg-slate-100 text-slate-600' :
+                                                                    item.status === 'in_transit' ? 'bg-indigo-100 text-indigo-700' :
+                                                                        'bg-emerald-100 text-emerald-700'
+                                                                    }`}>
+                                                                    {item.status.replace('_', ' ')}
+                                                                </span>
+                                                                <div className="text-[10px] font-medium text-slate-400 flex items-center gap-1 uppercase tracking-tight">
+                                                                    HQ <ChevronRightIcon className="w-3 h-3" /> {institutions.find(inst => inst.id === item.targetInstitutionId)?.name || 'Pending Destination'}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                                                    {item.deliveryMethod === 'driver' ? <UserIcon className="w-3 h-3" /> : <MapPinIcon className="w-3 h-3" />}
+                                                                    {item.deliveryMethod === 'driver' ? (item.driverName || 'No Driver') : (item.trackingNumber || 'No Parcel ID')}
+                                                                </div>
+                                                                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                                                                    {item.deliveryMethod} delivery
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                {item.status === 'at_hq' && (
+                                                                    <button
+                                                                        onClick={() => handleDispatch(item)}
+                                                                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-colors shadow-sm"
+                                                                    >
+                                                                        Dispatch
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => setShowQrModal(item)}
+                                                                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                                    title="View QR Code"
+                                                                >
+                                                                    <QrCodeIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingInventory(item);
+                                                                        setInventoryForm({
+                                                                            name: item.name,
+                                                                            category: item.category,
+                                                                            quantity: item.quantity,
+                                                                            unit: item.unit,
+                                                                            supplierName: item.supplierName,
+                                                                            targetInstitutionId: item.targetInstitutionId || '',
+                                                                            deliveryMethod: item.deliveryMethod,
+                                                                            driverName: item.driverName || '',
+                                                                            trackingNumber: item.trackingNumber || ''
+                                                                        });
+                                                                        setShowInventoryModal(true);
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                                >
+                                                                    <PencilIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (window.confirm("Delete this inventory record?")) {
+                                                                            onDeleteInventoryItem && onDeleteInventoryItem(item.id);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                                >
+                                                                    <XIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {inventoryItems.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium" >
+                                                            No inventory items found.Add items received at HQ to get started.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {inventorySubTab === 'categories' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Category Name</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Description</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {inventoryCategories.map(cat => (
+                                                <tr key={cat.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="font-bold text-slate-900">{cat.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-slate-500">{cat.description}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button
-                                                                onClick={() => handleDispatch(item)}
-                                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-colors shadow-sm"
+                                                                onClick={() => {
+                                                                    setEditingCategory(cat);
+                                                                    setCategoryForm({ name: cat.name, description: cat.description });
+                                                                    setShowCategoryModal(true);
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
                                                             >
-                                                                Dispatch
+                                                                <PencilIcon className="w-4 h-4" />
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => setShowQrModal(item)}
-                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="View QR Code"
-                                                        >
-                                                            <QrCodeIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingInventory(item);
-                                                                setInventoryForm({
-                                                                    name: item.name,
-                                                                    category: item.category,
-                                                                    quantity: item.quantity,
-                                                                    unit: item.unit,
-                                                                    supplierName: item.supplierName,
-                                                                    targetInstitutionId: item.targetInstitutionId || '',
-                                                                    deliveryMethod: item.deliveryMethod,
-                                                                    driverName: item.driverName || '',
-                                                                    trackingNumber: item.trackingNumber || ''
-                                                                });
-                                                                setShowInventoryModal(true);
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-                                                        >
-                                                            <PencilIcon className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm("Delete this inventory record?")) {
-                                                                    onDeleteInventoryItem && onDeleteInventoryItem(item.id);
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                                        >
-                                                            <XIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {inventoryItems.length === 0 && (
-                                            <tr>
-                                                <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">
-                                                    No inventory items found. Add items received at HQ to get started.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm("Delete this category?")) {
+                                                                        onDeleteInventoryCategory && onDeleteInventoryCategory(cat.id);
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                            >
+                                                                <XIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {inventoryCategories.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-medium">
+                                                        No categories found. Create a category to organize your inventory.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {inventorySubTab === 'stores' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Store Name</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Location</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">GPRS Coordinates</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {stores.map(store => (
+                                                <tr key={store.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="font-bold text-slate-900">{store.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="text-sm text-slate-500 font-medium">{store.locationName}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">GPS Fix</span>
+                                                            <span className="text-xs font-bold font-mono text-slate-600">
+                                                                {store.latitude.toFixed(6)}, {store.longitude.toFixed(6)}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingStore(store);
+                                                                    setStoreForm({
+                                                                        name: store.name,
+                                                                        locationName: store.locationName,
+                                                                        latitude: store.latitude,
+                                                                        longitude: store.longitude,
+                                                                        description: store.description
+                                                                    });
+                                                                    setShowStoreModal(true);
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                            >
+                                                                <PencilIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm("Delete this store record?")) {
+                                                                        onDeleteStore && onDeleteStore(store.id);
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                            >
+                                                                <XIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {stores.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">
+                                                        No stores or locations registered yet.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1256,6 +1598,160 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         </div>
                     </div>
                 )}
+                {showStoreModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                        {editingStore ? 'Edit Store/Location' : 'New Store/Location'}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Infrastructure • GPS Mapping</p>
+                                </div>
+                                <button onClick={() => setShowStoreModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                    <XIcon className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleStoreSubmit} className="p-8 space-y-5">
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Store Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={storeForm.name}
+                                            onChange={e => setStoreForm({ ...storeForm, name: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                            placeholder="e.g. Central Warehouse, North Wing Store"
+                                        />
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Location Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={storeForm.locationName}
+                                            onChange={e => setStoreForm({ ...storeForm, locationName: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                            placeholder="e.g. HQ Basement, Industrial Area"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Latitude</label>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                required
+                                                value={storeForm.latitude}
+                                                onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                            />
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Longitude</label>
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                required
+                                                value={storeForm.longitude}
+                                                onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
+                                        <textarea
+                                            value={storeForm.description}
+                                            onChange={e => setStoreForm({ ...storeForm, description: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
+                                            placeholder="Access details, storage capacity etc..."
+                                            rows={2}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowStoreModal(false)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        {editingStore ? 'Update Location' : 'Register Location'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showCategoryModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                        {editingCategory ? 'Edit Category' : 'New Category'}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Inventory Structure</p>
+                                </div>
+                                <button onClick={() => setShowCategoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                    <XIcon className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCategorySubmit} className="p-8 space-y-5">
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={categoryForm.name}
+                                            onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                            placeholder="e.g. Stationery, Furniture"
+                                        />
+                                    </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
+                                        <textarea
+                                            value={categoryForm.description}
+                                            onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
+                                            placeholder="Briefly describe what this category includes..."
+                                            rows={3}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCategoryModal(false)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        {editingCategory ? 'Update' : 'Create'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 {showInventoryModal && (
                     <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
@@ -1285,6 +1781,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
                                                 placeholder="e.g. Science Lab Kits"
                                             />
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category</label>
+                                            <select
+                                                required
+                                                value={inventoryForm.category}
+                                                onChange={e => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                            >
+                                                <option value="">Select Category</option>
+                                                {inventoryCategories.map(cat => (
+                                                    <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="group">

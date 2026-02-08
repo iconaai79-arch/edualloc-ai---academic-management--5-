@@ -34,7 +34,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -149,6 +149,8 @@ export const App: React.FC = () => {
     const [studentCheckIns, setStudentCheckIns] = useState<Record<string, string>>({});
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [countyInventory, setCountyInventory] = useState<CountyInventoryItem[]>([]);
+    const [countyInventoryCategories, setCountyInventoryCategories] = useState<CountyInventoryCategory[]>([]);
+    const [countyStores, setCountyStores] = useState<CountyStore[]>([]);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -305,7 +307,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -332,6 +334,8 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
                 apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
                 apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories').catch(() => []),
+                apiService.fetchModuleRecords<CountyStore>('county_stores').catch(() => []),
             ]);
 
             setInvoices(inv || []);
@@ -346,10 +350,9 @@ export const App: React.FC = () => {
             setContracts(con || []);
             setStudentAttendances(att || []);
             setInventory(item || []);
-            const [cinv] = await Promise.all([
-                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
-            ]);
             setCountyInventory(cinv || []);
+            setCountyInventoryCategories(ccats || []);
+            setCountyStores(cstores || []);
             setGeneratedTimetable(tt || []);
             setExamTimetable(et || []);
             setAssignments(asg || []);
@@ -1130,6 +1133,7 @@ export const App: React.FC = () => {
                                 onUpdateUser={onEditUser}
                                 onDeleteUser={onDeleteUser}
                                 inventoryItems={countyInventory}
+                                inventoryCategories={countyInventoryCategories}
                                 onAddInventoryItem={async (data) => {
                                     await apiService.saveModuleRecord('county_inventory', { ...data, id: `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` });
                                     loadData();
@@ -1140,6 +1144,31 @@ export const App: React.FC = () => {
                                 }}
                                 onDeleteInventoryItem={async (id) => {
                                     await apiService.deleteModuleRecord('county_inventory', id);
+                                    loadData();
+                                }}
+                                onAddInventoryCategory={async (data) => {
+                                    await apiService.saveModuleRecord('county_inventory_categories', { ...data, id: `cat_${Date.now()}` });
+                                    loadData();
+                                }}
+                                onUpdateInventoryCategory={async (id, data) => {
+                                    await apiService.saveModuleRecord('county_inventory_categories', { ...data, id });
+                                    loadData();
+                                }}
+                                onDeleteInventoryCategory={async (id) => {
+                                    await apiService.deleteModuleRecord('county_inventory_categories', id);
+                                    loadData();
+                                }}
+                                stores={countyStores}
+                                onAddStore={async (data) => {
+                                    await apiService.saveModuleRecord('county_stores', { ...data, id: `store_${Date.now()}` });
+                                    loadData();
+                                }}
+                                onUpdateStore={async (id, data) => {
+                                    await apiService.saveModuleRecord('county_stores', { ...data, id });
+                                    loadData();
+                                }}
+                                onDeleteStore={async (id) => {
+                                    await apiService.deleteModuleRecord('county_stores', id);
                                     loadData();
                                 }}
                             />

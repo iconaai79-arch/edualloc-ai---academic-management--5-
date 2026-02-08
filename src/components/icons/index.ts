@@ -58,3 +58,5 @@ export { PlayIcon } from './PlayIcon';
 export { BeakerIcon } from './BeakerIcon';
 export { TruckIcon } from './TruckIcon';
 export { QrCodeIcon } from './QrCodeIcon';
+export { TrashIcon } from './TrashIcon';
+export { UserPlusIcon } from './UserPlusIcon';

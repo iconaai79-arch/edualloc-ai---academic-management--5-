@@ -12,9 +12,9 @@ interface ProfileModalProps {
 }
 
 const UserCircleIcon: React.FC = () => (
-    <svg className="w-24 h-24 text-slate-300 dark:text-slate-600" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-    </svg>
+  <svg className="w-24 h-24 text-slate-300 dark:text-slate-600" fill="currentColor" viewBox="0 0 20 20">
+    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+  </svg>
 );
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose, onSave, onChangePassword, onManageUnavailability }) => {
@@ -45,19 +45,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) { // 2MB size limit
-        alert("File is too large. Please select an image under 2MB.");
-        return;
+      alert("File is too large. Please select an image under 2MB.");
+      return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
-        if (typeof reader.result === 'string') {
-            setProfilePhotoUrl(reader.result);
-        }
+      if (typeof reader.result === 'string') {
+        setProfilePhotoUrl(reader.result);
+      }
     };
     reader.onerror = (error) => {
-        console.error("Error reading file:", error);
-        alert("Failed to read the selected file.");
+      console.error("Error reading file:", error);
+      alert("Failed to read the selected file.");
     };
     reader.readAsDataURL(file);
 
@@ -88,10 +88,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
       return;
     }
     if (!newPassword || newPassword.length < 6) {
-        setPasswordError('New password must be at least 6 characters long.');
-        return;
+      setPasswordError('New password must be at least 6 characters long.');
+      return;
     }
-     if (newPassword === currentPassword) {
+    if (newPassword === currentPassword) {
       setPasswordError('New password cannot be the same as the old password.');
       return;
     }
@@ -114,177 +114,147 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
   };
 
 
+  const [activeTab, setActiveTab] = useState<'identity' | 'security'>('identity');
+
   if (!currentUser) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="max-h-[90vh] overflow-y-auto">
-            <form onSubmit={handleSubmit}>
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Edit Profile</h3>
-                
-                <div className="mt-6 space-y-4">
-                  <div className="flex flex-col items-center gap-4">
-                      <div className="relative">
-                          {profilePhotoUrl ? (
-                              <img
-                                  src={profilePhotoUrl}
-                                  alt="Profile"
-                                  className="w-32 h-32 rounded-full object-cover border-4 border-slate-200 dark:border-slate-700"
-                              />
-                          ) : (
-                              <div className="w-32 h-32 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center border-4 border-slate-200 dark:border-slate-700">
-                                  <UserCircleIcon />
-                              </div>
-                          )}
-                      </div>
-                      <div className="flex gap-4">
-                          <label htmlFor="photo-upload" className="cursor-pointer text-sm font-medium text-[var(--color-primary)] hover:brightness-125">
-                              Upload Photo
-                          </label>
-                          <input type="file" id="photo-upload" className="hidden" accept="image/png, image/jpeg" onChange={handlePhotoChange} />
-                          {profilePhotoUrl && (
-                              <button
-                                  type="button"
-                                  onClick={() => setProfilePhotoUrl(null)}
-                                  className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                              >
-                                  Remove
-                              </button>
-                          )}
-                      </div>
-                  </div>
+    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+              User Profile
+            </h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Institutional Identity</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
 
-                  <div>
-                    <label htmlFor="profile-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
-                    <input
-                      type="text"
-                      id="profile-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                      required
-                    />
-                  </div>
+        {/* Tabs Navigation */}
+        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8">
+          {(['identity', 'security'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {tab === 'identity' ? 'Public Identity' : 'Account Security'}
+              {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.4)]" />}
+            </button>
+          ))}
+        </div>
 
-                  <div>
-                      <label htmlFor="profile-gender" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                      <select
-                          id="profile-gender"
-                          value={gender}
-                          onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')}
-                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                      >
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                      </select>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="profile-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
-                    <input
-                      type="tel"
-                      id="profile-phone"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                      required
-                    />
-                  </div>
-
-                  {currentUser.role !== 'student' && (
-                    <div>
-                        <label htmlFor="profile-expertise" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expertise (comma-separated)</label>
-                        <input
-                        type="text"
-                        id="profile-expertise"
-                        value={expertise}
-                        onChange={(e) => setExpertise(e.target.value)}
-                        className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                        />
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeTab === 'identity' && (
+            <form onSubmit={handleSubmit} className="space-y-8 animate-fade-in-up">
+              <div className="flex flex-col md:flex-row items-center gap-8">
+                <div className="relative group">
+                  {profilePhotoUrl ? (
+                    <img src={profilePhotoUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] object-cover border-4 border-white dark:border-slate-800 shadow-xl" />
+                  ) : (
+                    <div className="w-32 h-32 rounded-[2rem] bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl">
+                      <UserCircleIcon />
                     </div>
                   )}
+                  <div className="absolute inset-0 bg-indigo-600/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2rem] flex items-center justify-center cursor-pointer" onClick={() => document.getElementById('photo-upload')?.click()}>
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <input type="file" id="photo-upload" className="hidden" accept="image/png, image/jpeg" onChange={handlePhotoChange} />
+                </div>
 
-                  <div className="pt-2">
-                      <button
-                        type="submit"
-                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--color-primary)] text-base font-medium text-white hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:w-auto sm:text-sm"
-                      >
-                        Save Profile
-                      </button>
+                <div className="flex-1 space-y-4 w-full">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Full Name</label>
+                      <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="form-input" placeholder="Your name" required />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Gender Identity</label>
+                      <select value={gender} onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')} className="form-select">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Contact Hotline</label>
+                    <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="form-input" placeholder="e.g. 07..." required />
                   </div>
                 </div>
               </div>
+
+              {currentUser.role !== 'student' && (
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Expertise Context (comma separated)</label>
+                  <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder="e.g. Theoretical Physics, Applied Calculus" />
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4">
+                <button type="submit" className="btn-primary h-12 shadow-lg shadow-indigo-100 dark:shadow-none">Synchronize Unit Identity</button>
+              </div>
             </form>
+          )}
 
-            <div className="border-t border-slate-200 dark:border-slate-700"></div>
+          {activeTab === 'security' && (
+            <div className="space-y-8 animate-fade-in-up">
+              <div className="bg-slate-50 dark:bg-slate-950 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-inner">
+                <form onSubmit={handlePasswordChange} className="space-y-6">
+                  {passwordError && <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-xl text-xs font-bold border border-red-100 dark:border-red-800/30">{passwordError}</div>}
+                  {passwordSuccess && <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl text-xs font-bold border border-emerald-100 dark:border-emerald-800/30">{passwordSuccess}</div>}
 
-            <form onSubmit={handlePasswordChange}>
-                 <div className="p-6">
-                    <h3 className="text-lg font-medium text-slate-900 dark:text-white">Change Password</h3>
-                    {passwordError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{passwordError}</p>}
-                    {passwordSuccess && <p className="mt-2 text-sm text-green-600 dark:text-green-400">{passwordSuccess}</p>}
-                    
-                    <div className="mt-4 space-y-4">
-                        <div>
-                            <label htmlFor="current-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Current Password</label>
-                            <input
-                            type="password"
-                            id="current-password"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            required
-                            />
-                        </div>
-                         <div>
-                            <label htmlFor="new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">New Password</label>
-                            <input
-                            type="password"
-                            id="new-password"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            required
-                            />
-                        </div>
-                         <div>
-                            <label htmlFor="confirm-new-password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Confirm New Password</label>
-                            <input
-                            type="password"
-                            id="confirm-new-password"
-                            value={confirmNewPassword}
-                            onChange={(e) => setConfirmNewPassword(e.target.value)}
-                            className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            required
-                            />
-                        </div>
-
-                         <div className="pt-2">
-                            <button
-                                type="submit"
-                                className="w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:w-auto sm:text-sm"
-                            >
-                                Update Password
-                            </button>
-                        </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Current Password</label>
+                      <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="form-input" required />
                     </div>
-                 </div>
-            </form>
-            
-            <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-200 dark:border-slate-700">
-                <button
-                type="button"
-                onClick={onClose}
-                className="w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:w-auto sm:text-sm"
-                >
-                Close
-                </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">New Access Keyword</label>
+                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="form-input" required />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Confirm New Keyword</label>
+                        <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className="form-input" required />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="w-full btn-secondary h-12 border-2 border-slate-200 dark:border-slate-700">Rotate Access Keys</button>
+                </form>
+              </div>
+
+              {currentUser.role !== 'student' && (
+                <div className="p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] border border-indigo-100 dark:border-indigo-800/30 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase text-indigo-900 dark:text-indigo-400 tracking-widest">Temporal Availability</h4>
+                    <p className="text-[10px] text-indigo-600/70 dark:text-indigo-500/70 mt-1">Configure your unavailable slots for the scheduler.</p>
+                  </div>
+                  <button onClick={onManageUnavailability} className="p-3 bg-white dark:bg-indigo-600 text-indigo-600 dark:text-white rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none font-bold text-[10px] uppercase tracking-wider">Configure</button>
+                </div>
+              )}
             </div>
+          )}
+        </div>
+
+        <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onClick={onClose} className="btn-secondary h-12 px-10">Close Profile</button>
         </div>
       </div>
+      <style>{`
+        .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; outline: none; }
+        .dark .form-input, .dark .form-select { border-color: #334155; background-color: #0f172a; color: #fff; }
+        .btn-primary { background-color: #4f46e5; color: #fff; font-weight: 700; padding: 0.5rem 1.5rem; border-radius: 1rem; border: none; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .btn-secondary { background-color: #fff; color: #475569; font-weight: 700; padding: 0.5rem 1rem; border-radius: 1rem; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .dark .btn-secondary { background-color: #1e293b; color: #cbd5e1; border-color: #334155; }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 };

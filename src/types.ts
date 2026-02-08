@@ -740,6 +740,24 @@ export interface InventoryItem {
 
 export type CountyInventoryStatus = 'at_hq' | 'in_transit' | 'received';
 
+export interface CountyInventoryCategory {
+    id: string;
+    countyId: string;
+    name: string;
+    description: string;
+}
+
+export interface CountyStore {
+    id: string;
+    countyId: string;
+    name: string;
+    locationName: string;
+    latitude: number;
+    longitude: number;
+    description: string;
+}
+
+
 export interface CountyInventoryItem {
     id: string;
     countyId: string;
@@ -755,9 +773,11 @@ export interface CountyInventoryItem {
     trackingNumber?: string;
     qrCode: string; // Used for scanning on arrival
     atHqDate: string;
+    recipientSignature?: string; // Base64 signature image
+    receivedBy?: string; // Name of person who received at destination
+    recipientName?: string; // Name of person who collected/received from HQ
     dispatchedDate?: string;
     receivedDate?: string;
-    receivedBy?: string;
 }
 
 export interface StockTransaction {
@@ -905,6 +925,10 @@ export interface InstitutionRegistrationData {
     adminName: string;
     adminEmail: string;
     loadDemoData: boolean;
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+    countyId?: string;
 }
 
 export interface StudentRegistrationData {

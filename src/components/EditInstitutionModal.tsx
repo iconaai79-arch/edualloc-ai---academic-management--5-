@@ -67,123 +67,131 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     onSave(institution.id, saveData);
   };
 
+  const [activeTab, setActiveTab] = useState<'identity' | 'financials'>('identity');
+
   if (!institution) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleSubmit}>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Edit Institution: {institution.name}</h3>
+    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+              Institution Registry
+            </h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Editing: {institution.name}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
 
-            <div className="mt-6 space-y-4">
-              <div>
-                <label htmlFor="edit-inst-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Institution Name</label>
-                <input
-                  type="text"
-                  id="edit-inst-name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-inst-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
-                <input
-                  type="email"
-                  id="edit-inst-email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-inst-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
-                <input
-                  type="tel"
-                  id="edit-inst-phone"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-inst-type" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Institution Type</label>
-                <select
-                  id="edit-inst-type"
-                  name="institutionType"
-                  value={formData.institutionType}
-                  onChange={handleChange}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                >
-                  <option>Primary</option>
-                  <option>Secondary</option>
-                  <option>University</option>
-                  <option>College</option>
-                  <option>Institute</option>
-                  <option>Polytechnic</option>
-                  <option>ECD</option>
-                  <option>International</option>
-                </select>
-              </div>
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Custom Subscription Price</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Leave blank to use the system default price.</p>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Tabs Navigation */}
+        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8">
+          {(['identity', 'financials'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {tab === 'identity' ? 'Identity Context' : 'Financial Strategy'}
+              {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.4)]" />}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-8 space-y-6 overflow-y-auto">
+            {activeTab === 'identity' && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="edit-inst-monthly" className="sr-only">Custom Monthly Price</label>
-                    <input
-                      type="number"
-                      id="edit-inst-monthly"
-                      name="monthly"
-                      value={formData.customSubscriptionPrice.monthly}
-                      onChange={handlePriceChange}
-                      className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                      placeholder={`Default: KES ${defaultPrices.defaultMonthlyPrice}/mo`}
-                      min="0"
-                    />
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Official Institution Name</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleChange} className="form-input" placeholder="e.g. Green Valley Academy" required />
                   </div>
                   <div>
-                    <label htmlFor="edit-inst-yearly" className="sr-only">Custom Yearly Price</label>
-                    <input
-                      type="number"
-                      id="edit-inst-yearly"
-                      name="yearly"
-                      value={formData.customSubscriptionPrice.yearly}
-                      onChange={handlePriceChange}
-                      className="shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                      placeholder={`Default: KES ${defaultPrices.defaultYearlyPrice}/yr`}
-                      min="0"
-                    />
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Registry Email</label>
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="form-input" placeholder="admin@academy.com" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Contact Hotline</label>
+                    <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className="form-input" placeholder="+254..." required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Educational Tier</label>
+                    <select name="institutionType" value={formData.institutionType} onChange={handleChange} className="form-select">
+                      <option>Primary</option>
+                      <option>Secondary</option>
+                      <option>University</option>
+                      <option>College</option>
+                      <option>Institute</option>
+                      <option>Polytechnic</option>
+                      <option>ECD</option>
+                      <option>International</option>
+                    </select>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {activeTab === 'financials' && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl flex items-center justify-center">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Custom Subscription Overrides</h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Monthly Rate (KES)</label>
+                      <input
+                        type="number"
+                        name="monthly"
+                        value={formData.customSubscriptionPrice.monthly}
+                        onChange={handlePriceChange}
+                        className="form-input font-bold text-emerald-600 dark:text-emerald-400"
+                        placeholder={`Default: ${defaultPrices.defaultMonthlyPrice}`}
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Yearly Rate (KES)</label>
+                      <input
+                        type="number"
+                        name="yearly"
+                        value={formData.customSubscriptionPrice.yearly}
+                        onChange={handlePriceChange}
+                        className="form-input font-bold text-emerald-600 dark:text-emerald-400"
+                        placeholder={`Default: ${defaultPrices.defaultYearlyPrice}`}
+                        min="0"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-4 text-[10px] text-slate-400 italic">Leave these fields empty to maintain standard system pricing for this institution.</p>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="submit"
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--color-primary)] text-base font-medium text-white hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:ml-3 sm:w-auto sm:text-sm"
-            >
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-            >
-              Cancel
-            </button>
+          <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center gap-3 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" onClick={onClose} className="btn-secondary h-12 px-8">Discard</button>
+            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Save Registry Link</button>
           </div>
         </form>
       </div>
+      <style>{`
+        .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; outline: none; }
+        .dark .form-input, .dark .form-select { border-color: #334155; background-color: #0f172a; color: #fff; }
+        .btn-primary { background-color: #4f46e5; color: #fff; font-weight: 700; padding: 0.5rem 1.5rem; border-radius: 1rem; border: none; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .btn-secondary { background-color: #fff; color: #475569; font-weight: 700; padding: 0.5rem 1rem; border-radius: 1rem; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .dark .btn-secondary { background-color: #1e293b; color: #cbd5e1; border-color: #334155; }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 };

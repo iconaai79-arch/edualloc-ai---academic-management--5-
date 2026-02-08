@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Subject, TimetableSettings, TimetableConstraint } from '../types';
-import { XIcon, PlusIcon, ClockIcon } from './icons/index';
+import { XIcon, PlusIcon, ClockIcon, CalendarDaysIcon, InformationCircleIcon } from './icons/index';
 
 interface SubjectConstraintsModalProps {
     subject: Subject;
@@ -12,6 +12,7 @@ interface SubjectConstraintsModalProps {
 export const SubjectConstraintsModal: React.FC<SubjectConstraintsModalProps> = ({
     subject, timetableSettings, onSaveTimetableSettings, onClose
 }) => {
+    const [activeTab, setActiveTab] = useState<'list' | 'add'>('list');
     const [day, setDay] = useState('Monday');
     const [startTime, setStartTime] = useState('08:00');
     const [endTime, setEndTime] = useState('10:00');
@@ -37,6 +38,7 @@ export const SubjectConstraintsModal: React.FC<SubjectConstraintsModalProps> = (
             ...timetableSettings,
             constraints: updatedConstraints
         });
+        setActiveTab('list');
     };
 
     const handleDeleteConstraint = (id: string) => {
@@ -47,95 +49,170 @@ export const SubjectConstraintsModal: React.FC<SubjectConstraintsModalProps> = (
         });
     };
 
-    return (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-fade-in-up">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+    const renderListTab = () => (
+        <div className="space-y-6 animate-fade-in-up">
+            <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                <div className="flex justify-between items-center mb-6 pl-1">
+                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                        <InformationCircleIcon className="w-4 h-4" />
+                        Active Blocks
+                    </h4>
+                    <span className="text-[10px] font-black text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-800 shadow-sm">{subjectConstraints.length} Restricted Slots</span>
+                </div>
+
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+                    {subjectConstraints.length === 0 ? (
+                        <div className="text-center py-20">
+                            <ClockIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">No restrictions defined</p>
+                            <button onClick={() => setActiveTab('add')} className="text-[10px] font-black uppercase text-indigo-600 mt-2 hover:underline">Define New Block</button>
+                        </div>
+                    ) : (
+                        subjectConstraints.map(c => (
+                            <div key={c.id} className="p-4 bg-white dark:bg-slate-800 rounded-2xl flex justify-between items-center border border-slate-100 dark:border-slate-800 group transition-all shadow-sm">
+                                <div className="flex gap-4 items-center">
+                                    <div className="w-10 h-10 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl flex items-center justify-center text-[10px] font-black uppercase">
+                                        {c.day?.substring(0, 3)}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">{c.startTime} — {c.endTime}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Unavailable to Schedule</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteConstraint(c.id)}
+                                    className="p-2.5 rounded-xl bg-red-50 dark:bg-red-900/10 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white active:scale-95 shadow-sm"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderAddTab = () => (
+        <div className="space-y-8 animate-fade-in-up">
+            <div className="bg-slate-50 dark:bg-slate-950 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-8 shadow-inner">
+                <div className="grid grid-cols-1 gap-6">
                     <div>
-                        <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center gap-2">
-                            <ClockIcon className="w-5 h-5 text-indigo-500" />
-                            Subject Time Off
-                        </h3>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{subject.name} ({subject.code})</p>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1 flex items-center gap-2">
+                            <CalendarDaysIcon className="w-4 h-4 text-indigo-500" />
+                            Target Day
+                        </label>
+                        <select
+                            value={day}
+                            onChange={e => setDay(e.target.value)}
+                            className="form-select"
+                        >
+                            {timetableSettings.operatingDays.map(d => (
+                                <option key={d} value={d}>{d}</option>
+                            ))}
+                        </select>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                        <XIcon className="w-5 h-5 text-slate-400" />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1 flex items-center gap-2">
+                                <ClockIcon className="w-4 h-4 text-indigo-500" />
+                                Start Time
+                            </label>
+                            <input
+                                type="time"
+                                value={startTime}
+                                onChange={e => setStartTime(e.target.value)}
+                                className="form-input"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1 flex items-center gap-2">
+                                <ClockIcon className="w-4 h-4 text-indigo-500" />
+                                End Time
+                            </label>
+                            <input
+                                type="time"
+                                value={endTime}
+                                onChange={e => setEndTime(e.target.value)}
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <button
+                    onClick={handleAddConstraint}
+                    className="w-full py-4 rounded-2xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:bg-indigo-700 active:scale-95 shadow-xl shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2"
+                >
+                    <PlusIcon className="w-4 h-4" /> Add Restriction
+                </button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/90 z-[300] flex items-center justify-center p-4 backdrop-blur-md" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh] overflow-hidden border border-white/20 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+
+                {/* Header Section */}
+                <div className="p-10 pb-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex gap-4">
+                        <div className="w-14 h-14 bg-red-600 rounded-[1.25rem] flex items-center justify-center shadow-xl shadow-red-200 dark:shadow-red-900/40">
+                            <ClockIcon className="w-7 h-7 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Subject Time Off</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{subject.name} ({subject.code})</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-all active:scale-95 group">
+                        <XIcon className="w-6 h-6 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200" />
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6">
-                    <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-                        <h4 className="text-[10px] font-black uppercase text-indigo-600 mb-3 tracking-widest">Add Unavailable Period</h4>
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div className="col-span-2">
-                                <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">Day</label>
-                                <select
-                                    value={day}
-                                    onChange={e => setDay(e.target.value)}
-                                    className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold py-2.5 px-3 focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    {timetableSettings.operatingDays.map(d => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">Start Time</label>
-                                <input
-                                    type="time"
-                                    value={startTime}
-                                    onChange={e => setStartTime(e.target.value)}
-                                    className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">End Time</label>
-                                <input
-                                    type="time"
-                                    value={endTime}
-                                    onChange={e => setEndTime(e.target.value)}
-                                    className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs font-bold py-2 px-3 focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-                        </div>
+                {/* Tab Navigation */}
+                <div className="px-10 border-b border-slate-100 dark:border-slate-800 flex gap-8 bg-slate-50/30 dark:bg-slate-900/30">
+                    {(['list', 'add'] as const).map((tab) => (
                         <button
-                            onClick={handleAddConstraint}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                            key={tab}
+                            type="button"
+                            onClick={() => setActiveTab(tab)}
+                            className={`pb-4 pt-6 text-[10px] font-black uppercase tracking-widest transition-all relative flex items-center gap-2 ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                            <PlusIcon className="w-4 h-4" /> Add Restriction
-                        </button>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-2">Active Restrictions</h4>
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                            {subjectConstraints.length === 0 ? (
-                                <p className="text-center text-xs text-slate-400 py-4 italic">No time-off restrictions set.</p>
-                            ) : (
-                                subjectConstraints.map(c => (
-                                    <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 group">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs">
-                                                {c.day?.substring(0, 3)}
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{c.startTime} - {c.endTime}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase">Unavailable</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => handleDeleteConstraint(c.id)}
-                                            className="p-1.5 bg-white dark:bg-slate-800 text-red-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-50 dark:hover:bg-red-900/20"
-                                        >
-                                            <XIcon className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ))
+                            {tab === 'list' ? 'Registered Blocks' : 'Define New'}
+                            {activeTab === tab && (
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8px_rgba(79,70,229,0.4)]" />
                             )}
-                        </div>
-                    </div>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content Section */}
+                <div className="p-10 overflow-y-auto custom-scrollbar flex-grow">
+                    {activeTab === 'list' ? renderListTab() : renderAddTab()}
+                </div>
+
+                {/* Footer Section */}
+                <div className="p-10 pt-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 flex justify-end">
+                    <button
+                        onClick={onClose}
+                        className="px-10 py-4 rounded-2xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest transition-all hover:bg-slate-800 active:scale-95 shadow-xl"
+                    >
+                        Save Constraints
+                    </button>
                 </div>
             </div>
+
+            <style>{`
+                .form-input, .form-select { display: block; width: 100%; border-radius: 1.25rem; border: 1px solid #f1f5f9; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: #0f172a; }
+                .dark .form-input, .dark .form-select { border-color: #1e293b; background-color: #020617; color: #f1f5f9; }
+                .form-input:focus, .form-select:focus { border-color: #4f46e5; outline: none; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; }
+            `}</style>
         </div>
     );
 };

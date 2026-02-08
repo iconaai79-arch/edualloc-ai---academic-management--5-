@@ -62,174 +62,157 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     }
   };
 
+  const [activeTab, setActiveTab] = useState<'basic' | 'pro' | 'access'>('basic');
+
   if (!user) return null;
 
   const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleSubmit}>
-          <div className="p-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Edit User: {user.name}</h3>
+    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+        <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+              User Profile Registry
+            </h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Editing: {user.name}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="edit-user-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</label>
-                <input
-                  type="text"
-                  id="edit-user-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
+        {/* Tabs Navigation */}
+        <div className="px-8 border-b border-slate-100 dark:border-slate-800 flex gap-8">
+          {(['basic', 'pro', 'access'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {tab === 'basic' ? 'Basic Info' : tab === 'pro' ? 'Professional' : 'Access Control'}
+              {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8_px_rgba(79,70,229,0.4)]" />}
+            </button>
+          ))}
+        </div>
 
-              <div>
-                <label htmlFor="edit-user-gender" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
-                <select
-                  id="edit-user-gender"
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="edit-user-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</label>
-                <input
-                  type="email"
-                  id="edit-user-email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="edit-user-phone" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</label>
-                <input
-                  type="tel"
-                  id="edit-user-phone"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  placeholder="e.g., 0712345678"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="edit-user-staffid" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Staff ID</label>
-                <input
-                  type="text"
-                  id="edit-user-staffid"
-                  value={staffId}
-                  onChange={(e) => setStaffId(e.target.value)}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  required
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="edit-user-expertise" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Expertise (comma-separated)</label>
-                <input
-                  type="text"
-                  id="edit-user-expertise"
-                  value={expertise}
-                  onChange={(e) => setExpertise(e.target.value)}
-                  className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                  placeholder="e.g., AI, Machine Learning"
-                  required={user.role !== 'student'}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="edit-user-role" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Role</label>
-                <select
-                  id="edit-user-role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as Role)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600"
-                  disabled={!!fixedDepartmentId && user.role === role} // Disable if restricted (HOD editing within dept)
-                >
-                  {isSchool ? (
-                    <>
-                      <option value="head_teacher">Head Teacher</option>
-                      <option value="deputy">Deputy</option>
-                      <option value="dos">DOS</option>
-                      <option value="teacher">Teacher</option>
-                      <option value="practice_teacher">Practice Teacher</option>
-                      <option value="librarian">Librarian</option>
-                      <option value="finance">Finance</option>
-                      <option value="security">Security</option>
-                      <option value="info_desk">Info Desk</option>
-                      <option value="store">Storekeeper</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="lecturer">Lecturer</option>
-                      <option value="hod">HOD</option>
-                      <option value="tto">TTO</option>
-                      <option value="admin">Chair TTO</option>
-                      <option value="deputy">Deputy</option>
-                      <option value="academics_officer">Academics Officer</option>
-                      <option value="practice_teacher">Practice Teacher</option>
-                      <option value="librarian">Librarian</option>
-                      <option value="finance">Finance</option>
-                      <option value="security">Security</option>
-                      <option value="info_desk">Info Desk</option>
-                      <option value="store">Storekeeper</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              {!isSchool && rolesWithDepartment.includes(role) && (
-                <div>
-                  <label htmlFor="edit-hod-department" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Department</label>
-                  <select
-                    id="edit-hod-department"
-                    value={assignedDepartmentId}
-                    onChange={(e) => setAssignedDepartmentId(e.target.value)}
-                    required
-                    disabled={!!fixedDepartmentId}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 disabled:opacity-60"
-                  >
-                    <option value="" disabled>Select a department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-8 space-y-6 overflow-y-auto">
+            {activeTab === 'basic' && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Full Name</label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="form-input" placeholder="e.g. John Doe" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Gender Identity</label>
+                    <select value={gender} onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Other')} className="form-select">
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Email Address</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input" placeholder="john@example.com" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Phone Contact</label>
+                    <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="form-input" placeholder="0712345678" required />
+                  </div>
                 </div>
-              )}
+              </div>
+            )}
 
-            </div>
+            {activeTab === 'pro' && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Staff / Student ID</label>
+                  <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder="EMP-001" required />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Expertise / Skills (comma separated)</label>
+                  <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder="e.g. Mathematics, Pedagogy, Sports Coaching" required={user.role !== 'student'} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'access' && (
+              <div className="space-y-6 animate-fade-in-up">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Security Role</label>
+                    <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="form-select" disabled={!!fixedDepartmentId && user.role === role}>
+                      {isSchool ? (
+                        <>
+                          <option value="head_teacher">Head Teacher</option>
+                          <option value="deputy">Deputy</option>
+                          <option value="dos">DOS</option>
+                          <option value="teacher">Teacher</option>
+                          <option value="practice_teacher">Practice Teacher</option>
+                          <option value="librarian">Librarian</option>
+                          <option value="finance">Finance</option>
+                          <option value="security">Security</option>
+                          <option value="info_desk">Info Desk</option>
+                          <option value="store">Storekeeper</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="lecturer">Lecturer</option>
+                          <option value="hod">HOD</option>
+                          <option value="tto">TTO</option>
+                          <option value="admin">Chair TTO</option>
+                          <option value="deputy">Deputy</option>
+                          <option value="academics_officer">Academics Officer</option>
+                          <option value="practice_teacher">Practice Teacher</option>
+                          <option value="librarian">Librarian</option>
+                          <option value="finance">Finance</option>
+                          <option value="security">Security</option>
+                          <option value="info_desk">Info Desk</option>
+                          <option value="store">Storekeeper</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {!isSchool && rolesWithDepartment.includes(role) && (
+                    <div>
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
+                      <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
+                        <option value="" disabled>Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id}>{dept.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-800/30">
+                  <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">Access Note</p>
+                  <p className="text-[11px] text-amber-600/80 dark:text-amber-500/80 leading-relaxed italic">Changes to roles or departments may affect system permissions and data visibility for this user.</p>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="submit"
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[var(--color-primary)] text-base font-medium text-white hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:ml-3 sm:w-auto sm:text-sm"
-            >
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-            >
-              Cancel
-            </button>
+          <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 flex justify-end items-center gap-3 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" onClick={onClose} className="btn-secondary h-12 px-8">Discard</button>
+            <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Apply Unit Records</button>
           </div>
         </form>
       </div>
+      <style>{`
+        .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; outline: none; }
+        .dark .form-input, .dark .form-select { border-color: #334155; background-color: #0f172a; color: #fff; }
+        .btn-primary { background-color: #4f46e5; color: #fff; font-weight: 700; padding: 0.5rem 1.5rem; border-radius: 1rem; border: none; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .btn-secondary { background-color: #fff; color: #475569; font-weight: 700; padding: 0.5rem 1rem; border-radius: 1rem; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+        .dark .btn-secondary { background-color: #1e293b; color: #cbd5e1; border-color: #334155; }
+        .animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 };

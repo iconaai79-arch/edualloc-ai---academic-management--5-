@@ -114,11 +114,15 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
 
                 validInstitutions.push({
                     name: String(name).trim(),
+                    institutionName: String(name).trim(),
                     email: String(email).trim(),
+                    institutionEmail: String(email).trim(),
                     phoneNumber,
+                    institutionPhone: phoneNumber,
                     institutionType: finalType,
                     adminName: adminName || 'Administrator',
                     adminEmail: String(adminEmail).trim(),
+                    loadDemoData: false,
                     countyId
                 });
 

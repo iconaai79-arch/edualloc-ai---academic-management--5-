@@ -3,7 +3,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { SubjectCard } from './SubjectCard';
-import { ClockIcon, CheckIcon, XIcon, EyeOffIcon, UserIcon, EyeIcon, CheckCircleIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon } from './icons';
+import { ClockIcon, CheckIcon, XIcon, EyeOffIcon, UserIcon, EyeIcon, CheckCircleIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon, CalendarDaysIcon } from './icons';
 import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
 import { RatingModal } from './RatingModal';
