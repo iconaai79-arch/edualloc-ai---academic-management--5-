@@ -1,7 +1,9 @@
 # County Management Feature Implementation
 
 ## ✅ Overview
-Successfully implemented a comprehensive County management system that allows Super Admins to register county governments, assign administrators (via text input), and handle user roles. County Admins can now log in and view a dedicated dashboard.
+Successfully implemented a comprehensive County management system that allows Super Admins to register county governments, assign administrators (via text input), and handle user roles. County Admins can log in and view a dedicated dashboard.
+
+**LATEST UPDATE:** Added **Self-Registration** capability for Counties directly from the login portal.
 
 ---
 
@@ -27,51 +29,37 @@ Successfully implemented a comprehensive County management system that allows Su
   - **Linking Logic**: The dashboard automatically identifies the Admin's county by matching the logged-in User's **Name** or **Email** against the county record.
   - **Features**: Shows overview statistics (Total Institutions, Students, Lecturers) and a list of institutions in the county.
 
-### 4. Integration
+### 4. Self-Registration (New!)
+- **Feature**: Added a "Register County Govt" tab on the main login screen (`LoginView.tsx`).
+- **Workflow**: Counties can now sign up directly without Super Admin intervention.
+- **Auto-Provisioning**: Automatically creates the County record AND the Admin User account in one step.
+- **Credentials**: User receives auto-generated credentials immediately upon registration.
+
+### 5. Integration
 - **SuperAdminView**: Added "Counties" tab under "Institutions".
-- **App.tsx**: State management and CRUD handlers (`handleAddCounty`, `handleUpdateCounty`, `handleDeleteCounty`).
+- **App.tsx**: State management and CRUD handlers (`handleAddCounty`, `handleUpdateCounty`, `handleDeleteCounty`, `onCountyRegister`).
 
 ---
 
 ## 🛠️ Technical Implementation Details
 
 ### Type Definitions (`types.ts`)
-Updated `County` interface:
+Updated `County` interface and added `CountyRegistrationData`:
 ```typescript
 interface County {
     id: string;
     name: string;
     code: string;
-    email: string;
-    phoneNumber: string;
+    email: string; // ... other fields
     adminName?: string; // Text field storage
-    adminId?: string;   // Optional UUID link (nullable)
     status: 'active' | 'suspended';
-    // ...
 }
 ```
 
-### Database Schema
-Updated `counties` table:
-```sql
-CREATE TABLE counties (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  code TEXT NOT NULL UNIQUE,
-  email TEXT NOT NULL,
-  phone_number TEXT NOT NULL,
-  admin_name TEXT,       -- Stores the text input name
-  admin_id UUID,         -- Optional foreign key
-  status TEXT DEFAULT 'active',
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
 ### Authentication Flow
-1. **User Login**: `LoginView` authenticates user against `users` table.
-2. **Role Check**: `App.tsx` sees `activeRole === 'county_admin'`.
-3. **Redirection**: Renders `<CountyAdminView />` instead of standard views.
-4. **Data Loading**: `CountyAdminView` filters the global `institutions` list based on `countyId` (derived from matching admin name/email).
+1. **User Login**: `LoginView` authenticates against `users`.
+2. **Self-Registration**: `LoginView` calls `onCountyRegister`. `App.tsx` handles creation of both County and User via `apiService`.
+3. **Role Redirection**: `App.tsx` detects `activeRole === 'county_admin'` and shows `<CountyAdminView />`.
 
 ---
 
@@ -80,16 +68,16 @@ CREATE TABLE counties (
 ### For Super Admins:
 1. Go to **Institutions > Counties**.
 2. Click **Register County**.
-3. Enter details (Name, Code, Contact).
-4. In **County Administrator**, type the name of the official (e.g., "Governor Sakaja").
-5. Save.
+3. Enter details manually if needed.
 
-### For County Admins:
-1. Ensure a **User Account** exists with:
-   - Name: Matches the "County Administrator" name exactly.
-   - Role: `county_admin`.
-2. Login to the portal.
-3. View the **County Dashboard** with stats and institutions list.
+### For County Admins (Self-Register):
+1. Go to the main **Login Page**.
+2. Click **Register Portal** button.
+3. Switch tab to **"County Govt"**.
+4. Fill in: County Name, Code, Phone, Official Email, Admin Name, Admin Email.
+5. Click **Register County Portal**.
+6. Note down the **Username** and **PIN** shown on the success screen.
+7. Click **Enter Dashboard** to start managing institutions.
 
 ---
 
@@ -101,6 +89,7 @@ CREATE TABLE counties (
 - [x] Implement County Admin Login
 - [x] Create County Admin Dashboard
 - [x] Add Admin Name Column to Database
+- [x] Implement County Self-Registration
 
-**Feature Status: COMPLETE** 
+**Feature Status: FULLY COMPLETE** 
 **Date:** 2026-02-08
