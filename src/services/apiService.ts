@@ -442,12 +442,21 @@ export const apiService = {
         if (error) throw error;
     },
     async onImportCourses(courses: any[]): Promise<void> {
-        const snakeData = courses.map(c => toSnakeCase(c));
+        const enrichedCourses = courses.map(c => ({
+            ...c,
+            id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            levels: [], // Initialize empty levels array as per Course interface
+            curriculumType: c.curriculumType || '8-4-4'
+        }));
+
+        const snakeData = enrichedCourses.map(c => toSnakeCase(c));
+
         if (!_supabase) {
             const existing = ls.get('courses');
             ls.set('courses', [...existing, ...snakeData]);
             return;
         }
+
         const { error } = await _supabase.from('courses').insert(snakeData);
         if (error) throw error;
     },
