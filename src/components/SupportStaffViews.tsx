@@ -5,7 +5,8 @@ import type {
     Requisition, InventoryItem, SecurityAlert, Visitor, EmployeeDetails,
     PayrollRun, Invoice, Receipt, Course, FeeStructure, Semester, AcademicYear,
     CompanyDetails, MpesaTransaction, TimetableSettings, Building, Appointment,
-    FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument
+    FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument,
+    CountyInventoryItem
 } from '../types';
 import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
@@ -81,6 +82,8 @@ export interface SupportStaffViewProps {
     supplierProfile?: Supplier;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => void;
     onUpdateSupplier?: (supplierId: string, data: Partial<Supplier>) => void;
+    countyInventory?: CountyInventoryItem[];
+    onMarkInventoryReceived?: (id: string) => Promise<void>;
 }
 
 const BaseDashboard: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
@@ -333,14 +336,37 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 };
 
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
-    const { inventory = [], suppliers = [], users = [], onAddItem, onAddItems, onAddStoreTransaction } = props;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers'>('dashboard');
+    const { inventory = [], suppliers = [], users = [], onAddItem, onAddItems, onAddStoreTransaction, countyInventory = [], onMarkInventoryReceived } = props;
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+    const pendingShipments = useMemo(() => countyInventory.filter(i => i.status === 'in_transit'), [countyInventory]);
+
     return (
         <BaseDashboard title="Institutional Store" icon={<ArchiveBoxIcon className="w-6 h-6 text-slate-600" />}>
-            <div className="border-b border-slate-200 dark:border-slate-700 mb-6"><nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">{['dashboard', 'inventory', 'history', 'suppliers'].map(tab => (<button key={tab} onClick={() => setActiveTab(tab as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{tab}</button>))}</nav></div>
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">
+                    {[
+                        { id: 'dashboard', label: 'Dashboard' },
+                        { id: 'inventory', label: 'Inventory' },
+                        { id: 'shipments', label: 'County Shipments', count: pendingShipments.length },
+                        { id: 'history', label: 'History' },
+                        { id: 'suppliers', label: 'Suppliers' }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        >
+                            {tab.label}
+                            {tab.count !== undefined && tab.count > 0 && (
+                                <span className="bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">{tab.count}</span>
+                            )}
+                        </button>
+                    ))}
+                </nav>
+            </div>
             {activeTab === 'inventory' && (
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="flex justify-between items-center">
@@ -375,7 +401,57 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     </div>
                 </div>
             )}
+
+            {activeTab === 'shipments' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-6 rounded-[2rem] flex items-center gap-4">
+                        <div className="p-3 bg-amber-100 dark:bg-amber-900/50 rounded-2xl text-amber-600">
+                            <ArrowUpTrayIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="font-black text-amber-800 dark:text-amber-200 uppercase tracking-tight">County Distribution Registry</h4>
+                            <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Verify and acknowledge receipt of items dispatched from Headquarters.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                        {countyInventory.filter(i => i.status === 'in_transit' || i.status === 'received').map(item => (
+                            <div key={item.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 transition-all">
+                                <div className="flex gap-4 items-center">
+                                    <div className={`p-3 rounded-2xl ${item.status === 'received' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                        <ArchiveBoxIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-slate-900 dark:text-white uppercase tracking-tight">{item.name}</p>
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{item.quantity} {item.unit}</span>
+                                            <span className="text-[10px] font-black text-slate-400">•</span>
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'received' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                {item.status === 'received' ? 'Successfully Received' : 'In Transit'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {item.status === 'in_transit' && (
+                                    <button
+                                        onClick={() => onMarkInventoryReceived?.(item.id)}
+                                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                                    >
+                                        Mark as Received
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        {countyInventory.filter(i => i.status === 'in_transit' || i.status === 'received').length === 0 && (
+                            <div className="py-20 text-center text-slate-400 font-bold uppercase text-xs tracking-widest bg-slate-50 dark:bg-slate-900/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                No shipments records found for this institution.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </BaseDashboard>
+
     );
 };
 

@@ -650,6 +650,19 @@ export const App: React.FC = () => {
         loadData();
     }, [loadData]);
 
+    const onMarkInventoryReceived = useCallback(async (id: string) => {
+        const item = countyInventory.find(i => i.id === id);
+        if (item) {
+            await apiService.saveModuleRecord('county_inventory', {
+                ...item,
+                status: 'received',
+                lastUpdated: new Date().toISOString()
+            });
+            loadData();
+            alert("Inventory received and acknowledged.");
+        }
+    }, [countyInventory, loadData]);
+
     // --- Allocation Handlers ---
 
     const handleAllocationChangeRequest = async (requestId: string, justification: string, newPriority: Priority) => {
@@ -971,7 +984,18 @@ export const App: React.FC = () => {
         onStudentRegister: async () => ({ success: true, message: '' })
     };
 
-    const activeRole = impersonatedRole || currentUser?.role;
+    const activeRole = useMemo(() => {
+        if (impersonatedRole) return impersonatedRole;
+        if (!currentUser) return null;
+
+        // Redirect school administrators to the County Portal if their school is registered to a county
+        const inst = institutions.find(i => i.id === currentUser.institutionId);
+        if (inst?.countyId && (currentUser.role === 'admin' || currentUser.role === 'head_teacher')) {
+            return 'county_admin';
+        }
+
+        return currentUser.role;
+    }, [impersonatedRole, currentUser, institutions]);
     const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
 
     if (currentUser && activeRole !== 'super_admin') {
@@ -1198,6 +1222,7 @@ export const App: React.FC = () => {
                                     await apiService.deleteModuleRecord('county_stores', id);
                                     loadData();
                                 }}
+                                stockTransactions={stockTransactions}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
@@ -1294,6 +1319,8 @@ export const App: React.FC = () => {
                                     await apiService.saveModuleRecord('stock_transactions', { id: `stx_${Date.now()}`, itemId: item.id, itemName: item.name, type, quantity: qty, recipientOrSupplier: party, verificationMethod: method, date: new Date().toISOString(), institutionId: currentUser.institutionId, recordedBy: currentUser.id });
                                     loadData();
                                 }}
+                                countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
+                                onMarkInventoryReceived={onMarkInventoryReceived}
                             />
                         ) : activeRole === 'librarian' ? (
                             <LibrarianView

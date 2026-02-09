@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore } from '../types';
+import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore, StockTransaction } from '../types';
 import {
     BuildingOfficeIcon,
     UserGroupIcon,
@@ -53,6 +53,7 @@ interface CountyAdminViewProps {
     onAddStore?: (data: any) => Promise<void>;
     onUpdateStore?: (id: string, data: Partial<CountyStore>) => Promise<void>;
     onDeleteStore?: (id: string) => Promise<void>;
+    stockTransactions?: StockTransaction[];
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -80,7 +81,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onDeleteInventoryCategory,
     onAddStore,
     onUpdateStore,
-    onDeleteStore
+    onDeleteStore,
+    stockTransactions = []
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'settings'>('dashboard');
     const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores' | 'dispatch' | 'reports'>('items');
@@ -102,14 +104,30 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     });
 
     // Logic to find the admin's county. 
-    // We match by adminName (text field) or email.
-    const myCounty = counties.find(c =>
-        (c.adminName && c.adminName.toLowerCase() === currentUser.name.toLowerCase()) ||
-        (c.email && c.email.toLowerCase() === currentUser.email.toLowerCase())
-    );
+    // We match by direct admin association or via the institution's county registration.
+    const myCounty = useMemo(() => {
+        const directMatch = counties.find(c =>
+            (c.adminName && c.adminName.toLowerCase() === currentUser.name.toLowerCase()) ||
+            (c.email && c.email.toLowerCase() === currentUser.email.toLowerCase())
+        );
+        if (directMatch) return directMatch;
+
+        // Alternative check: find user's institution and check its countyId
+        const myInst = institutions.find(i => i.id === currentUser.institutionId);
+        if (myInst?.countyId) {
+            return counties.find(c => c.id === myInst.countyId) || null;
+        }
+        return null;
+    }, [counties, currentUser, institutions]);
 
     const myInstitutions = institutions.filter(i => i.countyId === myCounty?.id);
     const myStaff = users.filter(u => u.institutionId === (myCounty?.id || '') && u.role.startsWith('county_'));
+    const myInventory = (inventoryItems || []).filter(i => i.countyId === myCounty?.id);
+    const myStores = (stores || []).filter(s => s.countyId === myCounty?.id);
+    const myCategories = (inventoryCategories || []).filter(c => c.countyId === myCounty?.id);
+    const myStockTransactions = (stockTransactions || []).filter(tx =>
+        myInstitutions.some(inst => inst.id === tx.institutionId)
+    );
 
     const formatRole = (role: string) => {
         if (role === 'county_admin') return 'County Admin';
@@ -962,7 +980,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <ArchiveBoxIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'at_hq').length}</div>
+                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'at_hq').length}</div>
                                             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">At Headquarters</div>
                                         </div>
                                     </div>
@@ -971,7 +989,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <TruckIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'in_transit').length}</div>
+                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'in_transit').length}</div>
                                             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">In Transit</div>
                                         </div>
                                     </div>
@@ -980,7 +998,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <CheckCircleIcon className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="text-2xl font-black text-slate-900">{inventoryItems.filter(i => i.status === 'received').length}</div>
+                                            <div className="text-2xl font-black text-slate-900">{myInventory.filter(i => i.status === 'received').length}</div>
                                             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Delivered</div>
                                         </div>
                                     </div>
@@ -998,7 +1016,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
-                                                {inventoryItems.map(item => (
+                                                {myInventory.map(item => (
                                                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
                                                         <td className="px-6 py-4 whitespace-nowrap">
                                                             <div className="flex items-center gap-4">
@@ -1086,7 +1104,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         </td>
                                                     </tr>
                                                 ))}
-                                                {inventoryItems.length === 0 && (
+                                                {myInventory.length === 0 && (
                                                     <tr>
                                                         <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium" >
                                                             No inventory items found.Add items received at HQ to get started.
@@ -1112,7 +1130,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {inventoryCategories.map(cat => (
+                                            {myCategories.map(cat => (
                                                 <tr key={cat.id} className="hover:bg-slate-50/50 transition-colors group">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="font-bold text-slate-900">{cat.name}</span>
@@ -1146,7 +1164,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {inventoryCategories.length === 0 && (
+                                            {myCategories.length === 0 && (
                                                 <tr>
                                                     <td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-medium">
                                                         No categories found. Create a category to organize your inventory.
@@ -1172,7 +1190,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {stores.map(store => (
+                                            {myStores.map(store => (
                                                 <tr key={store.id} className="hover:bg-slate-50/50 transition-colors group">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="font-bold text-slate-900">{store.name}</span>
@@ -1220,7 +1238,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {stores.length === 0 && (
+                                            {myStores.length === 0 && (
                                                 <tr>
                                                     <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">
                                                         No stores or locations registered yet.
@@ -1251,7 +1269,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {inventoryItems.filter(i => i.status !== 'at_hq').map(item => (
+                                            {myInventory.filter(i => i.status !== 'at_hq').map(item => (
                                                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-xs font-mono font-bold text-slate-600">
@@ -1290,7 +1308,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {inventoryItems.filter(i => i.status !== 'at_hq').length === 0 && (
+                                            {myInventory.filter(i => i.status !== 'at_hq').length === 0 && (
                                                 <tr>
                                                     <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
                                                         No dispatch history found.
@@ -1314,10 +1332,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Distribution by Category</h3>
                                         </div>
                                         <div className="space-y-4">
-                                            {inventoryCategories.map(cat => {
-                                                const catItems = inventoryItems.filter(i => i.category === cat.name);
+                                            {myCategories.map(cat => {
+                                                const catItems = myInventory.filter(i => i.category === cat.name);
                                                 const totalQty = catItems.reduce((acc, curr) => acc + curr.quantity, 0);
-                                                const totalCount = inventoryItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                                                const totalCount = myInventory.reduce((acc, curr) => acc + curr.quantity, 0);
                                                 const percentage = totalCount > 0 ? (totalQty / totalCount) * 100 : 0;
 
                                                 return (
@@ -1332,7 +1350,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </div>
                                                 );
                                             })}
-                                            {inventoryCategories.length === 0 && (
+                                            {myCategories.length === 0 && (
                                                 <p className="text-center text-slate-400 text-xs py-4">No data available.</p>
                                             )}
                                         </div>
@@ -1347,7 +1365,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                         </div>
                                         <div className="space-y-3">
                                             {Object.entries(
-                                                inventoryItems.filter(i => i.targetInstitutionId).reduce((acc, item) => {
+                                                myInventory.filter(i => i.targetInstitutionId).reduce((acc, item) => {
                                                     acc[item.targetInstitutionId!] = (acc[item.targetInstitutionId!] || 0) + 1;
                                                     return acc;
                                                 }, {} as Record<string, number>)
@@ -1366,7 +1384,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         </div>
                                                     );
                                                 })}
-                                            {inventoryItems.every(i => !i.targetInstitutionId) && (
+                                            {myInventory.every(i => !i.targetInstitutionId) && (
                                                 <p className="text-center text-slate-400 text-xs py-4">No distribution data available yet.</p>
                                             )}
                                         </div>
@@ -1391,7 +1409,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
                                                     {Object.entries(
-                                                        inventoryItems.filter(i => i.targetInstitutionId).reduce((acc, item) => {
+                                                        myInventory.filter(i => i.targetInstitutionId).reduce((acc, item) => {
                                                             acc[item.targetInstitutionId!] = (acc[item.targetInstitutionId!] || 0) + item.quantity;
                                                             return acc;
                                                         }, {} as Record<string, number>)
@@ -1404,7 +1422,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                             </tr>
                                                         );
                                                     })}
-                                                    {inventoryItems.every(i => !i.targetInstitutionId) && (
+                                                    {myInventory.every(i => !i.targetInstitutionId) && (
                                                         <tr>
                                                             <td colSpan={2} className="px-6 py-6 text-center text-slate-400 text-xs text-[10px] uppercase font-bold tracking-widest">No receiving schools recorded.</td>
                                                         </tr>
@@ -1422,11 +1440,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Low Stock / Needs Restocking</h3>
                                         </div>
                                         <div className="space-y-3">
-                                            {/* 
-                                                Logic: Show items at HQ with low quantity (e.g. < 10) or categories completely missing at HQ. 
-                                                For this demo, we'll list items at HQ with quantity < 50 as 'Low Stock'.
-                                             */}
-                                            {inventoryItems.filter(i => i.status === 'at_hq' && i.quantity < 50).map(item => (
+                                            {myInventory.filter(i => i.status === 'at_hq' && i.quantity < 50).map(item => (
                                                 <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                                     <div>
                                                         <div className="text-xs font-bold text-slate-700">{item.name}</div>
@@ -1437,7 +1451,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     </button>
                                                 </div>
                                             ))}
-                                            {inventoryItems.filter(i => i.status === 'at_hq' && i.quantity < 50).length === 0 && (
+                                            {myInventory.filter(i => i.status === 'at_hq' && i.quantity < 50).length === 0 && (
                                                 <div className="text-center py-6">
                                                     <div className="inline-flex items-center justify-center w-12 h-12 bg-green-50 rounded-full text-green-600 mb-2">
                                                         <SparklesIcon className="w-6 h-6" />
@@ -1446,6 +1460,47 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                                            <UserGroupIcon className="w-5 h-5" />
+                                        </div>
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">School-Level Issuance History</h3>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">School</th>
+                                                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Qty</th>
+                                                    <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {myStockTransactions.filter(tx => tx.type === 'Issue').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(tx => {
+                                                    const inst = institutions.find(i => i.id === tx.institutionId);
+                                                    return (
+                                                        <tr key={tx.id} className="hover:bg-slate-50/50">
+                                                            <td className="px-4 py-3 text-[10px] font-mono font-bold text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
+                                                            <td className="px-4 py-3 text-xs font-bold text-slate-700">{inst?.name || 'Unknown'}</td>
+                                                            <td className="px-4 py-3 text-xs font-bold text-slate-900">{tx.itemName}</td>
+                                                            <td className="px-4 py-3 text-xs font-mono font-black text-indigo-600">{tx.quantity}</td>
+                                                            <td className="px-4 py-3 text-xs font-medium text-slate-600">{tx.recipientOrSupplier}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {myStockTransactions.filter(tx => tx.type === 'Issue').length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="px-6 py-6 text-center text-slate-400 text-xs text-[10px] uppercase font-bold tracking-widest">No issuance history found @ schools.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
@@ -2075,7 +2130,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
                                                 >
                                                     <option value="">Select Category</option>
-                                                    {inventoryCategories.map(cat => (
+                                                    {myCategories.map(cat => (
                                                         <option key={cat.id} value={cat.name}>{cat.name}</option>
                                                     ))}
                                                 </select>
