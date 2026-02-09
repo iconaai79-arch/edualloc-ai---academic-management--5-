@@ -60,7 +60,19 @@ export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher,
 
     const handleAssignClick = (subject: Subject) => {
         setSelectedSubject(subject);
-        setSelectedClassIds(new Set());
+
+        const defaults = new Set<string>();
+        courses.forEach(course => {
+            if (course.departmentId === subject.departmentId) {
+                (course.levels || []).forEach(level => {
+                    if ((level.subjectIds || []).includes(subject.id)) {
+                        defaults.add(level.id);
+                    }
+                });
+            }
+        });
+
+        setSelectedClassIds(defaults);
         setView('classes');
     };
 
