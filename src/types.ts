@@ -112,6 +112,9 @@ export interface Institution {
     scheduleProfiles?: ScheduleProfile[];
     aiModelTier?: 'free' | 'premium';
     countyId?: string;
+    subCounty?: string;
+    constituency?: string;
+    ward?: string;
 }
 
 
@@ -929,6 +932,9 @@ export interface InstitutionRegistrationData {
     email?: string;
     phoneNumber?: string;
     countyId?: string;
+    subCounty?: string;
+    constituency?: string;
+    ward?: string;
 }
 
 export interface StudentRegistrationData {

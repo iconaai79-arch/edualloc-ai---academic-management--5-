@@ -866,7 +866,10 @@ export const App: React.FC = () => {
                 trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
                 institutionCode: `INST-${Date.now().toString().slice(-4)}`,
                 useAllocationRequests: true,
-                countyId: data.countyId
+                countyId: data.countyId,
+                subCounty: data.subCounty,
+                constituency: data.constituency,
+                ward: data.ward
             };
 
             const adminRole: Role = (data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher';

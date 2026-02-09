@@ -123,7 +123,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         phoneNumber: '',
         type: 'University',
         adminName: '',
-        adminEmail: ''
+        adminEmail: '',
+        subCounty: '',
+        constituency: '',
+        ward: ''
     });
 
     // Logic to find the admin's county. 
@@ -539,11 +542,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 institutionType: registerData.type,
                 adminName: registerData.adminName,
                 adminEmail: registerData.adminEmail,
-                countyId: myCounty.id
+                countyId: myCounty.id,
+                subCounty: registerData.subCounty,
+                constituency: registerData.constituency,
+                ward: registerData.ward
             });
             onLogAction?.(`Registered new institution: ${registerData.name} (${registerData.type})`);
             setShowRegisterModal(false);
-            setRegisterData({ name: '', email: '', phoneNumber: '', type: 'University', adminName: '', adminEmail: '' });
+            setRegisterData({ name: '', email: '', phoneNumber: '', type: 'University', adminName: '', adminEmail: '', subCounty: '', constituency: '', ward: '' });
         } catch (error) {
             console.error(error);
             // Alert handled by parent usually, but just in case
@@ -2278,6 +2284,36 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     <option value="ECD">ECD Center</option>
                                                     <option value="International">International School</option>
                                                 </select>
+                                            </div>
+
+                                            <div className="col-span-2 grid grid-cols-3 gap-4">
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Sub-County"
+                                                        value={registerData.subCounty}
+                                                        onChange={e => setRegisterData({ ...registerData, subCounty: e.target.value })}
+                                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Constituency"
+                                                        value={registerData.constituency}
+                                                        onChange={e => setRegisterData({ ...registerData, constituency: e.target.value })}
+                                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ward"
+                                                        value={registerData.ward}
+                                                        onChange={e => setRegisterData({ ...registerData, ward: e.target.value })}
+                                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
 

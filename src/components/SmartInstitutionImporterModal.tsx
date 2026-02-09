@@ -6,8 +6,8 @@ import { analyzeInstitutionSpreadsheet } from '../services/geminiService';
 
 declare var XLSX: any;
 
-type InstitutionMappingField = 'name' | 'email' | 'phoneNumber' | 'institutionType' | 'adminName' | 'adminEmail';
-const ALL_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'phoneNumber', 'institutionType', 'adminName', 'adminEmail'];
+type InstitutionMappingField = 'name' | 'email' | 'phoneNumber' | 'institutionType' | 'adminName' | 'adminEmail' | 'subCounty' | 'constituency' | 'ward';
+const ALL_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'phoneNumber', 'institutionType', 'adminName', 'adminEmail', 'subCounty', 'constituency', 'ward'];
 const REQUIRED_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'adminEmail'];
 
 interface SmartInstitutionImporterModalProps {
@@ -99,6 +99,9 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                 const phoneNumber = userMapping.phoneNumber ? String(row[userMapping.phoneNumber] || '') : '';
                 const institutionType = userMapping.institutionType ? String(row[userMapping.institutionType] || 'University') : 'University';
                 const adminName = userMapping.adminName ? String(row[userMapping.adminName] || '') : '';
+                const subCounty = userMapping.subCounty ? String(row[userMapping.subCounty] || '') : '';
+                const constituency = userMapping.constituency ? String(row[userMapping.constituency] || '') : '';
+                const ward = userMapping.ward ? String(row[userMapping.ward] || '') : '';
 
                 // Normalize institution type
                 let finalType: any = 'University';
@@ -123,7 +126,10 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                     adminName: adminName || 'Administrator',
                     adminEmail: String(adminEmail).trim(),
                     loadDemoData: false,
-                    countyId
+                    countyId,
+                    subCounty: subCounty.trim(),
+                    constituency: constituency.trim(),
+                    ward: ward.trim()
                 });
 
             } catch (e: any) {
