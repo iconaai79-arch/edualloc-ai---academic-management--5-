@@ -3,7 +3,16 @@ import { GoogleGenAI } from "@google/genai";
 import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableSettings, Course, TimeOffRequest, ExamTimetableEntry, Internship, ExamTimetableSettings, LessonStructure, ScheduleProfile } from '../types';
 
 // Safely initialize API client. If KEY is missing, it will be null and calls will fail gracefully instead of crashing the app at startup.
-const apiKey = process.env.API_KEY;
+const getSafeKey = () => {
+    try {
+        if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
+        if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+            return (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY;
+        }
+    } catch (e) { }
+    return null;
+};
+const apiKey = getSafeKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const checkAiAvailable = () => {

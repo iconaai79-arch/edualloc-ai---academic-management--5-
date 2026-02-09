@@ -27,8 +27,8 @@ let _activeUrl: string | null = null;
 let _activeKey: string | null = null;
 
 export const initSupabaseClient = (url?: string, key?: string) => {
-    const finalUrl = url || process.env.SUPABASE_URL || getSafeEnv('SUPABASE_URL');
-    const finalKey = key || process.env.SUPABASE_ANON_KEY || getSafeEnv('SUPABASE_ANON_KEY');
+    const finalUrl = url || (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || getSafeEnv('SUPABASE_URL');
+    const finalKey = key || (typeof process !== 'undefined' && process.env?.SUPABASE_ANON_KEY) || getSafeEnv('SUPABASE_ANON_KEY');
 
     if (finalUrl && finalKey && finalUrl.startsWith('http')) {
         try {
