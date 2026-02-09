@@ -246,6 +246,29 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         }
     };
 
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
+        }
+
+        // Show loading state or feedback could be nice, but simple alert on error works for now
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setStoreForm(prev => ({
+                    ...prev,
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                }));
+            },
+            (error) => {
+                console.error("Error getting location:", error);
+                alert("Unable to retrieve your location. Please ensure you have granted location permissions.");
+            },
+            { enableHighAccuracy: true }
+        );
+    };
+
     const handleInventorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!myCounty) return;
@@ -1637,28 +1660,39 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             placeholder="e.g. HQ Basement, Industrial Area"
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Latitude</label>
-                                            <input
-                                                type="number"
-                                                step="any"
-                                                required
-                                                value={storeForm.latitude}
-                                                onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
-                                            />
+                                    <div className="space-y-2">
+                                        <div className="flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={handleGetLocation}
+                                                className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors bg-indigo-50 px-3 py-1.5 rounded-lg active:scale-95"
+                                            >
+                                                <MapPinIcon className="w-3 h-3" /> Use GPS Location
+                                            </button>
                                         </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Longitude</label>
-                                            <input
-                                                type="number"
-                                                step="any"
-                                                required
-                                                value={storeForm.longitude}
-                                                onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
-                                            />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Latitude</label>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    required
+                                                    value={storeForm.latitude}
+                                                    onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                                />
+                                            </div>
+                                            <div className="group">
+                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Longitude</label>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    required
+                                                    value={storeForm.longitude}
+                                                    onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
+                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="group">
