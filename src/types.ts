@@ -784,7 +784,7 @@ export interface StockTransaction {
     id: string;
     itemId: string;
     itemName: string;
-    type: 'Restock' | 'Dispatch' | 'Adjustment';
+    type: 'Restock' | 'Dispatch' | 'Adjustment' | 'Issue';
     quantity: number;
     recipientOrSupplier: string;
     date: string;

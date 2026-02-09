@@ -3,7 +3,8 @@ import React, { useState, useMemo } from 'react';
 import type {
     Subject, User, AllocationRequest, Department, Priority,
     TimetableEntry, AcademicYear, Semester, TimetableSettings,
-    Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution
+    Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution,
+    CountyInventoryItem
 } from '../types';
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -14,7 +15,7 @@ import { TimetableGrid } from './TimetableGrid';
 import {
     CalendarPlusIcon, ArrowsRightLeftIcon, MagnifyingGlassIcon,
     BookOpenIcon, ClockIcon, CheckIcon, XIcon, CheckCircleIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon, ArchiveBoxIcon, UserGroupIcon
 } from './icons/index';
 
 interface LecturerViewProps {
@@ -59,6 +60,8 @@ interface LecturerViewProps {
     onAddAssessment?: (data: any) => void;
     onDeleteAssessment?: (id: string) => void;
     onSaveAssessmentMarks?: (id: string, marks: any) => Promise<void>;
+    inventoryItems?: CountyInventoryItem[];
+    onIssueInventoryItem?: (itemId: string, quantity: number, recipientId: string, recipientName: string) => Promise<void>;
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -143,8 +146,34 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const menuTabs = useMemo(() => {
         const base = ['dashboard', 'my_timetable'];
         if (useRequests) base.push('my_requests');
+        if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
-    }, [useRequests]);
+    }, [useRequests, props.inventoryItems]);
+
+    const [showIssueModal, setShowIssueModal] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<CountyInventoryItem | null>(null);
+    const [issueForm, setIssueForm] = useState({ quantity: 1, recipientId: '' });
+
+    const handleIssueSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedItem || !props.onIssueInventoryItem) return;
+
+        const recipient = props.users.find(u => u.id === issueForm.recipientId);
+        if (!recipient) return;
+
+        if (issueForm.quantity > selectedItem.quantity) {
+            alert(`Cannot issue more than available quantity (${selectedItem.quantity})`);
+            return;
+        }
+
+        setIsSubmitting(true);
+        await props.onIssueInventoryItem(selectedItem.id, issueForm.quantity, recipient.id, recipient.name);
+        setIsSubmitting(false);
+        setShowIssueModal(false);
+        setSelectedItem(null);
+        setIssueForm({ quantity: 1, recipientId: '' });
+        alert('Item issued successfully');
+    };
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
@@ -355,6 +384,56 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 </div>
             )}
 
+            {activeTab === 'inventory' && props.inventoryItems && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-8">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">School Inventory</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage & Issue Stock Items</p>
+                            </div>
+                            <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                <ArchiveBoxIcon className="w-6 h-6" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {props.inventoryItems.map(item => (
+                                <div key={item.id} className="group bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors">
+                                            <ArchiveBoxIcon className="w-5 h-5" />
+                                        </div>
+                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${item.quantity > 10 ? 'bg-emerald-50 text-emerald-600' :
+                                            item.quantity > 0 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+                                            }`}>
+                                            {item.quantity} {item.unit}
+                                        </span>
+                                    </div>
+
+                                    <h4 className="font-bold text-slate-900 dark:text-white mb-1">{item.name}</h4>
+                                    <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-4">{item.category}</p>
+
+                                    <button
+                                        onClick={() => { setSelectedItem(item); setShowIssueModal(true); }}
+                                        disabled={item.quantity <= 0}
+                                        className="w-full py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Issue Item
+                                    </button>
+                                </div>
+                            ))}
+                            {props.inventoryItems.length === 0 && (
+                                <div className="col-span-full py-12 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">
+                                    No inventory items available to issue.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {isRequestModalOpen && (
                 <RequestModal
                     subjects={Array.from(selectedSubjectIds).map(id => getSubjectById(id)!).filter(Boolean)}
@@ -382,6 +461,72 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     onClose={() => setDeallocatingRequest(null)}
                     onSubmit={(justification) => { onDeallocationRequest(deallocatingRequest.id, justification); setDeallocatingRequest(null); }}
                 />
+            )}
+
+            {showIssueModal && selectedItem && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Issue Item</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedItem.name}</p>
+                            </div>
+                            <button onClick={() => setShowIssueModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                <XIcon className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleIssueSubmit} className="p-8 space-y-6">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Recipient (Student/Staff)</label>
+                                <div className="relative">
+                                    <select
+                                        required
+                                        value={issueForm.recipientId}
+                                        onChange={e => setIssueForm({ ...issueForm, recipientId: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold appearance-none"
+                                    >
+                                        <option value="">Select Recipient...</option>
+                                        {props.users.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                                        ))}
+                                    </select>
+                                    <UserGroupIcon className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Quantity to Issue</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={selectedItem.quantity}
+                                    required
+                                    value={issueForm.quantity}
+                                    onChange={e => setIssueForm({ ...issueForm, quantity: parseInt(e.target.value) || 1 })}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold"
+                                />
+                                <p className="text-[10px] font-bold text-slate-400 mt-2 text-right uppercase tracking-wider">Available: {selectedItem.quantity} {selectedItem.unit}</p>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowIssueModal(false)}
+                                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none transition-colors disabled:opacity-50"
+                                >
+                                    {isSubmitting ? 'Issuing...' : 'Confirm Issue'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
 
             <style>{`

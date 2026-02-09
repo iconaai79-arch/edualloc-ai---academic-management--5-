@@ -1581,6 +1581,28 @@ export const App: React.FC = () => {
                                     await Promise.all(promises);
                                     loadData();
                                 }}
+                                inventoryItems={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId && i.status === 'received')}
+                                onIssueInventoryItem={async (itemId, quantity, recipientId, recipientName) => {
+                                    const item = countyInventory.find(i => i.id === itemId);
+                                    if (item) {
+                                        const newQty = Math.max(0, item.quantity - quantity);
+                                        await apiService.saveModuleRecord('county_inventory', { ...item, quantity: newQty });
+
+                                        const transaction: StockTransaction = {
+                                            id: `stx_issue_${Date.now()}`,
+                                            itemId: item.id,
+                                            itemName: item.name,
+                                            type: 'Issue',
+                                            quantity: quantity,
+                                            recipientOrSupplier: recipientName,
+                                            date: new Date().toISOString(),
+                                            institutionId: currentUser.institutionId,
+                                            recordedBy: currentUser.id
+                                        };
+                                        await apiService.saveModuleRecord('stock_transactions', transaction);
+                                        loadData();
+                                    }
+                                }}
                             />
                         )}
                     </main>
