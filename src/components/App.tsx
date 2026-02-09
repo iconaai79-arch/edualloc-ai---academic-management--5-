@@ -962,8 +962,6 @@ export const App: React.FC = () => {
         alert(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount}\nFailed: ${failCount}`);
     }, [loadData, companyDetails]);
 
-    if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
-    if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
     const commonLoginProps = {
         users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, registrationProgress: null, registrationMessage: "",
@@ -1074,6 +1072,9 @@ export const App: React.FC = () => {
         return currentUser.role;
     }, [impersonatedRole, currentUser, institutions]);
     const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
+
+    if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
+    if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
     if (currentUser && activeRole !== 'super_admin') {
         const inst = institutions.find(i => i.id === currentUser.institutionId);
