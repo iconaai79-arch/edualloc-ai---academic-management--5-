@@ -83,7 +83,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onDeleteStore
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'settings'>('dashboard');
-    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores'>('items');
+    const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores' | 'dispatch' | 'reports'>('items');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
@@ -934,6 +934,24 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             >
                                 Stores & Locations
                             </button>
+                            <button
+                                onClick={() => setInventorySubTab('dispatch')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'dispatch'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Dispatch Log
+                            </button>
+                            <button
+                                onClick={() => setInventorySubTab('reports')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventorySubTab === 'reports'
+                                    ? 'bg-white text-indigo-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Analytics & Reports
+                            </button>
                         </div>
 
                         {inventorySubTab === 'items' && (
@@ -1214,852 +1232,1092 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
 
-                {activeTab === 'settings' && (
-                    <div className="space-y-6 animate-fade-in-up">
-                        <div className="mb-8">
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
-                                Portal Settings
-                            </h2>
-                            <p className="text-slate-500 font-medium">
-                                Configure portal preferences and appearance
-                            </p>
-                        </div>
-
-                        <div className="flex border-b border-slate-200 mb-6">
-                            <button
-                                onClick={() => setSettingsSubTab('branding')}
-                                className={`px-4 py-2 border-b-2 font-bold text-sm uppercase tracking-wide transition-colors ${settingsSubTab === 'branding'
-                                    ? 'border-indigo-600 text-indigo-600'
-                                    : 'border-transparent text-slate-400 hover:text-slate-600'
-                                    }`}
-                            >
-                                <SparklesIcon className="w-4 h-4 inline mr-2" />
-                                Branding
-                            </button>
-                        </div>
-
-                        {settingsSubTab === 'branding' && (
-                            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 max-w-2xl">
-                                <div className="flex items-center gap-4 mb-6">
-                                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
-                                        <SparklesIcon className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Visual Identity</h3>
-                                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Manage Logo & Colors</p>
-                                    </div>
+                        {inventorySubTab === 'dispatch' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="p-8 border-b border-slate-100">
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Dispatch History</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Movement Log • In Transit & Delivered</p>
                                 </div>
-
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Logo Section */}
-                                        <div>
-                                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Logo / Coat of Arms</h4>
-                                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={(e) => handleFileUpload(e, 'logo')}
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                />
-                                                {logoPreview ? (
-                                                    <div className="relative z-0 w-full">
-                                                        <img src={logoPreview} alt="Logo Preview" className="h-24 mx-auto object-contain mb-2" />
-                                                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Image Selected</p>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-3 pointer-events-none">
-                                                        <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mx-auto group-hover:bg-indigo-100 transition-colors">
-                                                            <ArrowUpTrayIcon className="w-6 h-6" />
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date Dispatched</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Destination</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Logistics</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {inventoryItems.filter(i => i.status !== 'at_hq').map(item => (
+                                                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="text-xs font-mono font-bold text-slate-600">
+                                                            {item.dispatchedDate ? new Date(item.dispatchedDate).toLocaleDateString() : 'N/A'}
+                                                        </span>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            {item.dispatchedDate ? new Date(item.dispatchedDate).toLocaleTimeString() : ''}
                                                         </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold text-slate-700">Click to Upload Logo</p>
-                                                            <p className="text-[10px] text-slate-400">PNG, SVG or JPG (Max 2MB)</p>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="font-bold text-slate-900 block">{item.name}</span>
+                                                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">{item.quantity} {item.unit}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                                <BuildingOfficeIcon className="w-3 h-3" />
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-700">
+                                                                {institutions.find(i => i.id === item.targetInstitutionId)?.name || 'Unknown'}
+                                                            </span>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="mt-4">
-                                                <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Or use Image URL</label>
-                                                <input type="url" placeholder="https://example.com/logo.png" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-600" />
-                                            </div>
-                                        </div>
-
-                                        {/* Letterhead Section */}
-                                        <div>
-                                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Letterhead Header</h4>
-                                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={(e) => handleFileUpload(e, 'letterhead')}
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                                />
-                                                {letterheadPreview ? (
-                                                    <div className="relative z-0 w-full">
-                                                        <img src={letterheadPreview} alt="Letterhead Preview" className="h-24 w-full object-cover rounded-lg mb-2 opacity-90" />
-                                                        <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Header Selected</p>
-                                                    </div>
-                                                ) : (
-                                                    <div className="space-y-3 pointer-events-none">
-                                                        <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center mx-auto group-hover:bg-slate-100 transition-colors">
-                                                            <ArrowUpTrayIcon className="w-6 h-6" />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-slate-700">
+                                                                {item.deliveryMethod === 'driver' ? (item.driverName || 'No Driver') : (item.trackingNumber || 'No ID')}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">{item.deliveryMethod}</span>
                                                         </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold text-slate-700">Upload Header Graphic</p>
-                                                            <p className="text-[10px] text-slate-400">Full Width Banner (PNG/JPG)</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="mt-4">
-                                                <p className="text-[10px] text-slate-400 leading-relaxed">
-                                                    This header image will appear on all official PDF reports generated by institutions within your county.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Primary Brand Color</label>
-                                            <div className="flex items-center gap-3">
-                                                <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#4f46e5" />
-                                                <div className="flex-1">
-                                                    <input type="text" defaultValue="#4f46e5" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Secondary Brand Color</label>
-                                            <div className="flex items-center gap-3">
-                                                <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#1e293b" />
-                                                <div className="flex-1">
-                                                    <input type="text" defaultValue="#1e293b" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-6 border-t border-slate-100 flex justify-end">
-                                        <button className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-wide rounded-xl shadow-xl shadow-indigo-500/20 transition-all">
-                                            Save Changes
-                                        </button>
-                                    </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${item.status === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                                            {item.status.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {inventoryItems.filter(i => i.status !== 'at_hq').length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium">
+                                                        No dispatch history found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
 
-                {/* Registration Modal */}
-                {showRegisterModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                        <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
-                            <div className="bg-indigo-600 px-8 py-6 flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-xl font-black text-white p-0 m-0 leading-tight">New Institution</h3>
-                                    <p className="text-indigo-200 text-xs font-medium mt-1">Register a new school in {myCounty.name}</p>
-                                </div>
-                                <button
-                                    onClick={() => setShowRegisterModal(false)}
-                                    className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
+                        {inventorySubTab === 'reports' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                <ChartPieIcon className="w-5 h-5" />
+                                            </div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Distribution by Category</h3>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {inventoryCategories.map(cat => {
+                                                const catItems = inventoryItems.filter(i => i.category === cat.name);
+                                                const totalQty = catItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                                                const totalCount = inventoryItems.reduce((acc, curr) => acc + curr.quantity, 0);
+                                                const percentage = totalCount > 0 ? (totalQty / totalCount) * 100 : 0;
 
-                            <form onSubmit={handleRegisterSubmit} className="p-8 space-y-5">
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">School Details</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="col-span-2">
-                                            <input
-                                                required
-                                                type="text"
-                                                placeholder="Institution Name"
-                                                value={registerData.name}
-                                                onChange={e => setRegisterData({ ...registerData, name: e.target.value })}
-                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
-                                            />
-                                        </div>
-                                        <div>
-                                            <input
-                                                required
-                                                type="email"
-                                                placeholder="Official Email"
-                                                value={registerData.email}
-                                                onChange={e => setRegisterData({ ...registerData, email: e.target.value })}
-                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <input
-                                                required
-                                                type="tel"
-                                                placeholder="Phone Number"
-                                                value={registerData.phoneNumber}
-                                                onChange={e => setRegisterData({ ...registerData, phoneNumber: e.target.value })}
-                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <select
-                                                value={registerData.type}
-                                                onChange={e => setRegisterData({ ...registerData, type: e.target.value })}
-                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer appearance-none"
-                                            >
-                                                <option value="Primary">Primary School</option>
-                                                <option value="Secondary">Secondary School</option>
-                                                <option value="University">University</option>
-                                                <option value="College">College</option>
-                                                <option value="Polytechnic">Polytechnic</option>
-                                                <option value="Institute">Institute</option>
-                                                <option value="ECD">ECD Center</option>
-                                                <option value="International">International School</option>
-                                            </select>
+                                                return (
+                                                    <div key={cat.id}>
+                                                        <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-2">
+                                                            <span className="text-slate-600">{cat.name}</span>
+                                                            <span className="text-slate-400">{totalQty} units ({percentage.toFixed(1)}%)</span>
+                                                        </div>
+                                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${percentage}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {inventoryCategories.length === 0 && (
+                                                <p className="text-center text-slate-400 text-xs py-4">No data available.</p>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <div className="pt-4 border-t border-slate-100">
-                                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Administrator Account</h4>
-                                        <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                <BuildingOfficeIcon className="w-5 h-5" />
+                                            </div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Top Destinations</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {Object.entries(
+                                                inventoryItems.filter(i => i.targetInstitutionId).reduce((acc, item) => {
+                                                    acc[item.targetInstitutionId!] = (acc[item.targetInstitutionId!] || 0) + 1;
+                                                    return acc;
+                                                }, {} as Record<string, number>)
+                                            )
+                                                .sort(([, a], [, b]) => b - a)
+                                                .slice(0, 5)
+                                                .map(([instId, count]) => {
+                                                    const inst = institutions.find(i => i.id === instId);
+                                                    return (
+                                                        <div key={instId} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-xs">🏫</div>
+                                                                <span className="text-xs font-bold text-slate-700">{inst?.name || 'Unknown'}</span>
+                                                            </div>
+                                                            <span className="text-[10px] font-black bg-white px-2 py-1 rounded-md shadow-sm">{count} Items</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            {inventoryItems.every(i => !i.targetInstitutionId) && (
+                                                <p className="text-center text-slate-400 text-xs py-4">No distribution data available yet.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                                <ChartPieIcon className="w-5 h-5" />
+                                            </div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Receiving Schools Summary</h3>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400">School</th>
+                                                        <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Total Items</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {Object.entries(
+                                                        inventoryItems.filter(i => i.targetInstitutionId).reduce((acc, item) => {
+                                                            acc[item.targetInstitutionId!] = (acc[item.targetInstitutionId!] || 0) + item.quantity;
+                                                            return acc;
+                                                        }, {} as Record<string, number>)
+                                                    ).map(([instId, qty]) => {
+                                                        const inst = institutions.find(i => i.id === instId);
+                                                        return (
+                                                            <tr key={instId} className="hover:bg-slate-50/50">
+                                                                <td className="px-4 py-3 text-xs font-bold text-slate-700">{inst?.name || 'Unknown'}</td>
+                                                                <td className="px-4 py-3 text-xs font-mono font-bold text-slate-600 text-right">{qty}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {inventoryItems.every(i => !i.targetInstitutionId) && (
+                                                         <tr>
+                                                             <td colSpan={2} className="px-6 py-6 text-center text-slate-400 text-xs text-[10px] uppercase font-bold tracking-widest">No receiving schools recorded.</td>
+                                                         </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                                                <ArchiveBoxIcon className="w-5 h-5" />
+                                            </div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">Low Stock / Needs Restocking</h3>
+                                        </div>
+                                        <div className="space-y-3">
+                                             {/* 
+                                                Logic: Show items at HQ with low quantity (e.g. < 10) or categories completely missing at HQ. 
+                                                For this demo, we'll list items at HQ with quantity < 50 as 'Low Stock'.
+                                             */}
+                                             {inventoryItems.filter(i => i.status === 'at_hq' && i.quantity < 50).map(item => (
+                                                 <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                                    <div>
+                                                        <div className="text-xs font-bold text-slate-700">{item.name}</div>
+                                                        <div className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">Only {item.quantity} {item.unit} left</div>
+                                                    </div>
+                                                    <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 bg-white px-2 py-1 rounded shadow-sm">
+                                                        Restock
+                                                    </button>
+                                                 </div>
+                                             ))}
+                                             {inventoryItems.filter(i => i.status === 'at_hq' && i.quantity < 50).length === 0 && (
+                                                <div className="text-center py-6">
+                                                    <div className="inline-flex items-center justify-center w-12 h-12 bg-green-50 rounded-full text-green-600 mb-2">
+                                                        <SparklesIcon className="w-6 h-6" />
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stock levels look healthy!</p>
+                                                </div>
+                                             )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                )}
+        </div>
+    )
+}
+
+{
+    activeTab === 'settings' && (
+        <div className="space-y-6 animate-fade-in-up">
+            <div className="mb-8">
+                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                    Portal Settings
+                </h2>
+                <p className="text-slate-500 font-medium">
+                    Configure portal preferences and appearance
+                </p>
+            </div>
+
+            <div className="flex border-b border-slate-200 mb-6">
+                <button
+                    onClick={() => setSettingsSubTab('branding')}
+                    className={`px-4 py-2 border-b-2 font-bold text-sm uppercase tracking-wide transition-colors ${settingsSubTab === 'branding'
+                        ? 'border-indigo-600 text-indigo-600'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                        }`}
+                >
+                    <SparklesIcon className="w-4 h-4 inline mr-2" />
+                    Branding
+                </button>
+            </div>
+
+            {settingsSubTab === 'branding' && (
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 max-w-2xl">
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                            <SparklesIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Visual Identity</h3>
+                            <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Manage Logo & Colors</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Logo Section */}
+                            <div>
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Logo / Coat of Arms</h4>
+                                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleFileUpload(e, 'logo')}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    />
+                                    {logoPreview ? (
+                                        <div className="relative z-0 w-full">
+                                            <img src={logoPreview} alt="Logo Preview" className="h-24 mx-auto object-contain mb-2" />
+                                            <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Image Selected</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 pointer-events-none">
+                                            <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mx-auto group-hover:bg-indigo-100 transition-colors">
+                                                <ArrowUpTrayIcon className="w-6 h-6" />
+                                            </div>
                                             <div>
-                                                <input
-                                                    required
-                                                    type="text"
-                                                    placeholder="Admin Full Name"
-                                                    value={registerData.adminName}
-                                                    onChange={e => setRegisterData({ ...registerData, adminName: e.target.value })}
-                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                                />
+                                                <p className="text-sm font-bold text-slate-700">Click to Upload Logo</p>
+                                                <p className="text-[10px] text-slate-400">PNG, SVG or JPG (Max 2MB)</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="mt-4">
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 mb-1 block">Or use Image URL</label>
+                                    <input type="url" placeholder="https://example.com/logo.png" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-indigo-500 text-slate-600" />
+                                </div>
+                            </div>
+
+                            {/* Letterhead Section */}
+                            <div>
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Official Letterhead Header</h4>
+                                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:bg-slate-50 transition-colors group cursor-pointer relative min-h-[160px] flex flex-col items-center justify-center">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => handleFileUpload(e, 'letterhead')}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    />
+                                    {letterheadPreview ? (
+                                        <div className="relative z-0 w-full">
+                                            <img src={letterheadPreview} alt="Letterhead Preview" className="h-24 w-full object-cover rounded-lg mb-2 opacity-90" />
+                                            <p className="text-[10px] text-green-600 font-bold uppercase tracking-wide bg-green-50 inline-block px-2 py-1 rounded-full">Header Selected</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 pointer-events-none">
+                                            <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center mx-auto group-hover:bg-slate-100 transition-colors">
+                                                <ArrowUpTrayIcon className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <input
-                                                    required
-                                                    type="email"
-                                                    placeholder="Admin Email"
-                                                    value={registerData.adminEmail}
-                                                    onChange={e => setRegisterData({ ...registerData, adminEmail: e.target.value })}
-                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                                                />
+                                                <p className="text-sm font-bold text-slate-700">Upload Header Graphic</p>
+                                                <p className="text-[10px] text-slate-400">Full Width Banner (PNG/JPG)</p>
                                             </div>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                                            * A temporary password will be generated and shown after registration.
-                                        </p>
+                                    )}
+                                </div>
+                                <div className="mt-4">
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        This header image will appear on all official PDF reports generated by institutions within your county.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Primary Brand Color</label>
+                                <div className="flex items-center gap-3">
+                                    <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#4f46e5" />
+                                    <div className="flex-1">
+                                        <input type="text" defaultValue="#4f46e5" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
                                     </div>
                                 </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowRegisterModal(false)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        Create Account
-                                    </button>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Secondary Brand Color</label>
+                                <div className="flex items-center gap-3">
+                                    <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#1e293b" />
+                                    <div className="flex-1">
+                                        <input type="text" defaultValue="#1e293b" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
+                                    </div>
                                 </div>
-                            </form>
+                            </div>
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100 flex justify-end">
+                            <button className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-wide rounded-xl shadow-xl shadow-indigo-500/20 transition-all">
+                                Save Changes
+                            </button>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
+        </div>
+    )
+}
 
-                {showImportModal && myCounty && (
-                    <SmartInstitutionImporterModal
-                        onClose={() => setShowImportModal(false)}
-                        onImport={async (data) => {
-                            if (onImportInstitutions) {
-                                await onImportInstitutions(data);
-                            }
-                        }}
-                        countyId={myCounty.id}
-                    />
-                )}
-
-                {showInventoryImportModal && myCounty && (
-                    <SmartInventoryImporterModal
-                        onClose={() => setShowInventoryImportModal(false)}
-                        onImport={async (items) => {
-                            if (onAddInventoryItem) {
-                                for (const item of items) {
-                                    await onAddInventoryItem(item);
-                                }
-                            }
-                            setShowInventoryImportModal(false);
-                        }}
-                        countyId={myCounty.id}
-                        institutions={institutions}
-                    />
-                )}
-
-                {showStaffModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                                        {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">County Internal Registry</p>
-                                </div>
-                                <button onClick={() => setShowStaffModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
-                                    <XIcon className="w-6 h-6 text-slate-400" />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleStaffSubmit} className="p-8 space-y-5">
-                                <div className="space-y-4">
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Full Name</label>
-                                        <div className="relative">
-                                            <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
-                                            <input
-                                                type="text"
-                                                required
-                                                value={staffForm.name}
-                                                onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
-                                                placeholder="e.g. John Doe"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Email Address</label>
-                                            <div className="relative">
-                                                <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
-                                                <input
-                                                    type="email"
-                                                    required
-                                                    value={staffForm.email}
-                                                    onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
-                                                    placeholder="john@county.go.ke"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Phone Number</label>
-                                            <div className="relative">
-                                                <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
-                                                <input
-                                                    type="tel"
-                                                    value={staffForm.phoneNumber}
-                                                    onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })}
-                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
-                                                    placeholder="0712 345 678"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Role</label>
-                                            <select
-                                                required
-                                                value={staffForm.role}
-                                                onChange={e => setStaffForm({ ...staffForm, role: e.target.value as Role })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
-                                            >
-                                                <option value="county_staff">County Staff</option>
-                                                <option value="county_admin">County Admin</option>
-                                                <option value="county_secretary">Secretary</option>
-                                                <option value="county_driver">Driver</option>
-                                                <option value="county_store_keeper">Store Keeper</option>
-                                                <option value="county_teacher">Teacher</option>
-                                                <option value="county_director">Director</option>
-                                                <option value="county_co">CO</option>
-                                                <option value="county_cec">CEC</option>
-                                                <option value="county_deputy_governor">Deputy Governor</option>
-                                                <option value="county_governor">Governor</option>
-                                            </select>
-                                        </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Staff ID</label>
-                                            <div className="relative">
-                                                <FingerPrintIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
-                                                <input
-                                                    type="text"
-                                                    value={staffForm.staffId}
-                                                    onChange={e => setStaffForm({ ...staffForm, staffId: e.target.value })}
-                                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium uppercase"
-                                                    placeholder="CS-001"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowStaffModal(false)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        {editingStaff ? 'Update Record' : 'Create Account'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+{/* Registration Modal */ }
+{
+    showRegisterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+                <div className="bg-indigo-600 px-8 py-6 flex justify-between items-center">
+                    <div>
+                        <h3 className="text-xl font-black text-white p-0 m-0 leading-tight">New Institution</h3>
+                        <p className="text-indigo-200 text-xs font-medium mt-1">Register a new school in {myCounty.name}</p>
                     </div>
-                )}
-                {showStoreModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                                        {editingStore ? 'Edit Store/Location' : 'New Store/Location'}
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Infrastructure • GPS Mapping</p>
-                                </div>
-                                <button onClick={() => setShowStoreModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
-                                    <XIcon className="w-6 h-6 text-slate-400" />
-                                </button>
+                    <button
+                        onClick={() => setShowRegisterModal(false)}
+                        className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <form onSubmit={handleRegisterSubmit} className="p-8 space-y-5">
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">School Details</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Institution Name"
+                                    value={registerData.name}
+                                    onChange={e => setRegisterData({ ...registerData, name: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:font-medium placeholder:text-slate-400"
+                                />
                             </div>
-
-                            <form onSubmit={handleStoreSubmit} className="p-8 space-y-5">
-                                <div className="space-y-4">
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Store Name</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={storeForm.name}
-                                            onChange={e => setStoreForm({ ...storeForm, name: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                            placeholder="e.g. Central Warehouse, North Wing Store"
-                                        />
-                                    </div>
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Location Name</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={storeForm.locationName}
-                                            onChange={e => setStoreForm({ ...storeForm, locationName: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                            placeholder="e.g. HQ Basement, Industrial Area"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={handleGetLocation}
-                                                className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors bg-indigo-50 px-3 py-1.5 rounded-lg active:scale-95"
-                                            >
-                                                <MapPinIcon className="w-3 h-3" /> Use GPS Location
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Latitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    required
-                                                    value={storeForm.latitude}
-                                                    onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
-                                                />
-                                            </div>
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Longitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    required
-                                                    value={storeForm.longitude}
-                                                    onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
-                                        <textarea
-                                            value={storeForm.description}
-                                            onChange={e => setStoreForm({ ...storeForm, description: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
-                                            placeholder="Access details, storage capacity etc..."
-                                            rows={2}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowStoreModal(false)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        {editingStore ? 'Update Location' : 'Register Location'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {showCategoryModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                                        {editingCategory ? 'Edit Category' : 'New Category'}
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Inventory Structure</p>
-                                </div>
-                                <button onClick={() => setShowCategoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
-                                    <XIcon className="w-6 h-6 text-slate-400" />
-                                </button>
+                            <div>
+                                <input
+                                    required
+                                    type="email"
+                                    placeholder="Official Email"
+                                    value={registerData.email}
+                                    onChange={e => setRegisterData({ ...registerData, email: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                />
                             </div>
-
-                            <form onSubmit={handleCategorySubmit} className="p-8 space-y-5">
-                                <div className="space-y-4">
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category Name</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={categoryForm.name}
-                                            onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                            placeholder="e.g. Stationery, Furniture"
-                                        />
-                                    </div>
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
-                                        <textarea
-                                            value={categoryForm.description}
-                                            onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
-                                            placeholder="Briefly describe what this category includes..."
-                                            rows={3}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCategoryModal(false)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        {editingCategory ? 'Update' : 'Create'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {showInventoryModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                                        {editingInventory ? 'Edit Inventory Log' : 'Log HQ Receipt'}
-                                    </h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">HQ Registry • Supplies Management</p>
-                                </div>
-                                <button onClick={() => setShowInventoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
-                                    <XIcon className="w-6 h-6 text-slate-400" />
-                                </button>
+                            <div>
+                                <input
+                                    required
+                                    type="tel"
+                                    placeholder="Phone Number"
+                                    value={registerData.phoneNumber}
+                                    onChange={e => setRegisterData({ ...registerData, phoneNumber: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                />
                             </div>
-
-                            <form onSubmit={handleInventorySubmit} className="p-8 space-y-6">
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-4">
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Item Name</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={inventoryForm.name}
-                                                onChange={e => setInventoryForm({ ...inventoryForm, name: e.target.value })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                                placeholder="e.g. Science Lab Kits"
-                                            />
-                                        </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category</label>
-                                            <select
-                                                required
-                                                value={inventoryForm.category}
-                                                onChange={e => setInventoryForm({ ...inventoryForm, category: e.target.value })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
-                                            >
-                                                <option value="">Select Category</option>
-                                                {inventoryCategories.map(cat => (
-                                                    <option key={cat.id} value={cat.name}>{cat.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Quantity</label>
-                                                <input
-                                                    type="number"
-                                                    required
-                                                    min="1"
-                                                    value={inventoryForm.quantity}
-                                                    onChange={e => setInventoryForm({ ...inventoryForm, quantity: parseInt(e.target.value) })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold"
-                                                />
-                                            </div>
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Unit</label>
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    value={inventoryForm.unit}
-                                                    onChange={e => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                                    placeholder="Boxes"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Supplier</label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={inventoryForm.supplierName}
-                                                onChange={e => setInventoryForm({ ...inventoryForm, supplierName: e.target.value })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                                placeholder="e.g. Apex Scientific Ltd"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Target School/Institution</label>
-                                            <select
-                                                required
-                                                value={inventoryForm.targetInstitutionId}
-                                                onChange={e => setInventoryForm({ ...inventoryForm, targetInstitutionId: e.target.value })}
-                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
-                                            >
-                                                <option value="">Select Destination</option>
-                                                {institutions.map(inst => (
-                                                    <option key={inst.id} value={inst.id}>{inst.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="group">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Delivery Method</label>
-                                            <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'driver' })}
-                                                    className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'driver' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    County Driver
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'parcel' })}
-                                                    className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'parcel' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-                                                >
-                                                    Parcel Service
-                                                </button>
-                                            </div>
-                                        </div>
-                                        {inventoryForm.deliveryMethod === 'driver' ? (
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Driver Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={inventoryForm.driverName}
-                                                    onChange={e => setInventoryForm({ ...inventoryForm, driverName: e.target.value })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                                    placeholder="Enter driver name"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="group">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Tracking/Parcel ID</label>
-                                                <input
-                                                    type="text"
-                                                    value={inventoryForm.trackingNumber}
-                                                    onChange={e => setInventoryForm({ ...inventoryForm, trackingNumber: e.target.value })}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
-                                                    placeholder="e.g. G4S-12345"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowInventoryModal(false)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        {editingInventory ? 'Update Record' : 'Log Receipt'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {showQrModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-scale-in">
-                            <div className="p-8 text-center bg-slate-50/50">
-                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">QR Receipt Code</h3>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Scan at Destination</p>
-                            </div>
-                            <div className="p-10 flex flex-col items-center gap-8">
-                                <div className="p-4 bg-white rounded-3xl shadow-xl border border-slate-100">
-                                    {/* Using a simple container for the QR. In a real app we'd use a canvas renderer */}
-                                    <div className="w-48 h-48 bg-slate-100 flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 group relative">
-                                        <QrCodeIcon className="w-24 h-24 text-slate-300" />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white/90 transition-opacity rounded-2xl p-4 text-center">
-                                            <p className="text-[10px] font-bold text-slate-600 uppercase leading-loose">
-                                                ID: {showQrModal.qrCode}<br />
-                                                Click to Print Label
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">{showQrModal.name}</div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase">{showQrModal.quantity} {showQrModal.unit}</div>
-                                </div>
-                                <button
-                                    onClick={() => setShowQrModal(null)}
-                                    className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                            <div className="col-span-2">
+                                <select
+                                    value={registerData.type}
+                                    onChange={e => setRegisterData({ ...registerData, type: e.target.value })}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer appearance-none"
                                 >
-                                    Done
-                                </button>
+                                    <option value="Primary">Primary School</option>
+                                    <option value="Secondary">Secondary School</option>
+                                    <option value="University">University</option>
+                                    <option value="College">College</option>
+                                    <option value="Polytechnic">Polytechnic</option>
+                                    <option value="Institute">Institute</option>
+                                    <option value="ECD">ECD Center</option>
+                                    <option value="International">International School</option>
+                                </select>
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {showDispatchModal && (
-                    <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="pt-4 border-t border-slate-100">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Administrator Account</h4>
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Confirm Dispatch</h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Proof of Handover</p>
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="Admin Full Name"
+                                        value={registerData.adminName}
+                                        onChange={e => setRegisterData({ ...registerData, adminName: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    />
                                 </div>
-                                <button onClick={() => setShowDispatchModal(null)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
-                                    <XIcon className="w-6 h-6 text-slate-400" />
-                                </button>
+                                <div>
+                                    <input
+                                        required
+                                        type="email"
+                                        placeholder="Admin Email"
+                                        value={registerData.adminEmail}
+                                        onChange={e => setRegisterData({ ...registerData, adminEmail: e.target.value })}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
                             </div>
+                            <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                                * A temporary password will be generated and shown after registration.
+                            </p>
+                        </div>
+                    </div>
 
-                            <div className="p-8 space-y-6">
-                                <div className="space-y-4">
-                                    <div className="group">
-                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Received By / Driver Name</label>
-                                        <input
-                                            type="text"
-                                            value={dispatchForm.recipientName}
-                                            onChange={e => setDispatchForm({ ...dispatchForm, recipientName: e.target.value })}
-                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
-                                            placeholder="Enter recipient's name"
-                                        />
-                                    </div>
+                    <div className="pt-4 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowRegisterModal(false)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
 
-                                    <div className="group">
-                                        <div className="flex justify-between items-center mb-1.5 ml-1">
-                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient Signature</label>
-                                            <button
-                                                type="button"
-                                                onClick={clearSignature}
-                                                className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800"
-                                            >
-                                                Clear
-                                            </button>
-                                        </div>
-                                        <div className="border-2 border-slate-100 rounded-2xl overflow-hidden bg-slate-50 touch-none">
-                                            <canvas
-                                                ref={canvasRef}
-                                                width={400}
-                                                height={160}
-                                                className="w-full h-40 cursor-crosshair"
-                                                onMouseDown={startDrawing}
-                                                onMouseMove={draw}
-                                                onMouseUp={stopDrawing}
-                                                onMouseLeave={stopDrawing}
-                                                onTouchStart={startDrawing}
-                                                onTouchMove={draw}
-                                                onTouchEnd={stopDrawing}
-                                            />
-                                        </div>
-                                        <p className="text-[10px] text-slate-400 font-medium mt-2 text-center">Sign within the box above to confirm receipt</p>
-                                    </div>
+{
+    showImportModal && myCounty && (
+        <SmartInstitutionImporterModal
+            onClose={() => setShowImportModal(false)}
+            onImport={async (data) => {
+                if (onImportInstitutions) {
+                    await onImportInstitutions(data);
+                }
+            }}
+            countyId={myCounty.id}
+        />
+    )
+}
+
+{
+    showInventoryImportModal && myCounty && (
+        <SmartInventoryImporterModal
+            onClose={() => setShowInventoryImportModal(false)}
+            onImport={async (items) => {
+                if (onAddInventoryItem) {
+                    for (const item of items) {
+                        await onAddInventoryItem(item);
+                    }
+                }
+                setShowInventoryImportModal(false);
+            }}
+            countyId={myCounty.id}
+            institutions={institutions}
+        />
+    )
+}
+
+{
+    showStaffModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                            {editingStaff ? 'Edit Staff Member' : 'Add Staff Member'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">County Internal Registry</p>
+                    </div>
+                    <button onClick={() => setShowStaffModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleStaffSubmit} className="p-8 space-y-5">
+                    <div className="space-y-4">
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Full Name</label>
+                            <div className="relative">
+                                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                <input
+                                    type="text"
+                                    required
+                                    value={staffForm.name}
+                                    onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                    placeholder="e.g. John Doe"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Email Address</label>
+                                <div className="relative">
+                                    <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                    <input
+                                        type="email"
+                                        required
+                                        value={staffForm.email}
+                                        onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                        placeholder="john@county.go.ke"
+                                    />
                                 </div>
+                            </div>
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Phone Number</label>
+                                <div className="relative">
+                                    <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                    <input
+                                        type="tel"
+                                        value={staffForm.phoneNumber}
+                                        onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })}
+                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                        placeholder="0712 345 678"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowDispatchModal(null)}
-                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={confirmDispatch}
-                                        disabled={!dispatchForm.recipientName}
-                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
-                                    >
-                                        Confirm Dispatch
-                                    </button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Role</label>
+                                <select
+                                    required
+                                    value={staffForm.role}
+                                    onChange={e => setStaffForm({ ...staffForm, role: e.target.value as Role })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                >
+                                    <option value="county_staff">County Staff</option>
+                                    <option value="county_admin">County Admin</option>
+                                    <option value="county_secretary">Secretary</option>
+                                    <option value="county_driver">Driver</option>
+                                    <option value="county_store_keeper">Store Keeper</option>
+                                    <option value="county_teacher">Teacher</option>
+                                    <option value="county_director">Director</option>
+                                    <option value="county_co">CO</option>
+                                    <option value="county_cec">CEC</option>
+                                    <option value="county_deputy_governor">Deputy Governor</option>
+                                    <option value="county_governor">Governor</option>
+                                </select>
+                            </div>
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1 group-focus-within:text-indigo-600 transition-colors">Staff ID</label>
+                                <div className="relative">
+                                    <FingerPrintIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                                    <input
+                                        type="text"
+                                        value={staffForm.staffId}
+                                        onChange={e => setStaffForm({ ...staffForm, staffId: e.target.value })}
+                                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium uppercase"
+                                        placeholder="CS-001"
+                                    />
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
-            </main>
+
+                    <div className="pt-4 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowStaffModal(false)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            {editingStaff ? 'Update Record' : 'Create Account'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+{
+    showStoreModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                            {editingStore ? 'Edit Store/Location' : 'New Store/Location'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Infrastructure • GPS Mapping</p>
+                    </div>
+                    <button onClick={() => setShowStoreModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleStoreSubmit} className="p-8 space-y-5">
+                    <div className="space-y-4">
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Store Name</label>
+                            <input
+                                type="text"
+                                required
+                                value={storeForm.name}
+                                onChange={e => setStoreForm({ ...storeForm, name: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                placeholder="e.g. Central Warehouse, North Wing Store"
+                            />
+                        </div>
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Location Name</label>
+                            <input
+                                type="text"
+                                required
+                                value={storeForm.locationName}
+                                onChange={e => setStoreForm({ ...storeForm, locationName: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                placeholder="e.g. HQ Basement, Industrial Area"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={handleGetLocation}
+                                    className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors bg-indigo-50 px-3 py-1.5 rounded-lg active:scale-95"
+                                >
+                                    <MapPinIcon className="w-3 h-3" /> Use GPS Location
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Latitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        required
+                                        value={storeForm.latitude}
+                                        onChange={e => setStoreForm({ ...storeForm, latitude: parseFloat(e.target.value) || 0 })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                    />
+                                </div>
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Longitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        required
+                                        value={storeForm.longitude}
+                                        onChange={e => setStoreForm({ ...storeForm, longitude: parseFloat(e.target.value) || 0 })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-mono font-bold"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
+                            <textarea
+                                value={storeForm.description}
+                                onChange={e => setStoreForm({ ...storeForm, description: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
+                                placeholder="Access details, storage capacity etc..."
+                                rows={2}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowStoreModal(false)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            {editingStore ? 'Update Location' : 'Register Location'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+{
+    showCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                            {editingCategory ? 'Edit Category' : 'New Category'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Inventory Structure</p>
+                    </div>
+                    <button onClick={() => setShowCategoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleCategorySubmit} className="p-8 space-y-5">
+                    <div className="space-y-4">
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category Name</label>
+                            <input
+                                type="text"
+                                required
+                                value={categoryForm.name}
+                                onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                placeholder="e.g. Stationery, Furniture"
+                            />
+                        </div>
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Description</label>
+                            <textarea
+                                value={categoryForm.description}
+                                onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium resize-none"
+                                placeholder="Briefly describe what this category includes..."
+                                rows={3}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowCategoryModal(false)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            {editingCategory ? 'Update' : 'Create'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+{
+    showInventoryModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in">
+                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                            {editingInventory ? 'Edit Inventory Log' : 'Log HQ Receipt'}
+                        </h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">HQ Registry • Supplies Management</p>
+                    </div>
+                    <button onClick={() => setShowInventoryModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleInventorySubmit} className="p-8 space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Item Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={inventoryForm.name}
+                                    onChange={e => setInventoryForm({ ...inventoryForm, name: e.target.value })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                    placeholder="e.g. Science Lab Kits"
+                                />
+                            </div>
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Category</label>
+                                <select
+                                    required
+                                    value={inventoryForm.category}
+                                    onChange={e => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                >
+                                    <option value="">Select Category</option>
+                                    {inventoryCategories.map(cat => (
+                                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Quantity</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="1"
+                                        value={inventoryForm.quantity}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, quantity: parseInt(e.target.value) })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold"
+                                    />
+                                </div>
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Unit</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={inventoryForm.unit}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                        placeholder="Boxes"
+                                    />
+                                </div>
+                            </div>
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Supplier</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={inventoryForm.supplierName}
+                                    onChange={e => setInventoryForm({ ...inventoryForm, supplierName: e.target.value })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                    placeholder="e.g. Apex Scientific Ltd"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Target School/Institution</label>
+                                <select
+                                    required
+                                    value={inventoryForm.targetInstitutionId}
+                                    onChange={e => setInventoryForm({ ...inventoryForm, targetInstitutionId: e.target.value })}
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
+                                >
+                                    <option value="">Select Destination</option>
+                                    {institutions.map(inst => (
+                                        <option key={inst.id} value={inst.id}>{inst.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="group">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Delivery Method</label>
+                                <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'driver' })}
+                                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'driver' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        County Driver
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setInventoryForm({ ...inventoryForm, deliveryMethod: 'parcel' })}
+                                        className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inventoryForm.deliveryMethod === 'parcel' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        Parcel Service
+                                    </button>
+                                </div>
+                            </div>
+                            {inventoryForm.deliveryMethod === 'driver' ? (
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Driver Name</label>
+                                    <input
+                                        type="text"
+                                        value={inventoryForm.driverName}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, driverName: e.target.value })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                        placeholder="Enter driver name"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="group">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Tracking/Parcel ID</label>
+                                    <input
+                                        type="text"
+                                        value={inventoryForm.trackingNumber}
+                                        onChange={e => setInventoryForm({ ...inventoryForm, trackingNumber: e.target.value })}
+                                        className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium"
+                                        placeholder="e.g. G4S-12345"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowInventoryModal(false)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            {editingInventory ? 'Update Record' : 'Log Receipt'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+{
+    showQrModal && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-scale-in">
+                <div className="p-8 text-center bg-slate-50/50">
+                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">QR Receipt Code</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Scan at Destination</p>
+                </div>
+                <div className="p-10 flex flex-col items-center gap-8">
+                    <div className="p-4 bg-white rounded-3xl shadow-xl border border-slate-100">
+                        {/* Using a simple container for the QR. In a real app we'd use a canvas renderer */}
+                        <div className="w-48 h-48 bg-slate-100 flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 group relative">
+                            <QrCodeIcon className="w-24 h-24 text-slate-300" />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white/90 transition-opacity rounded-2xl p-4 text-center">
+                                <p className="text-[10px] font-bold text-slate-600 uppercase leading-loose">
+                                    ID: {showQrModal.qrCode}<br />
+                                    Click to Print Label
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-1">{showQrModal.name}</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">{showQrModal.quantity} {showQrModal.unit}</div>
+                    </div>
+                    <button
+                        onClick={() => setShowQrModal(null)}
+                        className="w-full py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+{
+    showDispatchModal && (
+        <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Confirm Dispatch</h3>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Proof of Handover</p>
+                    </div>
+                    <button onClick={() => setShowDispatchModal(null)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+
+                <div className="p-8 space-y-6">
+                    <div className="space-y-4">
+                        <div className="group">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Received By / Driver Name</label>
+                            <input
+                                type="text"
+                                value={dispatchForm.recipientName}
+                                onChange={e => setDispatchForm({ ...dispatchForm, recipientName: e.target.value })}
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                placeholder="Enter recipient's name"
+                            />
+                        </div>
+
+                        <div className="group">
+                            <div className="flex justify-between items-center mb-1.5 ml-1">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient Signature</label>
+                                <button
+                                    type="button"
+                                    onClick={clearSignature}
+                                    className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                            <div className="border-2 border-slate-100 rounded-2xl overflow-hidden bg-slate-50 touch-none">
+                                <canvas
+                                    ref={canvasRef}
+                                    width={400}
+                                    height={160}
+                                    className="w-full h-40 cursor-crosshair"
+                                    onMouseDown={startDrawing}
+                                    onMouseMove={draw}
+                                    onMouseUp={stopDrawing}
+                                    onMouseLeave={stopDrawing}
+                                    onTouchStart={startDrawing}
+                                    onTouchMove={draw}
+                                    onTouchEnd={stopDrawing}
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium mt-2 text-center">Sign within the box above to confirm receipt</p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowDispatchModal(null)}
+                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={confirmDispatch}
+                            disabled={!dispatchForm.recipientName}
+                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                        >
+                            Confirm Dispatch
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+            </main >
         </div >
     );
 };
