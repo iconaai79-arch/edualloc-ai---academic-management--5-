@@ -29,12 +29,13 @@ interface TimetableWizardProps {
     timeOffRequests: TimeOffRequest[];
     onTimetableGenerated: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
     onNavigateToSettings?: (tab?: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const TimetableWizard: React.FC<TimetableWizardProps> = ({
     onClose, isInline = false, allocations, subjects, lecturers, rooms, courses, timetableSettings,
     activeAcademicYear, activeSemester, currentInstitution, courseSizes,
-    timeOffRequests, onTimetableGenerated, onNavigateToSettings
+    timeOffRequests, onTimetableGenerated, onNavigateToSettings, onLogAction
 }) => {
     const [step, setStep] = useState(1);
     const [mode, setMode] = useState<'ai' | 'standard'>('ai');
@@ -115,6 +116,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
             if (result && result.length > 0) {
                 await onTimetableGenerated(result, activeAcademicYear.id, activeSemester.id);
                 setGeneratedCount(result.length);
+                onLogAction?.(`Generated ${mode === 'ai' ? 'AI' : 'standard'} timetable for ${activeSemester.name} (${activeAcademicYear.name}): ${result.length} entries`);
                 setStep(5); // Success step
             } else {
                 setError("The generator produced 0 entries. Please check your allocations and constraints.");

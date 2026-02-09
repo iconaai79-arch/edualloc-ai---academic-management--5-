@@ -74,6 +74,7 @@ interface AcademicsOfficerViewProps {
     onTimetableGenerated?: (timetable: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[], academicYearId: string, semesterId: string) => Promise<void>;
     allocations?: AllocationRequest[];
     timeOffRequests?: TimeOffRequest[];
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
@@ -82,7 +83,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         activeAcademicYear, activeSemester, onExamTimetableGenerated, examTimetable = [],
         getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig,
         logoUrl, footerImageUrl, currentInstitution, timetableSettings,
-        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = []
+        onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
+        onLogAction
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -122,9 +124,11 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
                 const rawTimetable = await generateExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], lecturers, Array.isArray(rooms) ? rooms : [], examPeriod, courseSizes, examTimetableSettings);
                 await onExamTimetableGenerated(rawTimetable, activeAcademicYear.id, activeSemester.id);
+                onLogAction?.(`Generated AI exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
             } else {
                 const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, examTimetableSettings);
                 await onExamTimetableGenerated(standardEntries, activeAcademicYear.id, activeSemester.id);
+                onLogAction?.(`Generated standard exam timetable for ${activeSemester.name} (${activeAcademicYear.name})`);
             }
         } catch (err: any) {
             setError(err.message || "An error occurred during generation.");
@@ -364,6 +368,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     courseSizes={courseSizes}
                     timeOffRequests={props.timeOffRequests || []}
                     onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
+                    onLogAction={onLogAction}
                 />
             )}
 

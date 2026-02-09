@@ -53,6 +53,7 @@ interface SubjectManagerProps {
     currentInstitution?: Institution | null;
     currentUser: User;
     onUpdateCourse?: (courseId: string, data: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 const formatLessonStructure = (structure: LessonStructure[] | undefined): string => {
@@ -71,7 +72,8 @@ const formatLessonStructure = (structure: LessonStructure[] | undefined): string
 
 export const SubjectManager: React.FC<SubjectManagerProps> = ({
     subjects, departments, onAddSubject, onUpdateSubject, onDeleteSubject, currentInstitution, courses, onImportSubjectsAndAssociate,
-    onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel, timetableSettings, onSaveTimetableSettings, rooms, currentUser, onUpdateCourse
+    onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel, timetableSettings, onSaveTimetableSettings, rooms, currentUser, onUpdateCourse,
+    onLogAction
 }) => {
     const [isPathwaySyncOpen, setIsPathwaySyncOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -102,8 +104,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     }, [subjects, searchQuery, departmentFilter, completionFilter, isSchool, currentUser.departmentId]);
 
     const handleSaveSubject = (id: string, data: Partial<Omit<Subject, 'id' | 'institutionId'>>, initialCourseLevelIds?: string[]) => {
-        if (id && onUpdateSubject) onUpdateSubject(id, data);
-        else if (onAddSubject) onAddSubject(data as Omit<Subject, 'id' | 'institutionId'>, initialCourseLevelIds);
+        if (id && onUpdateSubject) {
+            onUpdateSubject(id, data);
+            onLogAction?.(`Updated subject record: ${data.name || 'Unknown'}`);
+        } else if (onAddSubject) {
+            onAddSubject(data as Omit<Subject, 'id' | 'institutionId'>, initialCourseLevelIds);
+            onLogAction?.(`Added new subject: ${data.name || 'Unknown'}`);
+        }
         setEditingSubject(null);
     };
 
@@ -229,7 +236,17 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                                             <ClockIcon className="w-4 h-4" /> Time Off
                                         </button>
                                         <button onClick={() => setEditingSubject(subject)} className="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Edit Registry</button>
-                                        <button onClick={() => onDeleteSubject?.(subject.id)} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Archive</button>
+                                        <button
+                                            onClick={async () => {
+                                                if (window.confirm(`Archive ${subject.name}?`)) {
+                                                    await onDeleteSubject?.(subject.id);
+                                                    onLogAction?.(`Archived subject record: ${subject.name}`);
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        >
+                                            Archive
+                                        </button>
                                     </div>
                                 </td>
                             </tr>

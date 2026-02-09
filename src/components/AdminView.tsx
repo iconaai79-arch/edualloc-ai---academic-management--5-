@@ -467,6 +467,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     courseSizes={courseSizes}
                                     timeOffRequests={props.timeOffRequests || []}
                                     onTimetableGenerated={props.onTimetableGenerated}
+                                    onLogAction={props.onLogAction}
                                     onNavigateToSettings={(tab) => {
                                         if (tab === 'calendar') {
                                             setTimetableSubTab('calendar');

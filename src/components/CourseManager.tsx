@@ -28,7 +28,8 @@ const SmartCourseImporterModal: React.FC<{
     academicLevels: AcademicLevel[];
     isSchool: boolean;
     aiModelTier?: string;
-}> = ({ onClose, onImport, existingCourses, departments, academicLevels, isSchool, aiModelTier }) => {
+    onLogAction?: (action: string) => Promise<void>;
+}> = ({ onClose, onImport, existingCourses, departments, academicLevels, isSchool, aiModelTier, onLogAction }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<CourseMappingField, string | null>>(ALL_COURSE_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CourseMappingField, string | null>));
@@ -138,6 +139,7 @@ const SmartCourseImporterModal: React.FC<{
 
         try {
             await onImport(parsedData.valid);
+            onLogAction?.(`Bulk imported ${parsedData.valid.length} curriculum records`);
             setImportProgress(100);
             setStep('success');
         } catch (err: any) {
@@ -291,6 +293,7 @@ interface CourseManagerProps {
     allocations?: AllocationRequest[];
     timetableSettings?: TimetableSettings;
     onSaveTimetableSettings?: (settings: TimetableSettings) => void;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const CourseManager: React.FC<CourseManagerProps> = ({
@@ -299,7 +302,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     onDirectAssign, onWithdrawRequest, onUpdateRequest,
     currentUser, currentInstitution,
     rooms = [], users = [], allocations = [],
-    timetableSettings, onSaveTimetableSettings
+    timetableSettings, onSaveTimetableSettings, onLogAction
 }) => {
     const [managerTab, setManagerTab] = useState<'courses' | 'streams' | 'pathways' | 'lessons'>('courses');
     const [isAdding, setIsAdding] = useState(false);
@@ -495,9 +498,10 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         setDeletingCourse({ id: courseId, name: courseName });
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (deletingCourse && onDeleteCourse) {
-            onDeleteCourse(deletingCourse.id);
+            await onDeleteCourse(deletingCourse.id);
+            onLogAction?.(`Archived curriculum record: ${deletingCourse.name}`);
             setDeletingCourse(null);
         }
     };
@@ -1607,6 +1611,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     academicLevels={academicLevels}
                     isSchool={isSchool}
                     aiModelTier={currentInstitution?.aiModelTier}
+                    onLogAction={onLogAction}
                 />
             )}
 

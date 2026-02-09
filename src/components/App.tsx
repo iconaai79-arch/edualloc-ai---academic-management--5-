@@ -581,6 +581,19 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleLogAction = async (action: string) => {
+        if (!currentUser) return;
+        await apiService.saveModuleRecord('activity_log', {
+            id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            userId: currentUser.id,
+            userName: currentUser.name,
+            institutionId: currentUser.institutionId,
+            action,
+            timestamp: new Date().toISOString()
+        });
+        loadData();
+    };
+
     const onUpdateInstitution = async (id: string, data: any) => {
         const inst = institutions.find(i => i.id === id);
         if (inst) {
@@ -1236,7 +1249,7 @@ export const App: React.FC = () => {
                                 onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
                                 onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
                                 activityLog={activityLog}
-                                onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                onLogAction={handleLogAction}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView
@@ -1295,6 +1308,7 @@ export const App: React.FC = () => {
                                 onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
                                 allocations={allocations}
                                 timeOffRequests={timeOffRequests}
+                                onLogAction={handleLogAction}
                             />
                         ) : activeRole === 'security' ? (
                             <SecurityView

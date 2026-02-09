@@ -146,9 +146,10 @@ interface SmartUserImporterModalProps {
     departments: Department[];
     currentInstitution?: Institution | null;
     currentUser: User;
+    onLogAction?: (action: string) => Promise<void>;
 }
 
-const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser }) => {
+const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<UserMappingField, string | null>>(ALL_USER_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<UserMappingField, string | null>));
@@ -309,6 +310,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
 
             setImportProgress(20);
             await onImport(sanitizedUsers);
+            onLogAction?.(`Bulk imported ${sanitizedUsers.length} staff members to registry`);
             setImportProgress(80);
             await new Promise(r => setTimeout(r, 800));
             setImportProgress(100);
@@ -594,6 +596,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         }
 
         onAddUser?.(userData);
+        props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${name}`);
         setIsAdding(false);
         resetForm();
     };
@@ -805,7 +808,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={() => { if (window.confirm(`Archive ${u.name}?`)) onDeleteUser(u.id); }}
+                                                        onClick={async () => {
+                                                            if (window.confirm(`Archive ${u.name}?`)) {
+                                                                await onDeleteUser(u.id);
+                                                                props.onLogAction?.(`Archived user record: ${u.name} (${u.role})`);
+                                                            }
+                                                        }}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 rounded-md text-xs font-bold transition-all"
                                                     >
                                                         <ArchiveBoxIcon className="w-3.5 h-3.5" />
@@ -830,6 +838,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     departments={departments}
                     currentInstitution={currentInstitution}
                     currentUser={currentUser}
+                    onLogAction={props.onLogAction}
                 />
             )}
 

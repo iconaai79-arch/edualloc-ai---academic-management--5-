@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Department } from '../types';
+import type { Department, Institution } from '../types';
 import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index';
 import { analyzeDepartmentSpreadsheet } from '../services/geminiService';
 
@@ -43,7 +43,7 @@ const SmartDepartmentImporterModal: React.FC<{
 
                 setIsAnalyzing(true);
                 try {
-                    const aiMapping = await analyzeDepartmentSpreadsheet(headers, aiModelTier);
+                    const aiMapping = await analyzeDepartmentSpreadsheet(headers);
                     setMapping(aiMapping);
                     setStep('mapping');
                 } catch (error) {

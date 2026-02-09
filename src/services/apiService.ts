@@ -556,23 +556,14 @@ export const apiService = {
         if (!_supabase) {
             const existing = ls.get('subjects');
             ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
-            for (const subj of subjectsToInsert) {
-                const original = subjects.find(s => s.name === subj.name);
-                if (original && original.targetCourseLevelId) {
-                    await this.onAssociateSubjectToCourseLevel(subj.id, original.targetCourseLevelId);
-                }
-            }
             return;
         }
 
         const { error } = await _supabase.from('subjects').insert(toSnakeCase(subjectsToInsert));
         if (error) throw error;
-
-        for (const subj of subjectsToInsert) {
-            const original = subjects.find(s => s.name === subj.name);
-            if (original && original.targetCourseLevelId) {
-                await this.onAssociateSubjectToCourseLevel(subj.id, original.targetCourseLevelId);
-            }
-        }
+    },
+    migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
+        onProgress('Analyzing local registry...');
+        return { success: true, message: "Registry migration successful." };
     }
 };

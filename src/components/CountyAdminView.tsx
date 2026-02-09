@@ -779,14 +779,16 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             activityLog.slice(0, 8).map(log => (
                                                 <div key={log.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
                                                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 font-bold border border-slate-200">
-                                                        {log.userName.charAt(0)}
+                                                        {(log.userName || 'U').charAt(0)}
                                                     </div>
                                                     <div className="flex-1">
                                                         <p className="text-xs font-bold text-slate-900">{log.action}</p>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{log.userName}</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{log.userName || 'System'}</span>
                                                             <span className="text-[9px] text-slate-400">•</span>
-                                                            <span className="text-[9px] text-slate-400 uppercase font-medium">{new Date(log.timestamp).toLocaleString()}</span>
+                                                            <span className="text-[9px] text-slate-400 uppercase font-medium">
+                                                                {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1045,9 +1047,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         </button>
                                                         {staff.id !== currentUser.id && (
                                                             <button
-                                                                onClick={() => {
+                                                                onClick={async () => {
                                                                     if (window.confirm("Remove this staff member?")) {
-                                                                        onDeleteUser && onDeleteUser(staff.id);
+                                                                        await onDeleteUser?.(staff.id);
+                                                                        onLogAction?.(`Removed staff member: ${staff.name}`);
                                                                     }
                                                                 }}
                                                                 className="p-2 text-slate-400 hover:text-red-600 transition-colors"
@@ -1296,9 +1299,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                                     <PencilIcon className="w-4 h-4" />
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => {
+                                                                    onClick={async () => {
                                                                         if (window.confirm("Delete this inventory record?")) {
-                                                                            onDeleteInventoryItem && onDeleteInventoryItem(item.id);
+                                                                            await onDeleteInventoryItem?.(item.id);
+                                                                            onLogAction?.(`Deleted inventory record: ${item.name}`);
                                                                         }
                                                                     }}
                                                                     className="p-2 text-slate-400 hover:text-red-600 transition-colors"
@@ -1356,9 +1360,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                                 <PencilIcon className="w-4 h-4" />
                                                             </button>
                                                             <button
-                                                                onClick={() => {
+                                                                onClick={async () => {
                                                                     if (window.confirm("Delete this category?")) {
-                                                                        onDeleteInventoryCategory && onDeleteInventoryCategory(cat.id);
+                                                                        await onDeleteInventoryCategory?.(cat.id);
+                                                                        onLogAction?.(`Deleted inventory category: ${cat.name}`);
                                                                     }
                                                                 }}
                                                                 className="p-2 text-slate-400 hover:text-red-600 transition-colors"
@@ -1430,9 +1435,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                                 <PencilIcon className="w-4 h-4" />
                                                             </button>
                                                             <button
-                                                                onClick={() => {
+                                                                onClick={async () => {
                                                                     if (window.confirm("Delete this store record?")) {
-                                                                        onDeleteStore && onDeleteStore(store.id);
+                                                                        await onDeleteStore?.(store.id);
+                                                                        onLogAction?.(`Deleted store record: ${store.name}`);
                                                                     }
                                                                 }}
                                                                 className="p-2 text-slate-400 hover:text-red-600 transition-colors"
@@ -2333,6 +2339,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             onImport={async (data) => {
                                 if (onImportInstitutions) {
                                     await onImportInstitutions(data);
+                                    onLogAction?.(`Bulk imported ${data.length} institutions to county registry`);
                                 }
                             }}
                             countyId={myCounty.id}
@@ -2349,6 +2356,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     for (const item of items) {
                                         await onAddInventoryItem(item);
                                     }
+                                    onLogAction?.(`Bulk imported ${items.length} inventory items to HQ records`);
                                 }
                                 setShowInventoryImportModal(false);
                             }}
