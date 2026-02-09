@@ -41,13 +41,17 @@ export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher,
 
     const subjectCourseLevels = useMemo(() => {
         if (!selectedSubject) return [];
-        const associated: { courseName: string, levelId: string, levelName: string }[] = [];
+        const associated: { courseName: string, levelId: string, levelName: string, isMapped: boolean }[] = [];
         courses.forEach(course => {
             if (course && course.departmentId === selectedSubject.departmentId) {
                 (course.levels || []).forEach(level => {
-                    if (level && (level.subjectIds || []).includes(selectedSubject.id)) {
-                        associated.push({ courseName: course.name, levelId: level.id, levelName: level.name });
-                    }
+                    const isMapped = (level.subjectIds || []).includes(selectedSubject.id);
+                    associated.push({
+                        courseName: course.name,
+                        levelId: level.id,
+                        levelName: level.name,
+                        isMapped
+                    });
                 });
             }
         });
@@ -148,12 +152,17 @@ export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher,
                                     />
                                     <div>
                                         <p className="font-black text-xs uppercase tracking-tight">{level.courseName}</p>
-                                        <p className={`text-[9px] font-bold uppercase tracking-widest ${selectedClassIds.has(level.levelId) ? 'text-indigo-200' : 'text-slate-400'}`}>{level.levelName}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className={`text-[9px] font-bold uppercase tracking-widest ${selectedClassIds.has(level.levelId) ? 'text-indigo-200' : 'text-slate-400'}`}>{level.levelName}</p>
+                                            {level.isMapped && (
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${selectedClassIds.has(level.levelId) ? 'bg-white/20 text-white' : 'bg-green-100 text-green-700'}`}>Official</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </label>
                             )) : (
                                 <div className="text-center py-8">
-                                    <p className="text-xs font-bold text-slate-500 italic">No specific classes mapped. This will be a general assignment.</p>
+                                    <p className="text-xs font-bold text-slate-500 italic">No classes available in this department.</p>
                                 </div>
                             )}
                         </div>
