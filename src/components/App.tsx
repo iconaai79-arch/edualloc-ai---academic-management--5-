@@ -34,7 +34,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -164,6 +164,8 @@ export const App: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
+    const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
+    const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -307,7 +309,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -336,6 +338,8 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
                 apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories').catch(() => []),
                 apiService.fetchModuleRecords<CountyStore>('county_stores').catch(() => []),
+                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications').catch(() => []),
+                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds').catch(() => []),
             ]);
 
             setInvoices(inv || []);
@@ -366,6 +370,8 @@ export const App: React.FC = () => {
             setAppointments(apts || []);
             setSuppliers(sups || []);
             setStockTransactions(stx || []);
+            setBursaryApplications(bApps || []);
+            setBursaryFunds(bFunds || []);
 
         } catch (error) {
             console.error("Sync Error:", error);
@@ -1223,6 +1229,12 @@ export const App: React.FC = () => {
                                     loadData();
                                 }}
                                 stockTransactions={stockTransactions}
+                                bursaryApplications={bursaryApplications}
+                                bursaryFunds={bursaryFunds}
+                                onUpdateBursaryApplication={async (id, data) => { await apiService.saveModuleRecord('bursary_applications', { ...data, id }); await loadData(); }}
+                                onAddBursaryFund={async (data) => { await apiService.saveModuleRecord('county_bursary_funds', data); await loadData(); }}
+                                onUpdateBursaryFund={async (id, data) => { await apiService.saveModuleRecord('county_bursary_funds', { ...data, id }); await loadData(); }}
+                                onDeleteBursaryFund={async (id) => { await apiService.deleteModuleRecord('county_bursary_funds', id); await loadData(); }}
                             />
                         ) : activeRole === 'academics_officer' ? (
                             <AcademicsOfficerView

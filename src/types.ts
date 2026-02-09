@@ -1037,3 +1037,36 @@ export interface CountyRegistrationData {
     adminName: string;
     adminEmail: string;
 }
+
+export type BursaryStatus = 'pending' | 'vetted' | 'approved' | 'disbursed' | 'rejected';
+
+export interface BursaryApplication {
+    id: string;
+    studentId: string;
+    studentName: string;
+    institutionId: string;
+    institutionName: string;
+    countyId: string;
+    amountRequested: number;
+    amountApproved?: number;
+    purpose: string;
+    status: BursaryStatus;
+    appliedAt: string;
+    vettedAt?: string;
+    vettedBy?: string;
+    disbursedAt?: string;
+    disbursementRef?: string;
+    documents?: string[];
+    vettingComments?: string;
+    applicationType: 'Bursary' | 'Loan';
+}
+
+export interface CountyBursaryFund {
+    id: string;
+    name: string;
+    countyId: string;
+    financialYear: string;
+    totalBudget: number;
+    allocatedAmount: number;
+    remainingAmount: number;
+}
