@@ -2127,7 +2127,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer"
                                                 >
                                                     <option value="">Select Destination</option>
-                                                    {institutions.map(inst => (
+                                                    {institutions.filter(inst => inst.countyId === myCounty?.id).map(inst => (
                                                         <option key={inst.id} value={inst.id}>{inst.name}</option>
                                                     ))}
                                                 </select>
