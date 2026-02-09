@@ -126,6 +126,23 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
         }
     };
 
+    const handleNext = () => {
+        setError(null);
+        if (step === 1 && !canProceedStep1) {
+            setError("Please ensure Academic Year, Semester, and Operating Hours are configured.");
+            return;
+        }
+        if (step === 2 && !canProceedStep2) {
+            setError("Missing critical resources. Please add rooms, faculty, and subjects.");
+            return;
+        }
+        if (step === 3 && !canProceedStep3) {
+            setError("No approved allocations found to schedule.");
+            return;
+        }
+        setStep(prev => prev + 1);
+    };
+
     const containerClasses = isInline
         ? "w-full bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up"
         : "bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up";
@@ -286,11 +303,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                             </button>
                         </div>
 
-                        {error && (
-                            <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
-                                {error}
-                            </div>
-                        )}
+
 
                         {isGenerating && (
                             <div className="flex flex-col items-center justify-center py-4 animate-pulse">
@@ -313,6 +326,12 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         )}
                     </div>
                 )}
+
+                {error && (
+                    <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-600 text-xs font-bold rounded-xl border border-red-200 dark:border-red-800 text-center animate-shake">
+                        {error}
+                    </div>
+                )}
             </div>
 
 
@@ -321,7 +340,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                 step < 5 && (
                     <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between">
                         <button
-                            onClick={() => setStep(Math.max(1, step - 1))}
+                            onClick={() => { setError(null); setStep(Math.max(1, step - 1)); }}
                             disabled={step === 1 || isGenerating}
                             className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 transition-all"
                         >
@@ -330,13 +349,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 
                         {step < 4 ? (
                             <button
-                                onClick={() => setStep(step + 1)}
-                                disabled={
-                                    (step === 1 && !canProceedStep1) ||
-                                    (step === 2 && !canProceedStep2) ||
-                                    (step === 3 && !canProceedStep3)
-                                }
-                                className="btn-primary h-12 px-8 flex items-center gap-2 uppercase text-xs font-black tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleNext}
+                                className="btn-primary h-12 px-8 flex items-center gap-2 uppercase text-xs font-black tracking-widest hover:scale-105 active:scale-95 transition-all"
                             >
                                 Next Step <ChevronRightIcon className="w-4 h-4" />
                             </button>

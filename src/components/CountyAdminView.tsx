@@ -285,7 +285,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
     const confirmDispatch = async () => {
         if (!showDispatchModal || !onUpdateInventoryItem) return;
-        
+
         const canvas = canvasRef.current;
         const signature = canvas ? canvas.toDataURL() : undefined;
 
@@ -330,7 +330,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
         ctx.lineTo(x, y);
         ctx.stroke();
-        
+
         // Prevent scrolling when drawing on touch devices
         if ('touches' in e) {
             (e as any).preventDefault();
@@ -1943,6 +1943,84 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 >
                                     Done
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showDispatchModal && (
+                    <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Confirm Dispatch</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Proof of Handover</p>
+                                </div>
+                                <button onClick={() => setShowDispatchModal(null)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                    <XIcon className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                <div className="space-y-4">
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Received By / Driver Name</label>
+                                        <input
+                                            type="text"
+                                            value={dispatchForm.recipientName}
+                                            onChange={e => setDispatchForm({ ...dispatchForm, recipientName: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium"
+                                            placeholder="Enter recipient's name"
+                                        />
+                                    </div>
+
+                                    <div className="group">
+                                        <div className="flex justify-between items-center mb-1.5 ml-1">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient Signature</label>
+                                            <button
+                                                type="button"
+                                                onClick={clearSignature}
+                                                className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider hover:text-indigo-800"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                        <div className="border-2 border-slate-100 rounded-2xl overflow-hidden bg-slate-50 touch-none">
+                                            <canvas
+                                                ref={canvasRef}
+                                                width={400}
+                                                height={160}
+                                                className="w-full h-40 cursor-crosshair"
+                                                onMouseDown={startDrawing}
+                                                onMouseMove={draw}
+                                                onMouseUp={stopDrawing}
+                                                onMouseLeave={stopDrawing}
+                                                onTouchStart={startDrawing}
+                                                onTouchMove={draw}
+                                                onTouchEnd={stopDrawing}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-medium mt-2 text-center">Sign within the box above to confirm receipt</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDispatchModal(null)}
+                                        className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={confirmDispatch}
+                                        disabled={!dispatchForm.recipientName}
+                                        className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                    >
+                                        Confirm Dispatch
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

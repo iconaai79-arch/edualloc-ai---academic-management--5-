@@ -11,6 +11,15 @@ type CourseMappingField = 'name' | 'code' | 'departmentName' | 'academicLevelNam
 const ALL_COURSE_MAPPING_FIELDS: CourseMappingField[] = ['name', 'code', 'departmentName', 'academicLevelName'];
 const REQUIRED_COURSE_MAPPING_FIELDS: CourseMappingField[] = ['name', 'code', 'departmentName', 'academicLevelName'];
 
+const getInitials = (name: string) => {
+    return name
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+};
+
 const SmartCourseImporterModal: React.FC<{
     onClose: () => void;
     onImport: (courses: Omit<Course, 'id' | 'institutionId' | 'levels'>[]) => Promise<void>;
@@ -1000,15 +1009,6 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             {isAddingLesson ? <XIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />} Link Content
                         </button>
                     )}
-                    {managerTab === 'pathways' && (
-                        <button
-                            onClick={handleAddPathway}
-                            disabled={pathwayProcessing || !selectedPathwayCourseId || newPathwaySubjectIds.length < 2}
-                            className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100 disabled:opacity-50"
-                        >
-                            <SparklesIcon className="w-5 h-5" /> Create Option Block
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -1288,6 +1288,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 </select>
                                 <p className="text-[10px] text-slate-400 mt-1 italic">Hold Ctrl/Cmd to select multiple subjects.</p>
                             </div>
+                        </div>
+                        <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
+                            <button
+                                onClick={handleAddPathway}
+                                disabled={pathwayProcessing || !selectedPathwayCourseId || newPathwaySubjectIds.length < 2}
+                                className="btn-primary h-11 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-indigo-100 disabled:opacity-50"
+                            >
+                                <SparklesIcon className="w-5 h-5" /> Create Option Block
+                            </button>
                         </div>
                     </div>
 
