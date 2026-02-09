@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore, StockTransaction, BursaryApplication, CountyBursaryFund } from '../types';
+import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore, StockTransaction, BursaryApplication, CountyBursaryFund, ActivityLog } from '../types';
 import {
     BuildingOfficeIcon,
     UserGroupIcon,
@@ -66,6 +66,8 @@ interface CountyAdminViewProps {
     onAddBursaryFund?: (data: any) => Promise<void>;
     onUpdateBursaryFund?: (id: string, data: Partial<CountyBursaryFund>) => Promise<void>;
     onDeleteBursaryFund?: (id: string) => Promise<void>;
+    activityLog?: ActivityLog[];
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
@@ -100,7 +102,9 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onUpdateBursaryApplication,
     onAddBursaryFund,
     onUpdateBursaryFund,
-    onDeleteBursaryFund
+    onDeleteBursaryFund,
+    activityLog = [],
+    onLogAction
 }) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'bursaries' | 'settings'>('dashboard');
     const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores' | 'dispatch' | 'reports'>('items');
@@ -179,14 +183,20 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
         try {
             if (editingStaff) {
-                if (onUpdateUser) await onUpdateUser(editingStaff.id, staffForm);
+                if (onUpdateUser) {
+                    await onUpdateUser(editingStaff.id, staffForm);
+                    onLogAction?.(`Updated staff member: ${staffForm.name} (${staffForm.role})`);
+                }
             } else {
-                if (onAddUser) await onAddUser({
-                    ...staffForm,
-                    institutionId: myCounty.id,
-                    expertise: ['County Management'],
-                    password: Math.random().toString(36).slice(-8) // Temporary password
-                });
+                if (onAddUser) {
+                    await onAddUser({
+                        ...staffForm,
+                        institutionId: myCounty.id,
+                        expertise: ['County Management'],
+                        password: Math.random().toString(36).slice(-8) // Temporary password
+                    });
+                    onLogAction?.(`Added new staff member: ${staffForm.name} as ${staffForm.role}`);
+                }
             }
             setShowStaffModal(false);
             setEditingStaff(null);
@@ -233,6 +243,47 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         description: ''
     });
 
+    const [showFundModal, setShowFundModal] = useState(false);
+    const [editingFund, setEditingFund] = useState<CountyBursaryFund | null>(null);
+    const [fundForm, setFundForm] = useState({
+        name: '',
+        totalBudget: 0,
+        financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString()
+    });
+
+    const handleFundSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!myCounty) return;
+
+        try {
+            if (editingFund) {
+                if (onUpdateBursaryFund) {
+                    await onUpdateBursaryFund(editingFund.id, {
+                        ...fundForm,
+                        allocatedAmount: editingFund.allocatedAmount, // Keep existing
+                        remainingAmount: fundForm.totalBudget - (editingFund.allocatedAmount - editingFund.remainingAmount)
+                    });
+                    onLogAction?.(`Updated bursary fund: ${fundForm.name} for FY ${fundForm.financialYear}`);
+                }
+            } else {
+                if (onAddBursaryFund) {
+                    await onAddBursaryFund({
+                        ...fundForm,
+                        countyId: myCounty.id,
+                        allocatedAmount: 0,
+                        remainingAmount: fundForm.totalBudget
+                    });
+                    onLogAction?.(`Created new bursary fund: ${fundForm.name} with budget KES ${fundForm.totalBudget.toLocaleString()}`);
+                }
+            }
+            setShowFundModal(false);
+            setEditingFund(null);
+            setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString() });
+        } catch (err) {
+            alert("Failed to save fund.");
+        }
+    };
+
     const handleCategorySubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!myCounty) return;
@@ -241,6 +292,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             if (editingCategory) {
                 if (onUpdateInventoryCategory) {
                     await onUpdateInventoryCategory(editingCategory.id, categoryForm);
+                    onLogAction?.(`Updated inventory category: ${categoryForm.name}`);
                 }
             } else {
                 if (onAddInventoryCategory) {
@@ -248,6 +300,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         ...categoryForm,
                         countyId: myCounty.id
                     });
+                    onLogAction?.(`Created new inventory category: ${categoryForm.name}`);
                 }
             }
             setShowCategoryModal(false);
@@ -266,6 +319,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             if (editingStore) {
                 if (onUpdateStore) {
                     await onUpdateStore(editingStore.id, storeForm);
+                    onLogAction?.(`Updated store/location: ${storeForm.name} at ${storeForm.locationName}`);
                 }
             } else {
                 if (onAddStore) {
@@ -273,6 +327,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         ...storeForm,
                         countyId: myCounty.id
                     });
+                    onLogAction?.(`Registered new store/location: ${storeForm.name} at ${storeForm.locationName}`);
                 }
             }
             setShowStoreModal(false);
@@ -314,6 +369,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             if (editingInventory) {
                 if (onUpdateInventoryItem) {
                     await onUpdateInventoryItem(editingInventory.id, inventoryForm);
+                    onLogAction?.(`Updated inventory item: ${inventoryForm.name} (${inventoryForm.quantity} ${inventoryForm.unit})`);
                 }
             } else {
                 if (onAddInventoryItem) {
@@ -324,6 +380,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         atHqDate: new Date().toISOString(),
                         qrCode: `INV-${Date.now()}`
                     });
+                    onLogAction?.(`Logged HQ receipt: ${inventoryForm.name} (${inventoryForm.quantity} ${inventoryForm.unit}) from ${inventoryForm.supplierName}`);
                 }
             }
             setShowInventoryModal(false);
@@ -356,6 +413,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 recipientName: dispatchForm.recipientName,
                 recipientSignature: signature
             });
+            onLogAction?.(`Dispatched inventory: ${showDispatchModal.name} to ${institutions.find(i => i.id === showDispatchModal.targetInstitutionId)?.name || 'institution'}`);
             setShowDispatchModal(null);
         } catch (err) {
             alert("Failed to dispatch item.");
@@ -448,6 +506,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 await onUpdateCounty(myCounty.id, {
                     [type === 'logo' ? 'logoUrl' : 'letterheadUrl']: publicUrl
                 });
+                onLogAction?.(`Updated county branding: ${type === 'logo' ? 'Official Logo' : 'Official Letterhead Header'}`);
                 alert(`${type === 'logo' ? 'Logo' : 'Letterhead'} updated successfully!`);
             } else {
                 alert("Upload failed. Ensure you have created the 'eduai' bucket in Supabase storage and set it to 'Public'.");
@@ -482,6 +541,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 adminEmail: registerData.adminEmail,
                 countyId: myCounty.id
             });
+            onLogAction?.(`Registered new institution: ${registerData.name} (${registerData.type})`);
             setShowRegisterModal(false);
             setRegisterData({ name: '', email: '', phoneNumber: '', type: 'University', adminName: '', adminEmail: '' });
         } catch (error) {
@@ -652,7 +712,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -661,7 +721,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total</span>
                                 </div>
                                 <h3 className="text-4xl font-black text-slate-900">{myInstitutions.length}</h3>
-                                <p className="text-slate-500 font-medium mt-1">Registered Institutions</p>
+                                <p className="text-slate-500 font-medium mt-1 uppercase text-[10px] tracking-widest font-black">Registered Schools</p>
                             </div>
 
                             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
@@ -672,22 +732,135 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total</span>
                                 </div>
                                 <h3 className="text-4xl font-black text-slate-900">{totalStudents}</h3>
-                                <p className="text-slate-500 font-medium mt-1">Active Students</p>
+                                <p className="text-slate-500 font-medium mt-1 uppercase text-[10px] tracking-widest font-black">Active Students</p>
                             </div>
 
                             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
-                                        <UserGroupIcon className="w-6 h-6" />
+                                        <CurrencyIcon className="w-6 h-6" />
                                     </div>
-                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Staff</span>
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Bursary</span>
                                 </div>
-                                <h3 className="text-4xl font-black text-slate-900">{totalLecturers}</h3>
-                                <p className="text-slate-500 font-medium mt-1">Lecturers</p>
+                                <h3 className="text-4xl font-black text-slate-900">
+                                    {bursaryApplications.filter(a => a.status === 'vetted' || a.status === 'approved').length}
+                                </h3>
+                                <p className="text-slate-500 font-medium mt-1 uppercase text-[10px] tracking-widest font-black">Ready for Payout</p>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                                        <ShieldIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Claims</span>
+                                </div>
+                                <h3 className="text-4xl font-black text-slate-900">
+                                    {bursaryApplications.filter(a => a.status === 'pending').length}
+                                </h3>
+                                <p className="text-slate-500 font-medium mt-1 uppercase text-[10px] tracking-widest font-black">Pending Vetting</p>
                             </div>
                         </div>
 
-                        {/* Recent Activity or List could go here */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-6">
+                                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                    <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+                                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
+                                            <SparklesIcon className="w-6 h-6 text-indigo-600" />
+                                            Recent System Activity
+                                        </h3>
+                                        <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500">
+                                            Live Trail
+                                        </div>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {activityLog.length > 0 ? (
+                                            activityLog.slice(0, 8).map(log => (
+                                                <div key={log.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 font-bold border border-slate-200">
+                                                        {log.userName.charAt(0)}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="text-xs font-bold text-slate-900">{log.action}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{log.userName}</span>
+                                                            <span className="text-[9px] text-slate-400">•</span>
+                                                            <span className="text-[9px] text-slate-400 uppercase font-medium">{new Date(log.timestamp).toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-12 text-center">
+                                                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No recent activity recorded.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl shadow-slate-200 overflow-hidden relative group">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                        <CurrencyIcon className="w-32 h-32" />
+                                    </div>
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-6 font-mono">Financial Snapshot</h4>
+                                    <div className="space-y-6 relative z-10">
+                                        <div>
+                                            <p className="text-3xl font-black tracking-tight">
+                                                KES {bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0).toLocaleString()}
+                                            </p>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Total Allocated Budget</p>
+                                        </div>
+                                        <div className="pt-6 border-t border-white/10">
+                                            <div className="flex justify-between items-end mb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Disbursement Progress</span>
+                                                <span className="text-xs font-black text-indigo-400">
+                                                    {Math.round((bursaryFunds.reduce((acc, f) => acc + (f.allocatedAmount || 0), 0) / (bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0) || 1)) * 100)}%
+                                                </span>
+                                            </div>
+                                            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-indigo-500 rounded-full"
+                                                    style={{ width: `${(bursaryFunds.reduce((acc, f) => acc + (f.allocatedAmount || 0), 0) / (bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0) || 1)) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActiveTab('bursaries'); setBursarySubTab('funds'); }}
+                                            className="w-full py-3 bg-white hover:bg-indigo-50 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-4"
+                                        >
+                                            Manage Funds
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6">Quick Actions</h4>
+                                    <div className="space-y-3">
+                                        <button onClick={() => setShowRegisterModal(true)} className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all border border-slate-100 flex items-center gap-3 group text-left">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                <PlusIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900 uppercase">Register School</p>
+                                                <p className="text-[10px] text-slate-400 font-medium">Add to county registry</p>
+                                            </div>
+                                        </button>
+                                        <button onClick={() => { setActiveTab('bursaries'); setBursarySubTab('vetting'); }} className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all border border-slate-100 flex items-center gap-3 group text-left">
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                <ShieldIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900 uppercase">Vetting Board</p>
+                                                <p className="text-[10px] text-slate-400 font-medium">Review applications</p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -1695,19 +1868,84 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
 
                         {bursarySubTab === 'disbursement' && (
                             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="p-8 border-b border-slate-50">
-                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
-                                        <CheckIcon className="w-6 h-6 text-green-600" />
-                                        Disbursement Tracker
-                                    </h3>
-                                </div>
-                                <div className="p-12 text-center">
-                                    <div className="max-w-xs mx-auto space-y-4">
-                                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
-                                            <DocumentArrowDownIcon className="w-8 h-8" />
-                                        </div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No disbursements currently queued.</p>
+                                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
+                                            <CheckIcon className="w-6 h-6 text-emerald-600" />
+                                            Disbursement Tracker
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Payouts • Bank Batch Ready</p>
                                     </div>
+                                    <button
+                                        onClick={() => {
+                                            const ready = bursaryApplications.filter(a => a.status === 'vetted' || a.status === 'approved');
+                                            if (ready.length === 0) return;
+                                            if (window.confirm(`Process batch disbursement for ${ready.length} students?`)) {
+                                                ready.forEach(app => {
+                                                    onUpdateBursaryApplication?.(app.id, { status: 'disbursed' });
+                                                });
+                                                onLogAction?.(`Processed batch disbursement for ${ready.length} students.`);
+                                            }
+                                        }}
+                                        className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                                    >
+                                        Disburse All Ready
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50 border-b border-slate-100">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Beneficiary</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Institution</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount (KES)</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Status</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {bursaryApplications.filter(a => a.status === 'vetted' || a.status === 'approved' || a.status === 'disbursed').map(app => (
+                                                <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="font-bold text-slate-900 uppercase tracking-tight text-xs">{app.studentName}</div>
+                                                        <div className="text-[10px] text-slate-400 font-mono">{app.studentId}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-xs font-bold text-slate-600 uppercase">{app.institutionName}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right font-mono font-bold text-slate-900 text-xs">
+                                                        {app.amountRequested.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${app.status === 'disbursed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                            }`}>
+                                                            {app.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        {app.status !== 'disbursed' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    onUpdateBursaryApplication?.(app.id, { status: 'disbursed' });
+                                                                    onLogAction?.(`Disbursed KES ${app.amountRequested.toLocaleString()} to ${app.studentName}`);
+                                                                }}
+                                                                className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-all"
+                                                            >
+                                                                Confirm Payout
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {bursaryApplications.filter(a => a.status === 'vetted' || a.status === 'approved' || a.status === 'disbursed').length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                                                        No disbursement records found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
@@ -1720,7 +1958,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             <CurrencyIcon className="w-6 h-6 text-indigo-600" />
                                             County Bursary Funds
                                         </h3>
-                                        <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+                                        <button
+                                            onClick={() => {
+                                                setEditingFund(null);
+                                                setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString() });
+                                                setShowFundModal(true);
+                                            }}
+                                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                                        >
                                             <PlusIcon className="w-4 h-4" /> New Fund
                                         </button>
                                     </div>
@@ -1733,9 +1978,36 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                             <h4 className="font-black text-slate-900 uppercase tracking-tight">{fund.name}</h4>
                                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Financial Year {fund.financialYear}</p>
                                                         </div>
-                                                        <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest">
-                                                            {((fund.allocatedAmount - fund.remainingAmount) / fund.allocatedAmount * 100).toFixed(1)}% DISBURSED
-                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingFund(fund);
+                                                                    setFundForm({
+                                                                        name: fund.name,
+                                                                        totalBudget: fund.totalBudget,
+                                                                        financialYear: fund.financialYear
+                                                                    });
+                                                                    setShowFundModal(true);
+                                                                }}
+                                                                className="p-2 bg-white text-slate-400 hover:text-indigo-600 rounded-xl transition-all shadow-sm border border-slate-100"
+                                                            >
+                                                                <PencilIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('Are you sure you want to delete this fund? This action cannot be undone.')) {
+                                                                        onDeleteBursaryFund?.(fund.id);
+                                                                        onLogAction?.(`Deleted bursary fund: ${fund.name}`);
+                                                                    }
+                                                                }}
+                                                                className="p-2 bg-white text-slate-400 hover:text-red-600 rounded-xl transition-all shadow-sm border border-slate-100"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest self-start">
+                                                                {((fund.allocatedAmount - fund.remainingAmount) / fund.allocatedAmount * 100).toFixed(1)}% DISBURSED
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                     <div className="space-y-2">
                                                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
@@ -2650,6 +2922,80 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {
+                    showFundModal && (
+                        <div className="fixed inset-0 bg-black/60 z-[130] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
+                                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                            {editingFund ? 'Edit Fund' : 'New Bursary Fund'}
+                                        </h3>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Budget Allocation • {myCounty.name}</p>
+                                    </div>
+                                    <button onClick={() => setShowFundModal(false)} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+                                        <XIcon className="w-6 h-6 text-slate-400" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleFundSubmit} className="p-8 space-y-6">
+                                    <div className="space-y-4">
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Fund Name</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={fundForm.name}
+                                                onChange={e => setFundForm({ ...fundForm, name: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold placeholder:text-slate-300"
+                                                placeholder="e.g. County Bursary 2024"
+                                            />
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Total Budget (KES)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="0"
+                                                value={fundForm.totalBudget}
+                                                onChange={e => setFundForm({ ...fundForm, totalBudget: parseInt(e.target.value) })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-black text-indigo-600"
+                                            />
+                                        </div>
+                                        <div className="group">
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Financial Year</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={fundForm.financialYear}
+                                                onChange={e => setFundForm({ ...fundForm, financialYear: e.target.value })}
+                                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-bold"
+                                                placeholder="2024/2025"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowFundModal(false)}
+                                            className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-black uppercase tracking-wide transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black uppercase tracking-wide shadow-lg shadow-indigo-200 transition-colors"
+                                        >
+                                            {editingFund ? 'Save Changes' : 'Initialize Fund'}
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     )
