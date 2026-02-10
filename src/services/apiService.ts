@@ -399,6 +399,9 @@ export const apiService = {
         }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
+        if (!_supabase) {
+            return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
+        }
         try {
             const { data: { session } } = await _supabase.auth.getSession();
             let headers: any = { 'Content-Type': 'application/json' };
@@ -412,7 +415,9 @@ export const apiService = {
 
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(data.error || data.message || `Handshake Error: ${response.status}`);
+                const subMsg = data.error || data.message || `Code: ${response.status}`;
+                const detail = data.errorDetail ? ` (${JSON.stringify(data.errorDetail)})` : '';
+                throw new Error(`${subMsg}${detail}`);
             }
             return data;
         } catch (e: any) {

@@ -121,13 +121,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateStkPush') {
+            console.log('[M-Pesa] Initiating STK Push...');
             if (!integrationConfig) return res.status(400).json({ success: false, message: "M-Pesa config missing." });
             const { consumerKey, consumerSecret, paybillNumber, passkey } = integrationConfig;
-            if (!consumerKey || !consumerSecret || !paybillNumber || !passkey)
+
+            if (!consumerKey || !consumerSecret || !paybillNumber || !passkey) {
+                console.error('[M-Pesa] Config incomplete:', { paybillNumber, hasKey: !!consumerKey, hasSecret: !!consumerSecret, hasPasskey: !!passkey });
                 return res.status(400).json({ success: false, message: "M-Pesa credentials incomplete." });
+            }
 
             const isSandbox = integrationConfig.environment !== 'production';
             const baseUrl = isSandbox ? 'https://sandbox.safaricom.co.ke' : 'https://api.safaricom.co.ke';
+            console.log(`[M-Pesa] Target Environment: ${isSandbox ? 'Sandbox' : 'Production'} (${baseUrl})`);
 
             try {
                 const authCredentials = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
@@ -136,17 +141,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     headers: { "Authorization": `Basic ${authCredentials}` }
                 });
 
-                if (!oauthResponse.ok) return res.status(401).json({ success: false, message: "Daraja Auth Failed." });
+                if (!oauthResponse.ok) {
+                    const authErr = await oauthResponse.text();
+                    console.error('[M-Pesa] Daraja Auth Failed:', oauthResponse.status, authErr);
+                    return res.status(401).json({ success: false, message: "Daraja Auth Failed. Check credentials." });
+                }
+
                 const { access_token } = await oauthResponse.json();
+                console.log('[M-Pesa] Auth successful, token acquired.');
 
                 const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
                 const stkPassword = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
                 const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
 
-                // Use relative callback or env if available, else fallback
                 const host = req.headers.host || 'eduai-academic.vercel.app';
                 const callbackUrl = `https://${host}/api/mpesa-callback`;
 
+                console.log('[M-Pesa] Dispatching STK Push to:', cleanPhone);
                 const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
                     method: "POST",
                     headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" },
@@ -166,16 +177,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
 
                 const stkData = await stkResponse.json();
+                console.log('[M-Pesa] Gateway Response:', stkData);
+
                 if (stkResponse.ok && (stkData.ResponseCode === "0")) {
                     return res.status(200).json({ success: true, message: "Prompt dispatched.", data: stkData });
                 }
-                return res.status(400).json({ success: false, message: stkData.CustomerMessage || stkData.errorMessage || "Push rejected." });
+
+                return res.status(400).json({
+                    success: false,
+                    message: stkData.CustomerMessage || stkData.errorMessage || "Push rejected by gateway.",
+                    errorDetail: stkData
+                });
             } catch (error: any) {
-                return res.status(500).json({ success: false, message: `Gateway error: ${error.message}` });
+                console.error("[M-Pesa] Gateway Error Snapshot:", error);
+                return res.status(500).json({
+                    success: false,
+                    message: "Gateway connection error.",
+                    error: error.message
+                });
             }
         }
 
-
         return res.status(400).json({ success: false, error: 'Invalid action.' });
-    } catch (globalError: any) { return res.status(500).json({ success: false, message: "Internal Integration Error", error: globalError.message }); }
+    } catch (globalError: any) {
+        console.error("[Integrations] Runtime Error:", globalError);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error during integration processing.",
+            error: globalError.message
+        });
+    }
 }
