@@ -1,0 +1,1174 @@
+{
+    "counties": [
+        {
+            "code": "001",
+            "name": "Mombasa"
+        },
+        {
+            "code": "002",
+            "name": "Kwale"
+        },
+        {
+            "code": "003",
+            "name": "Kilifi"
+        },
+        {
+            "code": "004",
+            "name": "Tana River"
+        },
+        {
+            "code": "005",
+            "name": "Lamu"
+        },
+        {
+            "code": "006",
+            "name": "Taita Taveta"
+        },
+        {
+            "code": "007",
+            "name": "Garissa"
+        },
+        {
+            "code": "008",
+            "name": "Wajir"
+        },
+        {
+            "code": "009",
+            "name": "Mandera"
+        },
+        {
+            "code": "010",
+            "name": "Marsabit"
+        },
+        {
+            "code": "011",
+            "name": "Isiolo"
+        },
+        {
+            "code": "012",
+            "name": "Meru"
+        },
+        {
+            "code": "013",
+            "name": "Tharaka Nithi"
+        },
+        {
+            "code": "014",
+            "name": "Embu"
+        },
+        {
+            "code": "015",
+            "name": "Kitui"
+        },
+        {
+            "code": "016",
+            "name": "Machakos"
+        },
+        {
+            "code": "017",
+            "name": "Makueni"
+        },
+        {
+            "code": "018",
+            "name": "Nyandarua"
+        },
+        {
+            "code": "019",
+            "name": "Nyeri"
+        },
+        {
+            "code": "020",
+            "name": "Kirinyaga"
+        },
+        {
+            "code": "021",
+            "name": "Murang'a"
+        },
+        {
+            "code": "022",
+            "name": "Kiambu"
+        },
+        {
+            "code": "023",
+            "name": "Turkana"
+        },
+        {
+            "code": "024",
+            "name": "West Pokot"
+        },
+        {
+            "code": "025",
+            "name": "Samburu"
+        },
+        {
+            "code": "026",
+            "name": "Trans Nzoia"
+        },
+        {
+            "code": "027",
+            "name": "Uasin Gishu"
+        },
+        {
+            "code": "028",
+            "name": "Elgeyo Marakwet"
+        },
+        {
+            "code": "029",
+            "name": "Nandi"
+        },
+        {
+            "code": "030",
+            "name": "Baringo"
+        },
+        {
+            "code": "031",
+            "name": "Laikipia"
+        },
+        {
+            "code": "032",
+            "name": "Nakuru"
+        },
+        {
+            "code": "033",
+            "name": "Narok"
+        },
+        {
+            "code": "034",
+            "name": "Kajiado"
+        },
+        {
+            "code": "035",
+            "name": "Kericho"
+        },
+        {
+            "code": "036",
+            "name": "Bomet"
+        },
+        {
+            "code": "037",
+            "name": "Kakamega"
+        },
+        {
+            "code": "038",
+            "name": "Vihiga"
+        },
+        {
+            "code": "039",
+            "name": "Bungoma"
+        },
+        {
+            "code": "040",
+            "name": "Busia"
+        },
+        {
+            "code": "041",
+            "name": "Siaya"
+        },
+        {
+            "code": "042",
+            "name": "Kisumu"
+        },
+        {
+            "code": "043",
+            "name": "Homa Bay"
+        },
+        {
+            "code": "044",
+            "name": "Migori"
+        },
+        {
+            "code": "045",
+            "name": "Kisii"
+        },
+        {
+            "code": "046",
+            "name": "Nyamira"
+        },
+        {
+            "code": "047",
+            "name": "Nairobi"
+        }
+    ],
+    "subcounties": [
+        {
+            "county_code": "001",
+            "name": "Changamwe"
+        },
+        {
+            "county_code": "001",
+            "name": "Jomvu"
+        },
+        {
+            "county_code": "001",
+            "name": "Kisauni"
+        },
+        {
+            "county_code": "001",
+            "name": "Likoni"
+        },
+        {
+            "county_code": "001",
+            "name": "Mvita"
+        },
+        {
+            "county_code": "001",
+            "name": "Nyali"
+        },
+        {
+            "county_code": "047",
+            "name": "Westlands"
+        },
+        {
+            "county_code": "047",
+            "name": "Dagoretti North"
+        },
+        {
+            "county_code": "047",
+            "name": "Dagoretti South"
+        },
+        {
+            "county_code": "047",
+            "name": "Langata"
+        },
+        {
+            "county_code": "047",
+            "name": "Kibra"
+        },
+        {
+            "county_code": "047",
+            "name": "Roysambu"
+        },
+        {
+            "county_code": "047",
+            "name": "Kasarani"
+        },
+        {
+            "county_code": "047",
+            "name": "Ruaraka"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi South"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi North"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi Central"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi East"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi West"
+        },
+        {
+            "county_code": "047",
+            "name": "Makadara"
+        },
+        {
+            "county_code": "047",
+            "name": "Kamukunji"
+        },
+        {
+            "county_code": "047",
+            "name": "Starehe"
+        },
+        {
+            "county_code": "047",
+            "name": "Mathare"
+        },
+        {
+            "county_code": "022",
+            "name": "Gatundu North"
+        },
+        {
+            "county_code": "022",
+            "name": "Gatundu South"
+        },
+        {
+            "county_code": "022",
+            "name": "Juja"
+        },
+        {
+            "county_code": "022",
+            "name": "Thika Town"
+        },
+        {
+            "county_code": "022",
+            "name": "Ruiru"
+        },
+        {
+            "county_code": "022",
+            "name": "Githunguri"
+        },
+        {
+            "county_code": "022",
+            "name": "Kiambu"
+        },
+        {
+            "county_code": "022",
+            "name": "Kiambaa"
+        },
+        {
+            "county_code": "022",
+            "name": "Kabete"
+        },
+        {
+            "county_code": "022",
+            "name": "Kikuyu"
+        },
+        {
+            "county_code": "022",
+            "name": "Limuru"
+        },
+        {
+            "county_code": "022",
+            "name": "Lari"
+        }
+    ],
+    "constituencies": [
+        {
+            "county_code": "001",
+            "name": "Changamwe"
+        },
+        {
+            "county_code": "001",
+            "name": "Jomvu"
+        },
+        {
+            "county_code": "001",
+            "name": "Kisauni"
+        },
+        {
+            "county_code": "001",
+            "name": "Nyali"
+        },
+        {
+            "county_code": "001",
+            "name": "Likoni"
+        },
+        {
+            "county_code": "001",
+            "name": "Mvita"
+        },
+        {
+            "county_code": "047",
+            "name": "Westlands"
+        },
+        {
+            "county_code": "047",
+            "name": "Dagoretti North"
+        },
+        {
+            "county_code": "047",
+            "name": "Dagoretti South"
+        },
+        {
+            "county_code": "047",
+            "name": "Langata"
+        },
+        {
+            "county_code": "047",
+            "name": "Kibra"
+        },
+        {
+            "county_code": "047",
+            "name": "Roysambu"
+        },
+        {
+            "county_code": "047",
+            "name": "Kasarani"
+        },
+        {
+            "county_code": "047",
+            "name": "Ruaraka"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi South"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi North"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi Central"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi East"
+        },
+        {
+            "county_code": "047",
+            "name": "Embakasi West"
+        },
+        {
+            "county_code": "047",
+            "name": "Makadara"
+        },
+        {
+            "county_code": "047",
+            "name": "Kamukunji"
+        },
+        {
+            "county_code": "047",
+            "name": "Starehe"
+        },
+        {
+            "county_code": "047",
+            "name": "Mathare"
+        },
+        {
+            "county_code": "022",
+            "name": "Gatundu North"
+        },
+        {
+            "county_code": "022",
+            "name": "Gatundu South"
+        },
+        {
+            "county_code": "022",
+            "name": "Juja"
+        },
+        {
+            "county_code": "022",
+            "name": "Thika Town"
+        },
+        {
+            "county_code": "022",
+            "name": "Ruiru"
+        },
+        {
+            "county_code": "022",
+            "name": "Githunguri"
+        },
+        {
+            "county_code": "022",
+            "name": "Kiambu"
+        },
+        {
+            "county_code": "022",
+            "name": "Kiambaa"
+        },
+        {
+            "county_code": "022",
+            "name": "Kabete"
+        },
+        {
+            "county_code": "022",
+            "name": "Kikuyu"
+        },
+        {
+            "county_code": "022",
+            "name": "Limuru"
+        },
+        {
+            "county_code": "022",
+            "name": "Lari"
+        }
+    ],
+    "wards": [
+        {
+            "county_code": "047",
+            "constituency_name": "Westlands",
+            "subcounty_name": "Westlands",
+            "name": "Kitisuru"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Westlands",
+            "subcounty_name": "Westlands",
+            "name": "Parklands/Highridge"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Westlands",
+            "subcounty_name": "Westlands",
+            "name": "Karura"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Westlands",
+            "subcounty_name": "Westlands",
+            "name": "Kangemi"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Westlands",
+            "subcounty_name": "Westlands",
+            "name": "Mountain View"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti North",
+            "subcounty_name": "Dagoretti North",
+            "name": "Kilimani"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti North",
+            "subcounty_name": "Dagoretti North",
+            "name": "Kawangware"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti North",
+            "subcounty_name": "Dagoretti North",
+            "name": "Gatina"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti North",
+            "subcounty_name": "Dagoretti North",
+            "name": "Kileleshwa"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti North",
+            "subcounty_name": "Dagoretti North",
+            "name": "Kabiro"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti South",
+            "subcounty_name": "Dagoretti South",
+            "name": "Mutuini"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti South",
+            "subcounty_name": "Dagoretti South",
+            "name": "Ngando"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti South",
+            "subcounty_name": "Dagoretti South",
+            "name": "Riruta"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti South",
+            "subcounty_name": "Dagoretti South",
+            "name": "Uthiru/Ruthimitu"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Dagoretti South",
+            "subcounty_name": "Dagoretti South",
+            "name": "Waithaka"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Langata",
+            "subcounty_name": "Langata",
+            "name": "Karen"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Langata",
+            "subcounty_name": "Langata",
+            "name": "Nairobi West"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Langata",
+            "subcounty_name": "Langata",
+            "name": "Mugumo-Ini"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Langata",
+            "subcounty_name": "Langata",
+            "name": "South C"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Langata",
+            "subcounty_name": "Langata",
+            "name": "Nyayo Highrise"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kibra",
+            "subcounty_name": "Kibra",
+            "name": "Laini Saba"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kibra",
+            "subcounty_name": "Kibra",
+            "name": "Lindi"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kibra",
+            "subcounty_name": "Kibra",
+            "name": "Makina"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kibra",
+            "subcounty_name": "Kibra",
+            "name": "Woodley/Kenyatta Golf Course"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kibra",
+            "subcounty_name": "Kibra",
+            "name": "Sarang'Ombe"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Roysambu",
+            "subcounty_name": "Roysambu",
+            "name": "Roysambu"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Roysambu",
+            "subcounty_name": "Roysambu",
+            "name": "Githurai"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Roysambu",
+            "subcounty_name": "Roysambu",
+            "name": "Kahawa West"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Roysambu",
+            "subcounty_name": "Roysambu",
+            "name": "Zimmerman"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Roysambu",
+            "subcounty_name": "Roysambu",
+            "name": "Kahawa"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kasarani",
+            "subcounty_name": "Kasarani",
+            "name": "Clay City"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kasarani",
+            "subcounty_name": "Kasarani",
+            "name": "Mwiki"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kasarani",
+            "subcounty_name": "Kasarani",
+            "name": "Kasarani"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kasarani",
+            "subcounty_name": "Kasarani",
+            "name": "Njiru"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kasarani",
+            "subcounty_name": "Kasarani",
+            "name": "Ruai"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Ruaraka",
+            "subcounty_name": "Ruaraka",
+            "name": "Babadogo"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Ruaraka",
+            "subcounty_name": "Ruaraka",
+            "name": "Utalii"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Ruaraka",
+            "subcounty_name": "Ruaraka",
+            "name": "Mathare North"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Ruaraka",
+            "subcounty_name": "Ruaraka",
+            "name": "Lucky Summer"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Ruaraka",
+            "subcounty_name": "Ruaraka",
+            "name": "Korogocho"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi South",
+            "subcounty_name": "Embakasi South",
+            "name": "Imara Daima"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi South",
+            "subcounty_name": "Embakasi South",
+            "name": "Kwa Njenga"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi South",
+            "subcounty_name": "Embakasi South",
+            "name": "Kwa Reuben"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi South",
+            "subcounty_name": "Embakasi South",
+            "name": "Pipeline"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi South",
+            "subcounty_name": "Embakasi South",
+            "name": "Kware"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi North",
+            "subcounty_name": "Embakasi North",
+            "name": "Kariobangi North"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi North",
+            "subcounty_name": "Embakasi North",
+            "name": "Dandora Area I"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi North",
+            "subcounty_name": "Embakasi North",
+            "name": "Dandora Area II"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi North",
+            "subcounty_name": "Embakasi North",
+            "name": "Dandora Area III"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi North",
+            "subcounty_name": "Embakasi North",
+            "name": "Dandora Area IV"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi Central",
+            "subcounty_name": "Embakasi Central",
+            "name": "Kayole North"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi Central",
+            "subcounty_name": "Embakasi Central",
+            "name": "Kayole Central"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi Central",
+            "subcounty_name": "Embakasi Central",
+            "name": "Kayole South"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi Central",
+            "subcounty_name": "Embakasi Central",
+            "name": "Komarock"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi Central",
+            "subcounty_name": "Embakasi Central",
+            "name": "Matopeni/Spring Valley"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi East",
+            "subcounty_name": "Embakasi East",
+            "name": "Upper Savannah"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi East",
+            "subcounty_name": "Embakasi East",
+            "name": "Lower Savannah"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi East",
+            "subcounty_name": "Embakasi East",
+            "name": "Embakasi"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi East",
+            "subcounty_name": "Embakasi East",
+            "name": "Utawala"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi East",
+            "subcounty_name": "Embakasi East",
+            "name": "Mihang'O"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi West",
+            "subcounty_name": "Embakasi West",
+            "name": "Umoja I"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi West",
+            "subcounty_name": "Embakasi West",
+            "name": "Umoja II"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi West",
+            "subcounty_name": "Embakasi West",
+            "name": "Mowlem"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Embakasi West",
+            "subcounty_name": "Embakasi West",
+            "name": "Kariobangi South"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Makadara",
+            "subcounty_name": "Makadara",
+            "name": "Maringo/Hamza"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Makadara",
+            "subcounty_name": "Makadara",
+            "name": "Viwandani"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Makadara",
+            "subcounty_name": "Makadara",
+            "name": "Harambee"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Makadara",
+            "subcounty_name": "Makadara",
+            "name": "Makongeni"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Makadara",
+            "subcounty_name": "Makadara",
+            "name": "Mbotela"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kamukunji",
+            "subcounty_name": "Kamukunji",
+            "name": "Pumwani"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kamukunji",
+            "subcounty_name": "Kamukunji",
+            "name": "Eastleigh North"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kamukunji",
+            "subcounty_name": "Kamukunji",
+            "name": "Eastleigh South"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kamukunji",
+            "subcounty_name": "Kamukunji",
+            "name": "Airbase"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Kamukunji",
+            "subcounty_name": "Kamukunji",
+            "name": "California"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Nairobi Central"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Ngara"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Pangani"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Ziwani/Kariokor"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Landimawe"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Starehe",
+            "subcounty_name": "Starehe",
+            "name": "Nairobi South"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Hospital"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Mabatini"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Huruma"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Ngei"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Mlango Kubwa"
+        },
+        {
+            "county_code": "047",
+            "constituency_name": "Mathare",
+            "subcounty_name": "Mathare",
+            "name": "Kiamaiko"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Changamwe",
+            "subcounty_name": "Changamwe",
+            "name": "Port Reitz"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Changamwe",
+            "subcounty_name": "Changamwe",
+            "name": "Kipevu"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Changamwe",
+            "subcounty_name": "Changamwe",
+            "name": "Airport"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Changamwe",
+            "subcounty_name": "Changamwe",
+            "name": "Changamwe"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Changamwe",
+            "subcounty_name": "Changamwe",
+            "name": "Chaani"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Jomvu",
+            "subcounty_name": "Jomvu",
+            "name": "Jomvu Kuu"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Jomvu",
+            "subcounty_name": "Jomvu",
+            "name": "Miritini"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Jomvu",
+            "subcounty_name": "Jomvu",
+            "name": "Mikindani"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Mjambere"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Junda"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Bamburi"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Mwakirunge"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Mtopanga"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Magogoni"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Kisauni",
+            "subcounty_name": "Kisauni",
+            "name": "Shanzu"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Nyali",
+            "subcounty_name": "Nyali",
+            "name": "Frere Town"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Nyali",
+            "subcounty_name": "Nyali",
+            "name": "Ziwa La Ng'Ombe"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Nyali",
+            "subcounty_name": "Nyali",
+            "name": "Mkomani"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Nyali",
+            "subcounty_name": "Nyali",
+            "name": "Kongowea"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Nyali",
+            "subcounty_name": "Nyali",
+            "name": "Kadzandani"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Likoni",
+            "subcounty_name": "Likoni",
+            "name": "Mtongwe"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Likoni",
+            "subcounty_name": "Likoni",
+            "name": "Shika Adabu"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Likoni",
+            "subcounty_name": "Likoni",
+            "name": "Bofu"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Likoni",
+            "subcounty_name": "Likoni",
+            "name": "Likoni"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Likoni",
+            "subcounty_name": "Likoni",
+            "name": "Timbwani"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Mvita",
+            "subcounty_name": "Mvita",
+            "name": "Mji Wa Kale/Makadara"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Mvita",
+            "subcounty_name": "Mvita",
+            "name": "Tudor"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Mvita",
+            "subcounty_name": "Mvita",
+            "name": "Tononoka"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Mvita",
+            "subcounty_name": "Mvita",
+            "name": "Shimanzi/Ganjoni"
+        },
+        {
+            "county_code": "001",
+            "constituency_name": "Mvita",
+            "subcounty_name": "Mvita",
+            "name": "Majengo"
+        }
+    ]
+}

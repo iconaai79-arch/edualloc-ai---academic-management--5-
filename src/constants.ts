@@ -245,6 +245,7 @@ export const INITIAL_USERS: User[] = [
         email: 'superadmin@eduai.com',
         phoneNumber: '0000000000',
         role: 'super_admin',
+        roles: ['super_admin'],
         institutionId: 'SYSTEM',
         expertise: ['System Administration'],
         password: 'password123'
@@ -255,6 +256,7 @@ export const INITIAL_USERS: User[] = [
         email: 'admin@edu.com',
         phoneNumber: '0711111111',
         role: 'head_teacher',
+        roles: ['head_teacher'],
         institutionId: INST_DEMO,
         expertise: ['Education Management'],
         password: 'password123'
@@ -265,6 +267,7 @@ export const INITIAL_USERS: User[] = [
         email: 'lecturer@edu.com',
         phoneNumber: '0711111112',
         role: 'teacher',
+        roles: ['teacher'],
         institutionId: INST_DEMO,
         departmentId: 'dept_sci',
         expertise: ['Physics', 'Mathematics'],
@@ -276,6 +279,7 @@ export const INITIAL_USERS: User[] = [
         email: 'will@edu.com',
         phoneNumber: '0711111113',
         role: 'teacher',
+        roles: ['teacher'],
         institutionId: INST_DEMO,
         departmentId: 'dept_lang',
         expertise: ['English', 'Literature'],

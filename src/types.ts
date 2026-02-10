@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor';
+export type Role = 'super_admin' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master';
 
 
 export interface Unavailability {
@@ -18,6 +18,7 @@ export interface User {
     phoneNumber: string;
     staffId?: string;
     role: Role;
+    roles?: Role[];
     institutionId: string;
     password?: string;
     departmentId?: string;
@@ -983,6 +984,7 @@ export interface StaffImportPreviewUser {
     phoneNumber: string;
     staffId: string;
     role: Role;
+    roles?: Role[];
     departmentId?: string;
     expertise: string[];
     gender?: 'Male' | 'Female' | 'Other';
@@ -997,12 +999,13 @@ export interface UserUpdateData {
     phoneNumber?: string;
     staffId?: string;
     role?: Role;
+    roles?: Role[];
     departmentId?: string;
     expertise?: string[];
     gender?: 'Male' | 'Female' | 'Other';
 }
 
-export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'departmentName' | 'expertise' | 'gender';
+export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'roles' | 'departmentName' | 'expertise' | 'gender';
 
 export interface EmployeeDetails {
     userId: string;
@@ -1071,4 +1074,240 @@ export interface CountyBursaryFund {
     allocatedAmount: number;
     remainingAmount: number;
     publicParticipationLink?: string;
+}
+
+// ============================================
+// BOARDING MANAGEMENT TYPES
+// ============================================
+
+export type HouseGender = 'Boys' | 'Girls' | 'Mixed';
+export type HouseStatus = 'Active' | 'Inactive' | 'Under Maintenance';
+export type RoomType = 'Single' | 'Double' | 'Triple' | 'Quad' | 'Dormitory';
+export type RoomStatus = 'Active' | 'Inactive' | 'Under Maintenance';
+export type BedStatus = 'Available' | 'Occupied' | 'Reserved' | 'Under Maintenance';
+export type BedCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Needs Replacement';
+export type AllocationStatus = 'Active' | 'Completed' | 'Transferred' | 'Cancelled';
+export type ClearanceStatus = 'Pending' | 'Cleared' | 'Issues Reported';
+export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type MaintenanceStatus = 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+
+export interface BoardingHouse {
+    id: string;
+    institutionId: string;
+    name: string;
+    gender: HouseGender;
+    capacity: number;
+    houseMasterId?: string;
+    status: HouseStatus;
+    floorPlanUrl?: string;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface BoardingRoom {
+    id: string;
+    houseId: string;
+    roomNumber: string;
+    roomType: RoomType;
+    capacity: number;
+    floorLevel: number;
+    amenities?: string;
+    status: RoomStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface BoardingBed {
+    id: string;
+    roomId: string;
+    bedNumber: string;
+    status: BedStatus;
+    condition: BedCondition;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface BedAllocation {
+    id: string;
+    bedId: string;
+    studentId: string;
+    allocatedBy: string;
+    allocationDate: string;
+    term: string;
+    academicYear: string;
+    status: AllocationStatus;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface BoardingCheckIn {
+    id: string;
+    allocationId: string;
+    studentId: string;
+    checkInDate: string;
+    checkInTime: string;
+    checkedInBy: string;
+    conditionNotes?: string;
+    itemsInventory?: Record<string, any>;
+    photoUrl?: string;
+    createdAt: string;
+}
+
+export interface BoardingCheckOut {
+    id: string;
+    allocationId: string;
+    studentId: string;
+    checkOutDate: string;
+    checkOutTime: string;
+    checkedOutBy: string;
+    conditionNotes?: string;
+    damageReport?: string;
+    clearanceStatus: ClearanceStatus;
+    photoUrl?: string;
+    createdAt: string;
+}
+
+export interface BoardingMaintenanceLog {
+    id: string;
+    houseId?: string;
+    roomId?: string;
+    bedId?: string;
+    issueType: string;
+    description: string;
+    priority: MaintenancePriority;
+    reportedBy: string;
+    reportedDate: string;
+    status: MaintenanceStatus;
+    resolvedDate?: string;
+    resolvedBy?: string;
+    resolutionNotes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Extended types with joined data for display
+export interface BoardingHouseWithStats extends BoardingHouse {
+    totalRooms: number;
+    totalBeds: number;
+    availableBeds: number;
+    occupiedBeds: number;
+    activeAllocations: number;
+    occupancyPercentage: number;
+    houseMasterName?: string;
+}
+
+export interface BoardingRoomWithBeds extends BoardingRoom {
+    houseName: string;
+    beds: BoardingBed[];
+    availableBeds: number;
+    occupiedBeds: number;
+}
+
+export interface BedAllocationWithDetails extends BedAllocation {
+    studentName: string;
+    bedNumber: string;
+    roomNumber: string;
+    houseName: string;
+    allocatedByName: string;
+    hasCheckedIn: boolean;
+    hasCheckedOut: boolean;
+}
+
+export interface BoardingCheckInWithDetails extends BoardingCheckIn {
+    studentName: string;
+    bedNumber: string;
+    roomNumber: string;
+    houseName: string;
+    checkedInByName: string;
+}
+
+export interface BoardingCheckOutWithDetails extends BoardingCheckOut {
+    studentName: string;
+    bedNumber: string;
+    roomNumber: string;
+    houseName: string;
+    checkedOutByName: string;
+}
+
+// ============================================================================
+// TEACHER CHECK-IN TYPES
+// ============================================================================
+
+export type CheckInStatus = 'Pending' | 'On Time' | 'Late' | 'Absent';
+export type ReminderStatus = 'Pending' | 'Sent' | 'Acknowledged' | 'Dismissed';
+export type CheckInType = 'Morning' | 'Afternoon';
+
+export interface TeacherCheckIn {
+    id: string;
+    teacherId: string;
+    institutionId: string;
+    checkInDate: string;
+
+    // Morning check-in (around 8 AM)
+    morningCheckInTime?: string;
+    morningCheckInStatus: CheckInStatus;
+    morningLocation?: string;
+    morningNotes?: string;
+
+    // Afternoon check-in (around 4 PM)
+    afternoonCheckInTime?: string;
+    afternoonCheckInStatus: CheckInStatus;
+    afternoonLocation?: string;
+    afternoonNotes?: string;
+
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface TeacherCheckInReminder {
+    id: string;
+    teacherId: string;
+    institutionId: string;
+    reminderDate: string;
+    reminderTime: string;
+    reminderType: CheckInType;
+    status: ReminderStatus;
+    sentAt?: string;
+    acknowledgedAt?: string;
+    createdAt: string;
+}
+
+export interface TeacherAttendanceSummary {
+    id: string;
+    teacherId: string;
+    institutionId: string;
+    month: number;
+    year: number;
+    totalDays: number;
+    presentDays: number;
+    lateDays: number;
+    absentDays: number;
+    morningCheckins: number;
+    afternoonCheckins: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Extended types with joined data
+export interface TeacherCheckInWithDetails extends TeacherCheckIn {
+    teacherName: string;
+    teacherEmail: string;
+    institutionName: string;
+    morningOverdue: boolean;
+    afternoonOverdue: boolean;
+}
+
+export interface TeacherCheckInReminderWithDetails extends TeacherCheckInReminder {
+    teacherName: string;
+    teacherEmail: string;
+    teacherPhone?: string;
+}
+
+export interface TeacherAttendanceWithDetails extends TeacherAttendanceSummary {
+    teacherName: string;
+    attendanceRate: number;
+    punctualityRate: number;
 }

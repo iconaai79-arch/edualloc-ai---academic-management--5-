@@ -1,0 +1,444 @@
+import React, { useState, useEffect } from 'react';
+import { User, Institution, TeacherCheckInWithDetails, CheckInType, CheckInStatus } from '../types';
+import { ClockIcon, CheckCircleIcon, XCircleIcon, BellIcon, MapPinIcon, CalendarDaysIcon } from './icons';
+
+interface TeacherCheckInViewProps {
+    currentUser: User;
+    currentInstitution: Institution;
+    onLogAction: (action: string) => Promise<void>;
+}
+
+const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
+    currentUser,
+    currentInstitution,
+    onLogAction
+}) => {
+    const [todayCheckIn, setTodayCheckIn] = useState<TeacherCheckInWithDetails | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [showCheckInModal, setShowCheckInModal] = useState(false);
+    const [checkInType, setCheckInType] = useState<CheckInType>('Morning');
+    const [location, setLocation] = useState('');
+    const [notes, setNotes] = useState('');
+    const [showReminder, setShowReminder] = useState(false);
+    const [reminderType, setReminderType] = useState<CheckInType | null>(null);
+
+    useEffect(() => {
+        loadTodayCheckIn();
+        setupReminderChecks();
+    }, [currentUser.id]);
+
+    const loadTodayCheckIn = async () => {
+        setLoading(true);
+        try {
+            // TODO: Implement Supabase query
+            // const { data, error } = await supabase
+            //   .from('v_today_teacher_checkins')
+            //   .select('*')
+            //   .eq('teacher_id', currentUser.id)
+            //   .single();
+
+            // if (error && error.code !== 'PGRST116') throw error;
+            // setTodayCheckIn(data);
+
+            setTodayCheckIn(null);
+            await onLogAction('Viewed teacher check-in');
+        } catch (error) {
+            console.error('Error loading check-in:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const setupReminderChecks = () => {
+        // Check for reminders every minute
+        const checkReminders = () => {
+            const now = new Date();
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+
+            // Morning reminder at 7:45 AM (7 * 60 + 45 = 465 minutes)
+            const morningReminderTime = 7 * 60 + 45;
+            // Afternoon reminder at 3:45 PM (15 * 60 + 45 = 945 minutes)
+            const afternoonReminderTime = 15 * 60 + 45;
+
+            // Show morning reminder between 7:45 and 8:00
+            if (currentTime >= morningReminderTime && currentTime < 8 * 60) {
+                if (!todayCheckIn?.morningCheckInTime) {
+                    setReminderType('Morning');
+                    setShowReminder(true);
+                }
+            }
+
+            // Show afternoon reminder between 3:45 and 4:00
+            if (currentTime >= afternoonReminderTime && currentTime < 16 * 60) {
+                if (!todayCheckIn?.afternoonCheckInTime) {
+                    setReminderType('Afternoon');
+                    setShowReminder(true);
+                }
+            }
+        };
+
+        checkReminders();
+        const interval = setInterval(checkReminders, 60000); // Check every minute
+
+        return () => clearInterval(interval);
+    };
+
+    const handleOpenCheckInModal = (type: CheckInType) => {
+        setCheckInType(type);
+        setLocation('');
+        setNotes('');
+        setShowCheckInModal(true);
+    };
+
+    const handleCheckIn = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        try {
+            const now = new Date();
+            const currentTime = now.toTimeString().split(' ')[0];
+
+            // TODO: Implement Supabase function call
+            // const { data, error } = await supabase.rpc('process_teacher_checkin', {
+            //   p_teacher_id: currentUser.id,
+            //   p_institution_id: currentInstitution.id,
+            //   p_checkin_type: checkInType,
+            //   p_location: location,
+            //   p_notes: notes
+            // });
+
+            // if (error) throw error;
+
+            await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
+            alert(`${checkInType} check-in successful!`);
+
+            setShowCheckInModal(false);
+            setShowReminder(false);
+            loadTodayCheckIn();
+        } catch (error) {
+            console.error('Error checking in:', error);
+            alert('Failed to check in');
+        }
+    };
+
+    const getStatusColor = (status: CheckInStatus) => {
+        switch (status) {
+            case 'On Time': return 'text-green-600 bg-green-100';
+            case 'Late': return 'text-orange-600 bg-orange-100';
+            case 'Absent': return 'text-red-600 bg-red-100';
+            default: return 'text-gray-600 bg-gray-100';
+        }
+    };
+
+    const getCurrentTime = () => {
+        return new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
+    const isCheckInTime = (type: CheckInType) => {
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        if (type === 'Morning') {
+            return currentHour >= 7 && currentHour < 9; // 7 AM - 9 AM
+        } else {
+            return currentHour >= 15 && currentHour < 17; // 3 PM - 5 PM
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Reminder Notification */}
+            {showReminder && reminderType && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-md animate-pulse">
+                    <div className="flex items-start">
+                        <BellIcon className="w-6 h-6 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div className="ml-3 flex-1">
+                            <h3 className="text-lg font-semibold text-yellow-900">
+                                {reminderType} Check-In Reminder
+                            </h3>
+                            <p className="text-yellow-800 mt-1">
+                                It's time for your {reminderType.toLowerCase()} check-in!
+                                Please check in within the next 15 minutes.
+                            </p>
+                            <div className="mt-3 flex gap-3">
+                                <button
+                                    onClick={() => handleOpenCheckInModal(reminderType)}
+                                    className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                                >
+                                    Check In Now
+                                </button>
+                                <button
+                                    onClick={() => setShowReminder(false)}
+                                    className="px-4 py-2 bg-white border border-yellow-600 text-yellow-600 rounded-lg hover:bg-yellow-50 transition-colors font-medium"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Teacher Check-In</h2>
+                    <p className="text-gray-600 mt-1">
+                        {new Date().toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        })}
+                    </p>
+                    <p className="text-lg font-semibold text-blue-600 mt-1">{getCurrentTime()}</p>
+                </div>
+            </div>
+
+            {/* Check-In Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Morning Check-In */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold">Morning Check-In</h3>
+                                <p className="text-sm opacity-90 mt-1">Before 8:00 AM</p>
+                            </div>
+                            <ClockIcon className="w-10 h-10 opacity-80" />
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        {todayCheckIn?.morningCheckInTime ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Status:</span>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(todayCheckIn.morningCheckInStatus)}`}>
+                                        {todayCheckIn.morningCheckInStatus}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Time:</span>
+                                    <span className="font-semibold">{todayCheckIn.morningCheckInTime}</span>
+                                </div>
+                                {todayCheckIn.morningLocation && (
+                                    <div className="flex items-start gap-2 pt-2 border-t">
+                                        <MapPinIcon className="w-4 h-4 text-gray-500 mt-0.5" />
+                                        <span className="text-sm text-gray-600">{todayCheckIn.morningLocation}</span>
+                                    </div>
+                                )}
+                                {todayCheckIn.morningNotes && (
+                                    <div className="pt-2 border-t">
+                                        <p className="text-sm text-gray-600">{todayCheckIn.morningNotes}</p>
+                                    </div>
+                                )}
+                                <div className="pt-3 flex items-center gap-2 text-green-600">
+                                    <CheckCircleIcon className="w-5 h-5" />
+                                    <span className="font-medium">Checked In</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-6">
+                                {isCheckInTime('Morning') ? (
+                                    <>
+                                        <XCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-gray-600 mb-4">You haven't checked in yet</p>
+                                        <button
+                                            onClick={() => handleOpenCheckInModal('Morning')}
+                                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                                        >
+                                            Check In Now
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ClockIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-gray-600">
+                                            {new Date().getHours() < 7
+                                                ? 'Morning check-in opens at 7:00 AM'
+                                                : 'Morning check-in period has ended'}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Afternoon Check-In */}
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold">Afternoon Check-In</h3>
+                                <p className="text-sm opacity-90 mt-1">Before 4:00 PM</p>
+                            </div>
+                            <ClockIcon className="w-10 h-10 opacity-80" />
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        {todayCheckIn?.afternoonCheckInTime ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Status:</span>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(todayCheckIn.afternoonCheckInStatus)}`}>
+                                        {todayCheckIn.afternoonCheckInStatus}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Time:</span>
+                                    <span className="font-semibold">{todayCheckIn.afternoonCheckInTime}</span>
+                                </div>
+                                {todayCheckIn.afternoonLocation && (
+                                    <div className="flex items-start gap-2 pt-2 border-t">
+                                        <MapPinIcon className="w-4 h-4 text-gray-500 mt-0.5" />
+                                        <span className="text-sm text-gray-600">{todayCheckIn.afternoonLocation}</span>
+                                    </div>
+                                )}
+                                {todayCheckIn.afternoonNotes && (
+                                    <div className="pt-2 border-t">
+                                        <p className="text-sm text-gray-600">{todayCheckIn.afternoonNotes}</p>
+                                    </div>
+                                )}
+                                <div className="pt-3 flex items-center gap-2 text-green-600">
+                                    <CheckCircleIcon className="w-5 h-5" />
+                                    <span className="font-medium">Checked In</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-6">
+                                {isCheckInTime('Afternoon') ? (
+                                    <>
+                                        <XCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-gray-600 mb-4">You haven't checked in yet</p>
+                                        <button
+                                            onClick={() => handleOpenCheckInModal('Afternoon')}
+                                            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                                        >
+                                            Check In Now
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ClockIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                                        <p className="text-gray-600">
+                                            {new Date().getHours() < 15
+                                                ? 'Afternoon check-in opens at 3:00 PM'
+                                                : 'Afternoon check-in period has ended'}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Reminder Schedule Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                    <BellIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <h4 className="font-semibold text-blue-900">Automatic Reminders</h4>
+                        <p className="text-sm text-blue-800 mt-1">
+                            You will receive reminders at:
+                        </p>
+                        <ul className="text-sm text-blue-800 mt-2 space-y-1">
+                            <li>• <strong>7:45 AM</strong> - Morning check-in reminder (15 minutes before 8:00 AM)</li>
+                            <li>• <strong>3:45 PM</strong> - Afternoon check-in reminder (15 minutes before 4:00 PM)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            {/* Check-In Modal */}
+            {showCheckInModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+                        <div className="flex items-center justify-between p-6 border-b">
+                            <h3 className="text-xl font-bold text-gray-900">
+                                {checkInType} Check-In
+                            </h3>
+                            <button
+                                onClick={() => setShowCheckInModal(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <XCircleIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCheckIn} className="p-6 space-y-4">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 text-blue-900">
+                                    <ClockIcon className="w-5 h-5" />
+                                    <span className="font-semibold">Current Time: {getCurrentTime()}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Location (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={location}
+                                    onChange={(e) => setLocation(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    placeholder="e.g., Main Office, Classroom 101"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Notes (Optional)
+                                </label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    rows={3}
+                                    placeholder="Any additional notes..."
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-4 border-t">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCheckInModal(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircleIcon className="w-5 h-5" />
+                                    Confirm Check-In
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default TeacherCheckInView;

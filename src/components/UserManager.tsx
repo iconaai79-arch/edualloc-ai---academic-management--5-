@@ -26,11 +26,11 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
-const ALL_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'email', 'phoneNumber', 'staffId', 'role', 'departmentName', 'expertise', 'gender'];
+const ALL_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'email', 'phoneNumber', 'staffId', 'role', 'roles', 'departmentName', 'expertise', 'gender'];
 
 interface ManageParentsModalProps {
     student: User;
@@ -257,6 +257,16 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
 
                 if (!availableRolesForImport.includes(role)) role = 'lecturer';
 
+                // Handle Multiple Roles
+                let roles: Role[] = [role];
+                if (userMapping.roles) {
+                    const extraRoles = String(row[userMapping.roles!] || '')
+                        .split(',')
+                        .map(r => r.trim().toLowerCase().replace(/\s+/g, '_') as Role)
+                        .filter(r => availableRolesForImport.includes(r));
+                    roles = [...new Set([...roles, ...extraRoles])];
+                }
+
                 if (!staffId) {
                     staffId = generateUniqueStaffId(`STAFF-${name.substring(0, 2).toUpperCase()}`, new Set([...existingUserStaffIds, ...currentBatchStaffIds]));
                 }
@@ -284,6 +294,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     phoneNumber: userMapping.phoneNumber ? String(row[userMapping.phoneNumber!] || '') : '',
                     staffId,
                     role,
+                    roles,
                     departmentId,
                     expertise: userMapping.expertise ? parseExpertise(String(row[userMapping.expertise!] || '')) : [],
                     gender: 'Male',
@@ -508,14 +519,23 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [staffId, setStaffId] = useState('');
     const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
     const [role, setRole] = useState<Role>('lecturer');
+    const [roles, setRoles] = useState<Role[]>(['teacher']);
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
-        setGender('Male'); setRole('lecturer'); setDepartmentId('');
+        setGender('Male'); setRole('lecturer'); setRoles(['teacher']); setDepartmentId('');
         setCourseId(''); setCourseLevelId('');
+    };
+
+    const toggleRole = (r: Role) => {
+        setRoles(prev =>
+            prev.includes(r)
+                ? (prev.length > 1 ? prev.filter(role => role !== r) : prev)
+                : [...prev, r]
+        );
     };
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
@@ -567,6 +587,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             const sanitizedJson = json.map(row => ({
                 ...row,
                 role: activeTab === 'staff' ? (row.role ? String(row.role).toLowerCase() : 'lecturer') : 'student',
+                roles: activeTab === 'staff' ? (row.roles ? String(row.roles).split(',').map((r: string) => r.trim()) : [row.role ? String(row.role).toLowerCase() : 'lecturer']) : ['student'],
                 name: row.name || row.Name || 'Unknown',
                 email: row.email || row.Email || '',
                 phoneNumber: row.phoneNumber || row.phone || ''
@@ -583,7 +604,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
         const userData: any = {
             name, email, phoneNumber: phone, staffId, gender,
-            role: activeTab === 'staff' ? role : 'student',
+            role: activeTab === 'staff' ? roles[0] : 'student',
+            roles: activeTab === 'staff' ? roles : ['student'],
             institutionId: currentUser?.institutionId || '',
             expertise: []
         };
@@ -655,13 +677,23 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </div>
                             {activeTab === 'staff' ? (
                                 <>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Role</label>
-                                        <select value={role} onChange={e => setRole(e.target.value as any)} className="form-select w-full">
+                                    <div className="md:col-span-2 lg:col-span-3">
+                                        <label className="block text-sm font-medium mb-2">Assigned Roles</label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                             {VALID_STAFF_ROLES.map(r => (
-                                                <option key={r} value={r}>{r.replace('_', ' ').toUpperCase()}</option>
+                                                <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={roles.includes(r)}
+                                                        onChange={() => toggleRole(r)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                                                    />
+                                                    <span className={`text-[10px] font-bold uppercase ${roles.includes(r) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
+                                                        {r.replace('_', ' ')}
+                                                    </span>
+                                                </label>
                                             ))}
-                                        </select>
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Department</label>
@@ -670,7 +702,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             onChange={e => setDepartmentId(e.target.value)}
                                             disabled={currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto'}
                                             className="form-select w-full disabled:bg-slate-50"
-                                            required={ROLES_REQUIRING_DEPARTMENT.includes(role)}
+                                            required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r))}
                                         >
                                             <option value="">-- Select Department --</option>
                                             {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -744,7 +776,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         <thead className="bg-slate-50 dark:bg-slate-700">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Name & Details</th>
-                                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Role</th>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Roles</th>
                                 {isSuperAdmin && <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Institution</th>}
                                 <th className="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase">Actions</th>
                             </tr>
@@ -758,9 +790,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                         {u.staffId && <div className="text-[10px] font-mono text-slate-400">ID: {u.staffId}</div>}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                            {u.role.replace('_', ' ')}
-                                        </span>
+                                        <div className="flex flex-wrap gap-1">
+                                            {(u.roles || [u.role]).map((r, idx) => (
+                                                <span key={idx} className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                    {r.replace('_', ' ')}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </td>
                                     {isSuperAdmin && (
                                         <td className="px-6 py-4">

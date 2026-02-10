@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number TEXT,
     staff_id TEXT,
     role TEXT NOT NULL,
+    roles TEXT[] DEFAULT '{}',
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     password TEXT,
     department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
@@ -639,7 +640,8 @@ CREATE TABLE IF NOT EXISTS extension_requests (
 
     INITIAL_USERS.forEach(u => {
         const expertiseStr = u.expertise && u.expertise.length > 0 ? `ARRAY[${u.expertise.map(e => escapeSql(e)).join(',')}]` : "ARRAY[]::TEXT[]";
-        sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
+        const rolesStr = u.roles && u.roles.length > 0 ? `ARRAY[${u.roles.map(r => escapeSql(r)).join(',')}]` : `ARRAY[${escapeSql(u.role)}]`;
+        sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
     return sql;

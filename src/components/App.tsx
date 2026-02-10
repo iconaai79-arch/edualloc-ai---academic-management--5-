@@ -17,6 +17,7 @@ import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportSt
 import { LibrarianView } from './LibrarianView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
+import BoardingMasterView from './BoardingMasterView';
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
@@ -1065,18 +1066,22 @@ export const App: React.FC = () => {
         onStudentRegister: async () => ({ success: true, message: '' })
     };
 
+    const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+
     const activeRole = useMemo(() => {
         if (impersonatedRole) return impersonatedRole;
         if (!currentUser) return null;
 
+        const roleToUse = selectedRole || currentUser.role;
+
         // Redirect school administrators to the County Portal if their school is registered to a county
         const inst = institutions.find(i => i.id === currentUser.institutionId);
-        if (inst?.countyId && (currentUser.role === 'admin' || currentUser.role === 'head_teacher')) {
+        if (inst?.countyId && (roleToUse === 'admin' || roleToUse === 'head_teacher')) {
             return 'county_admin';
         }
 
-        return currentUser.role;
-    }, [impersonatedRole, currentUser, institutions]);
+        return roleToUse;
+    }, [impersonatedRole, currentUser, institutions, selectedRole]);
     const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
 
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
@@ -1106,7 +1111,21 @@ export const App: React.FC = () => {
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
                 {currentUser ? (
                     <>
-                        <Header currentUser={currentUser} institutionName={activeInstitution?.name} onLogout={handleLogout} onEditProfile={() => setIsProfileModalOpen(true)} logoUrl={activeInstitution?.logoUrl || companyDetails.logoUrl} systemLogoUrl={companyDetails.logoUrl} notifications={[]} onMarkAsRead={() => { }} currentInstitution={activeInstitution} isApiOnline={isApiOnline} applicationTitle={companyDetails.applicationTitle} />
+                        <Header
+                            currentUser={currentUser}
+                            institutionName={activeInstitution?.name}
+                            onLogout={handleLogout}
+                            onEditProfile={() => setIsProfileModalOpen(true)}
+                            logoUrl={activeInstitution?.logoUrl || companyDetails.logoUrl}
+                            systemLogoUrl={companyDetails.logoUrl}
+                            notifications={[]}
+                            onMarkAsRead={() => { }}
+                            currentInstitution={activeInstitution}
+                            isApiOnline={isApiOnline}
+                            applicationTitle={companyDetails.applicationTitle}
+                            activeRole={activeRole as Role}
+                            onSwitchRole={(r) => setSelectedRole(r)}
+                        />
                         <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
                             {activeRole === 'super_admin' ? (
                                 <SuperAdminView
@@ -1441,7 +1460,12 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                 />
-
+                            ) : activeRole === 'boarding_master' ? (
+                                <BoardingMasterView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                />
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}

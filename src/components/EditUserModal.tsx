@@ -17,7 +17,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [phoneNumber, setPhoneNumber] = useState('');
   const [staffId, setStaffId] = useState('');
   const [expertise, setExpertise] = useState('');
-  const [role, setRole] = useState<Role>('lecturer');
+  const [roles, setRoles] = useState<Role[]>([]);
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
 
@@ -30,20 +30,35 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setPhoneNumber(user.phoneNumber);
       setStaffId(user.staffId || '');
       setExpertise(user.expertise?.join(', ') || '');
-      setRole(user.role);
+      setRoles(user.roles || [user.role]);
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
     }
   }, [user, fixedDepartmentId]);
 
+  const toggleRole = (r: Role) => {
+    setRoles(prev =>
+      prev.includes(r)
+        ? prev.filter(role => role !== r)
+        : [...prev, r]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const expertiseArray = expertise.split(',').map(item => item.trim()).filter(Boolean);
     const rolesWithDepartment: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
-    if (!isSchool && rolesWithDepartment.includes(role) && !assignedDepartmentId) {
-      alert(`Please assign a department for the ${role.toUpperCase()}.`);
+    if (roles.length === 0) {
+      alert("Please select at least one role.");
+      return;
+    }
+
+    const needsDepartment = roles.some(r => rolesWithDepartment.includes(r));
+
+    if (!isSchool && needsDepartment && !assignedDepartmentId) {
+      alert("Please assign a department for one of the selected professional roles.");
       return;
     }
 
@@ -54,8 +69,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         phoneNumber,
         staffId,
         expertise: expertiseArray,
-        role,
-        departmentId: rolesWithDepartment.includes(role) ? assignedDepartmentId : undefined,
+        role: roles[0], // Keep first as primary
+        roles: roles,
+        departmentId: needsDepartment ? assignedDepartmentId : undefined,
         gender
       });
       onClose();
@@ -143,42 +159,30 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
             {activeTab === 'access' && (
               <div className="space-y-6 animate-fade-in-up">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Security Role</label>
-                    <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="form-select" disabled={!!fixedDepartmentId && user.role === role}>
-                      {isSchool ? (
-                        <>
-                          <option value="head_teacher">Head Teacher</option>
-                          <option value="deputy">Deputy</option>
-                          <option value="dos">DOS</option>
-                          <option value="teacher">Teacher</option>
-                          <option value="practice_teacher">Practice Teacher</option>
-                          <option value="librarian">Librarian</option>
-                          <option value="finance">Finance</option>
-                          <option value="security">Security</option>
-                          <option value="info_desk">Info Desk</option>
-                          <option value="store">Storekeeper</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="lecturer">Lecturer</option>
-                          <option value="hod">HOD</option>
-                          <option value="tto">TTO</option>
-                          <option value="admin">Chair TTO</option>
-                          <option value="deputy">Deputy</option>
-                          <option value="academics_officer">Academics Officer</option>
-                          <option value="practice_teacher">Practice Teacher</option>
-                          <option value="librarian">Librarian</option>
-                          <option value="finance">Finance</option>
-                          <option value="security">Security</option>
-                          <option value="info_desk">Info Desk</option>
-                          <option value="store">Storekeeper</option>
-                        </>
-                      )}
-                    </select>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {(isSchool ? [
+                        'head_teacher', 'deputy', 'dos', 'teacher', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
+                      ] : [
+                        'lecturer', 'hod', 'tto', 'admin', 'deputy', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
+                      ]).map((r) => (
+                        <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
+                          <input
+                            type="checkbox"
+                            checked={roles.includes(r as Role)}
+                            onChange={() => toggleRole(r as Role)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className={`text-[10px] font-bold uppercase tracking-tight ${roles.includes(r as Role) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
+                            {r.replace('_', ' ')}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
 
-                  {!isSchool && rolesWithDepartment.includes(role) && (
+                  {(!isSchool && roles.some(r => ['admin', 'deputy', 'hod', 'lecturer', 'tto'].includes(r))) && (
                     <div>
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

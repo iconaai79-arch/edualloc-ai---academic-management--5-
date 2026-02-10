@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { getInitials } from '../utils/stringUtils';
@@ -16,6 +16,8 @@ interface HeaderProps {
     onMarkAsRead: (id?: string) => void;
     currentInstitution?: Institution | null;
     isApiOnline?: boolean;
+    activeRole?: Role;
+    onSwitchRole?: (role: Role) => void;
 }
 
 const formatRoleName = (role?: Role, institutionType?: Institution['institutionType']): string => {
@@ -27,6 +29,7 @@ const formatRoleName = (role?: Role, institutionType?: Institution['institutionT
             case 'deputy': return 'Deputy';
             case 'dos': case 'academics_officer': return 'DOS';
             case 'teacher': case 'lecturer': return 'Teacher';
+            case 'boarding_master': return 'Boarding Manager';
         }
     }
     switch (role) {
@@ -73,7 +76,7 @@ const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
     );
 };
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -100,11 +103,19 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
 
     const showTrialTimer = currentInstitution?.status === 'trial' && currentInstitution.trialEndsAt;
 
+    const availableRoles = useMemo(() => {
+        if (!currentUser) return [];
+        const roles = currentUser.roles || [currentUser.role];
+        // Ensure primary role is included if roles is present
+        if (!roles.includes(currentUser.role)) roles.unshift(currentUser.role);
+        return [...new Set(roles)];
+    }, [currentUser]);
+
     return (
         <header
             className={`sticky top-0 z-[100] w-full transition-all duration-300 ${isScrolled
-                    ? 'bg-white/95 dark:bg-slate-900/95 shadow-md backdrop-blur-md py-2'
-                    : 'bg-white dark:bg-slate-900 py-3'
+                ? 'bg-white/95 dark:bg-slate-900/95 shadow-md backdrop-blur-md py-2'
+                : 'bg-white dark:bg-slate-900 py-3'
                 } border-b border-slate-200 dark:border-slate-800`}
         >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -171,18 +182,30 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                             </button>
 
                             {isMenuOpen && (
-                                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-2xl bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[110] overflow-hidden animate-fade-in-up">
-                                    <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
-                                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Role</p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                            {formatRoleName(currentUser.role, currentInstitution?.institutionType)}
-                                        </p>
+                                <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[110] overflow-hidden animate-fade-in-up border border-slate-100 dark:border-slate-700">
+                                    <div className="px-5 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Available Roles</p>
+                                        <div className="space-y-2">
+                                            {availableRoles.map((r: Role) => (
+                                                <button
+                                                    key={r}
+                                                    disabled={activeRole === r}
+                                                    onClick={() => { onSwitchRole?.(r as Role); setIsMenuOpen(false); }}
+                                                    className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all flex items-center justify-between group ${activeRole === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                                                >
+                                                    {formatRoleName(r as Role, currentInstitution?.institutionType)}
+                                                    {activeRole === r && (
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="py-1">
-                                        <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors">
+                                    <div className="p-1 px-2">
+                                        <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors rounded-xl">
                                             <PencilIcon className="w-4 h-4" /> Edit Profile
                                         </button>
-                                        <button onClick={() => { onLogout(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors">
+                                        <button onClick={() => { onLogout(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors rounded-xl">
                                             <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sign Out
                                         </button>
                                     </div>

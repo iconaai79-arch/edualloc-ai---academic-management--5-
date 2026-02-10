@@ -39,8 +39,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
 
         // Fetch Global System Settings from Supabase
-        const { data: settingsRecord } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+        const { data: settingsRecord, error: tableError } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+
+        if (tableError && tableError.code === 'PGRST116') {
+            // Table exists but no record with ID 1
+        } else if (tableError) {
+            console.error("[Integrations] Table Error:", tableError);
+            return res.status(500).json({
+                success: false,
+                message: "Database table 'system_settings' not found. Please run the initialization SQL script.",
+                error: tableError.message
+            });
+        }
+
         const systemSettings = settingsRecord?.data || {};
+
+        if (action === 'test') {
+            return res.status(200).json({
+                success: true,
+                message: "Integration API is reachable.",
+                dbStatus: "Connected",
+                user: user.email,
+                hasConfig: !!systemSettings.mpesa_config
+            });
+        }
 
         if (action === 'sendSms') {
             const hasBodyConfig = bodyConfig?.apiKey || bodyConfig?.api_key || bodyConfig?.api_secret;
@@ -186,8 +208,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const environment = mpesaConfig.environment;
 
             if (!consumerKey || !consumerSecret || !paybillNumber || !passkey) {
+                const missing = [];
+                if (!consumerKey) missing.push('Consumer Key');
+                if (!consumerSecret) missing.push('Consumer Secret');
+                if (!paybillNumber) missing.push('Paybill Number');
+                if (!passkey) missing.push('Passkey');
+                
                 console.error('[M-Pesa] Config incomplete:', { paybillNumber, hasKey: !!consumerKey, hasSecret: !!consumerSecret, hasPasskey: !!passkey });
-                return res.status(400).json({ success: false, message: "M-Pesa credentials incomplete." });
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `M-Pesa credentials incomplete. Missing: ${missing.join(', ')}. Please update in System Settings.` 
+                });
             }
 
             const isSandbox = environment !== 'production';
@@ -214,7 +245,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const stkPassword = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
                 const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
 
-                const callbackUrl = 'https://eduai.co.ke/api/mpesa-callback';
+                const host = req.headers.host;
+                const protocol = req.headers['x-forwarded-proto'] || 'https';
+                const callbackUrl = `${protocol}://${host}/api/mpesa-callback`;
+
+                console.log('[M-Pesa] Using Callback URL:', callbackUrl);
 
                 console.log('[M-Pesa] Dispatching STK Push to:', cleanPhone);
                 const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
