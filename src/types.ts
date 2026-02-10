@@ -33,6 +33,7 @@ export interface User {
     passwordLastUpdated?: string;
     passwordExpiresAt?: string;
     countyId?: string;
+    isImpersonated?: boolean;
 }
 
 export interface GradeDefinition {

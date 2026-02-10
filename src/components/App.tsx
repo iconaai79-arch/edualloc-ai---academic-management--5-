@@ -666,8 +666,9 @@ export const App: React.FC = () => {
     const onLoginAsAdmin = (institutionId: string) => {
         const admin = users.find(u => u.institutionId === institutionId && (u.role === 'admin' || u.role === 'head_teacher'));
         if (admin) {
-            setCurrentUser(admin);
-            apiService.storeSession(admin);
+            const impersonatedUser = { ...admin, isImpersonated: true };
+            setCurrentUser(impersonatedUser);
+            apiService.storeSession(impersonatedUser);
             setImpersonatedRole(null);
         } else {
             alert("No admin account found for this institution.");
@@ -1081,7 +1082,7 @@ export const App: React.FC = () => {
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
-    if (currentUser && activeRole !== 'super_admin') {
+    if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
         const inst = institutions.find(i => i.id === currentUser.institutionId);
         if (inst && inst.status === 'suspended') {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
@@ -1091,7 +1092,7 @@ export const App: React.FC = () => {
         }
     }
 
-    if (currentUser && (!currentUser.passwordLastUpdated || currentUser.password === 'password123')) {
+    if (currentUser && !currentUser.isImpersonated && (!currentUser.passwordLastUpdated || currentUser.password === 'password123')) {
         return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
             const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
             await apiService.saveUser(updated);
