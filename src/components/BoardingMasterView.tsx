@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouseWithStats } from '../types';
-import { Home, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon } from './icons';
+import { HomeIcon, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon } from './icons';
+import { apiService } from '../services/apiService';
 import HouseManager from './HouseManager';
 import RoomBedManager from './RoomBedManager';
 import BedAllocationManager from './BedAllocationManager';
@@ -44,30 +45,29 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     const loadDashboardData = async () => {
         setLoading(true);
         try {
-            // TODO: Implement actual API calls to Supabase
-            // For now, using mock data structure
+            const houseStats = await apiService.fetchModuleRecords<any>('v_house_statistics', currentInstitution.id);
+            const maintenanceLogs = await apiService.fetchModuleRecords<any>('boarding_maintenance_logs', currentInstitution.id);
+            const allocations = await apiService.fetchModuleRecords<any>('bed_allocations'); // Filter by institution? bed_allocations doesn't have institution_id directly in the view I saw
 
-            // Load houses with statistics
-            // const { data: housesData } = await supabase
-            //   .from('v_house_statistics')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id);
+            const totalHouses = houseStats.length;
+            const totalRooms = houseStats.reduce((acc: number, h: any) => acc + (h.totalRooms || 0), 0);
+            const totalBeds = houseStats.reduce((acc: number, h: any) => acc + (h.totalBeds || 0), 0);
+            const occupiedBeds = houseStats.reduce((acc: number, h: any) => acc + (h.occupiedBeds || 0), 0);
+            const availableBeds = houseStats.reduce((acc: number, h: any) => acc + (h.availableBeds || 0), 0);
 
-            // Calculate overall statistics
-            // const totalBeds = housesData.reduce((sum, h) => sum + h.total_beds, 0);
-            // const occupiedBeds = housesData.reduce((sum, h) => sum + h.occupied_beds, 0);
+            const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
             setStats({
-                totalHouses: 0,
-                totalRooms: 0,
-                totalBeds: 0,
-                occupiedBeds: 0,
-                availableBeds: 0,
-                occupancyRate: 0,
-                activeAllocations: 0,
-                pendingCheckIns: 0,
+                totalHouses,
+                totalRooms,
+                totalBeds,
+                occupiedBeds,
+                availableBeds,
+                occupancyRate,
+                activeAllocations: allocations.filter((a: any) => a.status === 'Active').length,
+                pendingCheckIns: 0, // TODO: Implement pending counts
                 pendingCheckOuts: 0,
-                maintenanceIssues: 0
+                maintenanceIssues: maintenanceLogs.filter((l: any) => l.status === 'Pending').length
             });
 
             await onLogAction('Viewed boarding dashboard');
@@ -252,8 +252,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('dashboard')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'dashboard'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <BarChart3Icon className="w-4 h-4" />
@@ -262,8 +262,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('houses')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'houses'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <HomeIcon className="w-4 h-4" />
@@ -272,8 +272,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('rooms')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'rooms'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <BedIcon className="w-4 h-4" />
@@ -282,8 +282,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('allocations')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'allocations'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <UsersIcon className="w-4 h-4" />
@@ -292,8 +292,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('checkin')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'checkin'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <CheckCircleIcon className="w-4 h-4" />
@@ -302,8 +302,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('maintenance')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'maintenance'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <SettingsIcon className="w-4 h-4" />
@@ -312,8 +312,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <button
                             onClick={() => setActiveTab('reports')}
                             className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'reports'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
                             <ClipboardListIcon className="w-4 h-4" />

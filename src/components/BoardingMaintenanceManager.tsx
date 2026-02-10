@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingMaintenanceLog, BoardingHouse, MaintenancePriority, MaintenanceStatus } from '../types';
-import { Settings, PlusIcon, SearchIcon, FilterIcon, XIcon, AlertTriangleIcon, CheckCircleIcon, ClockIcon } from './icons';
+import { SettingsIcon, PlusIcon, SearchIcon, FilterIcon, XIcon, AlertTriangleIcon, CheckCircleIcon, ClockIcon } from './icons';
 
 interface BoardingMaintenanceManagerProps {
     currentUser: User;

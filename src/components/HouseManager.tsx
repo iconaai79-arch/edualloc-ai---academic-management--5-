@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingHouseWithStats, HouseGender, HouseStatus } from '../types';
-import { Home, PlusIcon, Edit2Icon, Trash2Icon, UsersIcon, BedIcon, TrendingUpIcon, XIcon } from './icons';
+import { HomeIcon, PlusIcon, Edit2Icon, Trash2Icon, UsersIcon, BedIcon, TrendingUpIcon, XIcon } from './icons';
 
 interface HouseManagerProps {
     currentUser: User;
@@ -205,8 +205,8 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                         <div key={house.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                             {/* House Header */}
                             <div className={`p-4 ${house.gender === 'Boys' ? 'bg-blue-500' :
-                                    house.gender === 'Girls' ? 'bg-pink-500' :
-                                        'bg-purple-500'
+                                house.gender === 'Girls' ? 'bg-pink-500' :
+                                    'bg-purple-500'
                                 }`}>
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
@@ -214,8 +214,8 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                                         <p className="text-white/90 text-sm mt-1">{house.gender}</p>
                                     </div>
                                     <div className={`px-3 py-1 rounded-full text-xs font-medium ${house.status === 'Active' ? 'bg-green-100 text-green-800' :
-                                            house.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
-                                                'bg-orange-100 text-orange-800'
+                                        house.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
+                                            'bg-orange-100 text-orange-800'
                                         }`}>
                                         {house.status}
                                     </div>
@@ -251,8 +251,8 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                                     <div className="w-full bg-gray-200 rounded-full h-2">
                                         <div
                                             className={`h-2 rounded-full ${house.occupancyPercentage >= 90 ? 'bg-red-500' :
-                                                    house.occupancyPercentage >= 70 ? 'bg-yellow-500' :
-                                                        'bg-green-500'
+                                                house.occupancyPercentage >= 70 ? 'bg-yellow-500' :
+                                                    'bg-green-500'
                                                 }`}
                                             style={{ width: `${house.occupancyPercentage}%` }}
                                         ></div>

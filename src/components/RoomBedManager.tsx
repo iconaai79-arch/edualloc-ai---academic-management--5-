@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingRoom, BoardingBed, RoomType, RoomStatus, BedStatus, BedCondition } from '../types';
-import { Bed, PlusIcon, Edit2Icon, Trash2Icon, HomeIcon, GridIcon, ListIcon, XIcon, AlertCircle } from './icons';
+import { BedIcon, PlusIcon, Edit2Icon, Trash2Icon, HomeIcon, GridIcon, ListIcon, XIcon, ExclamationTriangleIcon } from './icons';
 
 interface RoomBedManagerProps {
     currentUser: User;
@@ -466,8 +466,8 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                                         <p className="text-sm opacity-90 mt-1">{room.roomType} • Floor {room.floorLevel}</p>
                                     </div>
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${room.status === 'Active' ? 'bg-green-100 text-green-800' :
-                                            room.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
-                                                'bg-orange-100 text-orange-800'
+                                        room.status === 'Inactive' ? 'bg-gray-100 text-gray-800' :
+                                            'bg-orange-100 text-orange-800'
                                         }`}>
                                         {room.status}
                                     </span>

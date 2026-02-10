@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingBed, BedAllocation, BedAllocationWithDetails } from '../types';
-import { Users, SearchIcon, PlusIcon, XIcon, ExclamationTriangleIcon, CheckCircleIcon, ArrowRightIcon, FilterIcon } from './icons';
+import { UsersIcon, SearchIcon, PlusIcon, XIcon, ExclamationTriangleIcon, CheckCircleIcon, ArrowRightIcon, FilterIcon } from './icons';
 
 interface BedAllocationManagerProps {
     currentUser: User;
@@ -501,9 +501,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                                 </p>
                                             </div>
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${allocation.status === 'Active' ? 'bg-green-100 text-green-800' :
-                                                    allocation.status === 'Completed' ? 'bg-gray-100 text-gray-800' :
-                                                        allocation.status === 'Transferred' ? 'bg-blue-100 text-blue-800' :
-                                                            'bg-red-100 text-red-800'
+                                                allocation.status === 'Completed' ? 'bg-gray-100 text-gray-800' :
+                                                    allocation.status === 'Transferred' ? 'bg-blue-100 text-blue-800' :
+                                                        'bg-red-100 text-red-800'
                                                 }`}>
                                                 {allocation.status}
                                             </span>
@@ -611,8 +611,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                                 key={bed.id}
                                                 onClick={() => setSelectedBed(bed)}
                                                 className={`p-4 border-2 rounded-lg text-left transition-all ${selectedBed?.id === bed.id
-                                                        ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                                                     }`}
                                             >
                                                 <div className="flex items-start justify-between">
@@ -708,8 +708,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                                 key={bed.id}
                                                 onClick={() => setSelectedBed(bed)}
                                                 className={`p-4 border-2 rounded-lg text-left transition-all ${selectedBed?.id === bed.id
-                                                        ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                                                     }`}
                                             >
                                                 <div className="flex items-start justify-between">
