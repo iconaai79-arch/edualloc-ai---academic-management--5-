@@ -154,8 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const stkPassword = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
                 const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
 
-                const host = req.headers.host || 'eduai-academic.vercel.app';
-                const callbackUrl = `https://${host}/api/mpesa-callback`;
+                const callbackUrl = 'https://eduai.co.ke/api/mpesa-callback';
 
                 console.log('[M-Pesa] Dispatching STK Push to:', cleanPhone);
                 const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
