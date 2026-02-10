@@ -105,9 +105,11 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
 
     const availableRoles = useMemo(() => {
         if (!currentUser) return [];
-        const roles = currentUser.roles || [currentUser.role];
-        // Ensure primary role is included if roles is present
-        if (!roles.includes(currentUser.role)) roles.unshift(currentUser.role);
+        const roles = (currentUser.roles || [currentUser.role]).filter(r => (r as string) !== 'finance');
+        // Ensure primary role is included if roles is present and not finance
+        if ((currentUser.role as string) !== 'finance' && !roles.includes(currentUser.role)) {
+            roles.unshift(currentUser.role);
+        }
         return [...new Set(roles)];
     }, [currentUser]);
 
