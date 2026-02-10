@@ -425,20 +425,25 @@ export const apiService = {
             return { success: false, message: e.message || "M-Pesa gateway connection failed." };
         }
     },
-    async checkMpesaStatus(checkoutRequestId: string) {
-        if (!_supabase) return { status: 'pending' };
+    async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
         try {
-            const { data, error } = await _supabase
-                .from('mpesa_transactions')
-                .select('status')
-                .eq('checkout_request_id', checkoutRequestId)
-                .single();
-
-            if (error || !data) return { status: 'pending' };
-            return { status: data.status };
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'queryStkStatus',
+                    checkoutRequestId,
+                    config
+                })
+            });
+            const result = await response.json();
+            return { status: result.status || 'pending' };
         } catch (e) {
-            console.error("Status Check Error:", e);
-            return { status: 'pending' };
+            console.error("Status Check Query Error:", e);
+            // Fallback to database check in case API fails
+            if (!_supabase) return { status: 'pending' };
+            const { data } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
+            return { status: data?.status || 'pending' };
         }
     },
     async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },

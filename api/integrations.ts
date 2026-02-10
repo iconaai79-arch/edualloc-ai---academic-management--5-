@@ -279,6 +279,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        if (action === 'queryStkStatus') {
+            const { checkoutRequestId, config: providedConfig } = req.body;
+            if (!checkoutRequestId) return res.status(400).json({ success: false, message: "CheckoutRequestID is required." });
+
+            const mpesaConfig = providedConfig || systemSettings?.mpesa_config || {};
+            const { paybillNumber, consumerKey, consumerSecret, passkey, environment } = mpesaConfig;
+
+            if (!paybillNumber || !consumerKey || !consumerSecret || !passkey) {
+                return res.status(400).json({ success: false, message: "M-Pesa credentials incomplete." });
+            }
+
+            const isSandbox = environment !== 'production';
+            const baseUrl = isSandbox ? 'https://sandbox.safaricom.co.ke' : 'https://api.safaricom.co.ke';
+
+            try {
+                // 1. Get Auth Token
+                const authCredentials = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+                const oauthResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                    method: "GET",
+                    headers: { "Authorization": `Basic ${authCredentials}` }
+                });
+
+                if (!oauthResponse.ok) return res.status(401).json({ success: false, message: "Auth Failed." });
+                const { access_token } = await oauthResponse.json();
+
+                // 2. Build Query Request
+                const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                const password = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
+
+                const queryResponse = await fetch(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${access_token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        BusinessShortCode: paybillNumber,
+                        Password: password,
+                        Timestamp: timestamp,
+                        CheckoutRequestID: checkoutRequestId
+                    })
+                });
+
+                const queryData = await queryResponse.json();
+                console.log(`[M-Pesa Query] Result for ${checkoutRequestId}:`, queryData.ResultDesc);
+
+                // 3. Update Status if finalized
+                if (queryData.ResultCode === "0") {
+                    // Update DB as completed
+                    const { data: transaction } = await supabase.from('mpesa_transactions').select('*').eq('checkout_request_id', checkoutRequestId).single();
+
+                    if (transaction && transaction.status === 'pending') {
+                        await supabase.from('mpesa_transactions').update({ status: 'completed' }).eq('id', transaction.id);
+
+                        // Execute side-effects if needed (duplicate logic from callback for fallback)
+                        const meta = transaction.metadata;
+                        if (meta?.type === 'subscription' && meta.plan) {
+                            const days = meta.plan === 'monthly' ? 30 : 365;
+                            const { data: inst } = await supabase.from('institutions').select('subscription_ends_at').eq('id', transaction.institution_id).single();
+                            const currentEnd = inst?.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
+                            const newEnd = new Date(Math.max(currentEnd.getTime(), Date.now()) + (days * 24 * 60 * 60 * 1000)).toISOString();
+                            await supabase.from('institutions').update({ subscription_ends_at: newEnd, status: 'active' }).eq('id', transaction.institution_id);
+                        } else if (meta?.type === 'invoice' && meta.invoiceId) {
+                            await supabase.from('invoices').update({ status: 'paid' }).eq('id', meta.invoiceId);
+                            await supabase.from('receipts').insert({
+                                id: `rec_${Date.now()}`,
+                                receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                                institution_id: transaction.institution_id,
+                                invoice_id: meta.invoiceId,
+                                amount_paid: transaction.amount,
+                                payment_date: new Date().toISOString().split('T')[0],
+                                payment_method: 'M-Pesa',
+                                related_transaction_id: transaction.id
+                            });
+                        }
+                    }
+                    return res.status(200).json({ success: true, status: 'completed', data: queryData });
+                } else if (queryData.errorCode) {
+                    // Gateway error or timeout
+                    return res.status(200).json({ success: true, status: 'pending', message: queryData.errorMessage || 'Safaricom is still processing.' });
+                } else {
+                    // Failed transaction (ResultCode "1", "1032", etc)
+                    if (queryData.ResultCode) {
+                        await supabase.from('mpesa_transactions').update({ status: 'failed' }).eq('checkout_request_id', checkoutRequestId);
+                    }
+                    return res.status(200).json({ success: true, status: queryData.ResultCode === "0" ? 'completed' : 'failed', message: queryData.ResultDesc });
+                }
+            } catch (err: any) {
+                return res.status(500).json({ success: false, message: err.message });
+            }
+        }
+
         return res.status(400).json({ success: false, error: 'Invalid action.' });
     } catch (globalError: any) {
         console.error("[Integrations] Runtime Error:", globalError);

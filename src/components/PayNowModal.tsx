@@ -46,7 +46,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const { status } = await apiService.checkMpesaStatus(checkoutRequestId);
+                    const { status } = await apiService.checkMpesaStatus(checkoutRequestId, mpesaConfig);
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
