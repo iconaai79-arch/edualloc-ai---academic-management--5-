@@ -345,8 +345,7 @@ export const apiService = {
     },
     async sendSms(recipient: string, message: string, config: SmsConfig): Promise<any> {
         if (!_supabase) {
-            console.log('[DEV] SMS Simulation - To:', recipient, 'Msg:', message);
-            return { success: true, message: "SMS simulated (Local Mode Active)" };
+            return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
         }
 
         try {
