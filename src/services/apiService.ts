@@ -343,7 +343,7 @@ export const apiService = {
         await this.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
-    async sendSms(recipient: string, message: string, config: SmsConfig): Promise<any> {
+    async sendSms(recipient: string, message: string, config?: SmsConfig): Promise<any> {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
         }
@@ -371,7 +371,7 @@ export const apiService = {
             return { success: false, message: e.message || "Gateway connection failure." };
         }
     },
-    async sendEmail(recipient: string, subject: string, message: string, config: EmailConfig): Promise<any> {
+    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig): Promise<any> {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
@@ -397,7 +397,7 @@ export const apiService = {
             return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
-    async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
+    async initiateMpesaPayment(amount: number, phoneNumber: string, config?: MpesaConfig) {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
         }

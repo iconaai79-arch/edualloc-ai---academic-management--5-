@@ -747,7 +747,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     <div key={log.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                         <div>
                                             <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{String(log.action)}</p>
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{String(log.userName)} • {new Date(log.timestamp).toLocaleTimeString()}</p>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                                {String(log.userName)}
+                                                <span className="text-indigo-500 font-bold ml-1">[{log.institutionName || 'SYSTEM'}]</span>
+                                                <span className="mx-1">•</span>
+                                                {new Date(log.timestamp).toLocaleTimeString()}
+                                            </p>
                                         </div>
                                         <span className="text-[10px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleDateString()}</span>
                                     </div>

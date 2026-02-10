@@ -641,11 +641,13 @@ export const App: React.FC = () => {
 
     const handleLogAction = async (action: string) => {
         if (!currentUser) return;
+        const institution = institutions.find(i => i.id === currentUser.institutionId);
         await apiService.saveModuleRecord('activity_log', {
             id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             userId: currentUser.id,
             userName: currentUser.name,
             institutionId: currentUser.institutionId,
+            institutionName: institution?.name || (currentUser.role === 'super_admin' ? 'SYSTEM' : 'Unknown'),
             action,
             timestamp: new Date().toISOString()
         });
@@ -892,7 +894,7 @@ export const App: React.FC = () => {
                 const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
 
                 try {
-                    await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                    await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
                 } catch (e) {
                     console.error("Email notification failed", e);
                 }
@@ -949,7 +951,7 @@ export const App: React.FC = () => {
                     const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
 
                     try {
-                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1006,7 +1008,7 @@ export const App: React.FC = () => {
                 if (companyDetails.emailConfig?.username) {
                     const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${adminPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
                     try {
-                        await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody, companyDetails.emailConfig);
+                        await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody);
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1050,7 +1052,7 @@ export const App: React.FC = () => {
                 if (companyDetails.emailConfig?.username) {
                     const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
                     try {
-                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody, companyDetails.emailConfig);
+                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1524,7 +1526,7 @@ export const App: React.FC = () => {
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); }}
                                     onDeleteTask={async (id) => apiService.deleteModuleRecord('tasks', id)}
                                     onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
-                                    onSendSms={async (r, m) => apiService.sendSms(r, m, companyDetails.smsConfig)}
+                                    onSendSms={async (r, m) => apiService.sendSms(r, m)}
                                     onSaveSmsConfig={() => { }}
                                     onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
                                     onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}

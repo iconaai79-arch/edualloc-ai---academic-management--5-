@@ -792,6 +792,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         <p className="text-xs font-bold text-slate-900">{log.action}</p>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{log.userName || 'System'}</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">[{log.institutionName || 'SYSTEM'}]</span>
                                                             <span className="text-[9px] text-slate-400">•</span>
                                                             <span className="text-[9px] text-slate-400 uppercase font-medium">
                                                                 {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recent'}

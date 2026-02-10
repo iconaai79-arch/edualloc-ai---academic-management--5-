@@ -36,17 +36,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!req.body) return res.status(400).json({ error: 'Missing request body' });
 
     try {
-        const { action, recipient, message, subject, amount, config: integrationConfig } = req.body;
+        const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
+
+        // Fetch Global System Settings from Supabase
+        const { data: settingsRecord } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+        const systemSettings = settingsRecord?.data || {};
 
         if (action === 'sendSms') {
-            if (!integrationConfig?.apiKey) return res.status(400).json({ success: false, message: "SMS config missing." });
-            const { apiKey, apiSecret, fromNumber, provider } = integrationConfig;
-            const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '');
+            const smsConfig = (bodyConfig?.apiKey || bodyConfig?.api_key) ? bodyConfig : (systemSettings.sms_config || bodyConfig);
+            if (!smsConfig?.api_key && !smsConfig?.apiKey) return res.status(400).json({ success: false, message: "SMS config missing." });
+
+            const apiKey = smsConfig.api_key || smsConfig.apiKey;
+            const apiSecret = smsConfig.api_secret || smsConfig.apiSecret;
+            const fromNumber = smsConfig.from_number || smsConfig.fromNumber;
+            const provider = smsConfig.provider;
+
+            // Format to 254... (Standard for Kenyan gateways)
+            let cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
+            if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
+            if (cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) cleanPhone = '254' + cleanPhone;
 
             try {
+                let response;
                 if (provider === 'Zettatel') {
-                    // Refined Zettatel implementation (Standard API v1)
-                    const response = await fetch('https://sms.zettatel.com/api/v1/sms/send', {
+                    response = await fetch('https://sms.zettatel.com/api/v1/sms/send', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -58,10 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             output: 'json'
                         })
                     });
-                    const data = await response.json();
-                    return res.status(200).json({ success: data.status === "success", data });
                 } else if (provider === 'Sematime') {
-                    const response = await fetch('https://api.sematime.com/api/v1/sms', {
+                    response = await fetch('https://api.sematime.com/api/v1/sms', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
                         body: JSON.stringify({
@@ -70,32 +81,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             senderId: fromNumber || 'EduAlloc'
                         })
                     });
-                    const data = await response.json();
-                    return res.status(200).json({ success: response.ok, data });
                 } else {
-                    // Default to ABMIS / Generic HTTP GET Gateway
                     const params = new URLSearchParams({
                         userid: apiKey,
-                        password: apiSecret,
+                        password: apiSecret as string,
                         mobile: cleanPhone,
                         msg: message || '',
                         senderid: fromNumber || 'ABMIS',
                         msgType: 'text',
                         output: 'json'
                     });
-                    const response = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
-                    const data = await response.json();
-                    return res.status(200).json({ success: true, data });
+                    response = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
                 }
+
+                const rawText = await response.text();
+                let data: any = {};
+                try {
+                    data = JSON.parse(rawText);
+                } catch {
+                    console.error("[SMS] Non-JSON response received:", rawText);
+                    return res.status(502).json({
+                        success: false,
+                        message: "Gateway returned an invalid response.",
+                        raw: rawText.substring(0, 200)
+                    });
+                }
+
+                if (!response.ok) {
+                    return res.status(400).json({
+                        success: false,
+                        message: data.message || data.error || `Gateway Error: ${response.status}`,
+                        detail: data
+                    });
+                }
+
+                return res.status(200).json({ success: true, data });
             } catch (error: any) {
-                console.error("SMS Gateway Error:", error);
-                return res.status(500).json({ success: false, message: `Gateway error: ${error.message}` });
+                console.error("SMS Gateway Request Crash:", error);
+                return res.status(500).json({ success: false, message: `Gateway connection failed: ${error.message}` });
             }
         }
 
         if (action === 'sendEmail') {
-            if (!integrationConfig) return res.status(400).json({ success: false, message: "SMTP config missing." });
-            const { host, port, username, password: smtpPassword, fromName, fromEmail } = integrationConfig;
+            const emailConfig = (bodyConfig?.host && bodyConfig?.username) ? bodyConfig : (systemSettings.email_config || bodyConfig);
+            if (!emailConfig) return res.status(400).json({ success: false, message: "SMTP config missing." });
+
+            const host = emailConfig.host;
+            const port = emailConfig.port;
+            const username = emailConfig.username;
+            const smtpPassword = emailConfig.password;
+            const fromName = emailConfig.from_name || emailConfig.fromName;
+            const fromEmail = emailConfig.from_email || emailConfig.fromEmail;
+
+            if (!host || !username || !smtpPassword) {
+                return res.status(400).json({ success: false, message: "SMTP credentials incomplete. Please configure in System Settings." });
+            }
 
             const transporter = nodemailer.createTransport({
                 host,
@@ -122,15 +162,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'initiateStkPush') {
             console.log('[M-Pesa] Initiating STK Push...');
-            if (!integrationConfig) return res.status(400).json({ success: false, message: "M-Pesa config missing." });
-            const { consumerKey, consumerSecret, paybillNumber, passkey } = integrationConfig;
+            const mpesaConfig = (bodyConfig?.consumerKey || bodyConfig?.consumer_key) ? bodyConfig : (systemSettings.mpesa_config || bodyConfig);
+            if (!mpesaConfig) return res.status(400).json({ success: false, message: "M-Pesa config missing." });
+
+            const consumerKey = mpesaConfig.consumer_key || mpesaConfig.consumerKey;
+            const consumerSecret = mpesaConfig.consumer_secret || mpesaConfig.consumerSecret;
+            const paybillNumber = mpesaConfig.paybill_number || mpesaConfig.paybillNumber;
+            const passkey = mpesaConfig.passkey;
+            const environment = mpesaConfig.environment;
 
             if (!consumerKey || !consumerSecret || !paybillNumber || !passkey) {
                 console.error('[M-Pesa] Config incomplete:', { paybillNumber, hasKey: !!consumerKey, hasSecret: !!consumerSecret, hasPasskey: !!passkey });
                 return res.status(400).json({ success: false, message: "M-Pesa credentials incomplete." });
             }
 
-            const isSandbox = integrationConfig.environment !== 'production';
+            const isSandbox = environment !== 'production';
             const baseUrl = isSandbox ? 'https://sandbox.safaricom.co.ke' : 'https://api.safaricom.co.ke';
             console.log(`[M-Pesa] Target Environment: ${isSandbox ? 'Sandbox' : 'Production'} (${baseUrl})`);
 
