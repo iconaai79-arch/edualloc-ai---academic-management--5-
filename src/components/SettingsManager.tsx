@@ -116,7 +116,7 @@ interface SettingsManagerProps {
     onClearDemoData?: () => void;
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onAddExtensionRequest?: (reason: string) => void;
-    onLogAction?: (action: string) => void;
+    onLogAction?: (action: string) => Promise<void>;
     letterheadConfig: LetterheadConfig;
     isGeneratingDemoData?: boolean;
     demoDataGenerationProgress?: number;

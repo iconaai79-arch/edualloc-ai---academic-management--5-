@@ -362,7 +362,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
-    const [showPaperPreview, setShowPaperPreview] = useState(false);
+
 
     // State for new institution form
     const [newInstData, setNewInstData] = useState({
@@ -1238,10 +1238,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                             </div>
                                             <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary w-full h-12 shadow-indigo-100">{isSavingConfigs ? 'Synchronizing...' : 'Update System Profile'}</button>
                                         </div>
-                                        <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
+                                        <label className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500 transition-colors">
                                             {localCompanyInfo.logoUrl ? <img src={localCompanyInfo.logoUrl} className="h-20 object-contain mb-4" alt="Logo" /> : <BuildingOfficeIcon className="w-10 h-10 text-slate-200 mb-2" />}
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">System Logo</p>
-                                        </div>
+                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'logo')} />
+                                        </label>
                                     </div>
                                 </div>
                             )}
@@ -1287,11 +1288,57 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            <div className="space-y-6">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Letterhead Header</label>
+                                                    <label className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-500 transition-colors">
+                                                        <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-bold text-slate-700">Upload Header Image</p>
+                                                            <p className="text-[10px] text-slate-400">PNG or JPG (Max 2MB)</p>
+                                                        </div>
+                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'letterhead')} />
+                                                    </label>
+                                                    {localCompanyInfo.letterheadConfig?.headerImageUrl && (
+                                                        <div className="mt-2 h-16 w-full rounded-lg bg-slate-100 overflow-hidden relative">
+                                                            <img src={localCompanyInfo.letterheadConfig.headerImageUrl} alt="Header" className="w-full h-full object-cover opacity-50" />
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <span className="text-[10px] font-black uppercase bg-white/80 px-2 py-1 rounded">Preview</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Footer Image</label>
+                                                    <label className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-500 transition-colors">
+                                                        <div className="p-2 bg-white rounded-lg shadow-sm">
+                                                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <p className="text-xs font-bold text-slate-700">Upload Footer Image</p>
+                                                            <p className="text-[10px] text-slate-400">PNG or JPG (Max 2MB)</p>
+                                                        </div>
+                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'footer')} />
+                                                    </label>
+                                                    {localCompanyInfo.footerImageUrl && (
+                                                        <div className="mt-2 h-10 w-full rounded-lg bg-slate-100 overflow-hidden relative">
+                                                            <img src={localCompanyInfo.footerImageUrl} alt="Footer" className="w-full h-full object-cover opacity-50" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        {showPaperPreview && (
+                                        {showDocumentPreview && (
                                             <div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top">
                                                 <BrandedPaper
-                                                    institution={null}
+                                                    institution={{
+                                                        name: localCompanyInfo.name,
+                                                        logoUrl: localCompanyInfo.logoUrl
+                                                    } as any}
                                                     letterheadConfig={localCompanyInfo.letterheadConfig}
                                                     footerImageUrl={localCompanyInfo.footerImageUrl}
                                                 >

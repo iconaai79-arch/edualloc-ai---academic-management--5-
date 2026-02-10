@@ -1075,4 +1075,5 @@ export interface CountyBursaryFund {
     totalBudget: number;
     allocatedAmount: number;
     remainingAmount: number;
+    publicParticipationLink?: string;
 }

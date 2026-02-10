@@ -251,7 +251,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     const [fundForm, setFundForm] = useState({
         name: '',
         totalBudget: 0,
-        financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString()
+        financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString(),
+        publicParticipationLink: ''
     });
 
     const handleFundSubmit = async (e: React.FormEvent) => {
@@ -281,7 +282,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             }
             setShowFundModal(false);
             setEditingFund(null);
-            setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString() });
+            setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString(), publicParticipationLink: '' });
         } catch (err) {
             alert("Failed to save fund.");
         }
@@ -1973,7 +1974,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                         <button
                                             onClick={() => {
                                                 setEditingFund(null);
-                                                setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString() });
+                                                setFundForm({ name: '', totalBudget: 0, financialYear: new Date().getFullYear().toString() + '/' + (new Date().getFullYear() + 1).toString(), publicParticipationLink: '' });
                                                 setShowFundModal(true);
                                             }}
                                             className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
@@ -1997,7 +1998,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                                     setFundForm({
                                                                         name: fund.name,
                                                                         totalBudget: fund.totalBudget,
-                                                                        financialYear: fund.financialYear
+                                                                        financialYear: fund.financialYear,
+                                                                        publicParticipationLink: fund.publicParticipationLink || ''
                                                                     });
                                                                     setShowFundModal(true);
                                                                 }}
@@ -2019,6 +2021,28 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                             <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest self-start">
                                                                 {((fund.allocatedAmount - fund.remainingAmount) / fund.allocatedAmount * 100).toFixed(1)}% DISBURSED
                                                             </span>
+                                                        </div>
+                                                    </div>
+                                                    {fund.publicParticipationLink && (
+                                                        <div className="mb-2">
+                                                            <a href={fund.publicParticipationLink} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                                                                <span className="underline">Public Participation Link</span>
+                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                    <div className="mb-4 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Application Link</span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(`${window.location.origin}/apply/bursary?fundId=${fund.id}`);
+                                                                    alert('Application link copied to clipboard!');
+                                                                }}
+                                                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white px-2 py-1 rounded shadow-sm flex items-center gap-1"
+                                                            >
+                                                                <ClipboardListIcon className="w-3 h-3" /> Copy Link
+                                                            </button>
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2">
@@ -3023,6 +3047,17 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             />
                                         </div>
                                     </div>
+                                    <div className="group">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Public Participation Link (Optional)</label>
+                                        <input
+                                            type="url"
+                                            value={fundForm.publicParticipationLink}
+                                            onChange={e => setFundForm({ ...fundForm, publicParticipationLink: e.target.value })}
+                                            className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium text-slate-600"
+                                            placeholder="https://meeting-link.com"
+                                        />
+                                    </div>
+
 
                                     <div className="flex gap-3 pt-4">
                                         <button
@@ -3041,7 +3076,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     </div>
                                 </form>
                             </div>
-                        </div>
+                        </div >
                     )
                 }
             </main >
