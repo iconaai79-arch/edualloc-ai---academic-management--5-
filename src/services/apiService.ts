@@ -407,22 +407,48 @@ export const apiService = {
             let headers: any = { 'Content-Type': 'application/json' };
             if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
 
+            console.log('[M-Pesa Client] Initiating payment request...');
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
             });
 
+            console.log('[M-Pesa Client] Response status:', response.status);
+
             const data = await response.json().catch(() => ({}));
+            console.log('[M-Pesa Client] Response data:', data);
+
             if (!response.ok) {
-                const subMsg = data.error || data.message || `Code: ${response.status}`;
-                const detail = data.errorDetail ? ` (${JSON.stringify(data.errorDetail)})` : '';
-                throw new Error(`${subMsg}${detail}`);
+                // Provide detailed error information
+                let errorMessage = '';
+
+                if (response.status === 500) {
+                    errorMessage = `Server Error (500): ${data.error || data.message || 'Internal server error'}`;
+                    if (data.error?.includes('Database service unavailable')) {
+                        errorMessage += '\n\nPossible causes:\n- SUPABASE_SERVICE_ROLE_KEY not configured\n- Supabase connection failed';
+                    } else if (data.message?.includes('configuration is missing')) {
+                        errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
+                    }
+                } else if (response.status === 401) {
+                    errorMessage = 'Authentication failed. Please log in again.';
+                } else if (response.status === 400) {
+                    errorMessage = data.message || data.error || 'Bad request';
+                } else {
+                    errorMessage = data.error || data.message || `HTTP Error: ${response.status}`;
+                }
+
+                const detail = data.errorDetail ? `\n\nDetails: ${JSON.stringify(data.errorDetail, null, 2)}` : '';
+                throw new Error(`${errorMessage}${detail}`);
             }
             return data;
         } catch (e: any) {
             console.error("M-Pesa API Handshake Failed:", e);
-            return { success: false, message: e.message || "M-Pesa gateway connection failed." };
+            return {
+                success: false,
+                message: e.message || "M-Pesa gateway connection failed.",
+                error: e
+            };
         }
     },
     async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
