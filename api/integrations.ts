@@ -180,6 +180,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log('[M-Pesa] Gateway Response:', stkData);
 
                 if (stkResponse.ok && (stkData.ResponseCode === "0")) {
+                    // PERSIST PENDING TRANSACTION
+                    try {
+                        const { data: userData } = await supabase.from('users').select('name, institution_id').eq('id', user.id).single();
+
+                        await supabase.from('mpesa_transactions').insert({
+                            id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                            transaction_id: `PENDING_${stkData.CheckoutRequestID}`, // Temp ID until receipt arrives
+                            checkout_request_id: stkData.CheckoutRequestID,
+                            institution_id: userData?.institution_id || 'SYSTEM',
+                            amount: Math.round(amount),
+                            phone_number: cleanPhone,
+                            payer_name: userData?.name || 'System Test',
+                            status: 'pending'
+                        });
+                        console.log('[M-Pesa] Pending transaction saved to database.');
+                    } catch (dbError) {
+                        console.error('[M-Pesa] Failed to save pending transaction:', dbError);
+                        // We still return success to the user as the push was dispatched
+                    }
+
                     return res.status(200).json({ success: true, message: "Prompt dispatched.", data: stkData });
                 }
 
