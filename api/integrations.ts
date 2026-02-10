@@ -18,12 +18,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     // Verify Auth
-    const supabase = createAuthenticatedClient(req.headers.authorization);
+    const authHeader = req.headers.authorization;
+    const supabase = createAuthenticatedClient(authHeader);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
+
+    let user: any = null;
+    try {
+        const { data, error: authError } = await supabase.auth.getUser();
+        if (authError || !data?.user) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
+        user = data.user;
+    } catch (e: any) {
+        return res.status(401).json({ error: `Unauthorized: ${e.message}` });
+    }
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    if (!req.body) return res.status(400).json({ error: 'Missing request body' });
 
     try {
         const { action, recipient, message, subject, amount, config: integrationConfig } = req.body;
