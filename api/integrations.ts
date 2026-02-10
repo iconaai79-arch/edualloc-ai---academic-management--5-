@@ -43,8 +43,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const systemSettings = settingsRecord?.data || {};
 
         if (action === 'sendSms') {
-            const smsConfig = (bodyConfig?.apiKey || bodyConfig?.api_key) ? bodyConfig : (systemSettings.sms_config || bodyConfig);
-            if (!smsConfig?.api_key && !smsConfig?.apiKey) return res.status(400).json({ success: false, message: "SMS config missing." });
+            const hasBodyConfig = bodyConfig?.apiKey || bodyConfig?.api_key || bodyConfig?.api_secret;
+            const smsConfig = hasBodyConfig ? bodyConfig : systemSettings.sms_config;
+            if (!smsConfig) return res.status(400).json({ success: false, message: "SMS configuration is missing. Please set it up in the Super Admin settings." });
+
+            console.log(`[SMS] Sending to ${recipient} using ${hasBodyConfig ? 'provided config' : 'system settings'}`);
 
             const apiKey = smsConfig.api_key || smsConfig.apiKey;
             const apiSecret = smsConfig.api_secret || smsConfig.apiSecret;
@@ -123,17 +126,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'sendEmail') {
-            const emailConfig = (bodyConfig?.host && bodyConfig?.username) ? bodyConfig : (systemSettings.email_config || bodyConfig);
-            if (!emailConfig) return res.status(400).json({ success: false, message: "SMTP config missing." });
+            const hasBodyConfig = bodyConfig?.host && bodyConfig?.username;
+            const emailConfig = hasBodyConfig ? bodyConfig : systemSettings.email_config;
+
+            if (!emailConfig) {
+                console.error("[Email] No configuration found in body or system_settings.");
+                return res.status(400).json({ success: false, message: "SMTP configuration is missing. Please set it up in the Super Admin settings." });
+            }
+
+            console.log(`[Email] Sending to ${recipient} using ${hasBodyConfig ? 'provided config' : 'system settings'}`);
 
             const host = emailConfig.host;
             const port = emailConfig.port;
             const username = emailConfig.username;
             const smtpPassword = emailConfig.password;
-            const fromName = emailConfig.from_name || emailConfig.fromName;
+            const fromName = emailConfig.from_name || emailConfig.fromName || "EduAi Notification";
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail;
 
             if (!host || !username || !smtpPassword) {
+                console.error("[Email] Incomplete SMTP credentials:", { host: !!host, user: !!username, pass: !!smtpPassword });
                 return res.status(400).json({ success: false, message: "SMTP credentials incomplete. Please configure in System Settings." });
             }
 
@@ -162,8 +173,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'initiateStkPush') {
             console.log('[M-Pesa] Initiating STK Push...');
-            const mpesaConfig = (bodyConfig?.consumerKey || bodyConfig?.consumer_key) ? bodyConfig : (systemSettings.mpesa_config || bodyConfig);
-            if (!mpesaConfig) return res.status(400).json({ success: false, message: "M-Pesa config missing." });
+            const hasBodyConfig = bodyConfig?.consumerKey || bodyConfig?.consumer_key;
+            const mpesaConfig = hasBodyConfig ? bodyConfig : systemSettings.mpesa_config;
+            if (!mpesaConfig) return res.status(400).json({ success: false, message: "M-Pesa configuration is missing. Please set it up in the Super Admin settings." });
+
+            console.log(`[M-Pesa] Initiating payment using ${hasBodyConfig ? 'provided config' : 'system settings'}`);
 
             const consumerKey = mpesaConfig.consumer_key || mpesaConfig.consumerKey;
             const consumerSecret = mpesaConfig.consumer_secret || mpesaConfig.consumerSecret;

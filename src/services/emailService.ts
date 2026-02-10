@@ -9,16 +9,9 @@ export const sendEmailNotification = async (
     recipientEmail: string,
     subject: string,
     body: string,
-    emailConfig: EmailConfig,
-    companyName: string
+    emailConfig?: EmailConfig,
+    companyName?: string
 ): Promise<{ success: boolean; message: string }> => {
-    
-    if (!emailConfig.host || !emailConfig.fromEmail) {
-        const message = `Email not sent: SMTP is not configured.`;
-        console.warn(message);
-        return { success: false, message };
-    }
-    
     try {
         const result = await apiService.sendEmail(recipientEmail, subject, body, emailConfig);
         return result;
@@ -43,7 +36,7 @@ The ${companyDetails.name} Team
 };
 
 export const generateReceiptEmailBody = (receipt: Receipt, institution: Institution, companyDetails: CompanyDetails): string => {
-     return `
+    return `
 Dear ${institution.name},
 
 Official receipt ${receipt.receiptNumber}.
@@ -84,12 +77,8 @@ export const generateDailyScheduleEmailBody = (
 export const sendSms = async (
     recipient: string,
     message: string,
-    config: SmsConfig
+    config?: SmsConfig
 ): Promise<{ success: boolean; message: string }> => {
-    if (!config.apiKey || !config.apiSecret || !config.fromNumber) {
-        return { success: false, message: "SMS config missing." };
-    }
-    
     try {
         const result = await apiService.sendSms(recipient, message, config);
         return result;
