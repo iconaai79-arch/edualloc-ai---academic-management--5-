@@ -177,5 +177,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 
         return res.status(400).json({ success: false, error: 'Invalid action.' });
-    } catch (globalError: any) { return res.status(500).json({ success: false, message: "Internal error." }); }
+    } catch (globalError: any) { return res.status(500).json({ success: false, message: "Internal Integration Error", error: globalError.message }); }
 }

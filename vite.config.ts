@@ -6,20 +6,26 @@ import process from 'node:process';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
+  // Inject env into process.env for SSR context (e.g. api routes loaded via ssrLoadModule)
+  process.env.SUPABASE_URL = env.SUPABASE_URL || env.VITE_SUPABASE_URL || "";
+  process.env.SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || "";
+  process.env.DATABASE_URL = env.DATABASE_URL || "";
+  process.env.API_KEY = env.API_KEY || env.VITE_API_KEY || "";
+
   return {
     plugins: [react()],
     define: {
       'process.env.NODE_ENV': JSON.stringify(mode),
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || env.VITE_API_KEY || ""),
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || env.VITE_SUPABASE_URL || ""),
-      'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ""),
-      'process.env.DATABASE_URL': JSON.stringify(env.DATABASE_URL || ""),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+      'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
+      'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
+      'process.env.DATABASE_URL': JSON.stringify(process.env.DATABASE_URL),
       'process.env': {
         NODE_ENV: JSON.stringify(mode),
-        API_KEY: JSON.stringify(env.API_KEY || env.VITE_API_KEY || ""),
-        SUPABASE_URL: JSON.stringify(env.SUPABASE_URL || env.VITE_SUPABASE_URL || ""),
-        SUPABASE_ANON_KEY: JSON.stringify(env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ""),
-        DATABASE_URL: JSON.stringify(env.DATABASE_URL || "")
+        API_KEY: JSON.stringify(process.env.API_KEY),
+        SUPABASE_URL: JSON.stringify(process.env.SUPABASE_URL),
+        SUPABASE_ANON_KEY: JSON.stringify(process.env.SUPABASE_ANON_KEY),
+        DATABASE_URL: JSON.stringify(process.env.DATABASE_URL)
       }
     },
     server: {
@@ -55,12 +61,18 @@ export default defineConfig(({ mode }) => {
                 };
 
                 // Load handler dynamically
-                const handlerModule = await server.ssrLoadModule('/api/integrations.ts');
+                const handlerPath = process.platform === 'win32' ? '/api/integrations.ts' : '/api/integrations.ts';
+                const handlerModule = await server.ssrLoadModule(handlerPath);
                 await handlerModule.default(vReq, vRes);
               } catch (e: any) {
-                console.error("API Middleware JSON Parse/Handler Error:", e);
+                console.error("API Middleware Error:", e);
                 res.statusCode = 500;
-                res.end(JSON.stringify({ error: e.message }));
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: "Vite Middleware Crash",
+                  message: e.message,
+                  stack: e.stack
+                }));
               }
             });
           } catch (e) {
