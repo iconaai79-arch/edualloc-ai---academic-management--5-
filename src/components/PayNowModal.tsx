@@ -20,7 +20,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
-    
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!/^(254)\d{9}$/.test(phoneNumber)) {
@@ -30,39 +30,52 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
 
         setIsLoading(true);
         const amount = selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice;
-        
+
         try {
             // 1. Initiate STK Push via Backend API
-            const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, mpesaConfig);
-            
-            if (mpesaResult.success) {
-                // 2. If successful initiation, record the pending transaction locally
-                const items: InvoiceItem[] = [{
-                    description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
-                    quantity: 1,
-                    unitPrice: amount,
-                    amount: amount,
-                }];
+            const metadata = { type: 'subscription', plan: selectedPlan };
+            const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
 
-                // Note: In a real app, you would wait for the callback. Here we record as 'completed' for UI flow 
-                // or 'pending' if you have polling implemented. For this demo, we assume user completes it.
-                await onPay({ amount, phoneNumber, payerName }, items);
-                
-                setFinalStatus('completed');
-                setStatusMessage('STK Push Sent! Check your phone.');
+            if (mpesaResult.success && mpesaResult.data?.CheckoutRequestID) {
+                const checkoutRequestId = mpesaResult.data.CheckoutRequestID;
+                setStatusMessage('STK Push Sent! Enter your M-Pesa PIN on your phone.');
+
+                // 2. Poll for Status Updates
+                let attempts = 0;
+                const maxAttempts = 20; // ~1 minute of polling (3s intervals)
+
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    const { status } = await apiService.checkMpesaStatus(checkoutRequestId);
+
+                    if (status === 'completed') {
+                        clearInterval(pollInterval);
+                        const items: InvoiceItem[] = [{
+                            description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
+                            quantity: 1,
+                            unitPrice: amount,
+                            amount: amount,
+                        }];
+                        await onPay({ amount, phoneNumber, payerName }, items);
+                        setFinalStatus('completed');
+                        setStatusMessage('Payment Confirmed! Your subscription is now active.');
+                        setIsLoading(false);
+                    } else if (status === 'failed' || attempts >= maxAttempts) {
+                        clearInterval(pollInterval);
+                        setFinalStatus('failed');
+                        setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
+                        setIsLoading(false);
+                    }
+                }, 3000);
             } else {
                 setFinalStatus('failed');
-                setStatusMessage(mpesaResult.message);
+                setStatusMessage(mpesaResult.message || 'Failed to initiate STK push.');
+                setIsLoading(false);
             }
         } catch (error: any) {
             setFinalStatus('failed');
             setStatusMessage(error.message || 'An error occurred.');
-        } finally {
             setIsLoading(false);
-             // Close modal after a short delay
-            setTimeout(() => {
-                onClose();
-            }, 4000);
         }
     };
 
@@ -76,7 +89,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
     const renderContent = () => {
         if (isLoading) {
             return (
-                 <div className="p-10 text-center">
+                <div className="p-10 text-center">
                     <div className="w-12 h-12 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                     <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Processing Payment...</h4>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Communicating with M-Pesa...</p>
@@ -94,16 +107,16 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
             );
         }
         if (finalStatus === 'failed') {
-             return (
+            return (
                 <div className="p-10 text-center">
-                     <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Payment Failed</h4>
                     <p className="text-sm text-slate-500 dark:text-slate-400">{statusMessage}</p>
                 </div>
             );
         }
         return (
-             <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit}>
                 <div className="p-6">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Make a Payment</h3>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -179,7 +192,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4" onClick={handleClose}>
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg transition-all" onClick={(e) => e.stopPropagation()}>
-               {renderContent()}
+                {renderContent()}
             </div>
         </div>
     );

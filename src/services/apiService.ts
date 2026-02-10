@@ -398,7 +398,7 @@ export const apiService = {
             return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
-    async initiateMpesaPayment(amount: number, phoneNumber: string, config?: MpesaConfig) {
+    async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
         }
@@ -410,7 +410,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config })
+                body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
             });
 
             const data = await response.json().catch(() => ({}));
@@ -425,7 +425,22 @@ export const apiService = {
             return { success: false, message: e.message || "M-Pesa gateway connection failed." };
         }
     },
-    async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },
+    async checkMpesaStatus(checkoutRequestId: string) {
+        if (!_supabase) return { status: 'pending' };
+        try {
+            const { data, error } = await _supabase
+                .from('mpesa_transactions')
+                .select('status')
+                .eq('checkout_request_id', checkoutRequestId)
+                .single();
+
+            if (error || !data) return { status: 'pending' };
+            return { status: data.status };
+        } catch (e) {
+            console.error("Status Check Error:", e);
+            return { status: 'pending' };
+        }
+    },
     async fetchSubjects(instId?: string): Promise<Subject[]> { return this.fetchModuleRecords('subjects', instId); },
     async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },
     async fetchCourses(instId?: string): Promise<Course[]> { return this.fetchModuleRecords('courses', instId); },

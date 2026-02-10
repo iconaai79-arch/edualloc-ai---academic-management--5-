@@ -242,6 +242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // PERSIST PENDING TRANSACTION
                     try {
                         const { data: userData } = await supabase.from('users').select('name, institution_id').eq('id', user.id).single();
+                        const metadata = req.body.metadata || {};
 
                         await supabase.from('mpesa_transactions').insert({
                             id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -251,9 +252,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             amount: Math.round(amount),
                             phone_number: cleanPhone,
                             payer_name: userData?.name || 'System Test',
-                            status: 'pending'
+                            status: 'pending',
+                            metadata: metadata
                         });
-                        console.log('[M-Pesa] Pending transaction saved to database.');
+                        console.log('[M-Pesa] Pending transaction saved to database with metadata:', metadata);
                     } catch (dbError) {
                         console.error('[M-Pesa] Failed to save pending transaction:', dbError);
                         // We still return success to the user as the push was dispatched

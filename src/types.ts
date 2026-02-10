@@ -277,15 +277,9 @@ export interface TimetableEntry {
     academicYearId?: string;
     semesterId?: string;
     attendanceStatus?: 'present' | 'absent' | 'late' | 'pending_absence_request' | 'approved_absence';
-    attendance_status?: 'present' | 'absent' | 'late' | 'pending_absence_request' | 'approved_absence';
     isConflicting?: boolean;
     duration?: number;
     sharedWithPracticeTeacherId?: string | null;
-    start_time: string;
-    end_time: string;
-    subject_id: string;
-    lecturer_id: string;
-    room_id: string;
 }
 
 export interface AcademicYear {
@@ -319,9 +313,9 @@ export interface Semester {
     institutionId: string;
     startDate: string;
     endDate: string;
-    status: 'active' | 'inactive';
-    requestDeadline?: string;
-    enrollmentDeadline?: string;
+    status?: 'active' | 'inactive' | 'archived';
+    requestDeadline?: string | null;
+    enrollmentDeadline?: string | null;
     sessions?: SemesterSession[];
 }
 

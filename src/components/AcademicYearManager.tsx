@@ -16,9 +16,10 @@ interface AcademicYearManagerProps {
     currentInstitution?: Institution | null;
 }
 
-const statusColors = {
+const statusColors: Record<string, string> = {
     active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     inactive: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300",
+    archived: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
 };
 
 export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
@@ -162,38 +163,65 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         }
     };
 
-    const handleAddYear = (e: React.FormEvent) => {
-        e.preventDefault();
-        onAddAcademicYear?.(newYear);
-        setNewYear({ name: '', startDate: '', endDate: '' });
-        setIsAddingYear(false);
+    const handleAddYear = async () => {
+        if (onAddAcademicYear) {
+            try {
+                await onAddAcademicYear(newYear);
+                setNewYear({ name: '', startDate: '', endDate: '' });
+                setIsAddingYear(false);
+            } catch (error: any) {
+                console.error("Failed to add year:", error);
+                alert(`Error adding academic year: ${error.message || 'Unknown error'}`);
+            }
+        }
     };
 
-    const handleUpdateYear = (yearId: string) => {
-        if (!editingYear) return;
-        onUpdateAcademicYear?.(yearId, { name: editingYear.name, startDate: editingYear.startDate, endDate: editingYear.endDate });
-        setEditingYear(null);
+    const handleUpdateYear = async (id: string) => {
+        if (editingYear && onUpdateAcademicYear) {
+            try {
+                await onUpdateAcademicYear(id, { name: editingYear.name, startDate: editingYear.startDate, endDate: editingYear.endDate });
+                setEditingYear(null);
+            } catch (error: any) {
+                console.error("Failed to update year:", error);
+                alert(`Error updating academic year: ${error.message || 'Unknown error'}`);
+            }
+        }
     };
 
-    const handleAddSemesterSubmit = (e: React.FormEvent) => {
+    const handleAddSemesterSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!addingSemesterTo) return;
-        onAddSemester?.({ ...newSemester, academicYearId: addingSemesterTo, status: 'inactive', sessions: [] });
-        setNewSemester({ name: '', startDate: '', endDate: '', requestDeadline: '', enrollmentDeadline: '' });
-        setAddingSemesterTo(null);
+
+        try {
+            const data = {
+                ...newSemester,
+                academicYearId: addingSemesterTo,
+                status: 'inactive' as const,
+                sessions: [],
+                requestDeadline: newSemester.requestDeadline || null,
+                enrollmentDeadline: newSemester.enrollmentDeadline || null
+            };
+
+            await onAddSemester?.(data);
+            setNewSemester({ name: '', startDate: '', endDate: '', requestDeadline: '', enrollmentDeadline: '' });
+            setAddingSemesterTo(null);
+        } catch (error: any) {
+            console.error("Failed to add semester:", error);
+            alert(`Error adding ${semesterLabel.toLowerCase()}: ${error.message || 'Unknown error'}`);
+        }
     };
 
-    const handleUpdateSemester = () => {
-        if (!editingSemesterData || !onUpdateSemester) return;
+    const handleUpdateSemester = async () => {
+        if (!editingSemesterId || !editingSemesterData || !onUpdateSemester) return;
         setSemesterSaveStatus('saving');
-        setTimeout(() => {
-            onUpdateSemester(editingSemesterData.id, {
+        try {
+            await onUpdateSemester(editingSemesterId, {
                 name: editingSemesterData.name,
                 startDate: editingSemesterData.startDate,
                 endDate: editingSemesterData.endDate,
                 status: editingSemesterData.status,
-                requestDeadline: editingSemesterData.requestDeadline,
-                enrollmentDeadline: editingSemesterData.enrollmentDeadline,
+                requestDeadline: editingSemesterData.requestDeadline || null,
+                enrollmentDeadline: editingSemesterData.enrollmentDeadline || null,
                 sessions: editingSemesterData.sessions
             });
             setSemesterSaveStatus('saved');
@@ -202,7 +230,11 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                 setEditingSemesterData(null);
                 setSemesterSaveStatus('idle');
             }, 1500);
-        }, 500);
+        } catch (error: any) {
+            console.error("Failed to update semester:", error);
+            setSemesterSaveStatus('idle');
+            alert(`Error updating ${semesterLabel.toLowerCase()}: ${error.message || 'Unknown error'}`);
+        }
     };
 
     return (
@@ -366,13 +398,13 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
                         )}
 
                         <div className="space-y-4">
-                            {semesters.filter(s => s.academicYearId === selectedYear.id).map(semester => (
+                            {selectedYear && semesters.filter(s => s.academicYearId === selectedYear.id).map(semester => (
                                 <div key={semester.id} className="group border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden transition-all hover:border-indigo-300">
                                     <div className="p-4 bg-slate-50/50 dark:bg-slate-700/20 flex flex-wrap gap-4 justify-between items-center">
                                         <div>
                                             <div className="flex items-center gap-3">
                                                 <h4 className="font-bold text-slate-900 dark:text-white">{semester.name}</h4>
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${statusColors[semester.status]}`}>{semester.status}</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${statusColors[semester.status || 'inactive']}`}>{semester.status || 'inactive'}</span>
                                             </div>
                                             <div className="mt-1 flex items-center gap-4 text-[11px] text-slate-500">
                                                 <span>{new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}</span>
