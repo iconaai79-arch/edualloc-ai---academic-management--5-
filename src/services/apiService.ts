@@ -373,8 +373,7 @@ export const apiService = {
     },
     async sendEmail(recipient: string, subject: string, message: string, config: EmailConfig): Promise<any> {
         if (!_supabase) {
-            console.log('[DEV] Email to:', recipient, 'Subject:', subject, 'Body:', message);
-            return { success: true, message: "Email simulated (Local)" };
+            return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
 
         try {
