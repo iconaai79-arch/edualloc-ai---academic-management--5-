@@ -361,7 +361,8 @@ export const apiService = {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                return { success: false, message: errData.error || errData.message || `Gateway error (${response.status})` };
+                const detail = errData.raw ? ` (Gateway Response: ${errData.raw})` : '';
+                return { success: false, message: (errData.error || errData.message || `Gateway error (${response.status})`) + detail };
             }
 
             return await response.json();
