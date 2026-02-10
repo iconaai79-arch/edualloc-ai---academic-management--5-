@@ -399,14 +399,6 @@ export const apiService = {
         }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
-        if (!_supabase) {
-            return {
-                success: true,
-                message: "DEMO MODE: Secure tunnel established via local emulation. Check phone for simulated prompt.",
-                isDemo: true
-            };
-        }
-
         try {
             const { data: { session } } = await _supabase.auth.getSession();
             let headers: any = { 'Content-Type': 'application/json' };
@@ -424,17 +416,8 @@ export const apiService = {
             }
             return data;
         } catch (e: any) {
-            console.warn("M-Pesa API Handshake Failed. Switching to Demo Mode Emulation.", e);
-            // FAIL-SAFE EMULATION: Allow users to test the flow even if the backend route isn't set up.
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    resolve({
-                        success: true,
-                        message: `DEMO MODE: Secure tunnel established via emulation. (${e.message || 'Check logs'})`,
-                        isDemo: true
-                    });
-                }, 1500);
-            });
+            console.error("M-Pesa API Handshake Failed:", e);
+            return { success: false, message: e.message || "M-Pesa gateway connection failed." };
         }
     },
     async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },

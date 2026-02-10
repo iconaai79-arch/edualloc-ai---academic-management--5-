@@ -1452,6 +1452,17 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                         <div className="space-y-6">
                                             <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">M-Pesa Daraja Gateway</h4>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway Environment</label>
+                                                <select
+                                                    value={localMpesaConfig.environment || 'sandbox'}
+                                                    onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, environment: e.target.value as any })}
+                                                    className="form-select h-12 font-bold text-sm"
+                                                >
+                                                    <option value="sandbox">Sandbox (Testing)</option>
+                                                    <option value="production">Production (Live)</option>
+                                                </select>
+                                            </div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Short Code (Paybill)</label><input type="text" value={localMpesaConfig.paybillNumber} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, paybillNumber: e.target.value })} className="form-input font-mono" placeholder="7-digit code" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, passkey: e.target.value })} className="form-input" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerKey: e.target.value })} className="form-input" /></div>
