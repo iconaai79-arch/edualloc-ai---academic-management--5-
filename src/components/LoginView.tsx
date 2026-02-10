@@ -65,6 +65,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
         const result = onLogin(email, password);
         if (result === 'failed') {
             setError('Invalid email or password.');
+        } else if (result === 'suspended') {
+            setError('This institution account is suspended. Redirecting to billing...');
+        } else if (result === 'expired') {
+            setError('Your session or access has expired.');
         }
     };
 

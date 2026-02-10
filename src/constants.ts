@@ -240,6 +240,16 @@ export const DEFAULT_GRADING_SYSTEMS: GradingSystem[] = [
 
 export const INITIAL_USERS: User[] = [
     {
+        id: 'u_super_admin',
+        name: 'System Super Admin',
+        email: 'superadmin@eduai.com',
+        phoneNumber: '0000000000',
+        role: 'super_admin',
+        institutionId: 'SYSTEM',
+        expertise: ['System Administration'],
+        password: 'password123'
+    },
+    {
         id: 'u_admin_uni',
         name: 'Principal Newton',
         email: 'admin@edu.com',

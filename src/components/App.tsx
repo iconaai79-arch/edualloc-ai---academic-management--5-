@@ -348,7 +348,7 @@ export const App: React.FC = () => {
 
             let finalUsers = u || [];
             const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
-            if (systemSuperAdmin && !finalUsers.some(existing => existing.email === systemSuperAdmin.email)) {
+            if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
                 finalUsers = [...finalUsers, systemSuperAdmin];
             }
             setUsers(finalUsers);
@@ -1734,7 +1734,19 @@ export const App: React.FC = () => {
                     </>
                 ) : (
                     <>
-                        <LoginView onLogin={(e, p) => { const u = (users || []).find(user => user && user.email?.toLowerCase() === e.toLowerCase() && (user.password === p || (!user.password && p === 'password123'))); if (u) { const inst = institutions.find(i => i.id === u.institutionId); if (inst?.status === 'suspended' && u.role !== 'super_admin') return 'suspended'; setCurrentUser(u); return 'success'; } return 'failed'; }} {...commonLoginProps} />
+                        <LoginView onLogin={(e, p) => {
+                            const u = (users || []).find(user => user && user.email?.toLowerCase() === e.toLowerCase() && (user.password === p || (!user.password && p === 'password123')));
+                            if (u) {
+                                const inst = institutions.find(i => i.id === u.institutionId);
+                                if (inst?.status === 'suspended' && u.role !== 'super_admin') {
+                                    setCurrentUser(u);
+                                    return 'suspended';
+                                }
+                                setCurrentUser(u);
+                                return 'success';
+                            }
+                            return 'failed';
+                        }} {...commonLoginProps} />
                         {showGuestPortal && (
                             <PublicAppointmentView users={users} timetable={generatedTimetable} timetableSettings={timetableSettings} onClose={() => setShowGuestPortal(false)} onBookAppointment={async (apt) => { await apiService.saveModuleRecord('appointments', apt); setShowGuestPortal(false); alert("Appointment submitted."); }} institutions={institutions} />
                         )}

@@ -441,6 +441,7 @@ export const apiService = {
             return { status: 'pending' };
         }
     },
+    async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },
     async fetchSubjects(instId?: string): Promise<Subject[]> { return this.fetchModuleRecords('subjects', instId); },
     async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },
     async fetchCourses(instId?: string): Promise<Course[]> { return this.fetchModuleRecords('courses', instId); },
