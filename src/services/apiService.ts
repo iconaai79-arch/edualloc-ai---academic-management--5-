@@ -344,14 +344,32 @@ export const apiService = {
         return 'completed';
     },
     async sendSms(recipient: string, message: string, config: SmsConfig): Promise<any> {
+        if (!_supabase) {
+            console.log('[DEV] SMS Simulation - To:', recipient, 'Msg:', message);
+            return { success: true, message: "SMS simulated (Local Mode Active)" };
+        }
+
         try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            let headers: any = { 'Content-Type': 'application/json' };
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ action: 'sendSms', recipient, message, config })
             });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                return { success: false, message: errData.error || errData.message || `Gateway error (${response.status})` };
+            }
+
             return await response.json();
-        } catch (e: any) { return { success: false, message: "Gateway error." }; }
+        } catch (e: any) {
+            console.error("SMS Gateway Request Failed:", e);
+            return { success: false, message: e.message || "Gateway connection failure." };
+        }
     },
     async sendEmail(recipient: string, subject: string, message: string, config: EmailConfig): Promise<any> {
         if (!_supabase) {
@@ -376,17 +394,30 @@ export const apiService = {
         }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
+        if (!_supabase) {
+            return {
+                success: true,
+                message: "DEMO MODE: Secure tunnel established via local emulation. Check phone for simulated prompt.",
+                isDemo: true
+            };
+        }
+
         try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            let headers: any = { 'Content-Type': 'application/json' };
+            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config })
             });
+
+            const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.message || `Handshake Error: ${response.status}`);
+                throw new Error(data.error || data.message || `Handshake Error: ${response.status}`);
             }
-            return await response.json();
+            return data;
         } catch (e: any) {
             console.warn("M-Pesa API Handshake Failed. Switching to Demo Mode Emulation.", e);
             // FAIL-SAFE EMULATION: Allow users to test the flow even if the backend route isn't set up.
@@ -394,7 +425,7 @@ export const apiService = {
                 setTimeout(() => {
                     resolve({
                         success: true,
-                        message: "DEMO MODE: Secure tunnel established via emulation. Check phone for simulated prompt.",
+                        message: `DEMO MODE: Secure tunnel established via emulation. (${e.message || 'Check logs'})`,
                         isDemo: true
                     });
                 }, 1500);
