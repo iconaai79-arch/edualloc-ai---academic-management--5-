@@ -36,7 +36,6 @@ import {
     CreditCardIcon,
     InformationCircleIcon,
     XIcon,
-    ArrowsRightLeftIcon,
     ArchiveBoxIcon,
     PrinterIcon,
     ArrowUpTrayIcon,
@@ -52,7 +51,6 @@ import {
     MapPinIcon,
     BookOpenIcon,
     UserIcon,
-    CalendarDaysIcon,
     ChartBarIcon,
     ExclamationTriangleIcon,
     BeakerIcon,
@@ -65,9 +63,8 @@ import { apiService } from '../services/apiService';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
-import { TimetableGenerator } from './TimetableGenerator';
-import { ReportsDashboard } from './ReportsDashboard';
-import { InteractionsManager } from './InteractionsManager';
+import { SuperAdminReports } from './SuperAdminReports';
+
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 import { WallPosterView } from './WallPosterView';
 import { TenantInvoiceManager } from './TenantInvoiceManager';
@@ -345,7 +342,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onDeleteCounty
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'timetable' | 'interactions'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'requests' | 'transactions'>('list'); // Modified for Counties
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
@@ -478,7 +475,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     mpesaConfig: localMpesaConfig,
                     subscriptionConfig: localSubConfig,
                     chatAssistantConfig: {
-                        ...companyDetails.chatAssistantConfig,
+                        ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,
                         enabled: localCompanyInfo.chatEnabled
                     }
@@ -489,6 +486,51 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert("Failed to save configurations.");
         } finally {
             setIsSavingConfigs(false);
+        }
+    };
+
+    const [testRecipient, setTestRecipient] = useState('');
+    const [isTesting, setIsTesting] = useState(false);
+
+    const handleTestSms = async () => {
+        if (!testRecipient) return alert("Enter a phone number to test.");
+        setIsTesting(true);
+        try {
+            const res = await apiService.sendSms(testRecipient, "Test message from EduAi Academic Management System.", localSmsConfig);
+            if (res.success) alert("SMS test initiated successfully.");
+            else alert(`SMS Failed: ${res.message || 'Check credentials'}`);
+        } catch (e) {
+            alert("SMS Gateway connection error.");
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleTestEmail = async () => {
+        if (!testRecipient || !testRecipient.includes('@')) return alert("Enter a valid email to test.");
+        setIsTesting(true);
+        try {
+            const res = await apiService.sendEmail(testRecipient, "Platform Configuration Test", "This is a test email to verify your SMTP relay settings on the EduAi platform.", localEmailConfig);
+            if (res.success) alert("Email dispatched successfully.");
+            else alert(`Email Failed: ${res.message || 'Check SMTP settings'}`);
+        } catch (e) {
+            alert("SMTP handshake failed.");
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
+    const handleTestMpesa = async () => {
+        if (!testRecipient) return alert("Enter a phone number for STK Push test.");
+        setIsTesting(true);
+        try {
+            const res = await apiService.initiateMpesaPayment(1, testRecipient, localMpesaConfig);
+            if (res.success) alert(res.message || "STK Push sent to phone.");
+            else alert(`M-Pesa Failed: ${res.message || 'Check Daraja credentials'}`);
+        } catch (e) {
+            alert("M-Pesa gateway connection error.");
+        } finally {
+            setIsTesting(false);
         }
     };
 
@@ -561,8 +603,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-        { key: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
-        { key: 'interactions', label: 'Registry', icon: <ArrowsRightLeftIcon className="w-5 h-5 mr-2" /> },
     ];
 
     const stats = useMemo(() => {
@@ -1007,20 +1047,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     </div>
                 )}
 
-                {activeTab === 'interactions' && (
-                    <div className="animate-fade-in-up">
-                        <InteractionsManager
-                            {...props}
-                            enrollmentRequests={props.enrollmentRequests || []}
-                            onOpenDirectAssign={() => setIsDirectAssignOpen(true)}
-                            onUpdateRequestStatus={props.onUpdateRequestStatus}
-                            onBulkUpdateRequestStatus={props.onBulkUpdateRequestStatus}
-                            getLecturerById={props.getLecturerById || ((id) => (props.users || []).find(u => u && u.id === id))}
-                            getSubjectById={props.getSubjectById || ((id) => (props.subjects || []).find(s => s && s.id === id))}
-                            allocations={props.allocations || []}
-                        />
-                    </div>
-                )}
 
                 {activeTab === 'migration' && (
                     <div className="space-y-6 animate-fade-in-up">
@@ -1139,45 +1165,17 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     </div>
                 )}
 
-                {activeTab === 'timetable' && currentUser && (
+                {activeTab === 'reports' && (
                     <div className="animate-fade-in-up">
-                        <TimetableGenerator
-                            allocations={allocations || []}
-                            subjects={subjects || []}
-                            lecturers={users || []}
-                            rooms={rooms || []}
-                            getLecturerById={(id: string) => users?.find(u => u.id === id)}
-                            getSubjectById={(id: string) => subjects?.find(s => s.id === id)}
-                            getRoomById={(id: string) => rooms?.find(r => r.id === id)}
-                            onTimetableGenerated={props.onTimetableGenerated}
-                            generatedTimetable={generatedTimetable || []}
-                            onPublishTimetable={props.onPublishTimetable}
-                            finalTimetableUrl={finalTimetableUrl}
-                            onRemovePublishedTimetable={props.onRemovePublishedTimetable}
-                            letterheadConfig={letterheadConfig || { headerImageUrl: null, stampImageUrl: null }}
-                            logoUrl={logoUrl}
-                            footerImageUrl={footerImageUrl || null}
-                            timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                            onSaveTimetableSettings={(s: TimetableSettings) => props.onSaveTimetableSettings?.(s)}
-                            departments={departments || []}
-                            courses={courses || []}
-                            buildings={buildings || []}
-                            currentUser={currentUser}
-                            academicYears={academicYears || []}
-                            activeAcademicYear={activeAcademicYear}
-                            activeSemester={activeSemester}
-                            timetableConflicts={timetableConflicts || []}
-                            setActiveTab={() => { }}
-                            courseSizes={courseSizes}
-                            timeOffRequests={timeOffRequests || []}
-                            onLogAction={props.onLogAction}
-                            currentInstitution={currentInstitution}
-                            examTimetable={examTimetable || []}
-                            onExamTimetableGenerated={props.onExamTimetableGenerated}
-                            examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                        <SuperAdminReports
+                            institutions={institutions}
+                            activityLog={activityLog}
+                            users={users}
+                            transactions={transactions}
                         />
                     </div>
                 )}
+
 
                 {activeTab === 'settings' && (
                     <div className="space-y-6 animate-fade-in-up">
@@ -1386,8 +1384,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         </div>
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={e => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
                                     </div>
-                                    <div className="pt-6 border-t flex justify-end">
-                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Sync Gateway</button>
+                                    <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
+                                            <input
+                                                type="text"
+                                                placeholder="Test Phone (254...)"
+                                                value={testRecipient}
+                                                onChange={e => setTestRecipient(e.target.value)}
+                                                className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
+                                            />
+                                            <button
+                                                onClick={handleTestSms}
+                                                disabled={isTesting}
+                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
+                                            >
+                                                {isTesting ? 'Sending...' : 'Send Test SMS'}
+                                            </button>
+                                        </div>
+                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Sync Gateway</button>
                                     </div>
                                 </div>
                             )}
@@ -1404,8 +1418,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Name</label><input type="text" value={localEmailConfig.fromName} onChange={e => setLocalEmailConfig({ ...localEmailConfig, fromName: e.target.value })} className="form-input" /></div>
                                         <div className="md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender Email</label><input type="email" value={localEmailConfig.fromEmail} onChange={e => setLocalEmailConfig({ ...localEmailConfig, fromEmail: e.target.value })} className="form-input" /></div>
                                     </div>
-                                    <div className="pt-6 border-t flex justify-end">
-                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Authorize SMTP</button>
+                                    <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
+                                            <input
+                                                type="email"
+                                                placeholder="Test Email Address"
+                                                value={testRecipient}
+                                                onChange={e => setTestRecipient(e.target.value)}
+                                                className="bg-transparent border-none focus:ring-0 text-xs font-bold w-48"
+                                            />
+                                            <button
+                                                onClick={handleTestEmail}
+                                                disabled={isTesting}
+                                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
+                                            >
+                                                {isTesting ? 'Sending...' : 'Send Test Email'}
+                                            </button>
+                                        </div>
+                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Authorize SMTP</button>
                                     </div>
                                 </div>
                             )}
@@ -1443,8 +1473,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         </div>
                                     </div>
 
-                                    <div className="pt-6 border-t flex justify-end">
-                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Billing Map</button>
+                                    <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
+                                            <input
+                                                type="text"
+                                                placeholder="Phone (254...)"
+                                                value={testRecipient}
+                                                onChange={e => setTestRecipient(e.target.value)}
+                                                className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
+                                            />
+                                            <button
+                                                onClick={handleTestMpesa}
+                                                disabled={isTesting}
+                                                className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition-colors"
+                                            >
+                                                {isTesting ? 'Testing...' : 'Test STK Push'}
+                                            </button>
+                                        </div>
+                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save Billing Map</button>
                                     </div>
                                 </div>
                             )}
