@@ -387,10 +387,15 @@ export const apiService = {
                 headers,
                 body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config })
             });
-            return await response.json();
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return { success: false, message: data.error || data.message || `SMTP Relay Error (${response.status})` };
+            }
+            return data;
         } catch (e: any) {
             console.error("Email Gateway Error:", e);
-            return { success: false, message: "Email gateway error." };
+            return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, config: MpesaConfig) {
