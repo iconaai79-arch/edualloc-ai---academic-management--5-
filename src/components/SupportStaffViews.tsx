@@ -33,6 +33,8 @@ import { TransactionForm } from './TransactionForm';
 import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
+import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+
 
 export interface SupportStaffViewProps {
     user: User;
@@ -84,7 +86,12 @@ export interface SupportStaffViewProps {
     onUpdateSupplier?: (supplierId: string, data: Partial<Supplier>) => void;
     countyInventory?: CountyInventoryItem[];
     onMarkInventoryReceived?: (id: string) => Promise<void>;
+    academicYears?: AcademicYear[];
+    semesters?: Semester[];
+    departments?: Department[];
+    onLogAction?: (action: string) => Promise<void>;
 }
+
 
 const BaseDashboard: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
     <div className="space-y-6">
@@ -127,7 +134,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         securityAlerts = [], visitors = [], appointments = [], users = [],
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus
     } = props;
-    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'logs' | 'alerts'>('checkpoint');
+    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts'>('checkpoint');
+
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
@@ -192,7 +200,9 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar pb-1">
                     {[
                         { id: 'checkpoint', label: 'Gate Checkpoint', icon: <CameraIcon className="w-4 h-4" /> },
+                        { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'expected', label: 'Expected Guests', icon: <CalendarDaysIcon className="w-4 h-4" />, count: todaysAppointments.length },
+
                         { id: 'logs', label: 'On-Site Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
@@ -248,7 +258,23 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 </div>
             )}
 
+            {activeTab === 'leaveout' && (
+                <StudentLeaveOutManager
+                    currentUser={props.user}
+                    currentInstitution={props.currentInstitution!}
+                    companyDetails={props.companyDetails!}
+                    users={props.users || []}
+                    academicYears={props.academicYears || []}
+                    semesters={props.semesters || []}
+                    courses={props.courses || []}
+                    departments={props.departments || []}
+                    onLogAction={props.onLogAction || (async () => { })}
+                    onDataChange={() => { }}
+                />
+            )}
+
             {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
+
 
             {isRegistering && (
                 <div className="fixed inset-0 bg-slate-900/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">

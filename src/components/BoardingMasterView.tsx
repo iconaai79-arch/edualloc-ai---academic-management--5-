@@ -8,20 +8,37 @@ import BedAllocationManager from './BedAllocationManager';
 import CheckInOutManager from './CheckInOutManager';
 import BoardingReports from './BoardingReports';
 import BoardingMaintenanceManager from './BoardingMaintenanceManager';
+import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+
 
 interface BoardingMasterViewProps {
     currentUser: User;
     currentInstitution: Institution;
+    companyDetails: CompanyDetails;
+    users: User[];
+    academicYears: AcademicYear[];
+    semesters: Semester[];
+    courses: Course[];
+    departments: Department[];
     onLogAction: (action: string) => Promise<void>;
 }
 
-type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'maintenance' | 'reports';
+
+type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'maintenance' | 'reports';
+
 
 const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     currentUser,
     currentInstitution,
+    companyDetails,
+    users,
+    academicYears,
+    semesters,
+    courses,
+    departments,
     onLogAction
 }) => {
+
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
     const [houses, setHouses] = useState<BoardingHouseWithStats[]>([]);
     const [stats, setStats] = useState({
@@ -319,7 +336,18 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                             <ClipboardListIcon className="w-4 h-4" />
                             Reports
                         </button>
+                        <button
+                            onClick={() => setActiveTab('leaveout')}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'leaveout'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <ClipboardListIcon className="w-4 h-4" />
+                            Leave Out Requests
+                        </button>
                     </nav>
+
                 </div>
             </div>
 
@@ -365,7 +393,23 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         onLogAction={onLogAction}
                     />
                 )}
+                {activeTab === 'leaveout' && (
+                    <StudentLeaveOutManager
+                        currentUser={currentUser}
+                        currentInstitution={currentInstitution}
+                        companyDetails={companyDetails}
+                        users={users}
+                        academicYears={academicYears}
+                        semesters={semesters}
+                        courses={courses}
+                        departments={departments}
+                        onLogAction={onLogAction}
+                        onDataChange={loadDashboardData}
+                    />
+                )}
+
                 {activeTab === 'reports' && (
+
                     <BoardingReports
                         currentUser={currentUser}
                         currentInstitution={currentInstitution}

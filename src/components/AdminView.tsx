@@ -22,6 +22,8 @@ import { CourseManager } from './CourseManager';
 import { InteractionsManager } from './InteractionsManager';
 import { CommunicationsManager } from './CommunicationsManager';
 import { ReportsDashboard } from './ReportsDashboard';
+import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+
 import {
     ClipboardListIcon,
     UserGroupIcon,
@@ -239,7 +241,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'comms' | 'settings' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports'>('dashboard');
+
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
@@ -258,7 +261,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
     }, [props.currentUser?.role, isSchool]);
@@ -623,7 +628,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
+                {activeTab === 'leaveout' && (
+                    <StudentLeaveOutManager
+                        {...props}
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution!}
+                        companyDetails={props.companyDetails}
+                        users={props.users}
+                        academicYears={props.academicYears}
+                        semesters={props.semesters}
+                        courses={props.courses}
+                        departments={props.departments}
+                        onLogAction={props.onLogAction!}
+                        onDataChange={() => props.onAddUser && props.onAddUser({})} // Dummy trigger for refresh if needed
+                    />
+                )}
+
                 {activeTab === 'reports' && (
+
                     <ReportsDashboard
                         {...props}
                         lecturers={props.users || []}

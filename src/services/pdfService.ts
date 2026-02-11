@@ -1,5 +1,6 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails } from '../types';
+
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { getInitials } from '../utils/stringUtils';
 
@@ -22,9 +23,9 @@ const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | n
         img.crossOrigin = "Anonymous";
         img.src = url;
         img.onload = () => resolve(img);
-        img.onerror = () => { 
-            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url); 
-            resolve(null); 
+        img.onerror = () => {
+            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
+            resolve(null);
         };
     });
 };
@@ -37,7 +38,7 @@ const setupPdfHeader = (doc: any, headerImg: HTMLImageElement | null) => {
     if (headerImg) {
         const imgWidth = pageWidth - (margin * 2);
         const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
-        const maxHeight = 40; 
+        const maxHeight = 40;
         if (imgHeight > maxHeight) {
             const finalHeight = maxHeight;
             const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
@@ -55,7 +56,7 @@ const setupPdfHeader = (doc: any, headerImg: HTMLImageElement | null) => {
         doc.text("OFFICIAL RECORD", margin, startY);
         startY += 10;
     }
-    
+
     doc.setDrawColor(180, 180, 180);
     doc.line(margin, startY, pageWidth - margin, startY);
 
@@ -79,7 +80,7 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
             const aspectRatio = footerImg.width / footerImg.height;
             let finalWidth = availableWidth;
             let finalHeight = finalWidth / aspectRatio;
-            const maxHeight = 20; 
+            const maxHeight = 20;
             if (finalHeight > maxHeight) {
                 finalHeight = maxHeight;
                 finalWidth = finalHeight * aspectRatio;
@@ -94,7 +95,7 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(150, 150, 150);
         doc.text(copyrightText, margin, pageHeight - 10);
-        
+
         const pageNumText = `Page ${i} of ${pageCount}`;
         doc.text(pageNumText, pageWidth - margin, pageHeight - 10, { align: 'right' });
     }
@@ -116,12 +117,12 @@ const createPdfWithLetterhead = (
         const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
         doc.addImage(logoImg, 'PNG', margin, margin, logoWidth, logoHeight);
     }
-    
+
     // Draw Organization Details
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.text(institution.name, pageWidth - margin, margin + 5, { align: 'right' });
-    
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
@@ -190,7 +191,7 @@ export const generateInvoicePdfDataUri = async (
     doc.setFont('helvetica', 'normal');
     doc.text(invoice.invoiceNumber, pageWidth - margin, margin + 55, { align: 'right' });
     doc.text(new Date(invoice.issueDate).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
-    
+
     const head = [['#', 'DESCRIPTION', 'QTY', 'UNIT PRICE', 'AMOUNT (KES)']];
     const body = (invoice.items || []).map((item, index) => [
         index + 1,
@@ -241,7 +242,7 @@ export const generateReceiptPdfDataUri = async (
     doc.setFont('helvetica', 'normal');
     doc.text(receipt.receiptNumber, pageWidth - margin, margin + 55, { align: 'right' });
     doc.text(new Date(receipt.paymentDate).toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
-    
+
     const body = [
         ['Payment For', receipt.paidFor],
         ['Payment Method', receipt.paymentMethod],
@@ -312,11 +313,11 @@ export const generateUserListPdf = async (
     const body = (users || []).map(u => {
         let deptOrCourse = 'N/A';
         if (u.role === 'student') {
-             const course = (courses || []).find(c => c.id === u.courseId);
-             deptOrCourse = course ? course.name : 'N/A';
+            const course = (courses || []).find(c => c.id === u.courseId);
+            deptOrCourse = course ? course.name : 'N/A';
         } else {
-             const dept = (departments || []).find(d => d.id === u.departmentId);
-             deptOrCourse = dept ? dept.name : 'N/A';
+            const dept = (departments || []).find(d => d.id === u.departmentId);
+            deptOrCourse = dept ? dept.name : 'N/A';
         }
 
         return [
@@ -422,7 +423,7 @@ export const generateTimetablePdf = async (
     });
 
     const [headerImg, footerImg] = await Promise.all([
-        loadImage(letterheadConfig?.headerImageUrl), 
+        loadImage(letterheadConfig?.headerImageUrl),
         loadImage(footerImageUrl)
     ]);
 
@@ -443,9 +444,9 @@ export const generateTimetablePdf = async (
         doc.text(splitText, margin, tableStartY);
         tableStartY += (splitText.length * 4) + 2;
     } else {
-            tableStartY += 5;
+        tableStartY += 5;
     }
-    
+
     // Defensive checks for settings
     const daysOfWeek = timetableSettings?.operatingDays || [];
     const periodHeaders = generatePeriodLabels(timetableSettings);
@@ -468,8 +469,8 @@ export const generateTimetablePdf = async (
 
             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-            const entry = (generatedTimetable || []).find(e => 
-                e.day === day && 
+            const entry = (generatedTimetable || []).find(e =>
+                e.day === day &&
                 timeToMinutes(e.startTime) === slotStartMinutes
             );
 
@@ -481,7 +482,7 @@ export const generateTimetablePdf = async (
                 const lecturer = getLecturerById(entry.lecturerId);
                 const room = getRoomById(entry.roomId);
                 const levelInfo = subject ? subjectToLevelMap.get(subject.id) : null;
-                
+
                 cellContent = [
                     `${subject?.name || 'Unknown'}`,
                     levelInfo ? `${levelInfo.courseCode} (${levelInfo.levelName})` : '',
@@ -492,7 +493,7 @@ export const generateTimetablePdf = async (
                 const entryDurationMinutes = (entry.duration || (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)));
                 cellColSpan = Math.max(1, Math.round(entryDurationMinutes / cellSpanMinutes));
 
-                for(let k = 0; k < cellColSpan; k++) {
+                for (let k = 0; k < cellColSpan; k++) {
                     rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
                 }
             }
@@ -550,7 +551,7 @@ export const generateContractPdf = async (
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    
+
     const contentLines = doc.splitTextToSize(contract.content, doc.internal.pageSize.getWidth() - (margin * 2));
     doc.text(contentLines, margin, yPos);
     yPos += (contentLines.length * 5) + 20;
@@ -595,10 +596,10 @@ export const generateExamTimetablePdf = async (
     yPos += 10;
     const head = [['Date', 'Time', 'Subject', 'Room', 'Invigilator']];
     const body = (entries || []).map(e => [
-        new Date(e.date).toLocaleDateString(), 
-        `${e.startTime}-${e.endTime}`, 
-        getSubjectById(e.subjectId)?.name || 'N/A', 
-        getRoomById(e.roomId)?.name || 'N/A', 
+        new Date(e.date).toLocaleDateString(),
+        `${e.startTime}-${e.endTime}`,
+        getSubjectById(e.subjectId)?.name || 'N/A',
+        getRoomById(e.roomId)?.name || 'N/A',
         getLecturerById(e.invigilatorId)?.name || 'N/A'
     ]);
     doc.autoTable({ startY: yPos, head, body, theme: 'grid' });
@@ -781,8 +782,8 @@ export const generateMasterCourseTimetablePdf = async (
 
                     if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-                    const entry = (generatedTimetable || []).find(e => 
-                        e.day === day && 
+                    const entry = (generatedTimetable || []).find(e =>
+                        e.day === day &&
                         (level.subjectIds || []).includes(e.subjectId) &&
                         timeToMinutes(e.startTime) === slotStartMinutes
                     );
@@ -791,7 +792,7 @@ export const generateMasterCourseTimetablePdf = async (
                         const subject = getSubjectById(entry.subjectId);
                         const lecturer = getLecturerById(entry.lecturerId);
                         const room = getRoomById(entry.roomId);
-                        
+
                         const text = [
                             subject?.shortName || subject?.code || 'N/A',
                             getInitials(lecturer?.name || ''),
@@ -800,8 +801,8 @@ export const generateMasterCourseTimetablePdf = async (
 
                         const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
-                        
-                        for(let k=0; k<colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k*cellSpanMinutes));
+
+                        for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                         row.push({
                             content: text,
@@ -851,6 +852,151 @@ export const generateStudentContactListPdf = async (
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`Contacts: ${courseName}`, 14, yPos);
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates an official Student Leave Out / Exeat Permission Sheet.
+ */
+export const generateLeaveOutSheetPdf = async (
+    request: LeaveOutWithDetails | LeaveOutRequest,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    users: User[],
+    courses: Course[]
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    // Enrich request if it's only LeaveOutRequest
+    let req: LeaveOutWithDetails;
+    if ('studentName' in request) {
+        req = request as LeaveOutWithDetails;
+    } else {
+        const student = users.find(u => u.id === request.studentId);
+        const teacher = users.find(u => u.id === request.classTeacherId);
+        const course = courses.find(c => c.id === student?.courseId);
+        const level = (course?.levels || []).find(l => l.id === student?.courseLevelId);
+        req = {
+            ...request,
+            studentName: student?.name || 'Unknown',
+            studentClass: `${course?.code || ''} ${level?.name || ''}`.trim(),
+            parentPhone: '',
+            parentEmail: '',
+            classTeacherName: teacher?.name || 'Unknown'
+        };
+    }
+
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(institution.letterheadConfig?.headerImageUrl || companyDetails.letterheadConfig?.headerImageUrl),
+        loadImage(institution.footerImageUrl || companyDetails.footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PERMISSION SHEET", pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+
+    // Request ID & Date
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Sheet ID: ${req.id}`, margin, yPos);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 10;
+
+    // Student Information Block
+    doc.setFillColor(245, 247, 250);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 40, 'F');
+    yPos += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text("STUDENT INFORMATION", margin + 5, yPos);
+    yPos += 8;
+
+    doc.setFont('helvetica', 'normal');
+    const studentInfo = [
+        ['Full Name:', req.studentName],
+        ['Class/Course:', req.studentClass],
+        ['Leave Reason:', req.reason],
+    ];
+
+    studentInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, margin + 5, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, margin + 45, yPos);
+        yPos += 6;
+    });
+
+    yPos += 10;
+
+    // Duration Block
+    doc.setFont('helvetica', 'bold');
+    doc.text("PERMISSION PERIOD", margin, yPos);
+    yPos += 8;
+
+    const durationInfo = [
+        ['Departure Date:', new Date(req.leaveDate).toLocaleDateString()],
+        ['Return Date:', new Date(req.returnDate).toLocaleDateString()],
+    ];
+
+    durationInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, margin, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, margin + 40, yPos);
+        yPos += 6;
+    });
+
+    yPos += 20;
+
+    // Verification Stages
+    doc.setFont('helvetica', 'bold');
+    doc.text("AUTHORIZATION TRACKING", margin, yPos);
+    yPos += 10;
+
+    const stages = [
+        ['1. Class Teacher', req.classTeacherName, 'AUTHORIZED', req.createdAt ? new Date(req.createdAt).toLocaleString() : '---'],
+        ['2. Boarding Master', req.boardingMasterName || '---', req.boardingMasterName ? 'CHECKED OUT' : 'PENDING', req.houseCheckedOutAt ? new Date(req.houseCheckedOutAt).toLocaleString() : '---'],
+        ['3. Security Gate', req.securityName || '---', req.securityName ? 'EXIT GRANTED' : 'PENDING', req.gateCheckedOutAt ? new Date(req.gateCheckedOutAt).toLocaleString() : '---'],
+    ];
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Stage', 'Authorized By', 'Status', 'Timestamp']],
+        body: stages,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 9 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 30;
+
+    // Official Stamp Area
+    const boxSize = 50;
+    doc.setDrawColor(200);
+    // doc.rect(pageWidth - margin - boxSize, yPos, boxSize, boxSize); // Skip rect if we want it cleaner or if yPos is close to edge
+    if (yPos + boxSize < doc.internal.pageSize.getHeight() - 20) {
+        doc.rect(pageWidth - margin - boxSize, yPos, boxSize, boxSize);
+        doc.setFontSize(8);
+        doc.text("OFFICIAL STAMP", pageWidth - margin - (boxSize / 2), yPos + (boxSize / 2), { align: 'center' });
+    }
+
+    // Warning
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100);
+    const warningText = "Notice: This document is a valid permission for the student to be outside the institution for the specified period. It must be surrendered to security upon return.";
+    const splitWarning = doc.splitTextToSize(warningText, pageWidth - (margin * 2) - boxSize - 10);
+    doc.text(splitWarning, margin, yPos + 10);
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };

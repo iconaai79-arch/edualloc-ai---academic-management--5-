@@ -18,6 +18,8 @@ import { LibrarianView } from './LibrarianView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
 import BoardingMasterView from './BoardingMasterView';
+import { ParentView } from './ParentView';
+
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
@@ -35,7 +37,8 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest
+
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -209,6 +212,8 @@ export const App: React.FC = () => {
     const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
     const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
     const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
+    const [leaveOutRequests, setLeaveOutRequests] = useState<LeaveOutRequest[]>([]);
+
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -399,7 +404,9 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<CountyStore>('county_stores').catch(() => []),
                 apiService.fetchModuleRecords<BursaryApplication>('bursary_applications').catch(() => []),
                 apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds').catch(() => []),
+                apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
             ]);
+
 
             setInvoices(inv || []);
             setExtensionRequests(ext || []);
@@ -431,6 +438,8 @@ export const App: React.FC = () => {
             setStockTransactions(stx || []);
             setBursaryApplications(bApps || []);
             setBursaryFunds(bFunds || []);
+            setLeaveOutRequests(lo || []);
+
 
         } catch (error) {
             console.error("Sync Error:", error);
@@ -1408,7 +1417,15 @@ export const App: React.FC = () => {
                                     onAddAlert={async (a) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' }); loadData(); }}
                                     onResolveAlert={async (id) => { const a = securityAlerts.find(x => x.id === id); if (a) await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' }); loadData(); }}
                                     onUpdateAppointmentStatus={async (id, status) => { /* Placeholder for appointment update */ loadData(); }}
+                                    currentInstitution={activeInstitution}
+                                    courses={courses}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    departments={departments}
+                                    companyDetails={companyDetails}
+                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 />
+
                             ) : activeRole === 'info_desk' ? (
                                 <InfoDeskView
                                     user={currentUser}
@@ -1460,12 +1477,43 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                 />
+                            ) : activeRole === 'parent' ? (
+
+                                <ParentView
+                                    user={currentUser}
+                                    users={users}
+                                    courses={courses}
+                                    studentAttendances={studentAttendances}
+                                    generatedTimetable={generatedTimetable}
+                                    subjects={subjects}
+                                    getSubjectById={getSubjectById}
+                                    getLecturerById={getLecturerById}
+                                    getRoomById={getRoomById}
+                                    timetableSettings={timetableSettings!}
+                                    buildings={buildings}
+                                    leaveOutRequests={leaveOutRequests}
+                                    onUpdateLeaveOut={async (id, data) => {
+                                        const req = leaveOutRequests.find(r => r.id === id);
+                                        if (req) {
+                                            await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
+                                            loadData();
+                                        }
+                                    }}
+                                />
                             ) : activeRole === 'boarding_master' ? (
+
                                 <BoardingMasterView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
+                                    companyDetails={companyDetails}
+                                    users={users}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    courses={courses}
+                                    departments={departments}
                                     onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 />
+
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}

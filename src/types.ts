@@ -1311,3 +1311,39 @@ export interface TeacherAttendanceWithDetails extends TeacherAttendanceSummary {
     attendanceRate: number;
     punctualityRate: number;
 }
+// ============================================================================
+// STUDENT LEAVE OUT / EXEAT TYPES
+// ============================================================================
+
+export type LeaveOutStatus = 'pending_boarding' | 'pending_security' | 'checked_out' | 'cancelled';
+
+export interface LeaveOutRequest {
+    id: string;
+    studentId: string;
+    institutionId: string;
+    classTeacherId: string;
+    boardingMasterId?: string;
+    securityId?: string;
+    reason: string;
+    leaveDate: string;
+    returnDate: string;
+    status: LeaveOutStatus;
+    sheetUrl?: string;
+    houseCheckedOutAt?: string;
+    gateCheckedOutAt?: string;
+    homeArrivalAt?: string;
+    homeDepartureAt?: string;
+    createdAt: string;
+    updatedAt: string;
+
+}
+
+export interface LeaveOutWithDetails extends LeaveOutRequest {
+    studentName: string;
+    studentClass: string;
+    parentPhone: string;
+    parentEmail: string;
+    classTeacherName: string;
+    boardingMasterName?: string;
+    securityName?: string;
+}
