@@ -142,9 +142,9 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
 
             setShowModal(false);
             loadData();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving maintenance log:', error);
-            alert('Failed to save maintenance log');
+            alert(`Failed to save maintenance log: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -156,9 +156,9 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
             await onLogAction(`Deleted maintenance log: ${log.issueType}`);
             alert('Maintenance log deleted successfully!');
             loadData();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting maintenance log:', error);
-            alert('Failed to delete maintenance log');
+            alert(`Failed to delete maintenance log: ${error.message || 'Unknown error'}`);
         }
     };
 

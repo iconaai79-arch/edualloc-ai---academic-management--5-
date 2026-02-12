@@ -179,9 +179,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setShowRoomModal(false);
             loadRooms();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving room:', error);
-            alert('Failed to save room');
+            alert(`Failed to save room: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -213,9 +213,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setShowBedModal(false);
             loadRooms();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving bed:', error);
-            alert('Failed to save bed');
+            alert(`Failed to save bed: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -255,9 +255,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setBulkBedPrefix('');
             loadRooms();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error bulk creating beds:', error);
-            alert('Failed to create beds');
+            alert(`Failed to create beds: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -273,9 +273,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             alert('Room deleted successfully!');
             loadRooms();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting room:', error);
-            alert('Failed to delete room');
+            alert(`Failed to delete room: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -296,9 +296,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             alert('Bed deleted successfully!');
             loadRooms();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting bed:', error);
-            alert('Failed to delete bed');
+            alert(`Failed to delete bed: ${error.message || 'Unknown error'}`);
         }
     };
 

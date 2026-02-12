@@ -110,9 +110,9 @@ const HouseManager: React.FC<HouseManagerProps> = ({
             handleCloseModal();
             loadHouses();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving house:', error);
-            alert('Failed to save house');
+            alert(`Failed to save house: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -128,9 +128,9 @@ const HouseManager: React.FC<HouseManagerProps> = ({
             alert('House deleted successfully!');
             loadHouses();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting house:', error);
-            alert('Failed to delete house');
+            alert(`Failed to delete house: ${error.message || 'Unknown error'}`);
         }
     };
 

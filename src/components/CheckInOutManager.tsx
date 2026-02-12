@@ -159,9 +159,9 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
             setShowCheckInModal(false);
             loadData();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error checking in:', error);
-            alert('Failed to check in student');
+            alert(`Failed to check in student: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -198,9 +198,9 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
             setShowCheckOutModal(false);
             loadData();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error checking out:', error);
-            alert('Failed to check out student');
+            alert(`Failed to check out student: ${error.message || 'Unknown error'}`);
         }
     };
 

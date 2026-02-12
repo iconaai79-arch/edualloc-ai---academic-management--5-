@@ -170,9 +170,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             setShowAllocationModal(false);
             loadData();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error allocating bed:', error);
-            alert('Failed to allocate bed');
+            alert(`Failed to allocate bed: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -214,9 +214,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             setShowTransferModal(false);
             loadData();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error transferring bed:', error);
-            alert('Failed to transfer bed');
+            alert(`Failed to transfer bed: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -236,9 +236,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
             loadData();
             onDataChange();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deallocating bed:', error);
-            alert('Failed to deallocate bed');
+            alert(`Failed to deallocate bed: ${error.message || 'Unknown error'}`);
         }
     };
 
