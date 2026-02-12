@@ -1591,7 +1591,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                 <div key={sid} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 transition-all shadow-sm">
                                                     <div className="min-w-0">
                                                         <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{s.name}</p>
-                                                        <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">{s.code}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">{s.code}</p>
+                                                            {(() => {
+                                                                const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
+                                                                return group ? (
+                                                                    <span className="text-[8px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full font-black uppercase tracking-widest border border-indigo-100 dark:border-indigo-800" title={group.description}>Grouped</span>
+                                                                ) : null;
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                     <button
                                                         onClick={() => {
@@ -1609,15 +1617,47 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             <select
                                                 className="w-full bg-transparent border-none text-[10px] font-black uppercase text-slate-400 focus:ring-0 cursor-pointer"
                                                 onChange={e => {
-                                                    const sid = e.target.value;
-                                                    if (!sid) return;
-                                                    const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: [...new Set([...(l.subjectIds || []), sid])] } : l);
+                                                    const val = e.target.value;
+                                                    if (!val) return;
+
+                                                    let subjectIdsToAdd: string[] = [];
+                                                    if (val.startsWith('GROUP:')) {
+                                                        const groupId = val.replace('GROUP:', '');
+                                                        const group = pathwayConstraints.find(c => c.id === groupId);
+                                                        if (group) subjectIdsToAdd = group.subjectIds;
+                                                    } else {
+                                                        const sid = val;
+                                                        // Automatically reflect associated pathway groups
+                                                        const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
+                                                        if (group) {
+                                                            subjectIdsToAdd = group.subjectIds;
+                                                            const subjectName = (subjects || []).find(sub => sub.id === sid)?.name || sid;
+                                                            alert(`Notice: "${subjectName}" is part of an Option Block (${group.description}). All members of this group have been associated.`);
+                                                        } else {
+                                                            subjectIdsToAdd = [sid];
+                                                        }
+                                                    }
+
+                                                    const updated = assigningSubjectsTo.levels.map(l =>
+                                                        l.id === level.id
+                                                            ? { ...l, subjectIds: [...new Set([...(l.subjectIds || []), ...subjectIdsToAdd])] }
+                                                            : l
+                                                    );
                                                     handleStructureSave(assigningSubjectsTo.id, updated);
                                                     e.target.value = '';
                                                 }}
                                             >
-                                                <option value="">+ Link Unit</option>
-                                                {(subjects || []).filter(s => !(level.subjectIds || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                                <option value="">+ Link Unit / Group</option>
+                                                {pathwayConstraints.length > 0 && (
+                                                    <optgroup label="Defined Option Blocks (Pathways)">
+                                                        {pathwayConstraints.map(c => (
+                                                            <option key={c.id} value={`GROUP:${c.id}`}>{c.description}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                <optgroup label="All Subjects">
+                                                    {(subjects || []).filter(s => !(level.subjectIds || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                                </optgroup>
                                             </select>
                                         </div>
                                     </div>
