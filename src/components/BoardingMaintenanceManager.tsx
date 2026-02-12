@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingMaintenanceLog, BoardingHouse, MaintenancePriority, MaintenanceStatus } from '../types';
 import { SettingsIcon, PlusIcon, SearchIcon, FilterIcon, XIcon, AlertTriangleIcon, CheckCircleIcon, ClockIcon } from './icons';
+import { apiService } from '../services/apiService';
 
 interface BoardingMaintenanceManagerProps {
     currentUser: User;
@@ -54,20 +55,8 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
 
     const loadMaintenanceLogs = async () => {
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_maintenance_logs')
-            //   .select(`
-            //     *,
-            //     boarding_houses(name),
-            //     boarding_rooms(room_number),
-            //     boarding_beds(bed_number),
-            //     users!boarding_maintenance_logs_reported_by_fkey(name),
-            //     users!boarding_maintenance_logs_resolved_by_fkey(name)
-            //   `)
-            //   .order('reported_date', { ascending: false });
-
-            setMaintenanceLogs([]);
+            const data = await apiService.fetchMaintenanceLogs(currentInstitution.id);
+            setMaintenanceLogs(data || []);
         } catch (error) {
             console.error('Error loading maintenance logs:', error);
         }
@@ -75,14 +64,8 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
 
     const loadHouses = async () => {
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_houses')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .order('name');
-
-            setHouses([]);
+            const data = await apiService.fetchModuleRecords<BoardingHouse>('boarding_houses', currentInstitution.id);
+            setHouses(data || []);
         } catch (error) {
             console.error('Error loading houses:', error);
         }
@@ -128,34 +111,31 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
         try {
             if (editingLog) {
                 // Update existing log
-                const updateData: any = {
+                const payload: any = {
                     ...formData,
-                    updated_at: new Date().toISOString()
+                    updatedAt: new Date().toISOString(),
+                    id: editingLog.id
                 };
 
                 // If marking as completed, add resolved date and user
                 if (formData.status === 'Completed' && editingLog.status !== 'Completed') {
-                    updateData.resolved_date = new Date().toISOString().split('T')[0];
-                    updateData.resolved_by = currentUser.id;
+                    payload.resolvedDate = new Date().toISOString().split('T')[0];
+                    payload.resolvedBy = currentUser.id;
                 }
 
-                // const { error } = await supabase
-                //   .from('boarding_maintenance_logs')
-                //   .update(updateData)
-                //   .eq('id', editingLog.id);
-
+                await apiService.saveModuleRecord('boarding_maintenance_logs', payload);
                 await onLogAction(`Updated maintenance log: ${formData.issueType}`);
                 alert('Maintenance log updated successfully!');
             } else {
                 // Create new log
-                // const { error } = await supabase
-                //   .from('boarding_maintenance_logs')
-                //   .insert({
-                //     ...formData,
-                //     reported_by: currentUser.id,
-                //     reported_date: new Date().toISOString().split('T')[0]
-                //   });
+                const payload = {
+                    ...formData,
+                    reportedBy: currentUser.id,
+                    reportedDate: new Date().toISOString().split('T')[0],
+                    id: `log_${Date.now()}`
+                };
 
+                await apiService.saveModuleRecord('boarding_maintenance_logs', payload);
                 await onLogAction(`Created maintenance log: ${formData.issueType}`);
                 alert('Maintenance issue reported successfully!');
             }
@@ -172,11 +152,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
         if (!confirm('Delete this maintenance log?')) return;
 
         try {
-            // const { error } = await supabase
-            //   .from('boarding_maintenance_logs')
-            //   .delete()
-            //   .eq('id', log.id);
-
+            await apiService.deleteModuleRecord('boarding_maintenance_logs', log.id);
             await onLogAction(`Deleted maintenance log: ${log.issueType}`);
             alert('Maintenance log deleted successfully!');
             loadData();

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BedAllocationWithDetails, BoardingCheckIn, BoardingCheckOut, ClearanceStatus } from '../types';
 import { CheckCircleIcon, XCircleIcon, SearchIcon, CameraIcon, UploadIcon, XIcon, ExclamationTriangleIcon } from './icons';
+import { apiService } from '../services/apiService';
 
 interface CheckInOutManagerProps {
     currentUser: User;
@@ -67,26 +68,20 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
 
     const loadAllocations = async () => {
         try {
-            // TODO: Load active allocations with student details
-            // const { data, error } = await supabase
-            //   .from('bed_allocations')
-            //   .select(`
-            //     *,
-            //     users!bed_allocations_student_id_fkey(name, email),
-            //     boarding_beds!inner(
-            //       bed_number,
-            //       boarding_rooms!inner(
-            //         room_number,
-            //         boarding_houses!inner(name)
-            //       )
-            //     ),
-            //     boarding_checkins(id, check_in_date),
-            //     boarding_checkouts(id, check_out_date)
-            //   `)
-            //   .eq('status', 'Active')
-            //   .order('allocation_date', { ascending: false });
+            const data = await apiService.fetchBedAllocations(currentInstitution.id);
 
-            setAllocations([]);
+            const transformed = data?.map((a: any) => ({
+                ...a,
+                studentName: a.usersStudentIdFkey.name,
+                allocatedByName: a.usersAllocatedByFkey.name,
+                bedNumber: a.boardingBeds.bedNumber,
+                roomNumber: a.boardingBeds.boardingRooms.roomNumber,
+                houseName: a.boardingBeds.boardingRooms.boardingHouses.name,
+                hasCheckedIn: a.boardingCheckins && a.boardingCheckins.length > 0,
+                hasCheckedOut: a.boardingCheckouts && a.boardingCheckouts.length > 0
+            })) || [];
+
+            setAllocations(transformed);
         } catch (error) {
             console.error('Error loading allocations:', error);
         }
@@ -94,8 +89,8 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
 
     const loadCheckIns = async () => {
         try {
-            // TODO: Load recent check-ins
-            setCheckIns([]);
+            const data = await apiService.fetchBoardingCheckIns(currentInstitution.id);
+            setCheckIns(data || []);
         } catch (error) {
             console.error('Error loading check-ins:', error);
         }
@@ -103,8 +98,8 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
 
     const loadCheckOuts = async () => {
         try {
-            // TODO: Load recent check-outs
-            setCheckOuts([]);
+            const data = await apiService.fetchBoardingCheckOuts(currentInstitution.id);
+            setCheckOuts(data || []);
         } catch (error) {
             console.error('Error loading check-outs:', error);
         }
@@ -144,18 +139,19 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
 
         try {
             const now = new Date();
-            // const { error } = await supabase
-            //   .from('boarding_checkins')
-            //   .insert({
-            //     allocation_id: selectedAllocation.id,
-            //     student_id: selectedAllocation.studentId,
-            //     check_in_date: now.toISOString().split('T')[0],
-            //     check_in_time: now.toTimeString().split(' ')[0],
-            //     checked_in_by: currentUser.id,
-            //     condition_notes: checkInForm.conditionNotes,
-            //     items_inventory: checkInForm.itemsInventory,
-            //     photo_url: checkInForm.photoUrl
-            //   });
+            const payload = {
+                allocationId: selectedAllocation.id,
+                studentId: selectedAllocation.studentId,
+                checkInDate: now.toISOString().split('T')[0],
+                checkInTime: now.toTimeString().split(' ')[0],
+                checkedInBy: currentUser.id,
+                conditionNotes: checkInForm.conditionNotes,
+                itemsInventory: checkInForm.itemsInventory,
+                photoUrl: checkInForm.photoUrl,
+                id: `checkin_${Date.now()}`
+            };
+
+            await apiService.saveModuleRecord('boarding_checkins', payload);
 
             await onLogAction(`Checked in ${selectedAllocation.studentName} to bed ${selectedAllocation.bedNumber}`);
             alert('Student checked in successfully!');
@@ -175,25 +171,26 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
 
         try {
             const now = new Date();
-            // const { error } = await supabase
-            //   .from('boarding_checkouts')
-            //   .insert({
-            //     allocation_id: selectedAllocation.id,
-            //     student_id: selectedAllocation.studentId,
-            //     check_out_date: now.toISOString().split('T')[0],
-            //     check_out_time: now.toTimeString().split(' ')[0],
-            //     checked_out_by: currentUser.id,
-            //     condition_notes: checkOutForm.conditionNotes,
-            //     damage_report: checkOutForm.damageReport,
-            //     clearance_status: checkOutForm.clearanceStatus,
-            //     photo_url: checkOutForm.photoUrl
-            //   });
+            const payload = {
+                allocationId: selectedAllocation.id,
+                studentId: selectedAllocation.studentId,
+                checkOutDate: now.toISOString().split('T')[0],
+                checkOutTime: now.toTimeString().split(' ')[0],
+                checkedOutBy: currentUser.id,
+                conditionNotes: checkOutForm.conditionNotes,
+                damageReport: checkOutForm.damageReport,
+                clearanceStatus: checkOutForm.clearanceStatus,
+                photoUrl: checkOutForm.photoUrl,
+                id: `checkout_${Date.now()}`
+            };
+
+            await apiService.saveModuleRecord('boarding_checkouts', payload);
 
             // Update allocation status to Completed
-            // await supabase
-            //   .from('bed_allocations')
-            //   .update({ status: 'Completed' })
-            //   .eq('id', selectedAllocation.id);
+            await apiService.saveModuleRecord('bed_allocations', {
+                ...selectedAllocation,
+                status: 'Completed'
+            } as any);
 
             await onLogAction(`Checked out ${selectedAllocation.studentName} from bed ${selectedAllocation.bedNumber}`);
             alert('Student checked out successfully!');

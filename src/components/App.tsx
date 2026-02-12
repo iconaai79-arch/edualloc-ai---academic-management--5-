@@ -373,7 +373,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),

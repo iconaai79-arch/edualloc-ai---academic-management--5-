@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingRoom, BoardingBed, RoomType, RoomStatus, BedStatus, BedCondition } from '../types';
 import { BedIcon, PlusIcon, Edit2Icon, Trash2Icon, HomeIcon, GridIcon, ListIcon, XIcon, ExclamationTriangleIcon } from './icons';
+import { apiService } from '../services/apiService';
 
 interface RoomBedManagerProps {
     currentUser: User;
@@ -63,18 +64,8 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     const loadHouses = async () => {
         setLoading(true);
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_houses')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .eq('status', 'Active')
-            //   .order('name');
-
-            // if (error) throw error;
-            // setHouses(data || []);
-
-            setHouses([]);
+            const data = await apiService.fetchModuleRecords<BoardingHouse>('boarding_houses', currentInstitution.id);
+            setHouses(data.filter(h => h.status === 'Active') || []);
             await onLogAction('Viewed room & bed manager');
         } catch (error) {
             console.error('Error loading houses:', error);
@@ -88,28 +79,14 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
 
         setLoading(true);
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_rooms')
-            //   .select(`
-            //     *,
-            //     boarding_houses!inner(name),
-            //     boarding_beds(*)
-            //   `)
-            //   .eq('house_id', selectedHouseId)
-            //   .order('room_number');
+            const data = await apiService.fetchBoardingRooms(selectedHouseId);
+            const roomsWithBeds = data?.map((room: any) => ({
+                ...room,
+                houseName: room.boardingHouses.name,
+                beds: room.boardingBeds || []
+            })) || [];
 
-            // if (error) throw error;
-
-            // const roomsWithBeds = data?.map(room => ({
-            //   ...room,
-            //   houseName: room.boarding_houses.name,
-            //   beds: room.boarding_beds || []
-            // })) || [];
-
-            // setRooms(roomsWithBeds);
-
-            setRooms([]);
+            setRooms(roomsWithBeds);
         } catch (error) {
             console.error('Error loading rooms:', error);
         } finally {
@@ -183,27 +160,18 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
         }
 
         try {
-            if (editingRoom) {
-                // Update room
-                // const { error } = await supabase
-                //   .from('boarding_rooms')
-                //   .update({
-                //     ...roomFormData,
-                //     updated_at: new Date().toISOString()
-                //   })
-                //   .eq('id', editingRoom.id);
+            const payload = {
+                ...roomFormData,
+                houseId: selectedHouseId,
+                ...(editingRoom ? { id: editingRoom.id } : { id: `room_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+            };
 
+            await apiService.saveModuleRecord('boarding_rooms', payload);
+
+            if (editingRoom) {
                 await onLogAction(`Updated room: ${roomFormData.roomNumber}`);
                 alert('Room updated successfully!');
             } else {
-                // Create room
-                // const { error } = await supabase
-                //   .from('boarding_rooms')
-                //   .insert({
-                //     house_id: selectedHouseId,
-                //     ...roomFormData
-                //   });
-
                 await onLogAction(`Created room: ${roomFormData.roomNumber}`);
                 alert('Room created successfully!');
             }
@@ -226,27 +194,18 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
         }
 
         try {
-            if (editingBed) {
-                // Update bed
-                // const { error } = await supabase
-                //   .from('boarding_beds')
-                //   .update({
-                //     ...bedFormData,
-                //     updated_at: new Date().toISOString()
-                //   })
-                //   .eq('id', editingBed.id);
+            const payload = {
+                ...bedFormData,
+                roomId: selectedRoomId,
+                ...(editingBed ? { id: editingBed.id } : { id: `bed_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+            };
 
+            await apiService.saveModuleRecord('boarding_beds', payload);
+
+            if (editingBed) {
                 await onLogAction(`Updated bed: ${bedFormData.bedNumber}`);
                 alert('Bed updated successfully!');
             } else {
-                // Create bed
-                // const { error } = await supabase
-                //   .from('boarding_beds')
-                //   .insert({
-                //     room_id: selectedRoomId,
-                //     ...bedFormData
-                //   });
-
                 await onLogAction(`Created bed: ${bedFormData.bedNumber}`);
                 alert('Bed created successfully!');
             }
@@ -279,9 +238,15 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                 condition: 'Good' as BedCondition
             }));
 
-            // const { error } = await supabase
-            //   .from('boarding_beds')
-            //   .insert(beds);
+            // Bulk insert is not directly supported by saveModuleRecord yet, 
+            // but we can loop or add a bulk method.
+            // For now, let's loop to reuse the existing logic.
+            for (const bed of beds) {
+                await apiService.saveModuleRecord('boarding_beds', {
+                    ...bed,
+                    id: `bed_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+                });
+            }
 
             await onLogAction(`Bulk created ${bulkBedCount} beds`);
             alert(`Successfully created ${bulkBedCount} beds!`);
@@ -302,10 +267,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
         }
 
         try {
-            // const { error } = await supabase
-            //   .from('boarding_rooms')
-            //   .delete()
-            //   .eq('id', room.id);
+            await apiService.deleteModuleRecord('boarding_rooms', room.id);
 
             await onLogAction(`Deleted room: ${room.roomNumber}`);
             alert('Room deleted successfully!');
@@ -328,10 +290,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
         }
 
         try {
-            // const { error } = await supabase
-            //   .from('boarding_beds')
-            //   .delete()
-            //   .eq('id', bed.id);
+            await apiService.deleteModuleRecord('boarding_beds', bed.id);
 
             await onLogAction(`Deleted bed: ${bed.bedNumber}`);
             alert('Bed deleted successfully!');

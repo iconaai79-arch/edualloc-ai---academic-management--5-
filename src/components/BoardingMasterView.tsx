@@ -67,8 +67,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
         setLoading(true);
         try {
             const houseStats = await apiService.fetchModuleRecords<any>('v_house_statistics', currentInstitution.id);
-            const maintenanceLogs = await apiService.fetchModuleRecords<any>('boarding_maintenance_logs', currentInstitution.id);
-            const allocations = await apiService.fetchModuleRecords<any>('bed_allocations'); // Filter by institution? bed_allocations doesn't have institution_id directly in the view I saw
+            const maintenanceLogs = await apiService.fetchMaintenanceLogs(currentInstitution.id);
+            const allocations = await apiService.fetchBedAllocations(currentInstitution.id);
 
             const totalHouses = houseStats.length;
             const totalRooms = houseStats.reduce((acc: number, h: any) => acc + (h.totalRooms || 0), 0);
@@ -86,8 +86,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                 availableBeds,
                 occupancyRate,
                 activeAllocations: allocations.filter((a: any) => a.status === 'Active').length,
-                pendingCheckIns: 0, // TODO: Implement pending counts
-                pendingCheckOuts: 0,
+                pendingCheckIns: allocations.filter((a: any) => a.status === 'Active' && (!a.boardingCheckins || a.boardingCheckins.length === 0)).length,
+                pendingCheckOuts: allocations.filter((a: any) => a.status === 'Active' && a.boardingCheckins && a.boardingCheckins.length > 0 && (!a.boardingCheckouts || a.boardingCheckouts.length === 0)).length,
                 maintenanceIssues: maintenanceLogs.filter((l: any) => l.status === 'Pending').length
             });
 
@@ -272,80 +272,80 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                     <nav className="flex -mb-px overflow-x-auto">
                         <button
                             onClick={() => setActiveTab('dashboard')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'dashboard'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'dashboard'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <BarChart3Icon className="w-4 h-4" />
                             Dashboard
                         </button>
                         <button
                             onClick={() => setActiveTab('houses')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'houses'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'houses'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <HomeIcon className="w-4 h-4" />
                             Houses
                         </button>
                         <button
                             onClick={() => setActiveTab('rooms')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'rooms'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'rooms'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <BedIcon className="w-4 h-4" />
                             Rooms & Beds
                         </button>
                         <button
                             onClick={() => setActiveTab('allocations')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'allocations'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'allocations'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <UsersIcon className="w-4 h-4" />
                             Allocations
                         </button>
                         <button
                             onClick={() => setActiveTab('checkin')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'checkin'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'checkin'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <CheckCircleIcon className="w-4 h-4" />
                             Check In/Out
                         </button>
                         <button
                             onClick={() => setActiveTab('maintenance')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'maintenance'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'maintenance'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <SettingsIcon className="w-4 h-4" />
                             Maintenance
                         </button>
                         <button
                             onClick={() => setActiveTab('reports')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'reports'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'reports'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <ClipboardListIcon className="w-4 h-4" />
                             Reports
                         </button>
                         <button
                             onClick={() => setActiveTab('leaveout')}
-                            className={`px - 6 py - 4 text - sm font - medium border - b - 2 whitespace - nowrap flex items - center gap - 2 ${activeTab === 'leaveout'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } `}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'leaveout'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
                         >
                             <ClipboardListIcon className="w-4 h-4" />
                             Leave Out Requests

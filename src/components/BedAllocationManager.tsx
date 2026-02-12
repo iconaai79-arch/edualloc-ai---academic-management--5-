@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingBed, BedAllocation, BedAllocationWithDetails } from '../types';
 import { UsersIcon, SearchIcon, PlusIcon, XIcon, ExclamationTriangleIcon, CheckCircleIcon, ArrowRightIcon, FilterIcon } from './icons';
+import { apiService } from '../services/apiService';
 
 interface BedAllocationManagerProps {
     currentUser: User;
@@ -69,18 +70,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const loadStudents = async () => {
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('users')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .eq('role', 'student')
-            //   .order('name');
-
-            // if (error) throw error;
-            // setStudents(data || []);
-
-            setStudents([]);
+            const data = await apiService.fetchModuleRecords<User>('users', currentInstitution.id);
+            setStudents(data.filter(u => u.role === 'student') || []);
         } catch (error) {
             console.error('Error loading students:', error);
         }
@@ -88,38 +79,18 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const loadAvailableBeds = async () => {
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_beds')
-            //   .select(`
-            //     *,
-            //     boarding_rooms!inner(
-            //       id,
-            //       room_number,
-            //       boarding_houses!inner(
-            //         id,
-            //         name,
-            //         gender
-            //       )
-            //     )
-            //   `)
-            //   .eq('status', 'Available')
-            //   .eq('boarding_rooms.boarding_houses.institution_id', currentInstitution.id);
+            const data = await apiService.fetchAvailableBeds(currentInstitution.id);
 
-            // if (error) throw error;
+            const beds = data?.map((bed: any) => ({
+                ...bed,
+                roomNumber: bed.boardingRooms.roomNumber,
+                roomId: bed.boardingRooms.id,
+                houseName: bed.boardingRooms.boardingHouses.name,
+                houseGender: bed.boardingRooms.boardingHouses.gender,
+                houseId: bed.boardingRooms.boardingHouses.id
+            })) || [];
 
-            // const beds = data?.map(bed => ({
-            //   ...bed,
-            //   roomNumber: bed.boarding_rooms.room_number,
-            //   roomId: bed.boarding_rooms.id,
-            //   houseName: bed.boarding_rooms.boarding_houses.name,
-            //   houseGender: bed.boarding_rooms.boarding_houses.gender,
-            //   houseId: bed.boarding_rooms.boarding_houses.id
-            // })) || [];
-
-            // setAvailableBeds(beds);
-
-            setAvailableBeds([]);
+            setAvailableBeds(beds);
         } catch (error) {
             console.error('Error loading available beds:', error);
         }
@@ -127,29 +98,20 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const loadAllocations = async () => {
         try {
-            // TODO: Implement Supabase query with joins
-            // const { data, error } = await supabase
-            //   .from('bed_allocations')
-            //   .select(`
-            //     *,
-            //     users!bed_allocations_student_id_fkey(name),
-            //     users!bed_allocations_allocated_by_fkey(name),
-            //     boarding_beds!inner(
-            //       bed_number,
-            //       boarding_rooms!inner(
-            //         room_number,
-            //         boarding_houses!inner(name)
-            //       )
-            //     ),
-            //     boarding_checkins(id),
-            //     boarding_checkouts(id)
-            //   `)
-            //   .order('allocation_date', { ascending: false });
+            const data = await apiService.fetchBedAllocations(currentInstitution.id);
 
-            // if (error) throw error;
-            // setAllocations(data || []);
+            const transformed = data?.map((a: any) => ({
+                ...a,
+                studentName: a.usersStudentIdFkey.name,
+                allocatedByName: a.usersAllocatedByFkey.name,
+                bedNumber: a.boardingBeds.bedNumber,
+                roomNumber: a.boardingBeds.boardingRooms.roomNumber,
+                houseName: a.boardingBeds.boardingRooms.boardingHouses.name,
+                hasCheckedIn: a.boardingCheckins && a.boardingCheckins.length > 0,
+                hasCheckedOut: a.boardingCheckouts && a.boardingCheckouts.length > 0
+            })) || [];
 
-            setAllocations([]);
+            setAllocations(transformed);
         } catch (error) {
             console.error('Error loading allocations:', error);
         }
@@ -157,17 +119,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const loadHouses = async () => {
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('boarding_houses')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .order('name');
-
-            // if (error) throw error;
-            // setHouses(data || []);
-
-            setHouses([]);
+            const data = await apiService.fetchModuleRecords<BoardingHouse>('boarding_houses', currentInstitution.id);
+            setHouses(data || []);
         } catch (error) {
             console.error('Error loading houses:', error);
         }
@@ -197,20 +150,19 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
         }
 
         try {
-            // const { error } = await supabase
-            //   .from('bed_allocations')
-            //   .insert({
-            //     bed_id: selectedBed.id,
-            //     student_id: selectedStudent.id,
-            //     allocated_by: currentUser.id,
-            //     allocation_date: new Date().toISOString().split('T')[0],
-            //     term: allocationForm.term,
-            //     academic_year: allocationForm.academicYear,
-            //     status: 'Active',
-            //     notes: allocationForm.notes
-            //   });
+            const payload = {
+                bedId: selectedBed.id,
+                studentId: selectedStudent.id,
+                allocatedBy: currentUser.id,
+                allocationDate: new Date().toISOString().split('T')[0],
+                term: allocationForm.term,
+                academicYear: allocationForm.academicYear,
+                status: 'Active',
+                notes: allocationForm.notes,
+                id: `allocation_${Date.now()}`
+            };
 
-            // if (error) throw error;
+            await apiService.saveModuleRecord('bed_allocations', payload);
 
             await onLogAction(`Allocated bed ${selectedBed.bedNumber} to ${selectedStudent.name}`);
             alert('Bed allocated successfully!');
@@ -238,24 +190,23 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
         try {
             // Mark old allocation as transferred
-            // await supabase
-            //   .from('bed_allocations')
-            //   .update({ status: 'Transferred' })
-            //   .eq('id', selectedAllocation.id);
+            await apiService.saveModuleRecord('bed_allocations', {
+                ...selectedAllocation,
+                status: 'Transferred'
+            } as any);
 
             // Create new allocation
-            // await supabase
-            //   .from('bed_allocations')
-            //   .insert({
-            //     bed_id: selectedBed.id,
-            //     student_id: selectedAllocation.studentId,
-            //     allocated_by: currentUser.id,
-            //     allocation_date: new Date().toISOString().split('T')[0],
-            //     term: selectedAllocation.term,
-            //     academic_year: selectedAllocation.academicYear,
-            //     status: 'Active',
-            //     notes: `Transferred from ${selectedAllocation.bedNumber}`
-            //   });
+            await apiService.saveModuleRecord('bed_allocations', {
+                bedId: selectedBed.id,
+                studentId: selectedAllocation.studentId,
+                allocatedBy: currentUser.id,
+                allocationDate: new Date().toISOString().split('T')[0],
+                term: selectedAllocation.term,
+                academicYear: selectedAllocation.academicYear,
+                status: 'Active',
+                notes: `Transferred from ${selectedAllocation.bedNumber}`,
+                id: `allocation_${Date.now()}`
+            });
 
             await onLogAction(`Transferred student to bed ${selectedBed.bedNumber}`);
             alert('Student transferred successfully!');
@@ -275,12 +226,10 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
         }
 
         try {
-            // const { error } = await supabase
-            //   .from('bed_allocations')
-            //   .update({ status: 'Cancelled' })
-            //   .eq('id', allocation.id);
-
-            // if (error) throw error;
+            await apiService.saveModuleRecord('bed_allocations', {
+                ...allocation,
+                status: 'Cancelled'
+            } as any);
 
             await onLogAction(`Deallocated ${allocation.studentName} from bed ${allocation.bedNumber}`);
             alert('Bed deallocated successfully!');

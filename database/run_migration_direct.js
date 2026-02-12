@@ -3,10 +3,26 @@ const { Client } = pkg;
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { config } from 'dotenv';
 
-// Load .env if it exists
-config();
+// Manual .env.local parser to avoid dependency issues if dotenv is not installed
+function loadEnv() {
+    const envPath = join(process.cwd(), '.env.local');
+    if (existsSync(envPath)) {
+        const envContent = readFileSync(envPath, 'utf-8');
+        envContent.split('\n').forEach(line => {
+            const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+            if (match) {
+                const key = match[1];
+                let value = match[2] || '';
+                if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+                if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
+                process.env[key] = value;
+            }
+        });
+    }
+}
+
+loadEnv();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

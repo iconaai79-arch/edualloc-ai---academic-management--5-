@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingHouseWithStats, HouseGender, HouseStatus } from '../types';
 import { HomeIcon, PlusIcon, Edit2Icon, Trash2Icon, UsersIcon, BedIcon, TrendingUpIcon, XIcon } from './icons';
+import { apiService } from '../services/apiService';
 
 interface HouseManagerProps {
     currentUser: User;
@@ -35,17 +36,8 @@ const HouseManager: React.FC<HouseManagerProps> = ({
     const loadHouses = async () => {
         setLoading(true);
         try {
-            // TODO: Implement Supabase query
-            // const { data, error } = await supabase
-            //   .from('v_house_statistics')
-            //   .select('*')
-            //   .eq('institution_id', currentInstitution.id)
-            //   .order('name');
-
-            // if (error) throw error;
-            // setHouses(data || []);
-
-            setHouses([]);
+            const data = await apiService.fetchModuleRecords<BoardingHouseWithStats>('v_house_statistics', currentInstitution.id);
+            setHouses(data || []);
             await onLogAction('Viewed boarding houses');
         } catch (error) {
             console.error('Error loading houses:', error);
@@ -99,29 +91,18 @@ const HouseManager: React.FC<HouseManagerProps> = ({
         }
 
         try {
-            if (editingHouse) {
-                // Update existing house
-                // const { error } = await supabase
-                //   .from('boarding_houses')
-                //   .update({
-                //     ...formData,
-                //     updated_at: new Date().toISOString()
-                //   })
-                //   .eq('id', editingHouse.id);
+            const payload = {
+                ...formData,
+                institutionId: currentInstitution.id,
+                ...(editingHouse ? { id: editingHouse.id } : { id: `house_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+            };
 
-                // if (error) throw error;
+            await apiService.saveModuleRecord('boarding_houses', payload);
+
+            if (editingHouse) {
                 await onLogAction(`Updated boarding house: ${formData.name}`);
                 alert('House updated successfully!');
             } else {
-                // Create new house
-                // const { error } = await supabase
-                //   .from('boarding_houses')
-                //   .insert({
-                //     institution_id: currentInstitution.id,
-                //     ...formData
-                //   });
-
-                // if (error) throw error;
                 await onLogAction(`Created boarding house: ${formData.name}`);
                 alert('House created successfully!');
             }
@@ -141,12 +122,7 @@ const HouseManager: React.FC<HouseManagerProps> = ({
         }
 
         try {
-            // const { error } = await supabase
-            //   .from('boarding_houses')
-            //   .delete()
-            //   .eq('id', house.id);
-
-            // if (error) throw error;
+            await apiService.deleteModuleRecord('boarding_houses', house.id);
 
             await onLogAction(`Deleted boarding house: ${house.name}`);
             alert('House deleted successfully!');

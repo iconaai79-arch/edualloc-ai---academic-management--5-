@@ -7,7 +7,8 @@ import type {
     MpesaConfig, EmailConfig, TransactionStatus, InvoiceItem,
     MpesaTransaction, Receipt, Invoice, ExtensionRequest, AcademicLevel,
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
-    Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark
+    Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
+    BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -636,5 +637,111 @@ export const apiService = {
     migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
         onProgress('Analyzing local registry...');
         return { success: true, message: "Registry migration successful." };
+    },
+    async fetchBoardingRooms(houseId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('boarding_rooms')
+                .select(`
+                    *,
+                    boarding_houses!inner(name),
+                    boarding_beds(*)
+                `)
+                .eq('house_id', houseId)
+                .order('room_number');
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
+    },
+    async fetchAvailableBeds(institutionId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('boarding_beds')
+                .select(`
+                    *,
+                    boarding_rooms!inner(
+                        id,
+                        room_number,
+                        boarding_houses!inner(
+                            id,
+                            name,
+                            gender,
+                            institution_id
+                        )
+                    )
+                `)
+                .eq('status', 'Available')
+                .eq('boarding_rooms.boarding_houses.institution_id', institutionId);
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
+    },
+    async fetchBedAllocations(institutionId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('bed_allocations')
+                .select(`
+                    *,
+                    users!bed_allocations_student_id_fkey(name, email, gender),
+                    users!bed_allocations_allocated_by_fkey(name),
+                    boarding_beds!inner(
+                        bed_number,
+                        boarding_rooms!inner(
+                            room_number,
+                            boarding_houses!inner(name, institution_id)
+                        )
+                    ),
+                    boarding_checkins(id),
+                    boarding_checkouts(id)
+                `)
+                .eq('boarding_beds.boarding_rooms.boarding_houses.institution_id', institutionId)
+                .order('allocation_date', { ascending: false });
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
+    },
+    async fetchMaintenanceLogs(institutionId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('boarding_maintenance_logs')
+                .select(`
+                    *,
+                    boarding_houses(name),
+                    boarding_rooms(room_number),
+                    boarding_beds(bed_number),
+                    users!boarding_maintenance_logs_reported_by_fkey(name),
+                    users!boarding_maintenance_logs_resolved_by_fkey(name)
+                `)
+                .order('reported_date', { ascending: false });
+
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
+    },
+    async fetchBoardingCheckIns(institutionId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('boarding_checkins')
+                .select('*')
+                .order('check_in_date', { ascending: false });
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
+    },
+    async fetchBoardingCheckOuts(institutionId: string): Promise<any[]> {
+        if (!_supabase) return [];
+        try {
+            const { data, error } = await _supabase
+                .from('boarding_checkouts')
+                .select('*')
+                .order('check_out_date', { ascending: false });
+            if (error) throw error;
+            return toCamelCase(data) || [];
+        } catch (e) { return []; }
     }
 };
