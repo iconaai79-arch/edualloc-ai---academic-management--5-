@@ -1000,3 +1000,59 @@ export const generateLeaveOutSheetPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+export const generateLibraryUnreturnedReportPdf = async (
+    data: any[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null,
+    getBookTitle: (id: string) => string
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 10;
+
+    const head = [['Recipient', 'ID', 'Item Borrowed', 'Due Date', 'Status']];
+    const body = data.map(item => {
+        const isOverdue = new Date(item.dueDate) < new Date();
+        return [
+            item.user?.name || 'Unknown',
+            item.user?.staffId || '-',
+            getBookTitle(item.bookId),
+            new Date(item.dueDate).toLocaleDateString(),
+            isOverdue ? 'OVERDUE' : 'Active'
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            4: { fontStyle: 'bold' }
+        },
+        didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 4 && data.cell.raw === 'OVERDUE') {
+                data.cell.styles.textColor = [220, 38, 38]; // rose-600
+            }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

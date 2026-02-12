@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type {
     Book, LibraryTransaction, LibraryFine, User,
-    Department, v_library_statistics
+    Department, v_library_statistics, Course, Institution, CompanyDetails
 } from '../types';
 import {
     BarChart3Icon, ClipboardListIcon, DownloadIcon, UserIcon,
@@ -12,18 +12,23 @@ import {
     ArrowRightIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
+import { generateLibraryUnreturnedReportPdf } from '../services/pdfService';
 
 interface LibraryReportsProps {
-    institutionId: string;
+    institution: Institution;
+    companyDetails: CompanyDetails;
     users: User[];
     departments: Department[];
+    courses: Course[];
     onLogAction: (action: string) => Promise<void>;
 }
 
 export const LibraryReports: React.FC<LibraryReportsProps> = ({
-    institutionId,
+    institution,
+    companyDetails,
     users,
     departments,
+    courses,
     onLogAction
 }) => {
     const [books, setBooks] = useState<Book[]>([]);
@@ -32,18 +37,20 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [loading, setLoading] = useState(true);
     const [searchUserTerm, setSearchUserTerm] = useState('');
     const [selectedStatementUser, setSelectedStatementUser] = useState<User | null>(null);
+    const [selectedClassId, setSelectedClassId] = useState('');
+    const [selectedStreamId, setSelectedStreamId] = useState('');
 
     useEffect(() => {
         loadData();
-    }, [institutionId]);
+    }, [institution.id]);
 
     const loadData = async () => {
         setLoading(true);
         try {
             const [booksData, transData, finesData] = await Promise.all([
-                apiService.fetchModuleRecords<Book>('books', institutionId),
-                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
-                apiService.fetchModuleRecords<LibraryFine>('library_fines', institutionId)
+                apiService.fetchModuleRecords<Book>('books', institution.id),
+                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institution.id),
+                apiService.fetchModuleRecords<LibraryFine>('library_fines', institution.id)
             ]);
             setBooks(booksData);
             setTransactions(transData);
@@ -96,6 +103,44 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     };
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
+    const getBookAccession = (id: string) => books.find(b => b.id === id)?.accessionNumber || 'N/A';
+
+    const unreturnedReportData = useMemo(() => {
+        return transactions
+            .filter(t => t.status === 'issued' || t.status === 'overdue')
+            .map(t => {
+                const user = users.find(u => u.id === t.userId);
+                return { ...t, user };
+            })
+            .filter(item => {
+                if (selectedClassId && item.user?.courseId !== selectedClassId) return false;
+                if (selectedStreamId && item.user?.courseLevelId !== selectedStreamId) return false;
+                return true;
+            });
+    }, [transactions, users, selectedClassId, selectedStreamId]);
+
+    const handlePrintUnreturnedReport = async () => {
+        const className = courses.find(c => c.id === selectedClassId)?.name || 'All Classes';
+        const streamName = courses.find(c => c.id === selectedClassId)?.levels.find(l => l.id === selectedStreamId)?.name || 'All Streams';
+
+        try {
+            const dataUri = await generateLibraryUnreturnedReportPdf(
+                unreturnedReportData,
+                `Unreturned Books Report: ${className} - ${streamName}`,
+                institution.letterheadConfig,
+                institution.footerImageUrl || null,
+                getBookTitle
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Unreturned-Books-${className}-${streamName}.pdf`.replace(/\s+/g, '-');
+            link.click();
+            onLogAction(`Generated Unreturned Books Report for ${className} - ${streamName}`);
+        } catch (error) {
+            console.error('PDF Generation Error:', error);
+            alert('Failed to generate PDF report.');
+        }
+    };
 
     return (
         <div className="space-y-8 animate-fade-in pb-12">
@@ -348,6 +393,111 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                             </div>
                         </div>
                     )}
+                </div>
+            </div>
+
+            {/* Unreturned Books Registry Report */}
+            <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="p-10 lg:p-14">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                        <div>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Defaulter & Active Circulation List</h3>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Filter by Class and Stream for efficient retrieval</p>
+                        </div>
+                        <button
+                            onClick={handlePrintUnreturnedReport}
+                            className="h-12 px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all hover:bg-slate-800"
+                        >
+                            <PrinterIcon className="w-4 h-4" />
+                            Print defauter list
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Class / Grade</label>
+                            <select
+                                value={selectedClassId}
+                                onChange={(e) => { setSelectedClassId(e.target.value); setSelectedStreamId(''); }}
+                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all"
+                            >
+                                <option value="">-- All Classes --</option>
+                                {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Stream / Section</label>
+                            <select
+                                value={selectedStreamId}
+                                onChange={(e) => setSelectedStreamId(e.target.value)}
+                                disabled={!selectedClassId}
+                                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all disabled:opacity-50"
+                            >
+                                <option value="">-- All Streams --</option>
+                                {courses.find(c => c.id === selectedClassId)?.levels.map(l => (
+                                    <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex items-end">
+                            <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 w-full">
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Unreturned Units</p>
+                                <p className="text-xl font-black text-indigo-700 dark:text-indigo-300">{unreturnedReportData.length} Copies</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border border-slate-100 dark:border-slate-700 rounded-[2.5rem] overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                    <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource (ID)</th>
+                                    <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Deadline</th>
+                                    <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                {unreturnedReportData.map(item => {
+                                    const isOverdue = new Date(item.dueDate) < new Date();
+                                    return (
+                                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-xs">
+                                                        {item.user?.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{item.user?.name || 'Unknown User'}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.user?.staffId || 'No ID'}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{getBookTitle(item.bookId)}</p>
+                                                <span className="text-[8px] font-bold text-slate-300">ID: {getBookAccession(item.bookId)}</span>
+                                            </td>
+                                            <td className="px-8 py-5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                                {new Date(item.dueDate).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                {isOverdue ? (
+                                                    <span className="text-[9px] font-black px-2 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded-full uppercase">Overdue</span>
+                                                ) : (
+                                                    <span className="text-[9px] font-black px-2 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-600 rounded-full uppercase">In use</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {unreturnedReportData.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="px-8 py-20 text-center text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">No unreturned books match these filters</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

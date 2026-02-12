@@ -248,7 +248,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                 {activeTab === 'sponsors' && <BookSponsorManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'reservations' && <BookReservationManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'penalties' && <LibraryPenaltyManager institutionId={currentInstitution.id} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
-                {activeTab === 'reports' && <LibraryReports institutionId={currentInstitution.id} users={users} departments={departments} onLogAction={onLogAction} />}
+                {activeTab === 'reports' && <LibraryReports institution={currentInstitution} companyDetails={companyDetails} users={users} departments={departments} courses={courses} onLogAction={onLogAction} />}
             </div>
 
             <style>{`
