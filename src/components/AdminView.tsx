@@ -287,9 +287,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
         { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
         { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
+        { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' }
     ];
+
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
@@ -667,6 +669,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     courses={props.courses || []}
                     onClose={() => setIsDirectAssignOpen(false)}
                     onAssign={props.onDirectAssign || (() => { })}
+                    isSchool={isSchool}
                 />
             )}
 

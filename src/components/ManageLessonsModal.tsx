@@ -13,9 +13,10 @@ interface ManageLessonsModalProps {
     onAssign: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
     onDeallocate: (requestId: string) => void;
     onUpdateAllocation: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
+    isSchool?: boolean;
 }
 
-export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher, subjects, departments, allocations, onClose, onAssign, onDeallocate, courses, onUpdateAllocation }) => {
+export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher, subjects, departments, allocations, onClose, onAssign, onDeallocate, courses, onUpdateAllocation, isSchool }) => {
     const [activeTab, setActiveTab] = useState<'available' | 'assigned'>('available');
     const [searchTerm, setSearchTerm] = useState('');
     const [view, setView] = useState<'subjects' | 'classes'>('subjects');
@@ -43,7 +44,7 @@ export const ManageLessonsModal: React.FC<ManageLessonsModalProps> = ({ teacher,
         if (!selectedSubject) return [];
         const associated: { courseName: string, levelId: string, levelName: string, isMapped: boolean }[] = [];
         courses.forEach(course => {
-            if (course && course.departmentId === selectedSubject.departmentId) {
+            if (course && (isSchool || !course.departmentId || !selectedSubject.departmentId || course.departmentId === selectedSubject.departmentId)) {
                 (course.levels || []).forEach(level => {
                     const isMapped = (level.subjectIds || []).includes(selectedSubject.id);
                     associated.push({

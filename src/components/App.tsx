@@ -326,7 +326,7 @@ export const App: React.FC = () => {
             setIsApiOnline(health.status !== 'offline');
             setIsSchemaInitializationRequired(false);
 
-            const instId = currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : undefined;
+            const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
 
             const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
@@ -674,13 +674,16 @@ export const App: React.FC = () => {
 
 
     const onLoginAsAdmin = (institutionId: string) => {
-        const admin = users.find(u => u.institutionId === institutionId && (u.role === 'admin' || u.role === 'head_teacher'));
+        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto'];
+        const admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+
         if (admin) {
             const impersonatedUser = { ...admin, isImpersonated: true };
             setCurrentUser(impersonatedUser);
             apiService.storeSession(impersonatedUser);
             setImpersonatedRole(null);
         } else {
+            console.warn(`Admin lookup failed for institution ${institutionId}. Available users:`, users.filter(u => u.institutionId === institutionId));
             alert("No admin account found for this institution.");
         }
     };
@@ -1144,6 +1147,7 @@ export const App: React.FC = () => {
                                     onDeleteCounty={handleDeleteCounty}
                                     rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
                                     logoUrl={activeLogoUrl}
+                                    leaveOutRequests={leaveOutRequests}
                                     finalTimetableUrl={null}
                                     themeColor={companyDetails.themeColor || '#4f46e5'}
                                     invoices={invoices}

@@ -22,7 +22,7 @@ const getInitials = (name: string) => {
 
 const SmartCourseImporterModal: React.FC<{
     onClose: () => void;
-    onImport: (courses: Omit<Course, 'id' | 'institutionId' | 'levels'>[]) => Promise<void>;
+    onImport: (courses: Omit<Course, 'id' | 'institutionId'>[]) => Promise<void>;
     existingCourses: Course[];
     departments: Department[];
     academicLevels: AcademicLevel[];
@@ -33,7 +33,7 @@ const SmartCourseImporterModal: React.FC<{
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<CourseMappingField, string | null>>(ALL_COURSE_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<CourseMappingField, string | null>));
-    const [parsedData, setParsedData] = useState<{ valid: Omit<Course, 'id' | 'institutionId' | 'levels'>[], invalid: { row: any, error: string }[] } | null>(null);
+    const [parsedData, setParsedData] = useState<{ valid: Omit<Course, 'id' | 'institutionId'>[], invalid: { row: any, error: string }[] } | null>(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
@@ -89,7 +89,7 @@ const SmartCourseImporterModal: React.FC<{
 
         setStep('importing');
 
-        const validCourses: Omit<Course, 'id' | 'institutionId' | 'levels'>[] = [];
+        const validCourses: Omit<Course, 'id' | 'institutionId'>[] = [];
         const invalidRows: { row: any, error: string }[] = [];
         const currentBatchCodes = new Set<string>();
 
@@ -121,6 +121,7 @@ const SmartCourseImporterModal: React.FC<{
                     departmentId: deptId,
                     academicLevelId: levelId,
                     shortName: '',
+                    levels: []
                 });
 
             } catch (e: any) {
@@ -277,8 +278,8 @@ interface CourseManagerProps {
     letterheadConfig?: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
-    onAddCourse?: (courseData: Omit<Course, 'id' | 'institutionId' | 'levels'>) => void;
-    onImportCourses?: (courses: Omit<Course, 'id' | 'institutionId' | 'levels'>[]) => Promise<void>;
+    onAddCourse?: (courseData: Omit<Course, 'id' | 'institutionId'>) => void;
+    onImportCourses?: (courses: Omit<Course, 'id' | 'institutionId'>[]) => Promise<void>;
     onUpdateCourse?: (courseId: string, updatedData: Partial<Omit<Course, 'id' | 'institutionId'>>) => void;
     onDeleteCourse?: (courseId: string) => void;
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
@@ -597,8 +598,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         if (!newLessonCourseId) return subjects || [];
         const course = (courses || []).find(c => c.id === newLessonCourseId);
         if (!course) return subjects || [];
-        return (subjects || []).filter(s => s.departmentId === course.departmentId);
-    }, [newLessonCourseId, courses, subjects]);
+        // Relax filtering for schools or if department IDs are missing
+        return (subjects || []).filter(s => isSchool || !course.departmentId || !s.departmentId || s.departmentId === course.departmentId);
+    }, [newLessonCourseId, courses, subjects, isSchool]);
 
     const EditCourseModal: React.FC<{
         course: Course;
@@ -714,7 +716,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const AddCourseForm: React.FC<{
         departments: Department[];
         academicLevels: AcademicLevel[];
-        onAddCourse: (courseData: Omit<Course, 'id' | 'institutionId' | 'levels'>) => void;
+        onAddCourse: (courseData: Omit<Course, 'id' | 'institutionId'>) => void;
         onCancel: () => void;
         currentUser: User;
         isPrimary: boolean;
@@ -790,6 +792,11 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const handleSubmit = (e: React.FormEvent) => {
             e.preventDefault();
             if (name.trim() && code.trim() && (departmentId || isSchool) && (academicLevelId || isSchool)) {
+                const newLevels: CourseLevel[] = initialStreams.map((s, idx) => ({
+                    id: `cl_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                    name: s,
+                    subjectIds: []
+                }));
                 onAddCourse({
                     name,
                     code,
@@ -798,6 +805,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     curriculumType,
                     scheduleProfileId,
                     academicLevelId: isSchool ? academicLevels[0]?.id || '' : academicLevelId,
+                    levels: newLevels
                 });
                 onCancel();
             }
@@ -1402,6 +1410,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     onAssign={onDirectAssign!}
                     onUpdateAllocation={onUpdateRequest!}
                     onDeallocate={onWithdrawRequest!}
+                    isSchool={isSchool}
                 />
             )}
 

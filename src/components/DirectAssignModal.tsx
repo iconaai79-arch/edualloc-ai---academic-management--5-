@@ -9,9 +9,10 @@ interface DirectAssignModalProps {
     courses: Course[];
     onClose: () => void;
     onAssign: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
+    isSchool?: boolean;
 }
 
-export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers = [], subjects = [], courses = [], onClose, onAssign }) => {
+export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers = [], subjects = [], courses = [], onClose, onAssign, isSchool }) => {
     const [activeTab, setActiveTab] = useState<'subjects' | 'config'>('subjects');
     const [lecturerId, setLecturerId] = useState<string>(lecturers[0]?.id || '');
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -40,7 +41,7 @@ export const DirectAssignModal: React.FC<DirectAssignModalProps> = ({ lecturers 
             if (!subject) return;
             const associated: { courseName: string, levelId: string, levelName: string }[] = [];
             safeCourses.forEach(course => {
-                if (course && course.departmentId === subject.departmentId) {
+                if (course && (isSchool || !course.departmentId || !subject.departmentId || course.departmentId === subject.departmentId)) {
                     (course.levels || []).forEach(level => {
                         if (level && (level.subjectIds || []).includes(subject.id)) {
                             associated.push({ courseName: course.name, levelId: level.id, levelName: level.name });

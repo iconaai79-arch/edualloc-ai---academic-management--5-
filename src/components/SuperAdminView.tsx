@@ -82,6 +82,7 @@ import { ChatBot } from './ChatBot';
 import { SuspendedAccountView } from './SuspendedAccountView';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { TimetableWizard } from './TimetableWizard';
+import { ParentView } from './ParentView';
 import { CountyManager } from './CountyManager';
 
 export interface SuperAdminViewProps {
@@ -266,6 +267,7 @@ export interface SuperAdminViewProps {
     onDeleteAssignment?: (id: string) => void;
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
+    leaveOutRequests?: LeaveOutRequest[];
 }
 
 export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminViewProps) => {
@@ -623,6 +625,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
         { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
         { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
+        { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' }
     ];
@@ -637,6 +640,32 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     if (activeRole === 'academics_officer') {
         return <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} />;
+    }
+
+    if (activeRole === 'parent') {
+        return (
+            <ParentView
+                user={currentUser}
+                users={users}
+                courses={courses}
+                studentAttendances={props.studentAttendances}
+                generatedTimetable={props.generatedTimetable}
+                subjects={subjects}
+                getSubjectById={props.getSubjectById}
+                getLecturerById={props.getLecturerById}
+                getRoomById={props.getRoomById}
+                timetableSettings={props.timetableSettings!}
+                buildings={props.buildings}
+                leaveOutRequests={props.leaveOutRequests || []}
+                onUpdateLeaveOut={async (id, data) => {
+                    const req = (props.leaveOutRequests || []).find(r => r.id === id);
+                    if (req) {
+                        await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
+                        if (props.onLogAction) await props.onLogAction(`Updated leave out request ${id}`);
+                    }
+                }}
+            />
+        );
     }
 
     if (isAdminCatchAll) {
