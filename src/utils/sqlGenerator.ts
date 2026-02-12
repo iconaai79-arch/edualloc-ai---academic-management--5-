@@ -468,6 +468,7 @@ CREATE TABLE IF NOT EXISTS books (
     title TEXT NOT NULL,
     author TEXT NOT NULL,
     isbn TEXT,
+    accession_number TEXT,
     quantity INTEGER DEFAULT 1,
     available INTEGER DEFAULT 1,
     category TEXT,
@@ -484,8 +485,65 @@ CREATE TABLE IF NOT EXISTS library_transactions (
     due_date TIMESTAMP WITH TIME ZONE NOT NULL,
     return_date TIMESTAMP WITH TIME ZONE,
     status TEXT DEFAULT 'issued',
+    fine_amount DECIMAL(10,2) DEFAULT 0,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS library_fines (
+    id TEXT PRIMARY KEY,
+    transaction_id TEXT REFERENCES library_transactions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    paid_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    status TEXT DEFAULT 'pending',
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS book_reservations (
+    id TEXT PRIMARY KEY,
+    book_id TEXT REFERENCES books(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    reservation_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expiry_date TIMESTAMP WITH TIME ZONE,
+    status TEXT DEFAULT 'pending',
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS book_stock_receipts (
+    id TEXT PRIMARY KEY,
+    book_id TEXT REFERENCES books(id) ON DELETE CASCADE,
+    source TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    receipt_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    batch_number TEXT,
+    notes TEXT,
+    recorded_by TEXT REFERENCES users(id),
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS library_settings (
+    institution_id TEXT PRIMARY KEY REFERENCES institutions(id) ON DELETE CASCADE,
+    overdue_fine_per_day DECIMAL(10,2) DEFAULT 0,
+    max_books_per_user INTEGER DEFAULT 3,
+    reservation_expiry_days INTEGER DEFAULT 3,
+    default_lending_period_days INTEGER DEFAULT 14,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE OR REPLACE VIEW v_library_statistics AS
+SELECT 
+    institution_id,
+    COUNT(id) as total_books,
+    SUM(quantity) as total_copies,
+    SUM(available) as available_copies,
+    (SELECT COUNT(*) FROM library_transactions WHERE status = 'issued' AND institution_id = b.institution_id) as active_loans,
+    (SELECT COUNT(*) FROM library_transactions WHERE status = 'overdue' AND institution_id = b.institution_id) as overdue_loans,
+    (SELECT COUNT(*) FROM book_reservations WHERE status = 'pending' AND institution_id = b.institution_id) as pending_reservations
+FROM books b
+GROUP BY institution_id;
 
 CREATE TABLE IF NOT EXISTS security_alerts (
     id TEXT PRIMARY KEY,

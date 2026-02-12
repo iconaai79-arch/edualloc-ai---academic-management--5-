@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library Management Schema Update</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 800;
+            tracking: tight;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .step {
+            background: #f8fafc;
+            border-left: 5px solid #6366f1;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 16px;
+        }
+
+        .step h2 {
+            color: #1e293b;
+            font-size: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 800;
+        }
+
+        .step-number {
+            background: #6366f1;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 14px;
+        }
+
+        .sql-box {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 25px;
+            border-radius: 12px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            border: 1px solid #334155;
+        }
+
+        .button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .button:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+        }
+
+        .alert {
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 600;
+        }
+
+        .alert.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .link-box {
+            background: #eff6ff;
+            border: 2px solid #dbeafe;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 15px 0;
+        }
+
+        .link-box a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 17px;
+        }
+
+        .instructions {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 15px 0;
+        }
+
+        .instructions li {
+            margin: 10px 0 10px 20px;
+            color: #92400e;
+            font-weight: 500;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Library Schema Update</h1>
+            <p>Core updates for Accession Numbers, Fines, and Analytics</p>
+        </div>
+
+        <div class="content">
+            <div id="alertBox" class="alert alert-success"></div>
+
+            <div class="step">
+                <h2><span class="step-number">1</span> Copy SQL Script</h2>
+                <p>Click below to copy the enhanced library schema SQL:</p>
+                <button class="button" onclick="copySQL()">
+                    <span>📋</span> Copy SQL to Clipboard
+                </button>
+                <div class="sql-box" id="sqlContent">Loading script...</div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">2</span> Run in Supabase</h2>
+                <div class="link-box">
+                    <a href="https://app.supabase.com" target="_blank">🚀 Open Supabase Dashboard →</a>
+                </div>
+                <div class="instructions">
+                    <ol>
+                        <li>Select your <strong>Project</strong></li>
+                        <li>Click <strong>SQL Editor</strong> (left sidebar)</li>
+                        <li>Click <strong>New Query</strong></li>
+                        <li><strong>Paste</strong> the SQL and click <strong>Run</strong></li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <h2><span class="step-number">3</span> Finish</h2>
+                <div class="instructions">
+                    <ol>
+                        <li>Verify success in the result panel</li>
+                        <li>Restart your dev server</li>
+                        <li>Clear browser cache (<strong>Ctrl+Shift+R</strong>)</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function load() {
+            try {
+                const res = await fetch('./library_management_update.sql');
+                const sql = await res.text();
+                document.getElementById('sqlContent').textContent = sql;
+            } catch (e) {
+                document.getElementById('sqlContent').textContent = "Error loading library_management_update.sql";
+            }
+        }
+        async function copySQL() {
+            const sql = document.getElementById('sqlContent').textContent;
+            await navigator.clipboard.writeText(sql);
+            const alert = document.getElementById('alertBox');
+            alert.textContent = "✅ SQL Copied! Ready to paste into Supabase.";
+            alert.classList.add('show');
+            setTimeout(() => alert.classList.remove('show'), 5000);
+        }
+        load();
+    </script>
+</body>
+
+</html>
