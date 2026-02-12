@@ -59,7 +59,11 @@ const toSnakeCase = (obj: any): any => {
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
         if (key === 'isImpersonated') return; // Skip internal session-only flags
-        const val = obj[key];
+        let val = obj[key];
+
+        // Convert empty strings to null to avoid DB errors when an empty string is passed to an integer or UUID column
+        if (val === "") val = null;
+
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newObj[snakeKey] = toSnakeCase(val);
     });

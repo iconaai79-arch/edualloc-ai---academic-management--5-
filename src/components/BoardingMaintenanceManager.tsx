@@ -113,6 +113,9 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 // Update existing log
                 const payload: any = {
                     ...formData,
+                    houseId: formData.houseId || null,
+                    roomId: formData.roomId || null,
+                    bedId: formData.bedId || null,
                     updatedAt: new Date().toISOString(),
                     id: editingLog.id
                 };
@@ -130,6 +133,9 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 // Create new log
                 const payload = {
                     ...formData,
+                    houseId: formData.houseId || null,
+                    roomId: formData.roomId || null,
+                    bedId: formData.bedId || null,
                     reportedBy: currentUser.id,
                     reportedDate: new Date().toISOString().split('T')[0],
                     id: `log_${Date.now()}`

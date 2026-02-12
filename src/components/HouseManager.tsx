@@ -90,10 +90,16 @@ const HouseManager: React.FC<HouseManagerProps> = ({
             return;
         }
 
+        if (!currentInstitution.id) {
+            alert('Error: Institution ID is missing. Please refresh and try again.');
+            return;
+        }
+
         try {
             const payload = {
                 ...formData,
                 institutionId: currentInstitution.id,
+                houseMasterId: formData.houseMasterId || null,
                 ...(editingHouse ? { id: editingHouse.id } : { id: `house_${Date.now()}` })
             };
 
