@@ -14,7 +14,7 @@ import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
-import { LibrarianView } from './LibrarianView';
+import { LibraryMasterView } from './LibraryMasterView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
 import BoardingMasterView from './BoardingMasterView';
@@ -1457,29 +1457,16 @@ export const App: React.FC = () => {
                                     onMarkInventoryReceived={onMarkInventoryReceived}
                                 />
                             ) : activeRole === 'librarian' ? (
-                                <LibrarianView
-                                    user={currentUser}
+                                <LibraryMasterView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    companyDetails={companyDetails}
                                     users={users}
-                                    books={books}
-                                    transactions={libraryTransactions}
-                                    onAddBook={async (b) => { await apiService.saveModuleRecord('books', { ...b, id: `bk_${Date.now()}`, institutionId: currentUser.institutionId, addedDate: new Date().toISOString() }); loadData(); }}
-                                    onUpdateBook={async (id, d) => { const b = books.find(x => x.id === id); if (b) await apiService.saveModuleRecord('books', { ...b, ...d }); loadData(); }}
-                                    onDeleteBook={async (id) => { await apiService.deleteModuleRecord('books', id); loadData(); }}
-                                    onIssueBook={async (bid, uid, due) => {
-                                        await apiService.saveModuleRecord('library_transactions', { id: `ltx_${Date.now()}`, bookId: bid, userId: uid, dueDate: due, issueDate: new Date().toISOString(), status: 'issued', institutionId: currentUser.institutionId });
-                                        const b = books.find(x => x.id === bid);
-                                        if (b) await apiService.saveModuleRecord('books', { ...b, available: b.available - 1 });
-                                        loadData();
-                                    }}
-                                    onReturnBook={async (tid) => {
-                                        const t = libraryTransactions.find(x => x.id === tid);
-                                        if (t) {
-                                            await apiService.saveModuleRecord('library_transactions', { ...t, returnDate: new Date().toISOString(), status: 'returned' });
-                                            const b = books.find(x => x.id === t.bookId);
-                                            if (b) await apiService.saveModuleRecord('books', { ...b, available: b.available + 1 });
-                                            loadData();
-                                        }
-                                    }}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    courses={courses}
+                                    departments={departments}
+                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
                                 />
                             ) : activeRole === 'parent' ? (
 

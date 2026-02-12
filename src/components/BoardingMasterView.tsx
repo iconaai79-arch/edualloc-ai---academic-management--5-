@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Institution, BoardingHouseWithStats } from '../types';
+import {
+    User, Institution, BoardingHouseWithStats,
+    CompanyDetails, AcademicYear, Semester,
+    Course, Department
+} from '../types';
 import { HomeIcon, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon } from './icons';
 import { apiService } from '../services/apiService';
 import HouseManager from './HouseManager';

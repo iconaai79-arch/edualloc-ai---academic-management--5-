@@ -678,7 +678,61 @@ export interface LibraryTransaction {
     dueDate: string;
     returnDate?: string;
     status: 'issued' | 'returned' | 'overdue';
+    fineAmount?: number;
     institutionId: string;
+}
+
+export interface LibraryFine {
+    id: string;
+    transactionId: string;
+    userId: string;
+    amount: number;
+    paidAmount: number;
+    status: 'pending' | 'partially_paid' | 'paid';
+    description: string;
+    createdAt: string;
+    updatedAt: string;
+    institutionId: string;
+}
+
+export interface BookReservation {
+    id: string;
+    bookId: string;
+    userId: string;
+    reservationDate: string;
+    expiryDate: string;
+    status: 'pending' | 'fulfilled' | 'cancelled' | 'expired';
+    institutionId: string;
+}
+
+export interface BookStockReceipt {
+    id: string;
+    bookId: string;
+    source: string;
+    quantity: number;
+    receiptDate: string;
+    batchNumber?: string;
+    notes?: string;
+    recordedBy: string;
+    institutionId: string;
+}
+
+export interface LibrarySettings {
+    overdueFinePerDay: number;
+    maxBooksPerUser: number;
+    reservationExpiryDays: number;
+    defaultLendingPeriodDays: number;
+    institutionId: string;
+}
+
+export interface v_library_statistics {
+    institution_id: string;
+    total_books: number;
+    total_copies: number;
+    available_copies: number;
+    active_loans: number;
+    overdue_loans: number;
+    pending_reservations: number;
 }
 
 export interface BusinessDocument {
