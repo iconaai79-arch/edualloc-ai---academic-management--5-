@@ -743,6 +743,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             { label: 'Cardinal (North, South, East, West)', values: ['North', 'South', 'East', 'West'] },
             { label: 'Colors (Red, Blue, Green)', values: ['Red', 'Blue', 'Green'] },
             { label: 'Precious Stones (Gold, Diamond)', values: ['Gold', 'Diamond', 'Silver'] },
+            { label: 'Register Streams', values: currentInstitution?.streamDefinitions || [] },
         ];
 
         const standardGrades = useMemo(() => {
@@ -1102,6 +1103,24 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 className="form-input"
                             />
                         </div>
+
+                        {isSchool && (currentInstitution?.streamDefinitions || []).length > 0 && (
+                            <div className="md:col-span-2 space-y-2">
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Registry Quick Select</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {(currentInstitution?.streamDefinitions || []).map(s => (
+                                        <button
+                                            key={s}
+                                            type="button"
+                                            onClick={() => setNewStreamName(s)}
+                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${newStreamName === s ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-indigo-400'}`}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t">
                             <button type="button" onClick={() => setIsAddingStream(false)} className="btn-secondary h-12 px-6">Discard</button>
                             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create {streamOrLevelLabel}</button>

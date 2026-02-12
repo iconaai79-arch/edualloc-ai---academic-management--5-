@@ -154,7 +154,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
-    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels'>('departments');
+    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
     const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
@@ -1121,6 +1121,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <AcademicCapIcon className="w-4 h-4" /> Academic Levels
                                     </button>
                                 )}
+                                {isSchool && (
+                                    <button
+                                        onClick={() => setFacilitiesSubTab('streams')}
+                                        className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${facilitiesSubTab === 'streams' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        <RectangleStackIcon className="w-4 h-4" /> Stream Registry
+                                    </button>
+                                )}
                             </nav>
                         </div>
 
@@ -1173,6 +1181,55 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
                             {facilitiesSubTab === 'levels' && !isSchool && (
                                 <AcademicLevelManager onAdd={props.onAddAcademicLevel} onUpdate={props.onUpdateAcademicLevel} onDelete={props.onDeleteAcademicLevel} academicLevels={props.academicLevels} currentInstitution={props.currentInstitution} />
+                            )}
+
+                            {facilitiesSubTab === 'streams' && isSchool && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-xl font-bold uppercase tracking-tight">Stream Registry</h3>
+                                            <p className="text-sm text-slate-500">Define the global list of streams (e.g., East, West, North) for your institution.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const name = prompt("Enter new stream name (e.g., North, Stream A):");
+                                                if (name && props.currentInstitution && props.onUpdateInstitution) {
+                                                    const current = props.currentInstitution.streamDefinitions || [];
+                                                    if (current.includes(name)) return alert("Stream already exists.");
+                                                    props.onUpdateInstitution(props.currentInstitution.id, { streamDefinitions: [...current, name] });
+                                                }
+                                            }}
+                                            className="btn-primary flex items-center gap-2"
+                                        >
+                                            <PlusIcon className="w-5 h-5" /> Define Stream
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                        {(props.currentInstitution?.streamDefinitions || []).map((stream, idx) => (
+                                            <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group">
+                                                <span className="font-bold text-sm uppercase tracking-tight">{stream}</span>
+                                                <button
+                                                    onClick={() => {
+                                                        if (confirm(`Remove "${stream}" from registry?`)) {
+                                                            const filtered = (props.currentInstitution!.streamDefinitions || []).filter(s => s !== stream);
+                                                            props.onUpdateInstitution?.(props.currentInstitution!.id, { streamDefinitions: filtered });
+                                                        }
+                                                    }}
+                                                    className="p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {(props.currentInstitution?.streamDefinitions || []).length === 0 && (
+                                            <div className="col-span-full py-12 text-center text-slate-400">
+                                                <RectangleStackIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                <p className="text-sm">No streams defined yet. Start by defining your school's streams.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>

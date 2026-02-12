@@ -113,6 +113,7 @@ export interface Institution {
     useAllocationRequests?: boolean;
     scheduleProfiles?: ScheduleProfile[];
     aiModelTier?: 'free' | 'premium';
+    streamDefinitions?: string[];
     countyId?: string;
     subCounty?: string;
     constituency?: string;
