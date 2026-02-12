@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "seed:counties": "node database/seed_kenyan_admin_units.js"
+    "seed:counties": "node database/seed_kenyan_admin_units.js",
+    "migrate": "node database/run_migration_direct.js",
+    "migrate:library": "node database/run_migration_direct.js library_management_update.sql",
+    "migrate:boarding": "node database/run_migration_direct.js migrations/002_boarding_management.sql"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",

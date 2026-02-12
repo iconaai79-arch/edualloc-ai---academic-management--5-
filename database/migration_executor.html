@@ -253,7 +253,7 @@
             <div class="step">
                 <h2>
                     <span class="step-number">3</span>
-                    Execute Migration
+                    Execute Migration (Manual)
                 </h2>
                 <div class="instructions">
                     <strong>📋 Instructions:</strong>
@@ -263,6 +263,21 @@
                         <li>Wait for the execution to complete</li>
                         <li>Verify you see success messages in the results panel</li>
                     </ol>
+                </div>
+            </div>
+
+            <div class="step" style="border-left-color: #10b981;">
+                <h2>
+                    <span class="step-number">3.1</span>
+                    Direct Execution (Node.js)
+                </h2>
+                <p>If you have your <code>SUPABASE_DB_URL</code> in <code>.env.local</code>, run this command in your
+                    terminal:</p>
+                <div class="sql-box" style="background: #064e3b; color: #a7f3d0; padding: 15px;">npm run migrate --
+                    county_management_migration.sql</div>
+                <div class="instructions" style="background: #ecfdf5; border-color: #6ee7b7;">
+                    <p style="color: #065f46; font-size: 13px;"><strong>Requirement:</strong> Ensure
+                        <code>SUPABASE_DB_URL</code> is set in <code>.env.local</code>.</p>
                 </div>
             </div>
 
