@@ -662,6 +662,7 @@ export interface Book {
     title: string;
     author: string;
     isbn: string;
+    accessionNumber: string; // Unique ID for each physical copy
     quantity: number;
     available: number;
     category: string;

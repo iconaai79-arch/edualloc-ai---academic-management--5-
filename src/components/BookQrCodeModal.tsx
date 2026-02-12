@@ -17,6 +17,7 @@ export const BookQrCodeModal: React.FC<BookQrCodeModalProps> = ({ book, onClose 
             const qrData = JSON.stringify({
                 type: 'library_book',
                 id: book.id,
+                accessionNumber: book.accessionNumber,
                 title: book.title,
                 isbn: book.isbn
             });

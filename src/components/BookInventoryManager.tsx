@@ -35,6 +35,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         title: '',
         author: '',
         isbn: '',
+        accessionNumber: '',
         quantity: 1,
         available: 1,
         category: '',
@@ -77,13 +78,20 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         try {
             const bookData = editingBook
                 ? { ...editingBook, ...newBook }
-                : { ...newBook, id: `bk_${Date.now()}`, institutionId, addedDate: new Date().toISOString(), available: newBook.quantity || 0 };
+                : {
+                    ...newBook,
+                    id: `bk_${Date.now()}`,
+                    accessionNumber: newBook.accessionNumber || `ACC-${Date.now().toString().slice(-6)}`,
+                    institutionId,
+                    addedDate: new Date().toISOString(),
+                    available: newBook.quantity || 0
+                };
 
             await apiService.saveModuleRecord('books', bookData);
             await onLogAction(`${editingBook ? 'Updated' : 'Added'} book: ${bookData.title}`);
             setIsAddingBook(false);
             setEditingBook(null);
-            setNewBook({ title: '', author: '', isbn: '', quantity: 1, available: 1, category: '', location: '' });
+            setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '' });
             loadBooks();
             onDataChange();
         } catch (error) {
@@ -164,7 +172,12 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                             <div>
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{book.title}</p>
                                                 <p className="text-xs font-bold text-slate-500">By {book.author}</p>
-                                                <p className="text-[10px] font-mono text-slate-400 mt-1 uppercase">ISBN: {book.isbn}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[9px] font-black px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-md">
+                                                        {book.accessionNumber}
+                                                    </span>
+                                                    <span className="text-[9px] font-bold text-slate-400">ISBN: {book.isbn}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -277,15 +290,28 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                         placeholder="e.g. John Doe"
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">ISBN-13/10</label>
-                                    <input
-                                        type="text" required
-                                        value={newBook.isbn}
-                                        onChange={(e) => setNewBook({ ...newBook, isbn: e.target.value })}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
-                                        placeholder="e.g. 978-3-16-148410-0"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Accession Number (Unique ID)</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newBook.accessionNumber}
+                                            onChange={(e) => setNewBook({ ...newBook, accessionNumber: e.target.value.toUpperCase() })}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
+                                            placeholder="e.g. LIB-2024-001"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Standard Reference (ISBN)</label>
+                                        <input
+                                            type="text"
+                                            value={newBook.isbn}
+                                            onChange={(e) => setNewBook({ ...newBook, isbn: e.target.value })}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
+                                            placeholder="ISBN-13 or ISSN"
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Quantity</label>
@@ -332,9 +358,9 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
             )}
 
             {qrBook && (
-                <BookQrCodeModal 
-                    book={qrBook} 
-                    onClose={() => setQrBook(null)} 
+                <BookQrCodeModal
+                    book={qrBook}
+                    onClose={() => setQrBook(null)}
                 />
             )}
         </div>

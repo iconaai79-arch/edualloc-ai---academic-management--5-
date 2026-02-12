@@ -26,6 +26,8 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [settings, setSettings] = useState<LibrarySettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [isIssuing, setIsIssuing] = useState(false);
+    const [scanSearch, setScanSearch] = useState('');
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const [newLoan, setNewLoan] = useState({
         userId: '',
@@ -199,7 +201,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             </td>
                                             <td className="px-6 py-5">
                                                 <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getBookTitle(transaction.bookId)}</p>
-                                                <p className="text-[10px] font-bold text-slate-400">BK-{transaction.bookId.slice(-4).toUpperCase()}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-slate-100 dark:bg-slate-900 text-slate-500 rounded">
+                                                        {books.find(b => b.id === transaction.bookId)?.accessionNumber || 'N/A'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                                 {new Date(transaction.issueDate).toLocaleDateString()}
@@ -244,6 +250,24 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             <h4 className="font-black uppercase tracking-tight text-sm">Quick Intake</h4>
                         </div>
                         <p className="text-xs text-slate-500 mb-6 font-medium leading-relaxed">Scan the book QR code or ISBN to instantly pull up return context or issue registry.</p>
+                        <div className="relative group mb-4">
+                            <input
+                                type="text"
+                                placeholder="Scan or Enter Accession ID..."
+                                value={scanSearch}
+                                onChange={(e) => {
+                                    const val = e.target.value.toUpperCase();
+                                    setScanSearch(val);
+                                    const foundBook = books.find(b => b.accessionNumber === val);
+                                    if (foundBook) {
+                                        setIsIssuing(true);
+                                        setNewLoan(prev => ({ ...prev, bookId: foundBook.id }));
+                                        setScanSearch('');
+                                    }
+                                }}
+                                className="w-full px-5 py-4 bg-slate-900 border-2 border-indigo-500/30 focus:border-indigo-500 rounded-2xl text-xs font-black text-white uppercase placeholder:text-slate-600 outline-none transition-all"
+                            />
+                        </div>
                         <div className="relative group">
                             <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-900/10 dark:from-black/40 rounded-[2rem] pointer-events-none" />
                             <div className="aspect-square bg-slate-900 flex flex-col items-center justify-center rounded-[2rem] border-4 border-slate-800 relative z-10 transition-transform group-hover:scale-95 duration-500">
@@ -251,8 +275,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 <div className="absolute top-4 inset-x-4 h-1 bg-indigo-500/20 animate-scan pointer-events-none" />
                             </div>
                         </div>
-                        <button className="w-full mt-6 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all">
-                            Initialize Scanner
+                        <button 
+                            onClick={() => alert("Scanner hardware layer initialization requested. In a live production environment, this would activate the device camera.")}
+                            className="w-full mt-6 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all">
+                            Initialize Camera Scanner
                         </button>
                     </div>
 
@@ -320,7 +346,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                     >
                                         <option value="">-- Select Book --</option>
                                         {books.filter(b => b.available > 0).map(book => (
-                                            <option key={book.id} value={book.id}>{book.title} ({book.available} Available)</option>
+                                            <option key={book.id} value={book.id}>
+                                                [{book.accessionNumber}] {book.title} ({book.available} Available)
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
