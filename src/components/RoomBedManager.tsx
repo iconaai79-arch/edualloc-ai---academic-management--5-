@@ -163,7 +163,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             const payload = {
                 ...roomFormData,
                 houseId: selectedHouseId,
-                ...(editingRoom ? { id: editingRoom.id } : { id: `room_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+                ...(editingRoom ? { id: editingRoom.id } : { id: `room_${Date.now()}` })
             };
 
             await apiService.saveModuleRecord('boarding_rooms', payload);
@@ -197,7 +197,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             const payload = {
                 ...bedFormData,
                 roomId: selectedRoomId,
-                ...(editingBed ? { id: editingBed.id } : { id: `bed_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+                ...(editingBed ? { id: editingBed.id } : { id: `bed_${Date.now()}` })
             };
 
             await apiService.saveModuleRecord('boarding_beds', payload);

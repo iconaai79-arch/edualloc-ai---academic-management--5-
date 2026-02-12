@@ -94,7 +94,7 @@ const HouseManager: React.FC<HouseManagerProps> = ({
             const payload = {
                 ...formData,
                 institutionId: currentInstitution.id,
-                ...(editingHouse ? { id: editingHouse.id } : { id: `house_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` })
+                ...(editingHouse ? { id: editingHouse.id } : { id: `house_${Date.now()}` })
             };
 
             await apiService.saveModuleRecord('boarding_houses', payload);
