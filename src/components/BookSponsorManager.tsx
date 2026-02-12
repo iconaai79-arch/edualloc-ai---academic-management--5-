@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import type { Book, BookStockReceipt, User } from '../types';
 import {
     PlusIcon, BuildingOfficeIcon, TrashIcon, ArchiveBoxIcon,
-    CalendarIcon, ClipboardListIcon, DownloadIcon, CheckCircleIcon,
-    ArrowTrendingUpIcon, ActivityIcon, XIcon
+    CalendarDaysIcon, ClipboardListIcon, DownloadIcon, CheckCircleIcon,
+    ChartBarIcon, XIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 

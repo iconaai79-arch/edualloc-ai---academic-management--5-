@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import type { Book, BookReservation, User } from '../types';
 import {
-    BookmarkIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
+    RectangleStackIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
     UserIcon, BookOpenIcon, AlertTriangleIcon, ArrowRightIcon,
-    ShoppingCartIcon, CalendarIcon
+    CalendarDaysIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -73,7 +73,7 @@ export const BookReservationManager: React.FC<BookReservationManagerProps> = ({
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
                     <div className="p-6 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-[2rem]">
-                        <BookmarkIcon className="w-10 h-10" />
+                        <RectangleStackIcon className="w-10 h-10" />
                     </div>
                     <div>
                         <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none">Hold & Reserve Registry</h3>
@@ -146,7 +146,7 @@ export const BookReservationManager: React.FC<BookReservationManagerProps> = ({
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-2">
-                                            <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                            <CalendarDaysIcon className="w-4 h-4 text-slate-400" />
                                             <span className="text-xs font-black text-rose-500 uppercase tracking-tight">{new Date(res.expiryDate).toLocaleDateString()}</span>
                                         </div>
                                     </td>
@@ -194,7 +194,7 @@ export const BookReservationManager: React.FC<BookReservationManagerProps> = ({
                     <p className="text-slate-400 text-sm leading-relaxed mb-6 font-medium uppercase tracking-wide">Digital holds expire automatically after 3 days of non-collection to ensure equitable access to limited resources. All actions performed here are synchronized in real-time with the Student Portal.</p>
                     <button className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Review Hold Polices</button>
                 </div>
-                <BookmarkIcon className="absolute -right-10 -bottom-10 w-64 h-64 text-white/5 rotate-12" />
+                <RectangleStackIcon className="absolute -right-10 -bottom-10 w-64 h-64 text-white/5 rotate-12" />
             </div>
         </div>
     );

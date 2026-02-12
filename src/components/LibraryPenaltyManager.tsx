@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { LibraryFine, LibrarySettings, User } from '../types';
 import {
     SettingsIcon, CurrencyIcon, CheckCircleIcon, XCircleIcon,
-    AlertTriangleIcon, HistoryIcon, UserIcon,
-    ArrowTrendingUpIcon, ShieldCheckIcon
+    AlertTriangleIcon, UserIcon, ShieldIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -151,7 +150,7 @@ export const LibraryPenaltyManager: React.FC<LibraryPenaltyManagerProps> = ({
 
                         <div className="mt-12 p-6 bg-rose-50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/30">
                             <div className="flex items-center gap-2 mb-3">
-                                <ShieldCheckIcon className="w-4 h-4 text-rose-500" />
+                                <ShieldIcon className="w-4 h-4 text-rose-500" />
                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-600">Integrity Protocol</h4>
                             </div>
                             <p className="text-[10px] font-bold text-slate-500 leading-relaxed uppercase">Fines are automatically triggered upon overdue book retrieval. Policy updates apply only to future lending activity.</p>
