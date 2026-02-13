@@ -203,9 +203,15 @@ export const apiService = {
     },
     async fetchModuleRecords<T>(module: string, institutionId?: string): Promise<T[]> {
         if (!_supabase) {
-            let records = ls.get(module);
+            // Mapping for views in local storage mode
+            let effectiveModule = module;
+            if (module === 'v_house_statistics' || module === 'v_bed_occupancy') {
+                effectiveModule = 'boarding_houses';
+            }
+
+            let records = ls.get(effectiveModule);
             if (institutionId) {
-                const filterKey = module === 'institutions' ? 'id' : 'institution_id';
+                const filterKey = effectiveModule === 'institutions' ? 'id' : 'institution_id';
                 records = records.filter((r: any) => r[filterKey] === institutionId);
             }
             return toCamelCase(records) || [];
@@ -218,9 +224,16 @@ export const apiService = {
                 query = query.eq(filterCol, institutionId);
             }
             const { data, error } = await query;
-            if (error) throw error;
+            if (error) {
+                console.error(`Fetch Error [${module}]:`, error);
+                throw error;
+            }
+            console.log(`Fetch [${module}]: Found ${data?.length || 0} raw records`);
             return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        } catch (e) {
+            console.error(`Fetch Exception [${module}]:`, e);
+            return [];
+        }
     },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<void> {
         const payload = toSnakeCase(data);

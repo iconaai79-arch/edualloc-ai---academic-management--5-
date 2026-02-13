@@ -1503,6 +1503,15 @@ export const App: React.FC = () => {
                                     courses={courses}
                                     departments={departments}
                                     onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }}
+                                    onEditUser={onEditUser}
+                                    onDeleteUser={onDeleteUser}
+                                    onImportStudents={onImportStudents}
+                                    smsConfig={companyDetails.smsConfig}
+                                    subjects={subjects}
+                                    letterheadConfig={activeLetterheadConfig}
+                                    logoUrl={activeLogoUrl}
+                                    footerImageUrl={activeFooterImageUrl}
                                 />
 
                             ) : isAdminCatchAll ? (

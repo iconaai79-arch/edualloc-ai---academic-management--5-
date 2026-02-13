@@ -4,7 +4,7 @@ import {
     CompanyDetails, AcademicYear, Semester,
     Course, Department
 } from '../types';
-import { HomeIcon, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon } from './icons';
+import { HomeIcon, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon, UserGroupIcon } from './icons/index';
 import { apiService } from '../services/apiService';
 import HouseManager from './HouseManager';
 import RoomBedManager from './RoomBedManager';
@@ -13,6 +13,8 @@ import CheckInOutManager from './CheckInOutManager';
 import BoardingReports from './BoardingReports';
 import BoardingMaintenanceManager from './BoardingMaintenanceManager';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+import { UserManager } from './UserManager';
+import { SmsConfig, Subject, LetterheadConfig } from '../types';
 
 
 interface BoardingMasterViewProps {
@@ -25,10 +27,20 @@ interface BoardingMasterViewProps {
     courses: Course[];
     departments: Department[];
     onLogAction: (action: string) => Promise<void>;
+    // New Props for Student Management
+    onAddUser?: (userData: any) => void;
+    onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
+    onImportStudents?: (imported: any[]) => Promise<void>;
+    smsConfig?: SmsConfig;
+    subjects?: Subject[];
+    letterheadConfig?: LetterheadConfig;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
 }
 
 
-type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'maintenance' | 'reports';
+type BoardingTab = 'dashboard' | 'houses' | 'rooms' | 'allocations' | 'checkin' | 'leaveout' | 'maintenance' | 'reports' | 'students';
 
 
 const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
@@ -40,7 +52,16 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     semesters,
     courses,
     departments,
-    onLogAction
+    onLogAction,
+    onAddUser,
+    onEditUser,
+    onDeleteUser,
+    onImportStudents,
+    smsConfig,
+    subjects,
+    letterheadConfig,
+    logoUrl,
+    footerImageUrl
 }) => {
 
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
@@ -178,7 +199,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
             {/* Quick Actions */}
             <div className="bg-white rounded-lg shadow-md p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <button
                         onClick={() => setActiveTab('allocations')}
                         className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
@@ -209,6 +230,17 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         <div className="text-left">
                             <p className="font-semibold text-gray-900">Maintenance</p>
                             <p className="text-sm text-gray-600">{stats.maintenanceIssues} pending issues</p>
+                        </div>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveTab('students')}
+                        className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                    >
+                        <UserGroupIcon className="w-6 h-6 text-indigo-600" />
+                        <div className="text-left">
+                            <p className="font-semibold text-gray-900">Manage Students</p>
+                            <p className="text-sm text-gray-600">View and register students</p>
                         </div>
                     </button>
                 </div>
@@ -350,6 +382,16 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                             <ClipboardListIcon className="w-4 h-4" />
                             Leave Out Requests
                         </button>
+                        <button
+                            onClick={() => setActiveTab('students')}
+                            className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap flex items-center gap-2 ${activeTab === 'students'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <UsersIcon className="w-4 h-4" />
+                            Manage Students
+                        </button>
                     </nav>
 
                 </div>
@@ -418,6 +460,29 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         currentUser={currentUser}
                         currentInstitution={currentInstitution}
                         onLogAction={onLogAction}
+                    />
+                )}
+                {activeTab === 'students' && (
+                    <UserManager
+                        currentUser={currentUser}
+                        currentInstitution={currentInstitution}
+                        users={users}
+                        courses={courses}
+                        departments={departments}
+                        onLogAction={onLogAction}
+                        onAddUser={onAddUser}
+                        onEditUser={onEditUser!}
+                        onDeleteUser={onDeleteUser!}
+                        onImportStudents={onImportStudents!}
+                        onImportUsers={async () => { }} // Not needed for boarding perspective
+                        smsConfig={smsConfig!}
+                        subjects={subjects!}
+                        letterheadConfig={letterheadConfig!}
+                        logoUrl={logoUrl!}
+                        footerImageUrl={footerImageUrl!}
+                        showOnly="student"
+                        allocations={[]} // Optional for student view in this context
+                        onWithdrawRequest={() => { }}
                     />
                 )}
             </div>

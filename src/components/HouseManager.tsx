@@ -35,12 +35,35 @@ const HouseManager: React.FC<HouseManagerProps> = ({
 
     const loadHouses = async () => {
         setLoading(true);
+        console.log('HouseManager: Loading houses for institution:', currentInstitution.id);
         try {
-            const data = await apiService.fetchModuleRecords<BoardingHouseWithStats>('v_house_statistics', currentInstitution.id);
+            // First attempt: Fetch from stats view
+            let data = await apiService.fetchModuleRecords<BoardingHouseWithStats>('v_house_statistics', currentInstitution.id);
+
+            // Fallback: If view returns nothing, try fetching raw houses to see if records exist at all
+            if (!data || data.length === 0) {
+                console.warn('HouseManager: v_house_statistics returned no data, trying raw boarding_houses table...');
+                const rawHouses = await apiService.fetchModuleRecords<any>('boarding_houses', currentInstitution.id);
+                if (rawHouses && rawHouses.length > 0) {
+                    console.log('HouseManager: Found raw records, mapping to stats structure', rawHouses.length);
+                    // Map raw records to the stats structure so the UI doesn't crash
+                    data = rawHouses.map(h => ({
+                        ...h,
+                        totalRooms: 0,
+                        totalBeds: 0,
+                        availableBeds: 0,
+                        occupiedBeds: 0,
+                        activeAllocations: 0,
+                        occupancyPercentage: 0
+                    }));
+                }
+            }
+
+            console.log('HouseManager: Final data for state:', data);
             setHouses(data || []);
             await onLogAction('Viewed boarding houses');
         } catch (error) {
-            console.error('Error loading houses:', error);
+            console.error('HouseManager: Error loading houses:', error);
             alert('Failed to load houses');
         } finally {
             setLoading(false);
@@ -159,13 +182,22 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                     <h2 className="text-2xl font-bold text-gray-900">Boarding Houses</h2>
                     <p className="text-gray-600 mt-1">Manage boarding houses and dormitories</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    <PlusIcon className="w-5 h-5" />
-                    Add House
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={loadHouses}
+                        className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Refresh List"
+                    >
+                        <TrendingUpIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <PlusIcon className="w-5 h-5" />
+                        Add House
+                    </button>
+                </div>
             </div>
 
             {/* Houses Grid */}
@@ -174,12 +206,24 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                     <HomeIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No Boarding Houses Yet</h3>
                     <p className="text-gray-600 mb-6">Get started by creating your first boarding house</p>
-                    <button
-                        onClick={() => handleOpenModal()}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        Create First House
-                    </button>
+
+                    <div className="mb-8 p-4 bg-blue-50 rounded-lg inline-block text-left text-sm text-blue-800 border border-blue-100">
+                        <p className="font-bold mb-1">Troubleshooting Tips:</p>
+                        <ul className="list-disc ml-4 space-y-1">
+                            <li>Check if the Database View exists: Run <code className="bg-blue-100 px-1">SELECT * FROM v_house_statistics;</code></li>
+                            <li>Current Institution ID in App: <code className="bg-blue-100 px-1 font-bold">{currentInstitution.id}</code></li>
+                            <li>Ensure the data in <code className="bg-blue-100 px-1">boarding_houses</code> table matches this ID.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            Create First House
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
