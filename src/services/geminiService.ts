@@ -160,20 +160,20 @@ export const generateTimetable = async (
             Task: Generate a conflict-free consolidated academic timetable.
             
             Inputs:
-            - Approved Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, lecturerId: a.lecturerId, courseLevelId: a.courseLevelId })))}
+            - Approved Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, lecturerId: a.lecturerId, courseLevelIds: a.courseLevelIds })))}
             - Subject Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, structure: s.lessonStructure })))}
             - Faculty Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
             - Room Inventory: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
             - Course & Level Structure: ${JSON.stringify(courses.map(c => ({
-                id: c.id,
-                name: c.name,
-                levels: c.levels.map(l => ({
-                    id: l.id,
-                    name: l.name,
-                    subjectIds: l.subjectIds,
-                    overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
-                }))
-            })))}
+            id: c.id,
+            name: c.name,
+            levels: c.levels.map(l => ({
+                id: l.id,
+                name: l.name,
+                subjectIds: l.subjectIds,
+                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
+            }))
+        })))}
             - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
             - Curriculum Schedule Profiles: ${JSON.stringify(profiles)}
             - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
