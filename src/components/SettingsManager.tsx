@@ -208,7 +208,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         email: props.currentInstitution?.email || '',
         phoneNumber: props.currentInstitution?.phoneNumber || '',
         useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
-        aiModelTier: props.currentInstitution?.aiModelTier || 'free'
+        aiModelTier: props.currentInstitution?.aiModelTier || 'premium'
     });
 
     // --- Exam Settings State ---
@@ -224,7 +224,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 email: props.currentInstitution.email || '',
                 phoneNumber: props.currentInstitution.phoneNumber || '',
                 useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true,
-                aiModelTier: props.currentInstitution.aiModelTier || 'free'
+                aiModelTier: props.currentInstitution.aiModelTier || 'premium'
             });
         }
     }, [props.currentInstitution]);
