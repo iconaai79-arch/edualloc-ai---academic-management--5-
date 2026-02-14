@@ -78,8 +78,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         }, { subjectCount: 0, totalPeriods: 0, totalHours: 0 });
     }, [workloadData]);
 
-    const getCellEntry = (level: CourseLevel, day: string, period: any) => {
-        return generatedTimetable.find(e =>
+    const getCellEntries = (level: CourseLevel, day: string, period: any) => {
+        return generatedTimetable.filter(e =>
             e.day === day &&
             (level.subjectIds || []).includes(e.subjectId) &&
             e.startTime === period.startTime
@@ -150,31 +150,77 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
 
+                                                        // In horizontal layout, slotEntries contains ALL entries for ALL levels of this course in this slot.
+                                                        // To determine if a specific group (Level) has a "BLOCK", we'd need to group by level.
+                                                        // However, the horizontal layout is already an aggregate view. 
+                                                        // If multiple subjects appear in the same slot for the same course, 
+                                                        // they should arguably be shown individually if they belong to different classes, 
+                                                        // UNLESS they are concurrent for the same class.
+                                                        // Existing code iterates over `slotEntries.map`.
+                                                        // Let's refine this: if ANY level has > 1 subject in this slot, we might want to flag it.
+                                                        // But the UI here is a "Course Map". 
+                                                        // If we want to satisfy "BLOCK PATHWAY SUBJECTS SHOULD DISPLAY AS BLOCK", 
+                                                        // we should probably check if there are multiple entries for the SAME level.
+
                                                         return (
                                                             <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
                                                                 <div className="flex h-full gap-1">
-                                                                    {slotEntries.map((entry, idx) => {
-                                                                        const subject = getSubjectById(entry.subjectId);
-                                                                        const lecturer = getLecturerById(entry.lecturerId);
-                                                                        const room = getRoomById(entry.roomId);
-                                                                        const isConflicting = timetableConflicts?.some(c =>
-                                                                            c.type === 'consecutive_subject' &&
-                                                                            c.day === day &&
-                                                                            c.conflictingEntries.some(ce => ce.id === entry.id)
-                                                                        );
+                                                                    {/* Group by Level ID locally or just check if we should 'BLOCK'ify individual items */}
+                                                                    {(() => {
+                                                                        // Count entries per level
+                                                                        const levelCounts: Record<string, number> = {};
+                                                                        slotEntries.forEach(e => {
+                                                                            // Find which level this entry belongs to (it might belong to multiple subjectIds in different levels)
+                                                                            course.levels.forEach(l => {
+                                                                                if ((l.subjectIds || []).includes(e.subjectId)) {
+                                                                                    levelCounts[l.id] = (levelCounts[l.id] || 0) + 1;
+                                                                                }
+                                                                            });
+                                                                        });
 
-                                                                        return (
-                                                                            <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                                <div className="text-[10px] leading-tight text-slate-900 font-black uppercase tracking-tighter flex items-center justify-center gap-1">
-                                                                                    {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
-                                                                                    <span className="block">{subject?.shortName || subject?.code}</span>
+                                                                        // If any level has > 1 entries, we show BLOCK for those entries?
+                                                                        // This gets complex in the aggregate view. 
+                                                                        // Let's stick to the simplest interpretation: if there are multiple entries for the same slot in this aggregate view, 
+                                                                        // we render them as before, BUT if they belong to a block (multiple entries per level), we could label them.
+
+                                                                        // Actually, if the user sees "Maths, English" for Level 1 in the same cell, that's what they want to see as "BLOCK".
+
+                                                                        return slotEntries.map((entry, idx) => {
+                                                                            const levelEntryCount = course.levels.find(l => (l.subjectIds || []).includes(entry.subjectId)) ?
+                                                                                course.levels.filter(l => (l.subjectIds || []).includes(entry.subjectId))
+                                                                                    .reduce((max, l) => Math.max(max, levelCounts[l.id] || 0), 0) : 0;
+
+                                                                            const isBlockPart = levelEntryCount > 1;
+                                                                            const subject = getSubjectById(entry.subjectId);
+                                                                            const lecturer = getLecturerById(entry.lecturerId);
+                                                                            const room = getRoomById(entry.roomId);
+                                                                            const isConflicting = timetableConflicts?.some(c =>
+                                                                                c.type === 'consecutive_subject' &&
+                                                                                c.day === day &&
+                                                                                c.conflictingEntries.some(ce => ce.id === entry.id)
+                                                                            );
+
+                                                                            if (isBlockPart && idx === slotEntries.findIndex(e => course.levels.some(l => (l.subjectIds || []).includes(e.subjectId) && (l.subjectIds || []).includes(entry.subjectId)))) {
+                                                                                // Only show BLOCK once per level group if needed?
+                                                                                // This is getting messy. Let's just follow the vertical layout pattern:
+                                                                                // If entries.length > 1 for the SAME group, it's a block.
+                                                                            }
+
+                                                                            return (
+                                                                                <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'} ${isBlockPart ? 'bg-slate-200 dark:bg-slate-700' : ''}`} style={isBlockPart ? {} : { backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                    <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
+                                                                                        {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
+                                                                                        <span className="block">{isBlockPart ? 'BLOCK' : (subject?.shortName || subject?.code)}</span>
+                                                                                    </div>
+                                                                                    {!isBlockPart && (
+                                                                                        <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
+                                                                                            <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
-                                                                                <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
-                                                                                    <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                                                            );
+                                                                        });
+                                                                    })()}
                                                                 </div>
                                                             </td>
                                                         );
@@ -243,23 +289,31 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                 );
                                                             }
 
-                                                            const entry = getCellEntry(level, day, period);
-                                                            if (entry) {
-                                                                const subject = subjects.find(s => s.id === entry.subjectId);
-                                                                const lecturer = lecturers.find(l => l.id === entry.lecturerId);
-                                                                const room = rooms.find(r => r.id === entry.roomId);
+                                                            const entries = getCellEntries(level, day, period);
+                                                            if (entries && entries.length > 0) {
+                                                                const isBlock = entries.length > 1;
+                                                                const primaryEntry = entries[0];
+                                                                const subject = subjects.find(s => s.id === primaryEntry.subjectId);
+                                                                const lecturer = lecturers.find(l => l.id === primaryEntry.lecturerId);
+                                                                const room = rooms.find(r => r.id === primaryEntry.roomId);
 
-                                                                const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                                const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                                 const colSpan = Math.round(duration / cellSpanMinutes);
 
                                                                 for (let k = 0; k < colSpan; k++) occupiedSlots.add(periodIndex + k);
 
                                                                 return (
                                                                     <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle text-center">
-                                                                        <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                            <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{subject?.shortName || subject?.code}</p>
-                                                                            <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</p>
-                                                                        </div>
+                                                                        {isBlock ? (
+                                                                            <div className="rounded-xl p-2 text-center shadow-sm border border-black/5 bg-slate-200 dark:bg-slate-700 h-full flex items-center justify-center">
+                                                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase leading-none tracking-widest">BLOCK</p>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(primaryEntry.subjectId) }}>
+                                                                                <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{subject?.shortName || subject?.code}</p>
+                                                                                <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</p>
+                                                                            </div>
+                                                                        )}
                                                                     </td>
                                                                 );
                                                             }

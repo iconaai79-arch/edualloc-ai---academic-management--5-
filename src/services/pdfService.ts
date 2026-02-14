@@ -841,7 +841,7 @@ export const generateMasterCourseTimetablePdf = async (
                     const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
                     const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
-                    const entry = (generatedTimetable || []).find(e =>
+                    const entries = (generatedTimetable || []).filter(e =>
                         e.day === day &&
                         (level.subjectIds || []).includes(e.subjectId) &&
                         timeToMinutes(e.startTime) === slotStartMinutes
@@ -854,12 +854,14 @@ export const generateMasterCourseTimetablePdf = async (
                             colSpan: 1,
                             styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
                         });
-                    } else if (entry) {
+                    } else if (entries.length > 0) {
+                        const isBlock = entries.length > 1;
+                        const entry = entries[0];
                         const subject = getSubjectById(entry.subjectId);
                         const lecturer = getLecturerById(entry.lecturerId);
                         const room = getRoomById(entry.roomId);
 
-                        const text = [
+                        const text = isBlock ? 'BLOCK' : [
                             subject?.shortName || subject?.code || 'N/A',
                             getInitials(lecturer?.name || ''),
                             room?.name || ''
@@ -873,7 +875,13 @@ export const generateMasterCourseTimetablePdf = async (
                         row.push({
                             content: text,
                             colSpan,
-                            styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: getPastelRgb(entry.subjectId) }
+                            styles: {
+                                halign: 'center',
+                                valign: 'middle',
+                                fontSize: isBlock ? 8 : 7,
+                                fontStyle: isBlock ? 'bold' : 'normal',
+                                fillColor: isBlock ? [245, 245, 245] : getPastelRgb(entry.subjectId)
+                            }
                         });
                         i += colSpan - 1;
                     } else {

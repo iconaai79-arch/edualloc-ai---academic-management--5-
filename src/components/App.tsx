@@ -1110,6 +1110,10 @@ export const App: React.FC = () => {
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
     const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
 
+    const isFullWidthLayout = useMemo(() => {
+        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
+    }, [activeRole, isAdminCatchAll]);
+
     if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
@@ -1152,7 +1156,7 @@ export const App: React.FC = () => {
                             activeRole={activeRole as Role}
                             onSwitchRole={(r) => setSelectedRole(r)}
                         />
-                        <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+                        <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
                             {activeRole === 'super_admin' ? (
                                 <SuperAdminView
                                     currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { await apiService.saveInstitution(d as any); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m) => apiService.sendSms(r, m)}
