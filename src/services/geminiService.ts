@@ -17,8 +17,33 @@ const getSafeKey = () => {
 const apiKey = getSafeKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Flagship Engine Configuration: Consolidating architecture to Gemini 3.0 Pro
+// Flagship Engine Configuration: Consolidating architecture to Gemini 3.0 Pro logic.
+// We use a safe wrapper to handle model availability across different API key tiers.
 const GEMINI_3_PRO_ENGINE = 'gemini-1.5-pro';
+const FALLBACK_ENGINE = 'gemini-1.5-flash';
+
+const safeGenerateContent = async (prompt: string, config: any = {}) => {
+    checkAiAvailable();
+    try {
+        // Attempt Primary Pro Architecture
+        return await ai!.models.generateContent({
+            model: GEMINI_3_PRO_ENGINE,
+            contents: prompt,
+            config: config
+        });
+    } catch (error: any) {
+        // If Pro is not 404/Not Found, or unsupported, fallback to stable Flash engine
+        if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('not supported')) {
+            console.warn(`[AI] Flagship engine ${GEMINI_3_PRO_ENGINE} unavailable. Switching to high-stability ${FALLBACK_ENGINE}.`);
+            return await ai!.models.generateContent({
+                model: FALLBACK_ENGINE,
+                contents: prompt,
+                config: config
+            });
+        }
+        throw error;
+    }
+};
 
 const checkAiAvailable = () => {
     if (!ai) throw new Error("AI Service Unavailable: API_KEY not configured.");
@@ -54,10 +79,9 @@ const sanitizeAndParseJson = (text: string): any => {
 export const generateJustification = async (lecturer: User, subject: Subject): Promise<string> => {
     try {
         checkAiAvailable();
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`,
-        });
+        const response = await safeGenerateContent(
+            `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`
+        );
         return response.text || "";
     } catch (error) {
         console.error("AI justification error:", error);
@@ -69,10 +93,9 @@ export const generateBulkJustification = async (lecturer: User, subjects: Subjec
     try {
         checkAiAvailable();
         const subjectList = subjects.map(s => `- ${s.name} (${s.code})`).join('\n');
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`,
-        });
+        const response = await safeGenerateContent(
+            `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`
+        );
         return response.text || "";
     } catch (error) {
         console.error("AI bulk justification error:", error);
@@ -103,11 +126,7 @@ export const suggestPathwaySubjectUpdates = async (
             Return ONLY a JSON object mapping subject IDs to these suggested updates.
         `;
 
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI Pathway Sync Error:", error);
@@ -118,10 +137,9 @@ export const suggestPathwaySubjectUpdates = async (
 export const generateInternshipReport = async (student: User, internship: Internship, courseName: string, keywords: string): Promise<string> => {
     try {
         checkAiAvailable();
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: `Generate a professional internship report for ${student.name} at ${internship.industryName}. Course: ${courseName}. Keywords: ${keywords}`,
-        });
+        const response = await safeGenerateContent(
+            `Generate a professional internship report for ${student.name} at ${internship.industryName}. Course: ${courseName}. Keywords: ${keywords}`
+        );
         return response.text || "";
     } catch (error) {
         console.error("AI report error:", error);
@@ -133,11 +151,7 @@ export const analyzeTimetableSpreadsheet = async (headers: string[]): Promise<Re
     try {
         checkAiAvailable();
         const prompt = `Map these headers to: startTime, subjectCode, lecturerName, roomName, day, endTime. Headers: ${JSON.stringify(headers)}. Return JSON only.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI mapping error:", error);
@@ -204,15 +218,7 @@ export const generateTimetable = async (
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
-        const modelName = GEMINI_3_PRO_ENGINE;
-
-        const response = await ai!.models.generateContent({
-            model: modelName,
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json'
-            }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
@@ -238,15 +244,7 @@ export const generateExamTimetable = async (
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
 
-        const modelName = GEMINI_3_PRO_ENGINE;
-
-        const response = await ai!.models.generateContent({
-            model: modelName,
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json'
-            }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
@@ -262,11 +260,7 @@ export const analyzeUserSpreadsheet = async (headers: string[]): Promise<Record<
     try {
         checkAiAvailable();
         const prompt = `Map headers to user fields: name, email, phoneNumber, staffId, role, departmentName, expertise, gender. Headers: ${JSON.stringify(headers)}. Return JSON.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI user map error:", error);
@@ -278,11 +272,7 @@ export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: bool
     try {
         checkAiAvailable();
         const prompt = `Map headers to course fields: name, code, departmentName, academicLevelName. Headers: ${JSON.stringify(headers)}. Return JSON.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI course map error:", error);
@@ -294,11 +284,7 @@ export const analyzeSubjectSpreadsheet = async (headers: string[], aiModelTier?:
     try {
         checkAiAvailable();
         const prompt = `Map headers to subject fields: name, code, departmentName, description, shortName, lessonStructure, targetCourseLevel. Headers: ${JSON.stringify(headers)}. Return JSON.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI subject map error:", error);
@@ -309,11 +295,10 @@ export const analyzeSubjectSpreadsheet = async (headers: string[], aiModelTier?:
 export const findLocationCoordinates = async (query: string, aiModelTier?: string): Promise<{ latitude: number, longitude: number, address: string, googleMapsUri?: string } | null> => {
     try {
         checkAiAvailable();
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: `Find GPS coordinates for "${query}". Return JSON: {latitude, longitude, address, googleMapsUri}. Use null if not found.`,
-            config: { responseMimeType: 'application/json', tools: [{ googleSearch: {} }] }
-        });
+        const response = await safeGenerateContent(
+            `Find GPS coordinates for "${query}". Return JSON: {latitude, longitude, address, googleMapsUri}. Use null if not found.`,
+            { responseMimeType: 'application/json', tools: [{ googleSearch: {} }] }
+        );
         const data = sanitizeAndParseJson(response.text || "{}");
         if (data.latitude && data.longitude) {
             return {
@@ -333,12 +318,25 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
     try {
         checkAiAvailable();
-        const chat = ai!.chats.create({
-            model: GEMINI_3_PRO_ENGINE,
-            history: history as any
-        });
-        const result = await chat.sendMessage({ message });
-        return result.text || "I'm sorry, I couldn't process that.";
+        let chat;
+        try {
+            chat = ai!.chats.create({
+                model: GEMINI_3_PRO_ENGINE,
+                history: history as any
+            });
+            const result = await chat.sendMessage({ message });
+            return result.text || "I'm sorry, I couldn't process that.";
+        } catch (chatError: any) {
+            if (chatError.message?.includes('404') || chatError.message?.includes('not found')) {
+                chat = ai!.chats.create({
+                    model: FALLBACK_ENGINE,
+                    history: history as any
+                });
+                const result = await chat.sendMessage({ message });
+                return result.text || "I'm sorry, I couldn't process that.";
+            }
+            throw chatError;
+        }
     } catch (error) {
         console.error("AI chat error:", error);
         return "I encountered an error. Please try again.";
@@ -349,11 +347,7 @@ export const analyzeCountyInventorySpreadsheet = async (headers: string[]): Prom
     try {
         checkAiAvailable();
         const prompt = `Map these spreadsheet headers to county inventory fields: name, category, quantity, unit, supplierName, targetInstitutionId, deliveryMethod. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI county inventory map error:", error);
@@ -365,11 +359,7 @@ export const analyzeDepartmentSpreadsheet = async (headers: string[]): Promise<R
     try {
         checkAiAvailable();
         const prompt = `Map headers to department fields: name. Headers: ${JSON.stringify(headers)}. Return JSON.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI department map error:", error);
@@ -381,11 +371,7 @@ export const analyzeRoomSpreadsheet = async (headers: string[], aiModelTier?: st
     try {
         checkAiAvailable();
         const prompt = `Map headers to room fields: name, shortName, capacity, buildingName, equipment. Headers: ${JSON.stringify(headers)}. Return JSON mapping fields to headers. Use null for missing.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI room map error:", error);
@@ -396,11 +382,7 @@ export const analyzeInstitutionSpreadsheet = async (headers: string[], aiModelTi
     try {
         checkAiAvailable();
         const prompt = `Map these spreadsheet headers to institution fields: name, email, phoneNumber, institutionType, adminName, adminEmail. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
-        const response = await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
-            contents: prompt,
-            config: { responseMimeType: 'application/json' }
-        });
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {
         console.error("AI institution map error:", error);
