@@ -291,7 +291,8 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                 className={`p-6 rounded-2xl border-2 text-center transition-all ${mode === 'ai' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-200'}`}
                             >
                                 <SparklesIcon className={`w-8 h-8 mx-auto mb-3 ${mode === 'ai' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                                <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine</h5>
+                                <h5 className={`font-bold ${mode === 'ai' ? 'text-indigo-700' : 'text-slate-600 dark:text-slate-300'}`}>AI Neural Engine (Gemini 3.0 Pro)</h5>
+                                <p className="text-[10px] text-slate-400 mt-1 italic text-indigo-500 font-bold uppercase tracking-tight">Enterprise Logical Core</p>
                                 <p className="text-[10px] text-slate-400 mt-1">Best for complex, constraint-heavy schedules. Optimizes for conflict resolution.</p>
                             </button>
 
@@ -311,7 +312,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                         {isGenerating && (
                             <div className="flex flex-col items-center justify-center py-4 animate-pulse">
                                 <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                                <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Processing Logic Matrix...</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Gemini 3.0 Pro is Processing Logic Matrix...</p>
                             </div>
                         )}
                     </div>
