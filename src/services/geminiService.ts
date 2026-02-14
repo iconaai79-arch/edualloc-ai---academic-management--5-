@@ -252,9 +252,9 @@ export const generateTimetable = async (
             6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
                - SPREAD RULE: You MUST maximize the 'day distance' between lessons of the same subject.
                  (e.g., Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL).
-               - SINGLE PERIOD BAN: A subject with `periods: 1` structure MUST NEVER appear more than once on the same day for a specific group.
+               - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
                  - If you place 'Maths (1 period)' on Tuesday 09:00, you cannot place another 'Maths' lesson on Tuesday.
-               - DOUBLE PERIOD EXCEPTION: Multiple slots on the same day are ONLY allowed if the `lessonStructure` explicitly requests a double/triple block (e.g., `periods: 2` or `periods: 3`). In that case, they MUST be consecutive.
+               - DOUBLE PERIOD EXCEPTION: Multiple slots on the same day are ONLY allowed if the 'lessonStructure' explicitly requests a double/triple block (e.g., 'periods: 2' or 'periods: 3'). In that case, they MUST be consecutive.
                - FATAL ERROR: Scheduling two separate single-period lessons of the same subject on the same day is a CRITICAL FAILURE.
 
             PLANNING STRATEGY:
