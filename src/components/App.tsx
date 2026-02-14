@@ -220,8 +220,7 @@ export const App: React.FC = () => {
     const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
     const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
     const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
-    const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
-    const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
+
     const [leaveOutRequests, setLeaveOutRequests] = useState<LeaveOutRequest[]>([]);
     const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
 
