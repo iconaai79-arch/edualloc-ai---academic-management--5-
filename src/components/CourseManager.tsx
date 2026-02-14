@@ -315,6 +315,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [assigningSubjectsTo, setAssigningSubjectsTo] = useState<Course | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
     const [managingLessonsForCourse, setManagingLessonsForCourse] = useState<Course | null>(null);
+    const [managingLessonsForStreamId, setManagingLessonsForStreamId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [academicLevelFilter, setAcademicLevelFilter] = useState('all');
@@ -1297,6 +1298,19 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                 Registry
                                             </button>
                                             <button
+                                                onClick={() => {
+                                                    const course = courses.find(c => c.id === stream.courseId);
+                                                    if (course) {
+                                                        setManagingLessonsForCourse(course);
+                                                        setManagingLessonsForStreamId(stream.streamId);
+                                                        setNewLessonLevelId(stream.streamId);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white dark:bg-emerald-900/30 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Lessons
+                                            </button>
+                                            <button
                                                 onClick={() => handleDeleteStream(stream.courseId, stream.streamId)}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white dark:bg-red-900/30 dark:text-red-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
@@ -1458,7 +1472,11 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             )}
 
             {managingLessonsForCourse && (
-                <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingLessonsForCourse(null)}>
+                <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => {
+                    setManagingLessonsForCourse(null);
+                    setManagingLessonsForStreamId(null);
+                    setNewLessonLevelId('');
+                }}>
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
                         <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                             <div className="flex items-center gap-4">
@@ -1466,11 +1484,19 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <ClipboardListIcon className="w-8 h-8" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black tracking-tighter uppercase">{managingLessonsForCourse.name} Lessons</h3>
+                                    <h3 className="text-2xl font-black tracking-tighter uppercase">
+                                        {managingLessonsForStreamId
+                                            ? `${managingLessonsForCourse.levels.find(l => l.id === managingLessonsForStreamId)?.name} Lessons`
+                                            : `${managingLessonsForCourse.name} Lessons`}
+                                    </h3>
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Manage Class Subject Allocations</p>
                                 </div>
                             </div>
-                            <button onClick={() => setManagingLessonsForCourse(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
+                            <button onClick={() => {
+                                setManagingLessonsForCourse(null);
+                                setManagingLessonsForStreamId(null);
+                                setNewLessonLevelId('');
+                            }} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
 
                         <div className="flex-grow overflow-y-auto p-8 bg-slate-50 dark:bg-slate-950">
@@ -1525,6 +1551,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             <div className="space-y-3">
                                 {lessonsList
                                     .filter(l => l.courseId === managingLessonsForCourse.id)
+                                    .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId)
                                     .map(lesson => (
                                         <div key={lesson.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-indigo-200 transition-all">
                                             <div className="flex items-center gap-4">
