@@ -1,30 +1,8 @@
+// GoogleGenAI import removed for security. AI logic now runs server-side at /api/ai.
+// const ai = ... // Removed
 
-import { GoogleGenAI } from "@google/genai";
 import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableSettings, Course, TimeOffRequest, ExamTimetableEntry, Internship, ExamTimetableSettings, LessonStructure, ScheduleProfile } from '../types';
 
-// Safely initialize API client. If KEY is missing, it will be null and calls will fail gracefully instead of crashing the app at startup.
-const getSafeKey = () => {
-    try {
-        // High-Priority lookup for server-side / Vercel contexts
-        if (typeof process !== 'undefined' && process.env) {
-            return process.env.GEMINI_API_KEY ||
-                process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-                process.env.API_KEY ||
-                process.env.VITE_GEMINI_API_KEY ||
-                process.env.VITE_API_KEY;
-        }
-        // Client-side lookup for Vite builds
-        if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-            return (import.meta as any).env.VITE_GEMINI_API_KEY ||
-                (import.meta as any).env.VITE_API_KEY ||
-                (import.meta as any).env.GEMINI_API_KEY ||
-                (import.meta as any).env.API_KEY;
-        }
-    } catch (e) { }
-    return null;
-};
-const apiKey = getSafeKey();
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const PRO_LOGICAL_CORE = 'gemini-1.5-pro';
 const STANDARD_LOGICAL_CORE = 'gemini-1.5-flash';
@@ -58,53 +36,38 @@ const sanitizeAiError = (error: any): Error => {
 };
 
 const safeGenerateContent = async (prompt: string, config: any = {}, preferredModel?: 'pro' | 'flash') => {
-    checkAiAvailable();
-    // Normalize structure for the SDK
+    // Normalization for the Backend API
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
-
-    const primaryModel = preferredModel === 'flash' ? STANDARD_LOGICAL_CORE : PRO_LOGICAL_CORE;
-    const fallbackModel = preferredModel === 'flash' ? PRO_LOGICAL_CORE : STANDARD_LOGICAL_CORE;
+    const model = preferredModel === 'flash' ? STANDARD_LOGICAL_CORE : PRO_LOGICAL_CORE;
 
     try {
-        // Attempt Primary Architecture
-        return await ai!.models.generateContent({
-            model: primaryModel,
-            contents: contents,
-            generationConfig: config
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model,
+                contents,
+                config
+            })
         });
-    } catch (error: any) {
-        // Debug visibility: Log the real error to console for technical support
-        console.error("[System Debug] Engine Error details:", error);
 
-        // Broader capture for restriction/missing/permissions
-        const errText = (error.message || '') + JSON.stringify(error).toLowerCase();
-        const isRestricted = errText.includes('404') || errText.includes('not found') ||
-            errText.includes('not supported') || errText.includes('permission') ||
-            errText.includes('403');
-
-        if (isRestricted) {
-            console.warn(`[System] Initializing logical core expansion for continuity.`);
-            try {
-                return await ai!.models.generateContent({
-                    model: fallbackModel,
-                    contents: contents,
-                    generationConfig: config
-                });
-            } catch (fallbackError: any) {
-                throw sanitizeAiError(fallbackError);
-            }
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || errorData.error || `AI Service Error: ${response.status}`);
         }
+
+        const data = await response.json();
+        return data; // Expected to contain { text: string }
+
+    } catch (error: any) {
+        console.error("[System Debug] Engine Error details:", error);
         throw sanitizeAiError(error);
     }
 };
 
 const checkAiAvailable = () => {
-    if (!ai) throw new Error("AI Service Unavailable: API_KEY not configured.");
-
-    // Explicit check for common placeholder strings
-    if (apiKey?.includes("YOUR_ACTUAL_API_KEY") || !apiKey) {
-        throw new Error("AI Authentication Required: Please set a valid Gemini API key in your .env or Settings.");
-    }
+    // Client-side check removed. Auth is handled server-side.
+    // We can add a ping to /api/health if needed, but for now we assume functionality.
 };
 
 /**
@@ -397,30 +360,24 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
 
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
     try {
-        checkAiAvailable();
-        let chat;
-        try {
-            chat = ai!.chats.create({
-                model: PRO_LOGICAL_CORE,
-                history: history as any
-            });
-            const result = await chat.sendMessage({ message });
-            return result.text || "I'm sorry, I couldn't process that.";
-        } catch (chatError: any) {
-            if (chatError.message?.includes('404') || chatError.message?.includes('not found')) {
-                try {
-                    chat = ai!.chats.create({
-                        model: STANDARD_LOGICAL_CORE,
-                        history: history as any
-                    });
-                    const result = await chat.sendMessage({ message });
-                    return result.text || "I'm sorry, I couldn't process that.";
-                } catch (fallbackError: any) {
-                    throw sanitizeAiError(fallbackError);
-                }
-            }
-            throw sanitizeAiError(chatError);
+        const response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: PRO_LOGICAL_CORE, // Default to Pro for chat
+                history,
+                message
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Chat service error");
         }
+
+        const data = await response.json();
+        return data.text || "I'm sorry, I couldn't process that.";
+
     } catch (error) {
         console.error("AI chat error:", error);
         return "I encountered an error. Please try again.";

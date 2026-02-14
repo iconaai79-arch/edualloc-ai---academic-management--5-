@@ -49,8 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.error("[Integrations] Table Error:", tableError);
             return res.status(500).json({
                 success: false,
-                message: "Database table 'system_settings' not found. Please run the initialization SQL script.",
-                error: tableError.message
+                message: "System configuration error. Please contact administrator.",
+                // error: tableError.message // HIDDEN
             });
         }
 
@@ -139,15 +139,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!response.ok) {
                     return res.status(400).json({
                         success: false,
-                        message: data.message || data.error || `Gateway Error: ${response.status}`,
-                        detail: data
+                        message: "SMS Gateway rejected the request.",
+                        // detail: data // HIDDEN
                     });
                 }
 
                 return res.status(200).json({ success: true, data });
             } catch (error: any) {
                 console.error("SMS Gateway Request Crash:", error);
-                return res.status(500).json({ success: false, message: `Gateway connection failed: ${error.message}` });
+                return res.status(500).json({ success: false, message: "Internal SMS Gateway connection failed." });
             }
         }
 
@@ -193,7 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 return res.status(200).json({ success: true, message: "Email dispatched.", messageId: info.messageId });
             } catch (error: any) {
-                return res.status(500).json({ success: false, message: `SMTP Error: ${error.message}` });
+                return res.status(500).json({ success: false, message: "Failed to send email. Check server logs." });
             }
         }
 
@@ -305,15 +305,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 return res.status(400).json({
                     success: false,
-                    message: stkData.CustomerMessage || stkData.errorMessage || "Push rejected by gateway.",
-                    errorDetail: stkData
+                    message: "M-Pesa Gateway rejected the request.",
+                    // errorDetail: stkData // HIDDEN
                 });
             } catch (error: any) {
                 console.error("[M-Pesa] Gateway Error Snapshot:", error);
                 return res.status(500).json({
                     success: false,
-                    message: "Gateway connection error.",
-                    error: error.message
+                    message: "M-Pesa Gateway connection error.",
+                    // error: error.message // HIDDEN
                 });
             }
         }
@@ -412,8 +412,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error("[Integrations] Runtime Error:", globalError);
         return res.status(500).json({
             success: false,
-            message: "Internal server error during integration processing.",
-            error: globalError.message
+            message: "Internal server error.",
+            // error: globalError.message // HIDDEN
         });
     }
 }
