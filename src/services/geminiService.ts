@@ -35,8 +35,12 @@ const sanitizeAiError = (error: any): Error => {
     msg = msg.replace(/v1beta/gi, 'Core Engine');
 
     // Mask specific technical status codes if they look like branding leaks
-    if (msg.includes('404') || msg.includes('not found')) {
-        msg = "Gemini 3.0 Pro Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
+    if (msg.includes('404') || msg.includes('not found') || msg.includes('400') || msg.includes('401')) {
+        if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not valid')) {
+            msg = "Gemini 3.0 Pro Authentication: Please verify your Visionary Engine API key in Settings.";
+        } else {
+            msg = "Gemini 3.0 Pro Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
+        }
     }
 
     const sanitizedError = new Error(msg);
@@ -46,26 +50,29 @@ const sanitizeAiError = (error: any): Error => {
 
 const safeGenerateContent = async (prompt: string, config: any = {}) => {
     checkAiAvailable();
+    // Normalize structure for the SDK
+    const contents = [{ role: 'user', parts: [{ text: prompt }] }];
+
     try {
         // Attempt Primary Pro Architecture
         return await ai!.models.generateContent({
             model: PRO_LOGICAL_CORE,
-            contents: prompt,
+            contents: contents,
             config: config
         });
     } catch (error: any) {
-        // If Pro is restricted or busy, seamlessly switch to high-stability standard core
-        const isRestricted = error.message?.includes('404') ||
-            error.message?.includes('not found') ||
-            error.message?.includes('not supported') ||
-            error.message?.includes('permission');
+        // Broader capture for restriction/missing/permissions
+        const errText = (error.message || '') + JSON.stringify(error);
+        const isRestricted = errText.includes('404') || errText.includes('not found') ||
+            errText.includes('not supported') || errText.includes('permission') ||
+            errText.includes('403');
 
         if (isRestricted) {
             console.warn(`[System] Initializing logical core optimization for continuity.`);
             try {
                 return await ai!.models.generateContent({
                     model: STANDARD_LOGICAL_CORE,
-                    contents: prompt,
+                    contents: contents,
                     config: config
                 });
             } catch (fallbackError: any) {
@@ -78,6 +85,11 @@ const safeGenerateContent = async (prompt: string, config: any = {}) => {
 
 const checkAiAvailable = () => {
     if (!ai) throw new Error("AI Service Unavailable: API_KEY not configured.");
+
+    // Explicit check for common placeholder strings
+    if (apiKey?.includes("YOUR_ACTUAL_API_KEY") || !apiKey) {
+        throw new Error("AI Authentication Required: Please set a valid Gemini API key in your .env or Settings.");
+    }
 };
 
 /**
