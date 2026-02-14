@@ -199,7 +199,7 @@ export const generateTimetable = async (
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
-        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+        const modelName = aiModelTier === 'premium' ? 'gemini-3.0-pro' : 'gemini-1.5-flash';
 
         const response = await ai!.models.generateContent({
             model: modelName,
@@ -234,7 +234,7 @@ export const generateExamTimetable = async (
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
 
-        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+        const modelName = aiModelTier === 'premium' ? 'gemini-3.0-pro' : 'gemini-1.5-flash';
 
         const response = await ai!.models.generateContent({
             model: modelName,
