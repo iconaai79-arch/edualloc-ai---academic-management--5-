@@ -39,6 +39,9 @@ export const generateStandardTimetable = (
         const cellSpan = profile?.cellSpanMinutes || settings?.cellSpanMinutes || 60;
         const displaySlots = generateDisplaySlots(profile ? { ...settings, ...profile } as any : settings);
 
+        const shuffledDays = [...activeDays].sort(() => Math.random() - 0.5);
+        const shuffledSlots = [...displaySlots].sort(() => Math.random() - 0.5);
+
         (subject.lessonStructure || []).forEach(structure => {
             const requiredPeriods = structure.periods || 1;
             const requiredDuration = requiredPeriods * cellSpan;
@@ -46,10 +49,10 @@ export const generateStandardTimetable = (
             for (let count = 0; count < (structure.count || 0); count++) {
                 let placed = false;
 
-                for (const day of activeDays) {
+                for (const day of shuffledDays) {
                     if (placed) break;
 
-                    for (const slot of displaySlots) {
+                    for (const slot of shuffledSlots) {
                         const startTimeMin = timeToMinutes(slot.start);
                         const endTimeMin = startTimeMin + requiredDuration;
                         const endTimeStr = minutesToTime(endTimeMin);

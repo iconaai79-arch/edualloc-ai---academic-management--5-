@@ -300,6 +300,12 @@ export interface TimetableEntry {
     isConflicting?: boolean;
     duration?: number;
     sharedWithPracticeTeacherId?: string | null;
+    // Database aliases
+    start_time?: string;
+    end_time?: string;
+    subject_id?: string;
+    lecturer_id?: string;
+    room_id?: string;
 }
 
 export interface AcademicYear {

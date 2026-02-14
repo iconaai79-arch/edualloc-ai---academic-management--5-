@@ -191,9 +191,11 @@ export const generateTimetable = async (
             3. TIME-OFF REQUESTS: If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
             4. SUBJECT CONSTRAINTS: Respect all association rules (consecutive, same-day, etc.).
             5. DOUBLE-BOOKING: Zero tolerance for lecturer, room, or student group overlap.
+            6. UNIT DISTRIBUTION: Spread lessons for any given unit (subject) throughout the week. ABSOLUTELY AVOID scheduling more than one lesson of the same unit per day for a specific student group, unless the lesson structure specifically requires it (e.g. back-to-back double periods).
             
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
+            - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection. Do not always pick the earliest possible slot; distribute lessons across all available valid windows to create a balanced, non-linear feel.
             - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules.
             
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
