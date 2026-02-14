@@ -108,6 +108,7 @@ interface SettingsManagerProps {
     onUpdateThemeColor?: (color: string) => void;
     allocations: AllocationRequest[];
     isExamCalendarOnly?: boolean;
+    isAcademicsOfficer?: boolean;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onSaveEmailConfig?: (config: EmailConfig) => void;
     onSaveLetterheadConfig?: (config: LetterheadConfig) => void;
@@ -1399,6 +1400,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         onImportCourses={props.onImportCourses}
                         onUpdateCourse={props.onUpdateCourse}
                         onDeleteCourse={props.onDeleteCourse}
+                        onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
+                        onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
                         allocations={props.allocations || []}
                         currentUser={props.currentUser}
                     />

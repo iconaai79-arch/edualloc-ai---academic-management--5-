@@ -589,6 +589,11 @@ export const App: React.FC = () => {
         loadData();
     };
 
+    const handleDisassociateSubjectFromCourseLevel = async (subjectId: string, levelId: string) => {
+        await apiService.onDisassociateSubjectFromCourseLevel(subjectId, levelId);
+        loadData();
+    };
+
     const handleAddSubject = async (data: any, levelIds?: string[]) => {
         const id = `sub_${Date.now()}`;
         const subject = { ...data, id, institutionId: currentUser?.institutionId };
@@ -1424,6 +1429,8 @@ export const App: React.FC = () => {
                                     onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
                                     allocations={allocations}
                                     timeOffRequests={timeOffRequests}
+                                    onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
+                                    onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'security' ? (
@@ -1639,7 +1646,7 @@ export const App: React.FC = () => {
                                     onUpdateFooterImage={(footer) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
                                     onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
-                                    onDisassociateSubjectFromCourseLevel={() => { }}
+                                    onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                     onAddExtensionRequest={() => { }}
                                     onUpdateExtensionRequestStatus={() => { }}

@@ -50,7 +50,10 @@ interface AcademicsOfficerViewProps {
     onDeleteSemester?: (semesterId: string) => void;
     timetableSettings: TimetableSettings;
     onSaveTimetableSettings?: (config: TimetableSettings) => void;
-
+    onPublishTimetable?: (config: any) => void;
+    onAssociateSubjectToCourseLevel?: (subjectId: string, levelId: string) => void;
+    onDisassociateSubjectFromCourseLevel?: (subjectId: string, levelId: string) => void;
+    lessonRatings: any[];
     buildings: Building[];
     onAddBuilding?: (name: string) => Promise<boolean>;
     onAddBuildings?: (buildings: Omit<Building, 'id' | 'institutionId'>[]) => Promise<void>;
@@ -84,7 +87,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         getSubjectById, getLecturerById, getRoomById, courseSizes, letterheadConfig,
         logoUrl, footerImageUrl, currentInstitution, timetableSettings,
         onUpdateSubject, examTimetableSettings, buildings = [], academicYears = [],
-        onLogAction
+        onLogAction, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -348,7 +351,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             {activeTab === 'settings' && (
                 <SettingsManager
                     {...props}
-                    isExamCalendarOnly={true}
+                    onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
+                    onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
+                    isAcademicsOfficer={true}
                     allocations={[]}
                 />
             )}

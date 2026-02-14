@@ -209,7 +209,8 @@ export const generateTimetable = async (
                 id: l.id,
                 name: l.name,
                 subjectIds: l.subjectIds,
-                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
+                homeRoomId: l.roomId,
+                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure, dedicatedRoomId: m.dedicatedRoomId }))
             }))
         })))}
             - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
@@ -251,12 +252,19 @@ export const generateTimetable = async (
                - STUDENT GROUP OVERLAP: Generally forbidden, EXCEPT for subjects in a 'same_time_subjects' block. For these blocks, it is expected that the student group (stream) is partitioned/split among the subjects, so they MUST occur concurrently.
 
             6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
+               - STRUCTURE OVERRIDES: If a subject has a 'structure' override defined within a specific course/level, you MUST ignore the default structure in the Subject Registry and use the override instead for that specific group.
                - EVEN DISTRIBUTION MANDATE: You MUST spread all subjects evenly throughout the week. If a subject has 3 lessons, they should be split across the week (e.g., Mon, Wed, Fri for a 5-day week). Do NOT cluster lessons on adjacent days if better spread is possible.
                - DEFAULT NON-CONSECUTIVE RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block (e.g., 'periods: 2'). If a subject has count: 3 and periods: 1, those 3 lessons MUST be on different days or separated by other subjects.
                - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
                - BLOCK INTEGRITY: Double or triple blocks (e.g., 'periods: 2' or 'periods: 3') MUST occupy consecutive time slots.
                - SPREAD RULE: Minimize 'clustering'. Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
                - FATAL ERROR: Scheduling separate single-period lessons of the same subject on the same day or back-to-back (without a block structure) is a CRITICAL FAILURE.
+
+            7. STREAM HOME ROOMS & DEDICATED ROOMS:
+               - If a stream (group) has a 'homeRoomId' defined, the AI MUST prioritize scheduling all lessons for that group in that specific room, UNLESS another room is explicitly required by subject-level overrides ('dedicatedRoomId').
+               - If a subject has a 'dedicatedRoomId' defined for a specific group/level, that room MUST be used for all lessons of that subject for that group.
+               - ROOM PRIORITY: Subject 'dedicatedRoomId' > Stream 'homeRoomId' > Global Room Allocation.
+               - CONFLICTS: If a 'homeRoomId' is occupied by another group, fall back to any other available room with sufficient capacity, but flag this as a soft-preference violation.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.

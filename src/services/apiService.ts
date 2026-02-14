@@ -536,6 +536,22 @@ export const apiService = {
             await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
         }
     },
+    async onDisassociateSubjectFromCourseLevel(subjectId: string, levelId: string) {
+        const courses = await this.fetchCourses();
+        const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
+
+        if (course) {
+            const updatedLevels = course.levels.map(l => {
+                if (l.id === levelId) {
+                    const ids = (l.subjectIds || []).filter(id => id !== subjectId);
+                    const metadata = (l.subjectMetadata || []).filter(m => m.subjectId !== subjectId);
+                    return { ...l, subjectIds: ids, subjectMetadata: metadata };
+                }
+                return l;
+            });
+            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+        }
+    },
     async onImportUsers(imported: any[], institutionId?: string): Promise<void> {
         if (!_supabase) return;
         const dataWithInst = institutionId

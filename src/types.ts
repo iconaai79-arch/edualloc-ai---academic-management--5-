@@ -160,6 +160,7 @@ export interface CourseLevel {
     subjectIds: string[];
     subjectMetadata?: LevelSubjectMetadata[];
     classTeacherId?: string;
+    roomId?: string;
 }
 
 export interface Course {

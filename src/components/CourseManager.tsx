@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings } from '../types';
-import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon } from './icons/index';
+import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon } from './icons/index';
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
 
@@ -311,7 +311,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [isAddingLesson, setIsAddingLesson] = useState(false);
     const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-    const [editingStream, setEditingStream] = useState<{ courseId: string, streamId: string, name: string } | null>(null);
+    const [editingStream, setEditingStream] = useState<{ courseId: string, streamId: string, name: string, classTeacherId?: string, roomId?: string } | null>(null);
     const [assigningSubjectsTo, setAssigningSubjectsTo] = useState<Course | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
     const [managingLessonsForCourse, setManagingLessonsForCourse] = useState<Course | null>(null);
@@ -323,6 +323,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const [newStreamCourseId, setNewStreamCourseId] = useState('');
     const [newStreamName, setNewStreamName] = useState('');
+    const [newStreamRoomId, setNewStreamRoomId] = useState('');
 
     const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject, currentStructure: LessonStructure[] } | null>(null);
 
@@ -347,6 +348,55 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         if (currentUser?.role === 'tto' && currentUser?.departmentId) return (departments || []).filter(d => d.id === currentUser.departmentId);
         return departments || [];
     }, [departments, currentUser]);
+
+    const pathwayConstraints = useMemo(() => {
+        return (timetableSettings?.constraints || []).filter(c => c.type === 'same_time_subjects');
+    }, [timetableSettings]);
+
+    const getAdjustedItemCount = (itemIds: string[], constraints: TimetableConstraint[]) => {
+        if (!itemIds || itemIds.length === 0) return 0;
+        const accountedForIds = new Set<string>();
+        let distinctCount = 0;
+        constraints.forEach(c => {
+            const blockMembersInList = c.subjectIds.filter(id => itemIds.includes(id));
+            if (blockMembersInList.length > 0) {
+                distinctCount += 1;
+                blockMembersInList.forEach(id => accountedForIds.add(id));
+            }
+        });
+        itemIds.forEach(id => {
+            if (!accountedForIds.has(id)) {
+                distinctCount += 1;
+            }
+        });
+        return distinctCount;
+    };
+
+    const getAdjustedLessonCount = (lessons: any[], constraints: TimetableConstraint[]) => {
+        if (!lessons || lessons.length === 0) return 0;
+        let distinctCount = 0;
+        const byLevel = new Map<string, any[]>();
+        lessons.forEach(l => {
+            if (!byLevel.has(l.levelId)) byLevel.set(l.levelId, []);
+            byLevel.get(l.levelId)!.push(l);
+        });
+        byLevel.forEach((levelLessons) => {
+            const accountedInLevel = new Set<string>();
+            constraints.forEach(c => {
+                const blockMembersInLevel = levelLessons.filter(l => c.subjectIds.includes(l.subjectId));
+                if (blockMembersInLevel.length > 0) {
+                    distinctCount += 1;
+                    blockMembersInLevel.forEach(l => accountedInLevel.add(l.id));
+                }
+            });
+            levelLessons.forEach(l => {
+                if (!accountedInLevel.has(l.id)) {
+                    distinctCount += 1;
+                }
+            });
+        });
+        return distinctCount;
+    };
 
     const visibleCourses = useMemo(() => {
         if (currentUser?.role === 'tto' && currentUser?.departmentId) return (courses || []).filter(c => c.departmentId === currentUser.departmentId);
@@ -377,10 +427,11 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     courseCode: course.code,
                     streamId: level.id,
                     streamName: level.name,
-                    subjectCount: (level.subjectIds || []).length,
+                    subjectCount: getAdjustedItemCount(level.subjectIds || [], pathwayConstraints),
 
                     departmentId: course.departmentId,
-                    classTeacherId: level.classTeacherId
+                    classTeacherId: level.classTeacherId,
+                    roomId: level.roomId
                 });
             });
         });
@@ -432,6 +483,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             courseName: course.name,
                             levelName: level.name,
                             structure: structure,
+                            isOverride: !!meta?.lessonStructure,
+                            structureSource: structureSource,
                             departmentId: course.departmentId
                         });
                     }
@@ -462,7 +515,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             const newLevel: CourseLevel = {
                 id: `stream_${Date.now()}`,
                 name: newStreamName.trim(),
-                subjectIds: []
+                subjectIds: [],
+                roomId: newStreamRoomId || undefined
             };
             onUpdateCourse?.(course.id, { levels: [...(course.levels || []), newLevel] });
             setNewStreamName('');
@@ -477,7 +531,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         if (!course) return;
 
         const updatedLevels = (course.levels || []).map(l =>
-            l.id === editingStream.streamId ? { ...l, name: editingStream.name, classTeacherId: (editingStream as any).classTeacherId } : l
+            l.id === editingStream.streamId ? { ...l, name: editingStream.name, classTeacherId: (editingStream as any).classTeacherId, roomId: (editingStream as any).roomId } : l
         );
 
         if (onUpdateCourse) {
@@ -592,9 +646,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         }
     };
 
-    const pathwayConstraints = useMemo(() => {
-        return (timetableSettings?.constraints || []).filter(c => c.type === 'same_time_subjects');
-    }, [timetableSettings]);
+
 
     const handleAddPathway = () => {
         if (!selectedPathwayCourseId || newPathwaySubjectIds.length < 2 || !onSaveTimetableSettings) {
@@ -1161,6 +1213,13 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 className="form-input"
                             />
                         </div>
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Home Room (Optional)</label>
+                            <select value={newStreamRoomId} onChange={e => setNewStreamRoomId(e.target.value)} className="form-select">
+                                <option value="">-- No Home Room --</option>
+                                {(rooms || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                        </div>
 
                         {isSchool && (currentInstitution?.streamDefinitions || []).length > 0 && (
                             <div className="md:col-span-2 space-y-2">
@@ -1179,7 +1238,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 </div>
                             </div>
                         )}
-                        <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t">
+                        <div className="md:col-span-3 flex justify-end gap-3 pt-4 border-t">
                             <button type="button" onClick={() => setIsAddingStream(false)} className="btn-secondary h-12 px-6">Discard</button>
                             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create {streamOrLevelLabel}</button>
                         </div>
@@ -1277,6 +1336,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">{courseLabel}</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">{streamOrLevelLabel} Title</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Class Teacher</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Home Room</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Linked Units</th>
                                 <th className="px-8 py-5 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
                             </tr>
@@ -1327,6 +1387,22 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             </span>
                                         )}
                                     </td>
+                                    <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        {editingStream?.streamId === stream.streamId ? (
+                                            <select
+                                                value={(editingStream as any).roomId || ''}
+                                                onChange={e => setEditingStream({ ...editingStream, roomId: e.target.value } as any)}
+                                                className="form-select py-1 h-8 text-xs font-bold w-48"
+                                            >
+                                                <option value="">-- No Home Room --</option>
+                                                {(rooms || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        ) : (
+                                            <span className={`${stream.roomId ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                                {stream.roomId ? (rooms.find(r => r.id === stream.roomId)?.name || 'Unknown Room') : 'Not Set'}
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-8 py-5 whitespace-nowrap">
                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">
                                             {stream.subjectCount} Units
@@ -1335,7 +1411,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
-                                                onClick={() => setEditingStream({ courseId: stream.courseId, streamId: stream.streamId, name: stream.streamName, classTeacherId: stream.classTeacherId } as any)}
+                                                onClick={() => setEditingStream({ courseId: stream.courseId, streamId: stream.streamId, name: stream.streamName, classTeacherId: stream.classTeacherId, roomId: stream.roomId } as any)}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white dark:bg-blue-900/30 dark:text-blue-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 Edit
@@ -1545,9 +1621,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <div className="flex items-center gap-3 mt-1">
                                         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Manage Class Subject Allocations</p>
                                         <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                                            {lessonsList
-                                                .filter(l => l.courseId === managingLessonsForCourse.id)
-                                                .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId).length} Total
+                                            {getAdjustedLessonCount(
+                                                lessonsList
+                                                    .filter(l => l.courseId === managingLessonsForCourse.id)
+                                                    .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId),
+                                                pathwayConstraints
+                                            )} Total
                                         </span>
                                     </div>
                                 </div>
@@ -1647,10 +1726,25 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                                     setEditingStructureFor({ course, level, subject, currentStructure: [] });
                                                                 }
                                                             }}
-                                                            className="hover:text-indigo-600 hover:underline transition-colors"
+                                                            className="flex items-center gap-1.5 hover:text-indigo-600 transition-colors group/edit-str"
                                                         >
-                                                            {lesson.structure}
+                                                            <span className={`${lesson.isOverride ? 'text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 font-black' : 'text-slate-500'}`}>
+                                                                {lesson.structure}
+                                                            </span>
+                                                            <PencilIcon className="w-3 h-3 opacity-0 group-hover/edit-str:opacity-100 transition-opacity" />
+                                                            {lesson.isOverride && (
+                                                                <span className="text-[7px] font-black uppercase tracking-tighter text-indigo-400 bg-white border border-indigo-100 px-1 rounded shadow-sm">Overriden</span>
+                                                            )}
                                                         </button>
+                                                        {(() => {
+                                                            const group = pathwayConstraints.find(c => c.subjectIds.includes(lesson.subjectId));
+                                                            return group ? (
+                                                                <>
+                                                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                                    <span className="text-[7px] font-black uppercase tracking-tighter text-indigo-400 bg-white border border-indigo-100 px-1 rounded shadow-sm" title={group.description}>Grouped</span>
+                                                                </>
+                                                            ) : null;
+                                                        })()}
                                                     </p>
                                                     {editingStructureFor && editingStructureFor.subject.id === lesson.subjectId && editingStructureFor.level.id === lesson.levelId && (
                                                         <div className="mt-2 flex gap-2 items-center animate-fade-in-up md:absolute md:z-10 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700">
@@ -1753,7 +1847,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <div key={level.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
                                         <div className="flex justify-between items-center mb-8">
                                             <h4 className="text-xl font-black uppercase tracking-tight text-indigo-600 dark:text-indigo-400">{level.name}</h4>
-                                            <span className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">{(level.subjectIds || []).length} Linked Units</span>
+                                            <span className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">{getAdjustedItemCount(level.subjectIds || [], pathwayConstraints)} Linked Units</span>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {(level.subjectIds || []).map(sid => {
@@ -1775,10 +1869,10 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button
                                                                 onClick={() => setEditingStructureFor({ course: assigningSubjectsTo, level, subject: s, currentStructure: [] })}
-                                                                className="p-1.5 text-slate-300 hover:text-indigo-500 transition-all"
+                                                                className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700"
                                                                 title="Modify Structure for this class"
                                                             >
-                                                                <Bars3Icon className="w-5 h-5" />
+                                                                <ListIcon className="w-5 h-5" />
                                                             </button>
                                                             <button
                                                                 onClick={() => {
