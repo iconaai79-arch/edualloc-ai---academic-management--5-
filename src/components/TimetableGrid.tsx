@@ -117,29 +117,18 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                             const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
                             if (entriesStartingInSlot.length > 0) {
-                                const entry = entriesStartingInSlot[0];
-                                const subject = getSubjectById(entry.subjectId);
-                                const lecturer = getLecturerById(entry.lecturerId);
-                                const room = getRoomById(entry.roomId);
+                                // Calculate max duration among all entries in this slot to determine colSpan
+                                const durations = entriesStartingInSlot.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime));
+                                const maxDuration = Math.max(...durations);
+                                let colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
 
-                                if (!subject || !lecturer || !room) continue;
-
-                                const entryEndMinutes = timeToMinutes(entry.endTime);
-                                let colSpan = 1;
-
-                                for (let j = i + 1; j < displaySlots.length; j++) {
-                                    const nextSlotStart = timeToMinutes(displaySlots[j].start);
-                                    if (nextSlotStart < entryEndMinutes) {
-                                        colSpan++;
-                                        rowOccupiedSlots.add(nextSlotStart);
-                                    } else {
-                                        break;
+                                // Mark future slots as occupied for the max duration
+                                for (let j = 1; j < colSpan; j++) {
+                                    const nextSlotIndex = i + j;
+                                    if (displaySlots[nextSlotIndex]) {
+                                        rowOccupiedSlots.add(timeToMinutes(displaySlots[nextSlotIndex].start));
                                     }
                                 }
-
-                                const bgColor = generatePastelColor(subject.id);
-                                const textColor = '#1e293b'; // slate-800 for readability
-                                const borderColor = subject.isComplete ? '#94a3b8' : generatePastelColor(subject.id + 'border').replace('80%', '60%'); // Darker shade for border
 
                                 rowCells.push(
                                     <td
@@ -150,46 +139,60 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, day, slot.start)}
                                     >
-                                        <div
-                                            draggable={isEditable}
-                                            onDragStart={(e) => handleDragStart(e, entry)}
-                                            onDragEnd={handleDragEnd}
-                                            className={`h-full flex flex-col rounded-lg shadow-sm hover:shadow-md transition-all border-l-[6px] overflow-hidden ${isEditable ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5' : ''}`}
-                                            style={{
-                                                backgroundColor: bgColor,
-                                                color: textColor,
-                                                borderLeftColor: borderColor,
-                                                opacity: draggedEntryId === entry.id ? 0.5 : 1
-                                            }}
-                                            title={`${subject.name}\n${lecturer.name}\n${room.name}`}
-                                        >
-                                            {entry.isConflicting && (
-                                                <div className="absolute -top-1 -right-1 bg-red-600 rounded-full p-1 shadow-lg z-20 animate-bounce" title="Conflict Detected">
-                                                    <ExclamationTriangleIcon className="w-4 h-4 text-white" />
-                                                </div>
-                                            )}
+                                        <div className="flex h-full gap-1 overflow-hidden">
+                                            {entriesStartingInSlot.map((entry) => {
+                                                const subject = getSubjectById(entry.subjectId);
+                                                const lecturer = getLecturerById(entry.lecturerId);
+                                                const room = getRoomById(entry.roomId);
 
-                                            <div className="p-2 flex flex-col h-full justify-between">
-                                                <div className="space-y-1">
-                                                    <div className="flex justify-between items-start gap-1">
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-80 leading-tight">{subject.code}</span>
-                                                        <span className="text-[9px] font-mono bg-black/10 px-1.5 py-0.5 rounded text-slate-800 font-semibold">{room.shortName || room.name}</span>
+                                                if (!subject || !lecturer || !room) return null;
+
+                                                const bgColor = generatePastelColor(subject.id);
+                                                const textColor = '#1e293b';
+                                                const borderColor = subject.isComplete ? '#94a3b8' : generatePastelColor(subject.id + 'border').replace('80%', '60%');
+
+                                                return (
+                                                    <div
+                                                        key={entry.id}
+                                                        draggable={isEditable}
+                                                        onDragStart={(e) => handleDragStart(e, entry)}
+                                                        onDragEnd={handleDragEnd}
+                                                        className={`flex-1 flex flex-col rounded-lg shadow-sm hover:shadow-md transition-all border-l-[4px] overflow-hidden min-w-[50px] ${isEditable ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5' : ''}`}
+                                                        style={{
+                                                            backgroundColor: bgColor,
+                                                            color: textColor,
+                                                            borderLeftColor: borderColor,
+                                                            opacity: draggedEntryId === entry.id ? 0.5 : 1
+                                                        }}
+                                                        title={`${subject.name}\n${lecturer.name}\n${room.name}`}
+                                                    >
+                                                        {entry.isConflicting && (
+                                                            <div className="absolute -top-1 -right-1 bg-red-600 rounded-full p-1 shadow-lg z-20 animate-bounce" title="Conflict Detected">
+                                                                <ExclamationTriangleIcon className="w-3 h-3 text-white" />
+                                                            </div>
+                                                        )}
+
+                                                        <div className="p-1.5 flex flex-col h-full justify-between">
+                                                            <div className="space-y-0.5">
+                                                                <div className="flex justify-between items-start gap-1">
+                                                                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-80 leading-tight truncate">{subject.code}</span>
+                                                                    <span className="text-[8px] font-mono bg-black/10 px-1 py-0.5 rounded text-slate-800 font-semibold truncate">{room.shortName || room.name}</span>
+                                                                </div>
+                                                                <p className="font-bold text-[10px] leading-tight line-clamp-2 text-slate-900">{subject.name}</p>
+                                                            </div>
+
+                                                            <div className="mt-1 pt-0.5 border-t border-black/10 flex flex-col gap-0">
+                                                                <p className="text-[9px] font-medium text-slate-700 truncate flex items-center gap-1">
+                                                                    <span className="w-3.5 h-3.5 bg-slate-200 rounded-full flex items-center justify-center text-[7px] font-bold text-slate-600">{getInitials(lecturer.name)}</span>
+                                                                    {lecturer.name.split(' ').pop()}
+                                                                </p>
+                                                                {renderCellActions && renderCellActions(entry)}
+                                                                {renderCellFooter && renderCellFooter(entry)}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <p className="font-bold text-xs leading-snug line-clamp-2 text-slate-900">{subject.name}</p>
-                                                </div>
-
-                                                <div className="mt-2 pt-1 border-t border-black/10 flex flex-col gap-0.5">
-                                                    <p className="text-[10px] font-medium text-slate-700 truncate flex items-center gap-1">
-                                                        <span className="w-4 h-4 bg-slate-200 rounded-full flex items-center justify-center text-[8px] font-bold text-slate-600">{getInitials(lecturer.name)}</span>
-                                                        {lecturer.name.split(' ').pop()}
-                                                    </p>
-                                                    {entry.duration && entry.duration !== cellSpanMinutes && (
-                                                        <p className="text-[9px] opacity-70 text-right">{entry.startTime}-{entry.endTime}</p>
-                                                    )}
-                                                    {renderCellActions && renderCellActions(entry)}
-                                                    {renderCellFooter && renderCellFooter(entry)}
-                                                </div>
-                                            </div>
+                                                );
+                                            })}
                                         </div>
                                     </td>
                                 );

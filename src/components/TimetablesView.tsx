@@ -277,108 +277,117 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         timetableConflicts={timetableConflicts}
                     />
                 ) : viewMode === 'grid' ? (
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 print:bg-transparent print:p-0 print:mb-4 flex justify-between items-center">
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <BuildingOfficeIcon className="w-5 h-5 text-indigo-600" />
                             <h3 className="text-xl font-black uppercase tracking-tighter">Master Facility Grid: {selectedDay}</h3>
                         </div>
-                        <div className="overflow-x-auto print:overflow-visible">
-                            <table className="min-w-full border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
-                                        <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-900/50 z-20 print:static print:bg-transparent min-w-[200px]">Room / Facility</th>
-                                        {periodHeaders.map((p, i) => (
-                                            <th key={i} colSpan={p.colSpan} className="p-2 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 border-l border-slate-100 dark:border-slate-800">
-                                                <span className="block text-indigo-600 dark:text-indigo-400">{p.label}</span>
-                                                <span className="block opacity-60 font-mono text-[9px] mt-0.5">{p.startTime}-{p.endTime}</span>
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filteredRooms.map(room => {
-                                        if (!room) return null;
-                                        const roomEntries = (generatedTimetable || []).filter(e => e && e.roomId === room.id && e.day === selectedDay);
-                                        const occupiedSlots = new Set<string>();
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+                            <div className="overflow-x-auto print:overflow-visible">
+                                <table className="min-w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                                            <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-500 sticky left-0 bg-slate-50 dark:bg-slate-900/50 z-20 print:static print:bg-transparent min-w-[200px]">Room / Facility</th>
+                                            {periodHeaders.map((p, i) => (
+                                                <th key={i} colSpan={p.colSpan} className="p-2 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 border-l border-slate-100 dark:border-slate-800">
+                                                    <span className="block text-indigo-600 dark:text-indigo-400">{p.label}</span>
+                                                    <span className="block opacity-60 font-mono text-[9px] mt-0.5">{p.startTime}-{p.endTime}</span>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredRooms.map(room => {
+                                            if (!room) return null;
+                                            const roomEntries = (generatedTimetable || []).filter(e => e && e.roomId === room.id && e.day === selectedDay);
+                                            const occupiedSlots = new Set<string>();
 
-                                        return (
-                                            <tr key={room.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-all">
-                                                <td className="p-4 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-slate-50 dark:border-slate-700 print:static print:bg-transparent">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-black text-slate-400">
-                                                            <BuildingOfficeIcon className="w-4 h-4" />
+                                            return (
+                                                <tr key={room.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-all">
+                                                    <td className="p-4 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-slate-50 dark:border-slate-700 print:static print:bg-transparent">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-[10px] font-black text-slate-400">
+                                                                <BuildingOfficeIcon className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate uppercase tracking-tight">{room.name}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-bold text-slate-900 dark:text-white truncate uppercase tracking-tight">{room.name}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                {periodHeaders.map((period, pIdx) => {
-                                                    if (occupiedSlots.has(period.startTime)) return null;
+                                                    </td>
+                                                    {periodHeaders.map((period, pIdx) => {
+                                                        if (occupiedSlots.has(period.startTime)) return null;
 
-                                                    if (period.isBreak) {
-                                                        return (
-                                                            <td key={pIdx} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle bg-slate-50/50 dark:bg-slate-900/10 text-center">
-                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest whitespace-nowrap">BREAK</span>
-                                                            </td>
-                                                        );
-                                                    }
-
-                                                    const entry = roomEntries.find(e => e && timeToMinutes(e.startTime) === timeToMinutes(period.startTime));
-                                                    if (entry) {
-                                                        const subject = (subjects || []).find(s => s && s.id === entry.subjectId);
-                                                        const lecturer = (lecturers || []).find(l => l && l.id === entry.lecturerId);
-                                                        const startIdx = periodHeaders.findIndex(p => timeToMinutes(p.startTime) === timeToMinutes(entry.startTime));
-                                                        let colSpan = 1;
-
-                                                        if (startIdx !== -1) {
-                                                            const entryEnd = timeToMinutes(entry.endTime);
-                                                            for (let k = startIdx + 1; k < periodHeaders.length; k++) {
-                                                                if (periodHeaders[k] && timeToMinutes(periodHeaders[k].startTime) < entryEnd) {
-                                                                    colSpan++;
-                                                                } else {
-                                                                    break;
-                                                                }
-                                                            }
+                                                        if (period.isBreak) {
+                                                            return (
+                                                                <td key={pIdx} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle bg-slate-50/50 dark:bg-slate-900/10 text-center">
+                                                                    <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest whitespace-nowrap">BREAK</span>
+                                                                </td>
+                                                            );
                                                         }
 
-                                                        for (let k = 0; k < colSpan; k++) if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
+                                                        const entry = roomEntries.find(e => e && timeToMinutes(e.startTime) === timeToMinutes(period.startTime));
+                                                        if (entry) {
+                                                            const subject = (subjects || []).find(s => s && s.id === entry.subjectId);
+                                                            const lecturer = (lecturers || []).find(l => l && l.id === entry.lecturerId);
+                                                            const startIdx = periodHeaders.findIndex(p => timeToMinutes(p.startTime) === timeToMinutes(entry.startTime));
+                                                            let colSpan = 1;
 
-                                                        return (
-                                                            <td key={pIdx} colSpan={colSpan} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle">
-                                                                <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                    <p className="text-[10px] font-black text-slate-900 leading-tight uppercase truncate">{subject?.shortName || subject?.code}</p>
-                                                                    <p className="text-[9px] font-bold text-slate-600 mt-0.5 truncate">{lecturer?.name}</p>
-                                                                </div>
-                                                            </td>
-                                                        );
-                                                    }
-                                                    return <td key={pIdx} className="p-1 border-l border-slate-50 dark:border-slate-800"></td>;
-                                                })}
+                                                            if (startIdx !== -1) {
+                                                                const entryEnd = timeToMinutes(entry.endTime);
+                                                                for (let k = startIdx + 1; k < periodHeaders.length; k++) {
+                                                                    if (periodHeaders[k] && timeToMinutes(periodHeaders[k].startTime) < entryEnd) {
+                                                                        colSpan++;
+                                                                    } else {
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            for (let k = 0; k < colSpan; k++) if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
+
+                                                            return (
+                                                                <td key={pIdx} colSpan={colSpan} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle">
+                                                                    <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                        <p className="text-[10px] font-black text-slate-900 leading-tight uppercase truncate">{subject?.shortName || subject?.code}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-600 mt-0.5 truncate">{lecturer?.name}</p>
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        return <td key={pIdx} className="p-1 border-l border-slate-50 dark:border-slate-800"></td>;
+                                                    })}
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredRooms.length === 0 && (
+                                            <tr>
+                                                <td colSpan={periodHeaders.length + 1} className="p-20 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-30">
+                                                    No facilities registered or matching search
+                                                </td>
                                             </tr>
-                                        );
-                                    })}
-                                    {filteredRooms.length === 0 && (
-                                        <tr>
-                                            <td colSpan={periodHeaders.length + 1} className="p-20 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-30">
-                                                No facilities registered or matching search
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <TimetableGrid
-                            entries={filteredEntries || []}
-                            getSubjectById={getSubjectById}
-                            getLecturerById={getLecturerById}
-                            getRoomById={getRoomById}
-                            timetableSettings={timetableSettings}
-                            onMoveLesson={onMoveTimetableEntry}
-                            isEditable={!!onMoveTimetableEntry}
-                        />
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl no-print">
+                            <CalendarDaysIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-x-auto">
+                            <TimetableGrid
+                                entries={filteredEntries || []}
+                                getSubjectById={getSubjectById}
+                                getLecturerById={getLecturerById}
+                                getRoomById={getRoomById}
+                                timetableSettings={timetableSettings}
+                                onMoveLesson={onMoveTimetableEntry}
+                                isEditable={!!onMoveTimetableEntry}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

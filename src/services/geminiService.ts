@@ -241,13 +241,14 @@ export const generateTimetable = async (
                - subject_time_off: specific subject cannot be taught during restricted window.
                - non_consecutive_subjects: these subjects MUST NOT be back-to-back.
                - different_day_subjects: these subjects MUST be on different days.
-               - same_time_subjects: Option Block / Electives. These subjects MUST be scheduled at the EXACT SAME TIME across the cohort.
+               - same_time_subjects: Option Block / Pathways / Electives. These subjects MUST be scheduled at the EXACT SAME TIME for their associated streams. The AI must create separate TimetableEntry objects for each subject in the block, ensuring they share the same day and time slot.
 
             4. TIME-OFF REQUESTS: 
                - If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
 
             5. DOUBLE-BOOKING: 
-               - Zero tolerance for lecturer, room, or student group overlap.
+               - Zero tolerance for lecturer or room overlap. 
+               - STUDENT GROUP OVERLAP: Generally forbidden, EXCEPT for subjects in a 'same_time_subjects' block. For these blocks, it is expected that the student group (stream) is partitioned/split among the subjects, so they MUST occur concurrently.
 
             6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
                - SPREAD RULE: You MUST maximize the 'day distance' between lessons of the same subject.
