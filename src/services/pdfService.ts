@@ -848,10 +848,11 @@ export const generateMasterCourseTimetablePdf = async (
                     );
 
                     if (isBreak) {
+                        const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
                         row.push({
-                            content: breakObj?.name || 'BREAK',
+                            content: breakText,
                             colSpan: 1,
-                            styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100] }
+                            styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
                         });
                     } else if (entry) {
                         const subject = getSubjectById(entry.subjectId);
