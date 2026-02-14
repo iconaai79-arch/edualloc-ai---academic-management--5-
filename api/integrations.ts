@@ -3,7 +3,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
 import { Buffer } from 'buffer';
 
-import { createAuthenticatedClient } from '../lib/supabase';
+import { createServerClient } from '../lib/supabase';
 
 export const config = {
     maxDuration: 15,
@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Verify Auth
     const authHeader = req.headers.authorization;
-    const supabase = createAuthenticatedClient(authHeader);
+    const supabase = createServerClient(authHeader);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     let user: any = null;

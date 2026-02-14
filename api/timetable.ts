@@ -1,7 +1,7 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { query, mapToCamelCase } from '../lib/db_connect';
-import { createAuthenticatedClient } from '../lib/supabase';
+import { createServerClient } from '../lib/supabase';
 
 export default async function handler(
   request: VercelRequest,
@@ -14,7 +14,7 @@ export default async function handler(
   if (request.method === 'OPTIONS') return response.status(200).end();
 
   // Verify Auth
-  const supabase = createAuthenticatedClient(request.headers.authorization);
+  const supabase = createServerClient(request.headers.authorization);
   if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return response.status(401).json({ error: 'Unauthorized' });
