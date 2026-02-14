@@ -39,6 +39,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
 }) => {
     const [step, setStep] = useState(1);
     const [mode, setMode] = useState<'ai' | 'standard'>('ai');
+    const [selectedAiTier, setSelectedAiTier] = useState<string>(currentInstitution?.aiModelTier || 'free');
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [generatedCount, setGeneratedCount] = useState(0);
@@ -97,7 +98,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                     courses,
                     timeOffRequests,
                     currentInstitution?.scheduleProfiles || [],
-                    currentInstitution?.aiModelTier
+                    selectedAiTier
                 );
             } else {
                 result = generateStandardTimetable(
@@ -304,6 +305,37 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                 <p className="text-[10px] text-slate-400 mt-1">Faster, deterministic generation. Best for simple, linear schedules.</p>
                             </button>
                         </div>
+
+                        {mode === 'ai' && (
+                            <div className="space-y-4 animate-fade-in-up">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <SparklesIcon className="w-4 h-4 text-indigo-500" />
+                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Select AI Model Variant</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setSelectedAiTier('free')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${selectedAiTier === 'free' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10' : 'border-slate-100 dark:border-slate-700 hover:border-slate-200'}`}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-black text-[10px] uppercase tracking-tighter">Gemini 1.5 Flash</span>
+                                            {selectedAiTier === 'free' && <CheckCircleIcon className="w-4 h-4 text-indigo-600" />}
+                                        </div>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Rapid Processing</p>
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedAiTier('premium')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all ${selectedAiTier === 'premium' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10' : 'border-slate-100 dark:border-slate-700 hover:border-slate-200'}`}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-black text-[10px] uppercase tracking-tighter">Gemini 3.0 Pro</span>
+                                            {selectedAiTier === 'premium' && <CheckCircleIcon className="w-4 h-4 text-indigo-600" />}
+                                        </div>
+                                        <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-tight italic">Elite Reasoning</p>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
 
 
