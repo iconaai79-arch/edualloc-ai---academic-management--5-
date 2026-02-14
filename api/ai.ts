@@ -50,8 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 config: config
             });
             return res.status(200).json({
-                text: result.response.text(), // Handle SDK response structure
-                candidates: result.response.candidates
+                text: result.text, // Handle SDK response structure
+                candidates: result.candidates
             });
         }
 

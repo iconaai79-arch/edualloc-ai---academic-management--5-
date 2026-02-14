@@ -36,39 +36,49 @@ export default defineConfig(({ mode }) => {
     },
     configureServer(server: any) {
       server.middlewares.use(async (req: any, res: any, next: any) => {
-        if (req.url?.startsWith('/api/integrations') && req.method === 'POST') {
-          try {
-            let body = '';
-            req.on('data', (chunk: any) => body += chunk);
-            req.on('end', async () => {
-              try {
-                const payload = JSON.parse(body);
-                // Mock Vercel Request/Response
-                const vReq: any = {
-                  method: 'POST',
-                  body: payload,
-                  headers: req.headers
-                };
-                const vRes: any = {
-                  setHeader: (k: string, v: string) => res.setHeader(k, v),
-                  status: (code: number) => {
-                    res.statusCode = code;
-                    return vRes;
-                  },
-                  json: (data: any) => {
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify(data));
-                    return vRes;
-                  },
-                  end: () => res.end()
-                };
+        if (req.url?.startsWith('/api/') && req.method === 'POST') {
+          // Parse the endpoint from the URL (e.g. /api/ai -> ai, /api/integrations -> integrations)
+          // Simple check to prevent directory traversal
+          const urlParts = req.url.split('?')[0].split('/');
+          const endpoint = urlParts[2]; // /api/ai -> [ '', 'api', 'ai' ]
 
-                // Load handler dynamically
-                const handlerPath = process.platform === 'win32' ? '/api/integrations.ts' : '/api/integrations.ts';
-                const handlerModule = await server.ssrLoadModule(handlerPath);
-                await handlerModule.default(vReq, vRes);
-              } catch (e: any) {
-                console.error("API Middleware Error:", e);
+          if (!endpoint || endpoint.includes('..') || endpoint.includes('\\')) {
+            next();
+            return;
+          }
+
+          let body = '';
+          req.on('data', (chunk: any) => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = body ? JSON.parse(body) : {};
+              // Mock Vercel Request/Response
+              const vReq: any = {
+                method: 'POST',
+                body: payload,
+                headers: req.headers
+              };
+              const vRes: any = {
+                setHeader: (k: string, v: string) => res.setHeader(k, v),
+                status: (code: number) => {
+                  res.statusCode = code;
+                  return vRes;
+                },
+                json: (data: any) => {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify(data));
+                  return vRes;
+                },
+                end: () => res.end()
+              };
+
+              // Load handler dynamically based on endpoint
+              const handlerPath = `/api/${endpoint}.ts`;
+              const handlerModule = await server.ssrLoadModule(handlerPath);
+              await handlerModule.default(vReq, vRes);
+            } catch (e: any) {
+              console.error(`API Middleware Error [${endpoint}]:`, e);
+              if (!res.headersSent) {
                 res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({
@@ -77,11 +87,8 @@ export default defineConfig(({ mode }) => {
                   stack: e.stack
                 }));
               }
-            });
-          } catch (e) {
-            console.error("API Middleware Error:", e);
-            next();
-          }
+            }
+          });
         } else {
           next();
         }

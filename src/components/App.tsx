@@ -142,6 +142,13 @@ const AppErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children })
 };
 
 export const App: React.FC = () => {
+    // Security: Disable right-click to prevent source inspection
+    useEffect(() => {
+        const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+        document.addEventListener('contextmenu', handleContextMenu);
+        return () => document.removeEventListener('contextmenu', handleContextMenu);
+    }, []);
+
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         try {
             return apiService.getSession();
