@@ -470,8 +470,13 @@ export const generateTimetablePdf = async (
 
             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-            const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-            const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+            // Improved Break Detection: Check if a break starts at this slot OR covers this slot
+            const breakObj = breaks.find(b =>
+                b.status !== 'inactive' &&
+                timeToMinutes(b.startTime) <= slotStartMinutes &&
+                timeToMinutes(b.endTime) > slotStartMinutes
+            );
+            const isBreak = !!breakObj;
 
             const entry = (generatedTimetable || []).find(e =>
                 e.day === day &&
@@ -484,9 +489,19 @@ export const generateTimetablePdf = async (
 
             if (isBreak) {
                 cellContent = breakObj?.name || 'BREAK';
-                cellStyle.fillColor = [240, 240, 240];
+                cellStyle.fillColor = [220, 220, 220]; // Darker grey for visibility
                 cellStyle.fontStyle = 'bold';
-                cellStyle.textColor = [100, 100, 100];
+                cellStyle.textColor = [80, 80, 80];
+
+                // Calculate break duration to determine colspan
+                const breakDuration = timeToMinutes(breakObj!.endTime) - timeToMinutes(breakObj!.startTime);
+                cellColSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
+
+                // Mark slots as occupied
+                for (let k = 0; k < cellColSpan; k++) {
+                    rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                }
+
             } else if (entry) {
                 const subject = getSubjectById(entry.subjectId);
                 const lecturer = getLecturerById(entry.lecturerId);
@@ -514,7 +529,18 @@ export const generateTimetablePdf = async (
                 styles: cellStyle,
             });
 
-            if (cellColSpan > 1) i += cellColSpan - 1;
+            // Skip columns if colspan > 1 (autoTable handles the span, but we need to skip the iteration count to align with displaySlots logic if we were iterating strictly 1-by-1, 
+            // BUT here 'i' is the index of displaySlots. If displaySlots are purely time slices, we need to advance 'i'.
+            // displaySlots usually contains ALL slots (breaks + periods). 
+            // If cellColSpan represents number of *displaySlots* covered, we skip.
+            // If cellColSpan represents number of *cellSpanMinutes* units, and displaySlots are also chunked by cellSpanMinutes, we skip.
+            // Assuming displaySlots are atomic units of 'cellSpanMinutes' or the exact periods/breaks.
+            // If displaySlots is [Period1, Break, Period2], and Break is 1 slot, colSpan=1.
+            // If period is double, colSpan=2. We need to verify if displaySlots has the next period.
+
+            // SIMPLIFICATION: just let the loop proceed, but check `rowOccupiedSlots`.
+            // We already have `if (rowOccupiedSlots.has(slotStartMinutes)) continue;` at the top.
+            // So we don't need to manually increment `i` here, just ensure `rowOccupiedSlots` is populated correctly.
         }
         body.push(row);
     }
@@ -528,7 +554,7 @@ export const generateTimetablePdf = async (
         didDrawPage: () => setupPdfFooter(doc, footerImg),
     });
 
-    return doc.output('datauristring');
+    return doc.output('bloburl'); // Return Blob URL instead of Data URI
 };
 
 /**

@@ -391,121 +391,151 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                 <div className="flex justify-between items-center mb-6">
                                     <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Generation Preview Matrix</h4>
                                     <div className="flex gap-2">
-                                        <button onClick={handlePublish} disabled={isPublishing} className="btn-primary bg-indigo-600 shadow-indigo-200 text-[10px] uppercase tracking-widest h-10">
-                                            {isPublishing ? 'Publishing...' : 'Commit & Authorise'}
+                                        <div className="flex gap-2">
+                                            <button onClick={async () => {
+                                                if (generatedTimetable.length === 0) return;
+                                                // Handle Download
+                                                try {
+                                                    const pdfUrl = await generateTimetablePdf(
+                                                        generatedTimetable,
+                                                        getSubjectById || (id => undefined),
+                                                        getLecturerById || (id => undefined),
+                                                        getRoomById || (id => undefined),
+                                                        letterheadConfig,
+                                                        footerImageUrl,
+                                                        "Official Weekly Timetable",
+                                                        courses,
+                                                        activeSemester || null,
+                                                        timetableSettings
+                                                    );
+                                                    const link = document.createElement('a');
+                                                    link.href = pdfUrl;
+                                                    link.download = `Timetable_${activeSemester?.name || 'Generated'}.pdf`;
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    document.body.removeChild(link);
+                                                } catch (e) {
+                                                    console.error("Download failed", e);
+                                                    alert("Failed to generate PDF for download.");
+                                                }
+                                            }} className="btn-secondary text-[10px] uppercase tracking-widest h-10 flex items-center gap-2">
+                                                <DocumentArrowDownIcon className="w-4 h-4" /> Download PDF
+                                            </button>
+                                            <button onClick={handlePublish} disabled={isPublishing} className="btn-primary bg-indigo-600 shadow-indigo-200 text-[10px] uppercase tracking-widest h-10">
+                                                {isPublishing ? 'Publishing...' : 'Commit & Authorise'}
+                                            </button>
+                                            <button onClick={exportToExcel} className="btn-secondary text-[10px] uppercase tracking-widest h-10">Export Datalink</button>
+                                        </div>
+                                    </div>
+                                    <TimetablesView
+                                        generatedTimetable={generatedTimetable}
+                                        subjects={visibleSubjectsForManager}
+                                        lecturers={lecturers}
+                                        departments={visibleDeptsForManager}
+                                        courses={visibleCoursesForManager}
+                                        buildings={buildings}
+                                        rooms={rooms}
+                                        allocations={allocations}
+                                        getSubjectById={getSubjectById || (id => undefined)}
+                                        getLecturerById={getLecturerById || (id => undefined)}
+                                        getRoomById={getRoomById || (id => undefined)}
+                                        letterheadConfig={letterheadConfig}
+                                        logoUrl={logoUrl}
+                                        footerImageUrl={footerImageUrl}
+                                        currentUser={currentUser}
+                                        timetableSettings={timetableSettings}
+                                        onSaveTimetableSettings={onSaveTimetableSettings || (() => { })}
+                                        academicYears={academicYears}
+                                        activeSemester={activeSemester || null}
+                                        onLogAction={onLogAction}
+                                        timetableConflicts={timetableConflicts}
+                                    />
+                                </div>
+                        )}
+                            </section>
+                </>
+                    ) : (
+                    <section className="animate-fade-in space-y-8">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div>
+                                <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Exam Timetable Engine</h3>
+                                <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">Authorising assessments for {activeSemester?.name || 'Academic Period'}</p>
+                            </div>
+                            <button
+                                onClick={handleGenerateExams}
+                                disabled={isLoading || subjects.length === 0 || !activeAcademicYear || !activeSemester}
+                                className="btn-primary h-14 flex items-center gap-3 shadow-xl shadow-indigo-200 px-12"
+                            >
+                                <SparklesIcon className="w-6 h-6" />
+                                {isLoading ? 'Architecting Matrix...' : 'Run Exam AI'}
+                            </button>
+                        </div>
+
+                        {isLoading && (
+                            <div className="p-16 bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 text-center shadow-sm">
+                                <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
+                                <h4 className="text-xl font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Designing Assessment Matrix</h4>
+                                <p className="text-sm text-slate-500 mt-2 font-medium">Validating invigilator loads and room capacities across cycles...</p>
+                            </div>
+                        )}
+
+                        {error && <div className="p-5 bg-red-50 text-red-700 rounded-[2rem] border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-6 h-6" /> {error}</div>}
+
+                        {examTimetable.length > 0 && !isLoading && (
+                            <div className="space-y-6 animate-fade-in-up">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Exam Schedule Registry</h4>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 h-11 text-[10px] font-black px-6 uppercase tracking-widest">
+                                            <PrinterIcon className="w-4 h-4" /> Print Registry
                                         </button>
-                                        <button onClick={exportToExcel} className="btn-secondary text-[10px] uppercase tracking-widest h-10">Export Datalink</button>
+                                        <button onClick={handleDownloadExamPdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2 h-11 text-[10px] font-black px-8 shadow-indigo-100 uppercase tracking-widest">
+                                            <DocumentArrowDownIcon className="w-4 h-4" />
+                                            {isGeneratingPdf ? 'Compiling...' : 'Export PDF'}
+                                        </button>
                                     </div>
                                 </div>
-                                <TimetablesView
-                                    generatedTimetable={generatedTimetable}
-                                    subjects={visibleSubjectsForManager}
-                                    lecturers={lecturers}
-                                    departments={visibleDeptsForManager}
-                                    courses={visibleCoursesForManager}
-                                    buildings={buildings}
-                                    rooms={rooms}
-                                    allocations={allocations}
-                                    getSubjectById={getSubjectById || (id => undefined)}
-                                    getLecturerById={getLecturerById || (id => undefined)}
-                                    getRoomById={getRoomById || (id => undefined)}
-                                    letterheadConfig={letterheadConfig}
-                                    logoUrl={logoUrl}
-                                    footerImageUrl={footerImageUrl}
-                                    currentUser={currentUser}
-                                    timetableSettings={timetableSettings}
-                                    onSaveTimetableSettings={onSaveTimetableSettings || (() => { })}
-                                    academicYears={academicYears}
-                                    activeSemester={activeSemester || null}
-                                    onLogAction={onLogAction}
-                                    timetableConflicts={timetableConflicts}
-                                />
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                    <ExamTimetableGrid
+                                        entries={examTimetable}
+                                        getSubjectById={getSubjectById || (id => undefined)}
+                                        getLecturerById={getLecturerById || (id => undefined)}
+                                        getRoomById={getRoomById || (id => undefined)}
+                                        buildings={buildings}
+                                        courses={courses}
+                                        title={`Official Assessment Registry - ${activeSemester?.name || ''}`}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {examTimetable.length === 0 && !isLoading && (
+                            <div className="flex flex-col items-center justify-center py-40 bg-white dark:bg-slate-800 rounded-[4rem] border-4 border-dashed border-slate-50 dark:border-slate-800 text-center opacity-40">
+                                <CalendarDaysIcon className="w-24 h-24 text-slate-200 dark:text-slate-700 mb-6" />
+                                <h4 className="text-2xl font-black text-slate-300 uppercase tracking-[0.3em]">No Assessment Data Found</h4>
+                                <p className="text-sm font-bold uppercase tracking-widest mt-2">Execute AI Generation to architect the exam matrix</p>
                             </div>
                         )}
                     </section>
-                </>
-            ) : (
-                <section className="animate-fade-in space-y-8">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8 bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                        <div>
-                            <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Exam Timetable Engine</h3>
-                            <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">Authorising assessments for {activeSemester?.name || 'Academic Period'}</p>
-                        </div>
-                        <button
-                            onClick={handleGenerateExams}
-                            disabled={isLoading || subjects.length === 0 || !activeAcademicYear || !activeSemester}
-                            className="btn-primary h-14 flex items-center gap-3 shadow-xl shadow-indigo-200 px-12"
-                        >
-                            <SparklesIcon className="w-6 h-6" />
-                            {isLoading ? 'Architecting Matrix...' : 'Run Exam AI'}
-                        </button>
-                    </div>
-
-                    {isLoading && (
-                        <div className="p-16 bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 text-center shadow-sm">
-                            <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
-                            <h4 className="text-xl font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Designing Assessment Matrix</h4>
-                            <p className="text-sm text-slate-500 mt-2 font-medium">Validating invigilator loads and room capacities across cycles...</p>
-                        </div>
-                    )}
-
-                    {error && <div className="p-5 bg-red-50 text-red-700 rounded-[2rem] border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3"><ExclamationTriangleIcon className="w-6 h-6" /> {error}</div>}
-
-                    {examTimetable.length > 0 && !isLoading && (
-                        <div className="space-y-6 animate-fade-in-up">
-                            <div className="flex justify-between items-center">
-                                <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Exam Schedule Registry</h4>
-                                <div className="flex gap-3">
-                                    <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2 h-11 text-[10px] font-black px-6 uppercase tracking-widest">
-                                        <PrinterIcon className="w-4 h-4" /> Print Registry
-                                    </button>
-                                    <button onClick={handleDownloadExamPdf} disabled={isGeneratingPdf} className="btn-primary flex items-center gap-2 h-11 text-[10px] font-black px-8 shadow-indigo-100 uppercase tracking-widest">
-                                        <DocumentArrowDownIcon className="w-4 h-4" />
-                                        {isGeneratingPdf ? 'Compiling...' : 'Export PDF'}
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-                                <ExamTimetableGrid
-                                    entries={examTimetable}
-                                    getSubjectById={getSubjectById || (id => undefined)}
-                                    getLecturerById={getLecturerById || (id => undefined)}
-                                    getRoomById={getRoomById || (id => undefined)}
-                                    buildings={buildings}
-                                    courses={courses}
-                                    title={`Official Assessment Registry - ${activeSemester?.name || ''}`}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {examTimetable.length === 0 && !isLoading && (
-                        <div className="flex flex-col items-center justify-center py-40 bg-white dark:bg-slate-800 rounded-[4rem] border-4 border-dashed border-slate-50 dark:border-slate-800 text-center opacity-40">
-                            <CalendarDaysIcon className="w-24 h-24 text-slate-200 dark:text-slate-700 mb-6" />
-                            <h4 className="text-2xl font-black text-slate-300 uppercase tracking-[0.3em]">No Assessment Data Found</h4>
-                            <p className="text-sm font-bold uppercase tracking-widest mt-2">Execute AI Generation to architect the exam matrix</p>
-                        </div>
-                    )}
-                </section>
             )}
 
-            {isImportModalOpen && activeAcademicYear && activeSemester && (
-                <TimetableImporter
-                    isOpen={isImportModalOpen}
-                    onClose={() => setIsImportModalOpen(false)}
-                    subjects={subjects}
-                    lecturers={lecturers}
-                    rooms={rooms}
-                    onImport={async (entries) => {
-                        await onTimetableGenerated(entries, activeAcademicYear.id, activeSemester.id);
-                        onLogAction?.('Imported Timetable from Excel');
-                    }}
-                    academicYearId={activeAcademicYear.id}
-                    semesterId={activeSemester.id}
-                    timetableSettings={timetableSettings}
-                    aiModelTier={currentInstitution?.aiModelTier}
-                />
-            )}
-        </div>
-    );
+                    {isImportModalOpen && activeAcademicYear && activeSemester && (
+                        <TimetableImporter
+                            isOpen={isImportModalOpen}
+                            onClose={() => setIsImportModalOpen(false)}
+                            subjects={subjects}
+                            lecturers={lecturers}
+                            rooms={rooms}
+                            onImport={async (entries) => {
+                                await onTimetableGenerated(entries, activeAcademicYear.id, activeSemester.id);
+                                onLogAction?.('Imported Timetable from Excel');
+                            }}
+                            academicYearId={activeAcademicYear.id}
+                            semesterId={activeSemester.id}
+                            timetableSettings={timetableSettings}
+                            aiModelTier={currentInstitution?.aiModelTier}
+                        />
+                    )}
+                </div>
+            );
 };
