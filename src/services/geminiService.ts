@@ -52,7 +52,7 @@ export const generateJustification = async (lecturer: User, subject: Subject): P
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-1.5-flash-latest',
             contents: `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -67,7 +67,7 @@ export const generateBulkJustification = async (lecturer: User, subjects: Subjec
         checkAiAvailable();
         const subjectList = subjects.map(s => `- ${s.name} (${s.code})`).join('\n');
         const response = await ai!.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-1.5-flash-latest',
             contents: `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -199,7 +199,7 @@ export const generateTimetable = async (
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
-        const modelName = aiModelTier === 'premium' ? 'gemini-3.0-pro' : 'gemini-1.5-flash';
+        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro-latest' : 'gemini-1.5-flash-latest';
 
         const response = await ai!.models.generateContent({
             model: modelName,
@@ -234,7 +234,7 @@ export const generateExamTimetable = async (
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
 
-        const modelName = aiModelTier === 'premium' ? 'gemini-3.0-pro' : 'gemini-1.5-flash';
+        const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro-latest' : 'gemini-1.5-flash-latest';
 
         const response = await ai!.models.generateContent({
             model: modelName,

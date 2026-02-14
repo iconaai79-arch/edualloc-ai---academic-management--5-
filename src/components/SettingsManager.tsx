@@ -841,10 +841,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             className={`p-4 rounded-xl border-2 text-left transition-all ${instProfile.aiModelTier === 'premium' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
                                         >
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Premium Tier (Gemini 3.0 Pro)</span>
+                                                <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Premium Tier (Gemini 1.5 Pro)</span>
                                                 {instProfile.aiModelTier === 'premium' && <CheckIcon className="w-5 h-5 text-indigo-600" />}
                                             </div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 3.0 Pro for elite reasoning and high-fidelity logical constraints.</p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 1.5 Pro for deep reasoning and complex logical constraints.</p>
                                         </button>
                                     </div>
                                 </div>
