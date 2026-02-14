@@ -249,11 +249,13 @@ export const generateTimetable = async (
             5. DOUBLE-BOOKING: 
                - Zero tolerance for lecturer, room, or student group overlap.
 
-            6. UNIT DISTRIBUTION (CRITICAL):
-               - Spread lessons for any given unit (subject) throughout the week.
-               - MAX 1 appearance per subject per day for a specific student group, unless the lesson structure explicitly defines a multi-period block (e.g., 'periods: 2').
-               - IF a subject has single-period lessons (periods: 1), they MUST be on DIFFERENT days.
-               - DO NOT schedule multiple single-period lessons of the same subject on the same day. This is a HARD FAILURE.
+            6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
+               - SPREAD RULE: You MUST maximize the 'day distance' between lessons of the same subject.
+                 (e.g., Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL).
+               - SINGLE PERIOD BAN: A subject with `periods: 1` structure MUST NEVER appear more than once on the same day for a specific group.
+                 - If you place 'Maths (1 period)' on Tuesday 09:00, you cannot place another 'Maths' lesson on Tuesday.
+               - DOUBLE PERIOD EXCEPTION: Multiple slots on the same day are ONLY allowed if the `lessonStructure` explicitly requests a double/triple block (e.g., `periods: 2` or `periods: 3`). In that case, they MUST be consecutive.
+               - FATAL ERROR: Scheduling two separate single-period lessons of the same subject on the same day is a CRITICAL FAILURE.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
