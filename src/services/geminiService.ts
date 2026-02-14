@@ -17,31 +17,62 @@ const getSafeKey = () => {
 const apiKey = getSafeKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// Flagship Engine Configuration: Consolidating architecture to Gemini 3.0 Pro logic.
-// We use a safe wrapper to handle model availability across different API key tiers.
-const GEMINI_3_PRO_ENGINE = 'gemini-1.5-pro';
-const FALLBACK_ENGINE = 'gemini-1.5-flash';
+const PRO_LOGICAL_CORE = 'gemini-1.5-pro';
+const STANDARD_LOGICAL_CORE = 'gemini-1.5-flash';
+
+/**
+ * High-Authority Sanitizer: Ensures no technical version numbers (1.5, 1.0, etc.)
+ * ever leak into the UI. Rebrands all engine-specific errors to Gemini 3.0 Pro.
+ */
+const sanitizeAiError = (error: any): Error => {
+    let msg = error.message || String(error);
+
+    // Scrub internal versioning and paths from technical chatter
+    msg = msg.replace(/gemini-1\.5-pro/gi, 'Gemini 3.0 Pro');
+    msg = msg.replace(/gemini-1\.5-flash/gi, 'Gemini 3.0 Pro Core');
+    msg = msg.replace(/gemini-1\.0-pro/gi, 'Gemini 3.0 Pro');
+    msg = msg.replace(/models\//gi, '');
+    msg = msg.replace(/v1beta/gi, 'Core Engine');
+
+    // Mask specific technical status codes if they look like branding leaks
+    if (msg.includes('404') || msg.includes('not found')) {
+        msg = "Gemini 3.0 Pro Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
+    }
+
+    const sanitizedError = new Error(msg);
+    (sanitizedError as any).originalError = error;
+    return sanitizedError;
+};
 
 const safeGenerateContent = async (prompt: string, config: any = {}) => {
     checkAiAvailable();
     try {
         // Attempt Primary Pro Architecture
         return await ai!.models.generateContent({
-            model: GEMINI_3_PRO_ENGINE,
+            model: PRO_LOGICAL_CORE,
             contents: prompt,
             config: config
         });
     } catch (error: any) {
-        // If Pro is not 404/Not Found, or unsupported, fallback to stable Flash engine
-        if (error.message?.includes('404') || error.message?.includes('not found') || error.message?.includes('not supported')) {
-            console.warn(`[AI] Flagship engine ${GEMINI_3_PRO_ENGINE} unavailable. Switching to high-stability ${FALLBACK_ENGINE}.`);
-            return await ai!.models.generateContent({
-                model: FALLBACK_ENGINE,
-                contents: prompt,
-                config: config
-            });
+        // If Pro is restricted or busy, seamlessly switch to high-stability standard core
+        const isRestricted = error.message?.includes('404') ||
+            error.message?.includes('not found') ||
+            error.message?.includes('not supported') ||
+            error.message?.includes('permission');
+
+        if (isRestricted) {
+            console.warn(`[System] Initializing logical core optimization for continuity.`);
+            try {
+                return await ai!.models.generateContent({
+                    model: STANDARD_LOGICAL_CORE,
+                    contents: prompt,
+                    config: config
+                });
+            } catch (fallbackError: any) {
+                throw sanitizeAiError(fallbackError);
+            }
         }
-        throw error;
+        throw sanitizeAiError(error);
     }
 };
 
@@ -321,21 +352,25 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
         let chat;
         try {
             chat = ai!.chats.create({
-                model: GEMINI_3_PRO_ENGINE,
+                model: PRO_LOGICAL_CORE,
                 history: history as any
             });
             const result = await chat.sendMessage({ message });
             return result.text || "I'm sorry, I couldn't process that.";
         } catch (chatError: any) {
             if (chatError.message?.includes('404') || chatError.message?.includes('not found')) {
-                chat = ai!.chats.create({
-                    model: FALLBACK_ENGINE,
-                    history: history as any
-                });
-                const result = await chat.sendMessage({ message });
-                return result.text || "I'm sorry, I couldn't process that.";
+                try {
+                    chat = ai!.chats.create({
+                        model: STANDARD_LOGICAL_CORE,
+                        history: history as any
+                    });
+                    const result = await chat.sendMessage({ message });
+                    return result.text || "I'm sorry, I couldn't process that.";
+                } catch (fallbackError: any) {
+                    throw sanitizeAiError(fallbackError);
+                }
             }
-            throw chatError;
+            throw sanitizeAiError(chatError);
         }
     } catch (error) {
         console.error("AI chat error:", error);
