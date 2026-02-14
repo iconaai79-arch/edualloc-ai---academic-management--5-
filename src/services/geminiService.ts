@@ -157,40 +157,46 @@ export const generateTimetable = async (
     try {
         checkAiAvailable();
         const prompt = `
-            Task: Generate a conflict-free university/school timetable.
+            Task: Generate a conflict-free consolidated academic timetable.
             
             Inputs:
-            - Approved Allocations: ${JSON.stringify(allocations)}
-            - Subject Details (Global Default Structures): ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, structure: s.lessonStructure })))}
-            - Course & Level Structure (including subject overrides per class): ${JSON.stringify(courses.map(c => ({
-            id: c.id,
-            name: c.name,
-            levels: c.levels.map(l => ({
-                id: l.id,
-                name: l.name,
-                subjectIds: l.subjectIds,
-                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
-            }))
-        })))}
-            - Room Capacities: ${JSON.stringify(rooms.map(r => ({ id: r.id, cap: r.capacity })))}
-            - Operating Hours/Days: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
-            - Curriculum Schedule Profiles (Specific breaks/durations per course): ${JSON.stringify(profiles)}
-            - Global Breaks: ${JSON.stringify(settings.breaks)}
-            - Subject Interaction Constraints: ${JSON.stringify(settings.constraints)}
-            - Teacher Specific Logic Rules: ${JSON.stringify(settings.teacherRules)}
+            - Approved Allocations: ${JSON.stringify(allocations.map(a => ({ subjectId: a.subjectId, lecturerId: a.lecturerId, courseLevelId: a.courseLevelId })))}
+            - Subject Registry: ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, name: s.name, structure: s.lessonStructure })))}
+            - Faculty Registry: ${JSON.stringify(lecturers.map(u => ({ id: u.id, name: u.name })))}
+            - Room Inventory: ${JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, cap: r.capacity })))}
+            - Course & Level Structure: ${JSON.stringify(courses.map(c => ({
+                id: c.id,
+                name: c.name,
+                levels: c.levels.map(l => ({
+                    id: l.id,
+                    name: l.name,
+                    subjectIds: l.subjectIds,
+                    overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
+                }))
+            })))}
+            - Operating Parameters: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
+            - Curriculum Schedule Profiles: ${JSON.stringify(profiles)}
+            - Global Institutional Breaks: ${JSON.stringify(settings.breaks)}
+            - Subject Association Constraints: ${JSON.stringify(settings.constraints)}
+            - Faculty Governance Rules (Teacher Logic): ${JSON.stringify(settings.teacherRules)}
+            - Faculty Time-Off Redlines: ${JSON.stringify(timeOffRequests)}
             
-            CRITICAL INSTRUCTIONS:
-            - Every course belongs to a specific "curriculum profile".
-            - You MUST respect the specific breaks and durations defined in the Profile for each subject belonging to that profile.
-            - Ensure no lecturer is double-booked across different profiles.
-            - TEACHER RULES: You MUST strictly adhere to the "Teacher Specific Logic Rules". 
-              - max_consecutive_lessons: ensure a teacher does not have more than X sessions in a row.
-              - max_lessons_per_day: ensure a teacher does not teach more than X lessons in a single day.
-              - preferred_start_time / preferred_end_time: try to keep lessons for that teacher within these bounds.
-            - DEFAULT CONSTRAINT: A subject unit (lesson) CANNOT be allocated consecutively on the same day. If a subject has more than one session on the same day, they MUST be separated by at least one other subject or a scheduled break. This rule does not apply to single sessions that are multiple periods long (e.g., a double period).
+            NON-NEGOTIABLE HEURISTICS:
+            1. INSTITUTIONAL PROFILES: Every course follows a specific schedule profile. You MUST use the exact start times, end times, and break windows defined in the profile associated with the course.
+            2. FACULTY GOVERNANCE (CRITICAL): You MUST strictly enforce the "Faculty Governance Rules":
+               - max_consecutive_lessons: Stop all allocations for a teacher once they hit the limit (e.g. if limit is 2, they cannot teach 3 in a row).
+               - max_lessons_per_day: Absolute cap on total lessons per day per faculty.
+               - preferred_start/end_time: Treat these as strict windows for that specific teacher.
+               - no_lessons_after: Absolute cut-off time for that teacher.
+            3. TIME-OFF REQUESTS: If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
+            4. SUBJECT CONSTRAINTS: Respect all association rules (consecutive, same-day, etc.).
+            5. DOUBLE-BOOKING: Zero tolerance for lecturer, room, or student group overlap.
             
-            Output Requirement:
-            Return a JSON array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId }.
+            PLANNING STRATEGY:
+            - Use a "First-Pass" to place high-priority/constrained subjects first.
+            - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules.
+            
+            Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
         const modelName = aiModelTier === 'premium' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
