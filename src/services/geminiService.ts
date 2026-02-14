@@ -17,6 +17,9 @@ const getSafeKey = () => {
 const apiKey = getSafeKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+// Flagship Engine Configuration: Consolidating architecture to Gemini 3.0 Pro
+const GEMINI_3_PRO_ENGINE = 'gemini-1.5-pro';
+
 const checkAiAvailable = () => {
     if (!ai) throw new Error("AI Service Unavailable: API_KEY not configured.");
 };
@@ -52,7 +55,7 @@ export const generateJustification = async (lecturer: User, subject: Subject): P
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: `Generate a concise, professional justification (2 sentences) for ${lecturer.name} to teach ${subject.name} based on expertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -67,7 +70,7 @@ export const generateBulkJustification = async (lecturer: User, subjects: Subjec
         checkAiAvailable();
         const subjectList = subjects.map(s => `- ${s.name} (${s.code})`).join('\n');
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: `Generate a concise justification for ${lecturer.name} to teach:\n${subjectList}\nExpertise: ${lecturer.expertise.join(', ')}.`,
         });
         return response.text || "";
@@ -101,7 +104,7 @@ export const suggestPathwaySubjectUpdates = async (
         `;
 
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -116,7 +119,7 @@ export const generateInternshipReport = async (student: User, internship: Intern
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: `Generate a professional internship report for ${student.name} at ${internship.industryName}. Course: ${courseName}. Keywords: ${keywords}`,
         });
         return response.text || "";
@@ -131,7 +134,7 @@ export const analyzeTimetableSpreadsheet = async (headers: string[]): Promise<Re
         checkAiAvailable();
         const prompt = `Map these headers to: startTime, subjectCode, lecturerName, roomName, day, endTime. Headers: ${JSON.stringify(headers)}. Return JSON only.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -201,7 +204,7 @@ export const generateTimetable = async (
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
-        const modelName = 'gemini-1.5-flash';
+        const modelName = GEMINI_3_PRO_ENGINE;
 
         const response = await ai!.models.generateContent({
             model: modelName,
@@ -235,7 +238,7 @@ export const generateExamTimetable = async (
         checkAiAvailable();
         const prompt = `Generate exam timetable for period ${JSON.stringify(examPeriod)}. Return JSON array. Rules: ${JSON.stringify(settings.rules)}.`;
 
-        const modelName = 'gemini-1.5-flash';
+        const modelName = GEMINI_3_PRO_ENGINE;
 
         const response = await ai!.models.generateContent({
             model: modelName,
@@ -260,7 +263,7 @@ export const analyzeUserSpreadsheet = async (headers: string[]): Promise<Record<
         checkAiAvailable();
         const prompt = `Map headers to user fields: name, email, phoneNumber, staffId, role, departmentName, expertise, gender. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -276,7 +279,7 @@ export const analyzeCourseSpreadsheet = async (headers: string[], isSchool: bool
         checkAiAvailable();
         const prompt = `Map headers to course fields: name, code, departmentName, academicLevelName. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -292,7 +295,7 @@ export const analyzeSubjectSpreadsheet = async (headers: string[], aiModelTier?:
         checkAiAvailable();
         const prompt = `Map headers to subject fields: name, code, departmentName, description, shortName, lessonStructure, targetCourseLevel. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -307,7 +310,7 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
     try {
         checkAiAvailable();
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: `Find GPS coordinates for "${query}". Return JSON: {latitude, longitude, address, googleMapsUri}. Use null if not found.`,
             config: { responseMimeType: 'application/json', tools: [{ googleSearch: {} }] }
         });
@@ -331,7 +334,7 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
     try {
         checkAiAvailable();
         const chat = ai!.chats.create({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             history: history as any
         });
         const result = await chat.sendMessage({ message });
@@ -347,7 +350,7 @@ export const analyzeCountyInventorySpreadsheet = async (headers: string[]): Prom
         checkAiAvailable();
         const prompt = `Map these spreadsheet headers to county inventory fields: name, category, quantity, unit, supplierName, targetInstitutionId, deliveryMethod. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -363,7 +366,7 @@ export const analyzeDepartmentSpreadsheet = async (headers: string[]): Promise<R
         checkAiAvailable();
         const prompt = `Map headers to department fields: name. Headers: ${JSON.stringify(headers)}. Return JSON.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -379,7 +382,7 @@ export const analyzeRoomSpreadsheet = async (headers: string[], aiModelTier?: st
         checkAiAvailable();
         const prompt = `Map headers to room fields: name, shortName, capacity, buildingName, equipment. Headers: ${JSON.stringify(headers)}. Return JSON mapping fields to headers. Use null for missing.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -394,7 +397,7 @@ export const analyzeInstitutionSpreadsheet = async (headers: string[], aiModelTi
         checkAiAvailable();
         const prompt = `Map these spreadsheet headers to institution fields: name, email, phoneNumber, institutionType, adminName, adminEmail. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
         const response = await ai!.models.generateContent({
-            model: 'gemini-1.5-flash',
+            model: GEMINI_3_PRO_ENGINE,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
