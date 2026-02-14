@@ -251,12 +251,12 @@ export const generateTimetable = async (
                - STUDENT GROUP OVERLAP: Generally forbidden, EXCEPT for subjects in a 'same_time_subjects' block. For these blocks, it is expected that the student group (stream) is partitioned/split among the subjects, so they MUST occur concurrently.
 
             6. UNIT DISTRIBUTION (CRITICAL & NON-NEGOTIABLE):
-               - SPREAD RULE: You MUST maximize the 'day distance' between lessons of the same subject.
-                 (e.g., Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL).
+               - EVEN DISTRIBUTION MANDATE: You MUST spread all subjects evenly throughout the week. If a subject has 3 lessons, they should be split across the week (e.g., Mon, Wed, Fri for a 5-day week). Do NOT cluster lessons on adjacent days if better spread is possible.
+               - DEFAULT NON-CONSECUTIVE RULE: Separate lessons of the same subject MUST NOT be scheduled back-to-back (consecutively) unless they are part of a single defined 'double' or 'triple' block (e.g., 'periods: 2'). If a subject has count: 3 and periods: 1, those 3 lessons MUST be on different days or separated by other subjects.
                - SINGLE PERIOD BAN: A subject with 'periods: 1' structure MUST NEVER appear more than once on the same day for a specific group.
-                 - If you place 'Maths (1 period)' on Tuesday 09:00, you cannot place another 'Maths' lesson on Tuesday.
-               - DOUBLE PERIOD EXCEPTION: Multiple slots on the same day are ONLY allowed if the 'lessonStructure' explicitly requests a double/triple block (e.g., 'periods: 2' or 'periods: 3'). In that case, they MUST be consecutive.
-               - FATAL ERROR: Scheduling two separate single-period lessons of the same subject on the same day is a CRITICAL FAILURE.
+               - BLOCK INTEGRITY: Double or triple blocks (e.g., 'periods: 2' or 'periods: 3') MUST occupy consecutive time slots.
+               - SPREAD RULE: Minimize 'clustering'. Mon/Wed/Fri is a VALID spread. Mon/Tue/Wed is a POOR spread. Mon/Mon/Tue is ILLEGAL. 
+               - FATAL ERROR: Scheduling separate single-period lessons of the same subject on the same day or back-to-back (without a block structure) is a CRITICAL FAILURE.
 
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.

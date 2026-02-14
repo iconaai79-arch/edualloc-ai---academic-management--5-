@@ -325,31 +325,33 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                                             );
                                                         }
 
-                                                        const entry = roomEntries.find(e => e && timeToMinutes(e.startTime) === timeToMinutes(period.startTime));
-                                                        if (entry) {
-                                                            const subject = (subjects || []).find(s => s && s.id === entry.subjectId);
-                                                            const lecturer = (lecturers || []).find(l => l && l.id === entry.lecturerId);
-                                                            const startIdx = periodHeaders.findIndex(p => timeToMinutes(p.startTime) === timeToMinutes(entry.startTime));
-                                                            let colSpan = 1;
+                                                        const slotEntries = roomEntries.filter(e =>
+                                                            e && timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
+                                                        );
 
-                                                            if (startIdx !== -1) {
-                                                                const entryEnd = timeToMinutes(entry.endTime);
-                                                                for (let k = startIdx + 1; k < periodHeaders.length; k++) {
-                                                                    if (periodHeaders[k] && timeToMinutes(periodHeaders[k].startTime) < entryEnd) {
-                                                                        colSpan++;
-                                                                    } else {
-                                                                        break;
-                                                                    }
-                                                                }
+                                                        if (slotEntries.length > 0) {
+                                                            const primaryEntry = slotEntries[0];
+                                                            const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
+                                                            const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+
+                                                            // Mark all slots covered by this entry as occupied
+                                                            for (let k = 0; k < colSpan; k++) {
+                                                                if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
                                                             }
-
-                                                            for (let k = 0; k < colSpan; k++) if (periodHeaders[pIdx + k]) occupiedSlots.add(periodHeaders[pIdx + k].startTime);
 
                                                             return (
                                                                 <td key={pIdx} colSpan={colSpan} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle">
-                                                                    <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                        <p className="text-[10px] font-black text-slate-900 leading-tight uppercase truncate">{subject?.shortName || subject?.code}</p>
-                                                                        <p className="text-[9px] font-bold text-slate-600 mt-0.5 truncate">{lecturer?.name}</p>
+                                                                    <div className="flex h-full gap-1">
+                                                                        {slotEntries.map(entry => {
+                                                                            const subject = getSubjectById(entry.subjectId);
+                                                                            const lecturer = getLecturerById(entry.lecturerId);
+                                                                            return (
+                                                                                <div key={entry.id} className="flex-1 rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                    <p className="text-[10px] font-black text-slate-900 leading-tight uppercase truncate">{subject?.shortName || subject?.code}</p>
+                                                                                    <p className="text-[9px] font-bold text-slate-600 mt-0.5 truncate">{lecturer?.name}</p>
+                                                                                </div>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 </td>
                                                             );

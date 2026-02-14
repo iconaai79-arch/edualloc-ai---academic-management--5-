@@ -60,9 +60,9 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
         return safeBuildings.filter(b => b.id === buildingFilter);
     }, [safeBuildings, buildingFilter]);
 
-    const getCellEntry = (roomId: string, day: string, period: { startTime: string; endTime: string; }) => {
+    const getCellEntries = (roomId: string, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
-        return (Array.isArray(generatedTimetable) ? generatedTimetable : []).find(e =>
+        return (Array.isArray(generatedTimetable) ? generatedTimetable : []).filter(e =>
             e && e.roomId === roomId &&
             e.day === day &&
             timeToMinutes(e.startTime) === periodStartMinutes
@@ -182,13 +182,10 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                                                         );
                                                     }
 
-                                                    const entry = getCellEntry(room.id, day, period);
-                                                    if (entry) {
-                                                        const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === entry.subjectId);
-                                                        const lecturer = (Array.isArray(lecturers) ? lecturers : []).find(l => l && l.id === entry.lecturerId);
-                                                        const course = (Array.isArray(courses) ? courses : []).find(c => c && (c.levels || []).some(lvl => (lvl.subjectIds || []).includes(entry.subjectId)));
-
-                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                    const entries = getCellEntries(room.id, day, period);
+                                                    if (entries.length > 0) {
+                                                        const primaryEntry = entries[0];
+                                                        const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
 
                                                         for (let k = 0; k < colSpan; k++) {
@@ -196,11 +193,21 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                                                         }
 
                                                         return (
-                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                <div className="text-[10px] leading-tight text-slate-900 print:text-black">
-                                                                    <strong className="block">{subject?.shortName || subject?.code}</strong>
-                                                                    <span className="block">{getInitials(lecturer?.name || '')}</span>
-                                                                    <span className="block text-[9px] opacity-75">{course?.code}</span>
+                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400">
+                                                                <div className="flex h-full gap-1">
+                                                                    {entries.map(entry => {
+                                                                        const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === entry.subjectId);
+                                                                        const lecturer = (Array.isArray(lecturers) ? lecturers : []).find(l => l && l.id === entry.lecturerId);
+                                                                        const course = (Array.isArray(courses) ? courses : []).find(c => c && (c.levels || []).some(lvl => (lvl.subjectIds || []).includes(entry.subjectId)));
+
+                                                                        return (
+                                                                            <div key={entry.id} className="flex-1 rounded-lg p-1 text-center text-slate-900 print:text-black shadow-sm" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                <strong className="block text-[9px]">{subject?.shortName || subject?.code}</strong>
+                                                                                <span className="block text-[8px]">{getInitials(lecturer?.name || '')}</span>
+                                                                                <span className="block text-[8px] opacity-75">{course?.code}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </td>
                                                         );

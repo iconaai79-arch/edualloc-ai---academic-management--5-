@@ -477,7 +477,7 @@ export const generateTimetablePdf = async (
             );
             const isBreak = !!breakObj;
 
-            const entry = (generatedTimetable || []).find(e =>
+            const slotEntries = (generatedTimetable || []).filter(e =>
                 e.day === day &&
                 timeToMinutes(e.startTime) === slotStartMinutes
             );
@@ -501,21 +501,24 @@ export const generateTimetablePdf = async (
                     rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
                 }
 
-            } else if (entry) {
-                const subject = getSubjectById(entry.subjectId);
-                const lecturer = getLecturerById(entry.lecturerId);
-                const room = getRoomById(entry.roomId);
-                const levelInfo = subject ? subjectToLevelMap.get(subject.id) : null;
+            } else if (slotEntries.length > 0) {
+                // If multiple entries (block), join them
+                cellContent = slotEntries.map(e => {
+                    const subject = getSubjectById(e.subjectId);
+                    const lecturer = getLecturerById(e.lecturerId);
+                    const room = getRoomById(e.roomId);
+                    const levelInfo = subject ? subjectToLevelMap.get(subject.id) : null;
 
-                cellContent = [
-                    `${subject?.name || 'Unknown'}`,
-                    levelInfo ? `${levelInfo.courseCode} (${levelInfo.levelName})` : '',
-                    `${lecturer?.name || 'N/A'}`,
-                    `${room?.name || 'N/A'}`,
-                ].filter(Boolean).join('\n');
+                    return [
+                        `${subject?.name || 'Unknown'}`,
+                        levelInfo ? `${levelInfo.courseCode} (${levelInfo.levelName})` : '',
+                        `${lecturer?.name || 'N/A'}`,
+                        `${room?.name || 'N/A'}`,
+                    ].filter(Boolean).join(' | ');
+                }).join('\n---\n');
 
-                const entryDurationMinutes = (entry.duration || (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)));
-                cellColSpan = Math.max(1, Math.round(entryDurationMinutes / cellSpanMinutes));
+                const maxDuration = Math.max(...slotEntries.map(e => (e.duration || (timeToMinutes(e.endTime) - timeToMinutes(e.startTime)))));
+                cellColSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
 
                 for (let k = 0; k < cellColSpan; k++) {
                     rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
@@ -855,21 +858,22 @@ export const generateMasterCourseTimetablePdf = async (
                         });
                     } else if (entries.length > 0) {
                         const isBlock = entries.length > 1;
-                        const entry = entries[0];
-                        const subject = getSubjectById(entry.subjectId);
-                        const lecturer = getLecturerById(entry.lecturerId);
-                        const room = getRoomById(entry.roomId);
+                        const firstEntry = entries[0];
+                        const text = entries.map(e => {
+                            const s = getSubjectById(e.subjectId);
+                            const l = getLecturerById(e.lecturerId);
+                            const r = getRoomById(e.roomId);
+                            return isBlock
+                                ? (s?.shortName || s?.code || 'N/A')
+                                : [
+                                    s?.shortName || s?.code || 'N/A',
+                                    getInitials(l?.name || ''),
+                                    r?.name || ''
+                                ].filter(Boolean).join('\n');
+                        }).join(isBlock ? ' / ' : '\n---\n');
 
-                        const text = isBlock
-                            ? entries.map(e => getSubjectById(e.subjectId)?.shortName || getSubjectById(e.subjectId)?.code || 'N/A').join(' / ')
-                            : [
-                                subject?.shortName || subject?.code || 'N/A',
-                                getInitials(lecturer?.name || ''),
-                                room?.name || ''
-                            ].filter(Boolean).join('\n');
-
-                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+                        const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
+                        const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
 
                         for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
@@ -881,7 +885,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 valign: 'middle',
                                 fontSize: 7,
                                 fontStyle: 'normal',
-                                fillColor: getPastelRgb(entry.subjectId)
+                                fillColor: getPastelRgb(firstEntry.subjectId)
                             }
                         });
                         i += colSpan - 1;
