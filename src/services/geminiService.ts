@@ -256,17 +256,39 @@ export const generateTimetable = async (
             - Faculty Governance Rules (Teacher Logic): ${JSON.stringify(settings.teacherRules)}
             - Faculty Time-Off Redlines: ${JSON.stringify(timeOffRequests)}
             
-            NON-NEGOTIABLE HEURISTICS:
-            1. INSTITUTIONAL PROFILES: Every course follows a specific schedule profile. You MUST use the exact start times, end times, and break windows defined in the profile associated with the course.
-            2. FACULTY GOVERNANCE (CRITICAL): You MUST strictly enforce the "Faculty Governance Rules":
-               - max_consecutive_lessons: Stop all allocations for a teacher once they hit the limit (e.g. if limit is 2, they cannot teach 3 in a row).
-               - max_lessons_per_day: Absolute cap on total lessons per day per faculty.
-               - preferred_start/end_time: Treat these as strict windows for that specific teacher.
-               - no_lessons_after: Absolute cut-off time for that teacher.
-            3. TIME-OFF REQUESTS: If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
-            4. SUBJECT CONSTRAINTS: Respect all association rules (consecutive, same-day, etc.).
-            5. DOUBLE-BOOKING: Zero tolerance for lecturer, room, or student group overlap.
-            6. UNIT DISTRIBUTION: Spread lessons for any given unit (subject) throughout the week. ABSOLUTELY AVOID scheduling more than one lesson of the same unit per day for a specific student group, unless the lesson structure specifically requires it (e.g. back-to-back double periods).
+            NON-NEGOTIABLE HEURISTICS - YOU MUST STRICTLY ENFORCE THESE RULES:
+
+            1. INSTITUTIONAL PROFILES: 
+               - Every course follows a specific schedule profile. 
+               - You MUST use the exact start times, end times, and break windows defined in the profile associated with the course.
+
+            2. FACULTY GOVERNANCE RULES (TEACHER LOGIC):
+               - max_consecutive_lessons: strict limit on back-to-back lessons. If limit is 2, a teacher CANNOT teach 3 consecutive slots.
+               - max_lessons_per_day: absolute daily cap.
+               - min_lessons_per_day: if a teacher is scheduled on a day, they must have at least this many lessons.
+               - preferred_start_time: do not schedule lessons for this teacher before this time.
+               - preferred_end_time: do not schedule lessons for this teacher after this time.
+               - no_lessons_after: absolute hard stop time for the teacher.
+
+            3. SUBJECT CONSTRAINTS:
+               - consecutive_subjects: these subjects MUST be scheduled in immediate succession (back-to-back) for the same group.
+               - same_day_subjects: these subjects MUST appear on the same day.
+               - same_day_must_subjects: STRICTer version of same_day.
+               - no_break_between_subjects: no break periods allowed between these specific subjects.
+               - subject_time_off: specific subject cannot be taught during restricted window.
+               - non_consecutive_subjects: these subjects MUST NOT be back-to-back.
+               - different_day_subjects: these subjects MUST be on different days.
+               - same_time_subjects: Option Block / Electives. These subjects MUST be scheduled at the EXACT SAME TIME across the cohort.
+
+            4. TIME-OFF REQUESTS: 
+               - If a teacher has a "Time-Off Request" for a specific day/time, you CANNOT schedule them then.
+
+            5. DOUBLE-BOOKING: 
+               - Zero tolerance for lecturer, room, or student group overlap.
+
+            6. UNIT DISTRIBUTION: 
+               - Spread lessons for any given unit (subject) throughout the week. 
+               - ABSOLUTELY AVOID scheduling more than one lesson of the same unit per day for a specific student group, unless the lesson structure specifically requires it (e.g. back-to-back double periods).
             
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
