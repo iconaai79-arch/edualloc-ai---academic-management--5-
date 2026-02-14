@@ -398,9 +398,9 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                                 try {
                                                     const pdfUrl = await generateTimetablePdf(
                                                         generatedTimetable,
-                                                        getSubjectById || (id => undefined),
-                                                        getLecturerById || (id => undefined),
-                                                        getRoomById || (id => undefined),
+                                                        getSubjectById || ((id) => undefined),
+                                                        getLecturerById || ((id) => undefined),
+                                                        getRoomById || ((id) => undefined),
                                                         letterheadConfig,
                                                         footerImageUrl,
                                                         "Official Weekly Timetable",
@@ -427,28 +427,23 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                             <button onClick={exportToExcel} className="btn-secondary text-[10px] uppercase tracking-widest h-10">Export Datalink</button>
                                         </div>
                                     </div>
-                                    <TimetablesView
-                                        generatedTimetable={generatedTimetable}
-                                        subjects={visibleSubjectsForManager}
-                                        lecturers={lecturers}
-                                        departments={visibleDeptsForManager}
-                                        courses={visibleCoursesForManager}
-                                        buildings={buildings}
-                                        rooms={rooms}
-                                        allocations={allocations}
-                                        getSubjectById={getSubjectById || (id => undefined)}
-                                        getLecturerById={getLecturerById || (id => undefined)}
-                                        getRoomById={getRoomById || (id => undefined)}
-                                        letterheadConfig={letterheadConfig}
-                                        logoUrl={logoUrl}
-                                        footerImageUrl={footerImageUrl}
-                                        currentUser={currentUser}
-                                        timetableSettings={timetableSettings}
-                                        onSaveTimetableSettings={onSaveTimetableSettings || (() => { })}
-                                        academicYears={academicYears}
-                                        activeSemester={activeSemester || null}
-                                        onLogAction={onLogAction}
-                                        timetableConflicts={timetableConflicts}
+                                    courses={visibleCoursesForManager}
+                                    buildings={buildings}
+                                    rooms={rooms}
+                                    allocations={allocations}
+                                    getSubjectById={getSubjectById || (id => undefined)}
+                                    getLecturerById={getLecturerById || (id => undefined)}
+                                    getRoomById={getRoomById || (id => undefined)}
+                                    letterheadConfig={letterheadConfig}
+                                    logoUrl={logoUrl}
+                                    footerImageUrl={footerImageUrl}
+                                    currentUser={currentUser}
+                                    timetableSettings={timetableSettings}
+                                    onSaveTimetableSettings={onSaveTimetableSettings || (() => { })}
+                                    academicYears={academicYears}
+                                    activeSemester={activeSemester || null}
+                                    onLogAction={onLogAction}
+                                    timetableConflicts={timetableConflicts}
                                     />
                                 </div>
                         )}
