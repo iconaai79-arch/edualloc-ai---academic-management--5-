@@ -804,6 +804,20 @@ export const generateMasterCourseTimetablePdf = async (
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.text(`${course.name} (${course.code}) - ${level.name}`, margin, yPos);
+
+            if (level.classTeacherId) {
+                const classTeacher = getLecturerById(level.classTeacherId);
+                if (classTeacher) {
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'italic');
+                    doc.setTextColor(100);
+                    const teacherText = `Class Teacher: ${classTeacher.name}`;
+                    const textWidth = doc.getTextWidth(teacherText);
+                    doc.text(teacherText, doc.internal.pageSize.getWidth() - margin - textWidth, yPos);
+                    doc.setTextColor(0); // Reset color
+                }
+            }
+
             yPos += 5;
 
             const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime}-${p.endTime}`)]];

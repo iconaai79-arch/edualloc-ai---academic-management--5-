@@ -324,11 +324,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [newStreamCourseId, setNewStreamCourseId] = useState('');
     const [newStreamName, setNewStreamName] = useState('');
 
-    const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject } | null>(null);
+    const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject, currentStructure: LessonStructure[] } | null>(null);
 
     const [newLessonCourseId, setNewLessonCourseId] = useState('');
     const [newLessonLevelId, setNewLessonLevelId] = useState('');
     const [newLessonSubjectId, setNewLessonSubjectId] = useState('');
+    const [newLessonStructure, setNewLessonStructure] = useState<string>('Single');
 
     // Pathway (Option Block) States
     const [selectedPathwayCourseId, setSelectedPathwayCourseId] = useState('');
@@ -377,7 +378,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     streamId: level.id,
                     streamName: level.name,
                     subjectCount: (level.subjectIds || []).length,
-                    departmentId: course.departmentId
+
+                    departmentId: course.departmentId,
+                    classTeacherId: level.classTeacherId
                 });
             });
         });
@@ -474,7 +477,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         if (!course) return;
 
         const updatedLevels = (course.levels || []).map(l =>
-            l.id === editingStream.streamId ? { ...l, name: editingStream.name } : l
+            l.id === editingStream.streamId ? { ...l, name: editingStream.name, classTeacherId: (editingStream as any).classTeacherId } : l
         );
 
         if (onUpdateCourse) {
@@ -524,6 +527,20 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         setEditingStructureFor(null);
     };
 
+    const handleUpdateStructure = (structureString: string) => {
+        if (!editingStructureFor) return;
+        // Parse structure string e.g., "Single" -> [{ periods: 1, count: 1 }]
+        let structure: LessonStructure[] = [];
+        if (structureString === 'Single') structure = [{ periods: 1, count: 1 }];
+        else if (structureString === 'Double') structure = [{ periods: 2, count: 1 }];
+        else if (structureString === 'Triple') structure = [{ periods: 3, count: 1 }];
+        else if (structureString === 'Quad') structure = [{ periods: 4, count: 1 }];
+        else if (structureString === 'Double + Single') structure = [{ periods: 2, count: 1 }, { periods: 1, count: 1 }];
+        else structure = [{ periods: 1, count: 1 }]; // Default
+
+        handleSaveStructureOverride(structure);
+    };
+
     const confirmDelete = async () => {
         if (deletingCourse && onDeleteCourse) {
             await onDeleteCourse(deletingCourse.id);
@@ -536,10 +553,26 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         e.preventDefault();
         if (newLessonSubjectId && newLessonLevelId && onAssociateSubjectToCourseLevel) {
             onAssociateSubjectToCourseLevel(newLessonSubjectId, newLessonLevelId);
+
+            // Should also apply structure if not default
+            if (newLessonStructure !== 'Single') {
+                const course = managingLessonsForCourse;
+                const level = course?.levels.find(l => l.id === newLessonLevelId);
+                const subject = subjects.find(s => s.id === newLessonSubjectId);
+                if (course && level && subject) {
+                    // Defer structure update slightly to ensure association happens first (if async)
+                    // or update local state immediately. 
+                    // Since we don't have a direct "AssociateAndSetStructure", we'll simulate it by setting editingStructureFor
+                    setEditingStructureFor({ course, level, subject, currentStructure: [] });
+                    setTimeout(() => handleUpdateStructure(newLessonStructure), 100);
+                }
+            }
+
             setIsAddingLesson(false);
             setNewLessonCourseId('');
             setNewLessonLevelId('');
             setNewLessonSubjectId('');
+            setNewLessonStructure('Single');
         }
     };
 
@@ -1243,6 +1276,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             <tr>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">{courseLabel}</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">{streamOrLevelLabel} Title</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Class Teacher</th>
                                 <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Linked Units</th>
                                 <th className="px-8 py-5 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
                             </tr>
@@ -1275,6 +1309,24 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             stream.streamName
                                         )}
                                     </td>
+                                    <td className="px-8 py-5 whitespace-nowrap text-sm font-bold text-slate-700 dark:text-slate-300">
+                                        {editingStream?.streamId === stream.streamId ? (
+                                            <select
+                                                value={(editingStream as any).classTeacherId || ''}
+                                                onChange={e => setEditingStream({ ...editingStream, classTeacherId: e.target.value } as any)}
+                                                className="form-select py-1 h-8 text-xs font-bold w-48"
+                                            >
+                                                <option value="">-- Unassigned --</option>
+                                                {(users || [])
+                                                    .filter(u => u.role === 'lecturer' || u.role === 'teacher' || u.role === 'boarding_master') // Expanded roles for flexibility
+                                                    .map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                            </select>
+                                        ) : (
+                                            <span className={`${stream.classTeacherId ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                                {stream.classTeacherId ? (users.find(u => u.id === stream.classTeacherId)?.name || 'Unknown') : 'Unassigned'}
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-8 py-5 whitespace-nowrap">
                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">
                                             {stream.subjectCount} Units
@@ -1283,7 +1335,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <td className="px-8 py-5 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
-                                                onClick={() => setEditingStream({ courseId: stream.courseId, streamId: stream.streamId, name: stream.streamName })}
+                                                onClick={() => setEditingStream({ courseId: stream.courseId, streamId: stream.streamId, name: stream.streamName, classTeacherId: stream.classTeacherId } as any)}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white dark:bg-blue-900/30 dark:text-blue-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 Edit
@@ -1489,7 +1541,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             ? `${managingLessonsForCourse.levels.find(l => l.id === managingLessonsForStreamId)?.name} Lessons`
                                             : `${managingLessonsForCourse.name} Lessons`}
                                     </h3>
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Manage Class Subject Allocations</p>
+
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Manage Class Subject Allocations</p>
+                                        <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                                            {lessonsList
+                                                .filter(l => l.courseId === managingLessonsForCourse.id)
+                                                .filter(l => !managingLessonsForStreamId || l.levelId === managingLessonsForStreamId).length} Total
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <button onClick={() => {
@@ -1518,7 +1578,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             {(managingLessonsForCourse.levels || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                                         </select>
                                     </div>
-                                    <div className="md:col-span-5">
+                                    <div className="md:col-span-3">
                                         <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Subject</label>
                                         <select
                                             value={newLessonSubjectId}
@@ -1529,6 +1589,20 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             {(subjects || [])
                                                 .filter(s => !managingLessonsForCourse.departmentId || s.departmentId === managingLessonsForCourse.departmentId)
                                                 .map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Structure</label>
+                                        <select
+                                            value={newLessonStructure}
+                                            onChange={e => setNewLessonStructure(e.target.value)}
+                                            className="form-select w-full"
+                                        >
+                                            <option value="Single">Single</option>
+                                            <option value="Double">Double</option>
+                                            <option value="Triple">Triple</option>
+                                            <option value="Quad">Quad</option>
+                                            <option value="Double + Single">Dbl + Single</option>
                                         </select>
                                     </div>
                                     <div className="md:col-span-2">
@@ -1564,8 +1638,37 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                                         <span>{lesson.levelName}</span>
                                                         <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                                        <span>{lesson.structure}</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                const course = (courses || []).find(c => c.id === lesson.courseId);
+                                                                const level = course?.levels.find(l => l.id === lesson.levelId);
+                                                                const subject = (subjects || []).find(s => s.id === lesson.subjectId);
+                                                                if (course && level && subject) {
+                                                                    setEditingStructureFor({ course, level, subject, currentStructure: [] });
+                                                                }
+                                                            }}
+                                                            className="hover:text-indigo-600 hover:underline transition-colors"
+                                                        >
+                                                            {lesson.structure}
+                                                        </button>
                                                     </p>
+                                                    {editingStructureFor && editingStructureFor.subject.id === lesson.subjectId && editingStructureFor.level.id === lesson.levelId && (
+                                                        <div className="mt-2 flex gap-2 items-center animate-fade-in-up md:absolute md:z-10 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700">
+                                                            <select
+                                                                autoFocus
+                                                                className="form-select h-8 text-xs py-1 w-32"
+                                                                onChange={(e) => handleUpdateStructure(e.target.value)}
+                                                                defaultValue={lesson.structure.includes('Double') ? 'Double' : 'Single'}
+                                                            >
+                                                                <option value="Single">Single</option>
+                                                                <option value="Double">Double</option>
+                                                                <option value="Triple">Triple</option>
+                                                                <option value="Quad">Quad</option>
+                                                                <option value="Double + Single">Dbl + Single</option>
+                                                            </select>
+                                                            <button onClick={() => setEditingStructureFor(null)} className="p-1 hover:bg-slate-100 rounded-lg"><XIcon className="w-4 h-4" /></button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1605,173 +1708,184 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
-            {editingCourse && onUpdateCourse && (
-                <EditCourseModal
-                    course={editingCourse}
-                    departments={visibleDepartments}
-                    academicLevels={academicLevels}
-                    onClose={() => setEditingCourse(null)}
-                    onSave={handleUpdateCourseSubmit}
-                    currentUser={currentUser}
-                    scheduleProfiles={currentInstitution?.scheduleProfiles || []}
-                />
-            )}
+            {
+                editingCourse && onUpdateCourse && (
+                    <EditCourseModal
+                        course={editingCourse}
+                        departments={visibleDepartments}
+                        academicLevels={academicLevels}
+                        onClose={() => setEditingCourse(null)}
+                        onSave={handleUpdateCourseSubmit}
+                        currentUser={currentUser}
+                        scheduleProfiles={currentInstitution?.scheduleProfiles || []}
+                    />
+                )
+            }
 
-            {editingStructureFor && (
-                <SubjectStructureEditorModal
-                    course={editingStructureFor.course}
-                    level={editingStructureFor.level}
-                    subject={editingStructureFor.subject}
-                    onClose={() => setEditingStructureFor(null)}
-                    onSave={handleSaveStructureOverride}
-                />
-            )}
+            {
+                editingStructureFor && (
+                    <SubjectStructureEditorModal
+                        course={editingStructureFor.course}
+                        level={editingStructureFor.level}
+                        subject={editingStructureFor.subject}
+                        onClose={() => setEditingStructureFor(null)}
+                        onSave={handleSaveStructureOverride}
+                    />
+                )
+            }
 
-            {assigningSubjectsTo && onUpdateCourse && (
-                <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setAssigningSubjectsTo(null)}>
-                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
-                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
-                            <div>
-                                <h3 className="text-2xl font-black tracking-tighter uppercase">{assigningSubjectsTo.name} Structure</h3>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Registry Alignment</p>
+            {
+                assigningSubjectsTo && onUpdateCourse && (
+                    <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setAssigningSubjectsTo(null)}>
+                        <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                                <div>
+                                    <h3 className="text-2xl font-black tracking-tighter uppercase">{assigningSubjectsTo.name} Structure</h3>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Registry Alignment</p>
+                                </div>
+                                <button onClick={() => setAssigningSubjectsTo(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
                             </div>
-                            <button onClick={() => setAssigningSubjectsTo(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
-                        </div>
-                        <div className="flex-grow overflow-y-auto p-8 space-y-10 bg-slate-50 dark:bg-slate-950">
-                            {(assigningSubjectsTo.levels || []).map((level) => (
-                                <div key={level.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <h4 className="text-xl font-black uppercase tracking-tight text-indigo-600 dark:text-indigo-400">{level.name}</h4>
-                                        <span className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">{(level.subjectIds || []).length} Linked Units</span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {(level.subjectIds || []).map(sid => {
-                                            const s = subjects.find(sub => sub.id === sid);
-                                            return s ? (
-                                                <div key={sid} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 transition-all shadow-sm">
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{s.name}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">{s.code}</p>
-                                                            {(() => {
-                                                                const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
-                                                                return group ? (
-                                                                    <span className="text-[8px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full font-black uppercase tracking-widest border border-indigo-100 dark:border-indigo-800" title={group.description}>Grouped</span>
-                                                                ) : null;
-                                                            })()}
+                            <div className="flex-grow overflow-y-auto p-8 space-y-10 bg-slate-50 dark:bg-slate-950">
+                                {(assigningSubjectsTo.levels || []).map((level) => (
+                                    <div key={level.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
+                                        <div className="flex justify-between items-center mb-8">
+                                            <h4 className="text-xl font-black uppercase tracking-tight text-indigo-600 dark:text-indigo-400">{level.name}</h4>
+                                            <span className="px-4 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">{(level.subjectIds || []).length} Linked Units</span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {(level.subjectIds || []).map(sid => {
+                                                const s = subjects.find(sub => sub.id === sid);
+                                                return s ? (
+                                                    <div key={sid} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 flex justify-between items-center group hover:border-indigo-200 transition-all shadow-sm">
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-sm text-slate-800 dark:text-slate-200 truncate">{s.name}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">{s.code}</p>
+                                                                {(() => {
+                                                                    const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
+                                                                    return group ? (
+                                                                        <span className="text-[8px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full font-black uppercase tracking-widest border border-indigo-100 dark:border-indigo-800" title={group.description}>Grouped</span>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => setEditingStructureFor({ course: assigningSubjectsTo, level, subject: s, currentStructure: [] })}
+                                                                className="p-1.5 text-slate-300 hover:text-indigo-500 transition-all"
+                                                                title="Modify Structure for this class"
+                                                            >
+                                                                <Bars3Icon className="w-5 h-5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
+                                                                    handleStructureSave(assigningSubjectsTo.id, updated);
+                                                                }}
+                                                                className="p-1.5 text-slate-300 hover:text-red-500 transition-all"
+                                                            >
+                                                                <XIcon className="w-5 h-5" />
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => setEditingStructureFor({ course: assigningSubjectsTo, level, subject: s })}
-                                                            className="p-1.5 text-slate-300 hover:text-indigo-500 transition-all"
-                                                            title="Modify Structure for this class"
-                                                        >
-                                                            <Bars3Icon className="w-5 h-5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
-                                                                handleStructureSave(assigningSubjectsTo.id, updated);
-                                                            }}
-                                                            className="p-1.5 text-slate-300 hover:text-red-500 transition-all"
-                                                        >
-                                                            <XIcon className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : null;
-                                        })}
-                                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center p-2 bg-white/50 dark:bg-slate-900/20 group hover:border-indigo-300 transition-all">
-                                            <select
-                                                className="w-full bg-transparent border-none text-[10px] font-black uppercase text-slate-400 focus:ring-0 cursor-pointer"
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    if (!val) return;
+                                                ) : null;
+                                            })}
+                                            <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center p-2 bg-white/50 dark:bg-slate-900/20 group hover:border-indigo-300 transition-all">
+                                                <select
+                                                    className="w-full bg-transparent border-none text-[10px] font-black uppercase text-slate-400 focus:ring-0 cursor-pointer"
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        if (!val) return;
 
-                                                    let subjectIdsToAdd: string[] = [];
-                                                    if (val.startsWith('GROUP:')) {
-                                                        const groupId = val.replace('GROUP:', '');
-                                                        const group = pathwayConstraints.find(c => c.id === groupId);
-                                                        if (group) subjectIdsToAdd = group.subjectIds;
-                                                    } else {
-                                                        const sid = val;
-                                                        // Automatically reflect associated pathway groups
-                                                        const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
-                                                        if (group) {
-                                                            subjectIdsToAdd = group.subjectIds;
-                                                            const subjectName = (subjects || []).find(sub => sub.id === sid)?.name || sid;
-                                                            alert(`Notice: "${subjectName}" is part of an Option Block (${group.description}). All members of this group have been associated.`);
+                                                        let subjectIdsToAdd: string[] = [];
+                                                        if (val.startsWith('GROUP:')) {
+                                                            const groupId = val.replace('GROUP:', '');
+                                                            const group = pathwayConstraints.find(c => c.id === groupId);
+                                                            if (group) subjectIdsToAdd = group.subjectIds;
                                                         } else {
-                                                            subjectIdsToAdd = [sid];
+                                                            const sid = val;
+                                                            // Automatically reflect associated pathway groups
+                                                            const group = pathwayConstraints.find(c => c.subjectIds.includes(sid));
+                                                            if (group) {
+                                                                subjectIdsToAdd = group.subjectIds;
+                                                                const subjectName = (subjects || []).find(sub => sub.id === sid)?.name || sid;
+                                                                alert(`Notice: "${subjectName}" is part of an Option Block (${group.description}). All members of this group have been associated.`);
+                                                            } else {
+                                                                subjectIdsToAdd = [sid];
+                                                            }
                                                         }
-                                                    }
 
-                                                    const updated = assigningSubjectsTo.levels.map(l =>
-                                                        l.id === level.id
-                                                            ? { ...l, subjectIds: [...new Set([...(l.subjectIds || []), ...subjectIdsToAdd])] }
-                                                            : l
-                                                    );
-                                                    handleStructureSave(assigningSubjectsTo.id, updated);
-                                                    e.target.value = '';
-                                                }}
-                                            >
-                                                <option value="">+ Link Unit / Group</option>
-                                                {pathwayConstraints.length > 0 && (
-                                                    <optgroup label="Defined Option Blocks (Pathways)">
-                                                        {pathwayConstraints.map(c => (
-                                                            <option key={c.id} value={`GROUP:${c.id}`}>{c.description}</option>
-                                                        ))}
+                                                        const updated = assigningSubjectsTo.levels.map(l =>
+                                                            l.id === level.id
+                                                                ? { ...l, subjectIds: [...new Set([...(l.subjectIds || []), ...subjectIdsToAdd])] }
+                                                                : l
+                                                        );
+                                                        handleStructureSave(assigningSubjectsTo.id, updated);
+                                                        e.target.value = '';
+                                                    }}
+                                                >
+                                                    <option value="">+ Link Unit / Group</option>
+                                                    {pathwayConstraints.length > 0 && (
+                                                        <optgroup label="Defined Option Blocks (Pathways)">
+                                                            {pathwayConstraints.map(c => (
+                                                                <option key={c.id} value={`GROUP:${c.id}`}>{c.description}</option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                    <optgroup label="All Subjects">
+                                                        {(subjects || []).filter(s => !(level.subjectIds || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                                                     </optgroup>
-                                                )}
-                                                <optgroup label="All Subjects">
-                                                    {(subjects || []).filter(s => !(level.subjectIds || []).includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-                                                </optgroup>
-                                            </select>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {isSmartImportOpen && (
-                <SmartCourseImporterModal
-                    onClose={() => setIsSmartImportOpen(false)}
-                    onImport={async (courses) => {
-                        if (onImportCourses) await onImportCourses(courses);
-                    }}
-                    existingCourses={courses}
-                    departments={departments}
-                    academicLevels={academicLevels}
-                    isSchool={isSchool}
-                    aiModelTier={currentInstitution?.aiModelTier}
-                    onLogAction={onLogAction}
-                />
-            )}
+            {
+                isSmartImportOpen && (
+                    <SmartCourseImporterModal
+                        onClose={() => setIsSmartImportOpen(false)}
+                        onImport={async (courses) => {
+                            if (onImportCourses) await onImportCourses(courses);
+                        }}
+                        existingCourses={courses}
+                        departments={departments}
+                        academicLevels={academicLevels}
+                        isSchool={isSchool}
+                        aiModelTier={currentInstitution?.aiModelTier}
+                        onLogAction={onLogAction}
+                    />
+                )
+            }
 
-            {deletingCourse && (
-                <div className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 backdrop-blur-xl">
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl w-full max-w-md p-10 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                        <div className="w-20 h-20 bg-red-100 rounded-[2rem] flex items-center justify-center text-red-600 mb-8 shadow-xl shadow-red-100">
-                            <ArchiveBoxIcon className="w-10 h-10" />
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tighter">Confirm Purge</h3>
-                        <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">
-                            Archiving <span className="text-red-600 font-bold">"{deletingCourse.name}"</span> will permanently detach all associated stream metadata. This process is destructive and cannot be reversed.
-                        </p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeletingCourse(null)} className="flex-1 btn-secondary h-12">Cancel</button>
-                            <button onClick={confirmDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg shadow-red-100 py-3 uppercase text-xs tracking-widest transition-all active:scale-[0.98]">Purge Now</button>
+            {
+                deletingCourse && (
+                    <div className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 backdrop-blur-xl">
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] shadow-2xl w-full max-w-md p-10 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                            <div className="w-20 h-20 bg-red-100 rounded-[2rem] flex items-center justify-center text-red-600 mb-8 shadow-xl shadow-red-100">
+                                <ArchiveBoxIcon className="w-10 h-10" />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tighter">Confirm Purge</h3>
+                            <p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">
+                                Archiving <span className="text-red-600 font-bold">"{deletingCourse.name}"</span> will permanently detach all associated stream metadata. This process is destructive and cannot be reversed.
+                            </p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setDeletingCourse(null)} className="flex-1 btn-secondary h-12">Cancel</button>
+                                <button onClick={confirmDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg shadow-red-100 py-3 uppercase text-xs tracking-widest transition-all active:scale-[0.98]">Purge Now</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

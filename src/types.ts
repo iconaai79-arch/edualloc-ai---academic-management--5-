@@ -159,6 +159,7 @@ export interface CourseLevel {
     name: string;
     subjectIds: string[];
     subjectMetadata?: LevelSubjectMetadata[];
+    classTeacherId?: string;
 }
 
 export interface Course {
