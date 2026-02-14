@@ -7,7 +7,8 @@ import type {
     ExamTimetableSettings, BiometricConfig, VoteHead, FeeStructure, FinancialPeriod,
     MpesaTransaction, InvoiceItem, TransactionStatus, ExtensionRequest,
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
-    TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel
+    TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
+    TeacherLogicRule, TeacherRuleType
 } from '../types';
 import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
@@ -131,6 +132,7 @@ interface SettingsManagerProps {
     onImportDepartments?: (departments: any[]) => Promise<void>;
     companyDetails?: CompanyDetails;
     onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
+    users: User[];
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -144,14 +146,21 @@ const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
     same_time_subjects: 'Option Block (Concurrent)'
 };
 
+const TEACHER_RULE_TYPE_LABELS: Record<TeacherRuleType, string> = {
+    max_consecutive_lessons: 'Max Consecutive Lessons',
+    max_lessons_per_day: 'Max Lessons Per Day',
+    min_lessons_per_day: 'Min Lessons Per Day',
+    preferred_start_time: 'Preferred Start Time',
+    preferred_end_time: 'Preferred End Time',
+    no_lessons_after: 'No Lessons After'
+};
 
 type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'facilities';
-
 
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
     const [activeTab, setActiveTab] = useState<SettingsTab>(isSuperAdmin ? 'global_config' : 'general');
-    const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams'>('hours');
+    const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
@@ -183,6 +192,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }>({
         type: 'consecutive_subjects',
         subjectIds: []
+    });
+
+    const [newTeacherRule, setNewTeacherRule] = useState<{
+        type: TeacherRuleType,
+        value: any,
+        lecturerId?: string
+    }>({
+        type: 'max_consecutive_lessons',
+        value: 2
     });
 
     // --- Institution Profile State ---
@@ -347,6 +365,28 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             constraints: [...(prev.constraints || []), constraint]
         }));
         setNewConstraint({ type: 'consecutive_subjects', subjectIds: [] });
+    };
+
+    const handleAddTeacherRule = () => {
+        let description = `${TEACHER_RULE_TYPE_LABELS[newTeacherRule.type]}: ${newTeacherRule.value}`;
+        if (newTeacherRule.lecturerId) {
+            const lect = props.users.find(u => u.id === newTeacherRule.lecturerId);
+            description += ` (Only for ${lect?.name || 'Unknown'})`;
+        } else {
+            description += ' (Global)';
+        }
+
+        const rule: TeacherLogicRule = {
+            id: `trule_${Date.now()}`,
+            ...newTeacherRule,
+            description
+        };
+
+        setLocalTimetableSettings((prev: TimetableSettings) => ({
+            ...prev,
+            teacherRules: [...(prev.teacherRules || []), rule]
+        }));
+        setNewTeacherRule({ type: 'max_consecutive_lessons', value: 2 });
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
@@ -845,7 +885,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 activeTab === 'timetable' && (
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="flex border-b border-slate-200 dark:border-slate-700">
-                            {([{ id: 'hours', label: 'Day & Time Span' }, { id: 'periods', label: 'Period Slots' }, { id: 'constraints', label: 'Logic Constraints' }, { id: 'exams', label: 'Exam Settings' }] as const).map((sub) => (<button key={sub.id} onClick={() => setTimetableSubTab(sub.id as any)} className={`py-2 px-4 border-b-2 font-black text-[10px] uppercase tracking-widest transition-colors ${timetableSubTab === sub.id ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500'}`}>{sub.label}</button>))}
+                            {([{ id: 'hours', label: 'Day & Time Span' }, { id: 'periods', label: 'Period Slots' }, { id: 'constraints', label: 'Subject Constraints' }, { id: 'teacher_logic', label: 'Teacher Rules' }, { id: 'exams', label: 'Exam Settings' }] as const).map((sub) => (<button key={sub.id} onClick={() => setTimetableSubTab(sub.id as any)} className={`py-2 px-4 border-b-2 font-black text-[10px] uppercase tracking-widest transition-colors ${timetableSubTab === sub.id ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500'}`}>{sub.label}</button>))}
                         </div>
 
                         {/* Shared Grid Profile Selector for Timetable Sections */}
@@ -999,19 +1039,32 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         {timetableSubTab === 'constraints' && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-8 animate-fade-in">
                                 <div className="bg-slate-50 dark:bg-slate-900/40 p-8 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><ShieldIcon className="w-5 h-5 text-indigo-500" /> Logic Constraint Builder</h3>
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><ShieldIcon className="w-5 h-5 text-indigo-500" /> Subject Association Constraints</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Constraint Blueprint</label>
-                                                <select value={newConstraint.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, type: e.target.value as any })} className="form-select w-full text-sm">
-                                                    {Object.entries(CONSTRAINT_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                                                <select
+                                                    value={newConstraint.type}
+                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, type: e.target.value as any })}
+                                                    className="form-select w-full text-sm"
+                                                >
+                                                    {Object.entries(CONSTRAINT_TYPE_LABELS).map(([key, label]) => (
+                                                        <option key={key} value={key}>{label}</option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Target Subjects</label>
-                                                <select multiple value={newConstraint.subjectIds} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, subjectIds: Array.from(e.target.selectedOptions, (opt: HTMLOptionElement) => opt.value) })} className="form-input h-32 py-2 text-sm">
-                                                    {props.subjects.map((s: Subject) => <option key={s.id} value={s.id}>{s.code} - {s.name}</option>)}
+                                                <select
+                                                    multiple
+                                                    value={newConstraint.subjectIds}
+                                                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, subjectIds: Array.from(e.target.selectedOptions, (opt: HTMLOptionElement) => opt.value) })}
+                                                    className="form-input h-32 py-2 text-sm"
+                                                >
+                                                    {props.subjects.map((s: Subject) => (
+                                                        <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                                                    ))}
                                                 </select>
                                                 <p className="text-[10px] text-slate-400 mt-1 italic">Ctrl + Click for bulk selection.</p>
                                             </div>
@@ -1022,7 +1075,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <div className="space-y-4">
                                                     <div>
                                                         <label className="block text-[10px] font-bold text-slate-400 mb-1">Restricted Day</label>
-                                                        <select value={newConstraint.day} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, day: e.target.value })} className="form-select w-full text-xs">{(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']).map(d => <option key={d}>{d}</option>)}</select>
+                                                        <select
+                                                            value={newConstraint.day}
+                                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNewConstraint({ ...newConstraint, day: e.target.value })}
+                                                            className="form-select w-full text-xs"
+                                                        >
+                                                            {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']).map(d => <option key={d}>{d}</option>)}
+                                                        </select>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div><label className="block text-[10px] font-bold text-slate-400 mb-1">From</label><input type="time" value={newConstraint.startTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewConstraint({ ...newConstraint, startTime: e.target.value })} className="form-input text-xs" /></div>
@@ -1055,6 +1114,93 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     )}
                                 </div>
                                 <div className="flex justify-end mt-4"><button onClick={handleSaveTimetable} className="btn-primary">Save Rules & Constraints</button></div>
+                            </div>
+                        )}
+
+                        {timetableSubTab === 'teacher_logic' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 space-y-8 animate-fade-in">
+                                <div className="border-b border-slate-100 dark:border-slate-700 pb-4">
+                                    <h3 className="text-xl font-bold">Faculty Operational Logic</h3>
+                                    <p className="text-sm text-slate-500">Define global or individual rules for how teachers are allocated (e.g. maximum consecutive periods).</p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Rule Blueprint</label>
+                                            <select
+                                                value={newTeacherRule.type}
+                                                onChange={(e) => setNewTeacherRule({ ...newTeacherRule, type: e.target.value as TeacherRuleType })}
+                                                className="form-select w-full text-sm"
+                                            >
+                                                {Object.entries(TEACHER_RULE_TYPE_LABELS).map(([val, label]) => (
+                                                    <option key={val} value={val}>{label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Threshold Value</label>
+                                            {newTeacherRule.type === 'preferred_start_time' || newTeacherRule.type === 'preferred_end_time' || newTeacherRule.type === 'no_lessons_after' ? (
+                                                <input
+                                                    type="time"
+                                                    value={newTeacherRule.value}
+                                                    onChange={(e) => setNewTeacherRule({ ...newTeacherRule, value: e.target.value })}
+                                                    className="form-input"
+                                                />
+                                            ) : (
+                                                <input
+                                                    type="number"
+                                                    value={newTeacherRule.value}
+                                                    onChange={(e) => setNewTeacherRule({ ...newTeacherRule, value: Number(e.target.value) })}
+                                                    className="form-input"
+                                                    min="1"
+                                                />
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Target Faculty (Optional)</label>
+                                            <select
+                                                value={newTeacherRule.lecturerId || ''}
+                                                onChange={(e) => setNewTeacherRule({ ...newTeacherRule, lecturerId: e.target.value || undefined })}
+                                                className="form-select w-full text-sm font-bold"
+                                            >
+                                                <option value="">Global (All Faculty)</option>
+                                                {props.users.filter(u => u.role === 'lecturer' || u.role === 'teacher').map(u => (
+                                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <button onClick={handleAddTeacherRule} className="btn-primary w-full h-12 shadow-indigo-100 flex items-center justify-center gap-2 mt-4">
+                                            <PlusIcon className="w-5 h-5" /> Deploy Logic Rule
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Active Faculty Rules</label>
+                                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {localTimetableSettings.teacherRules?.map(rule => (
+                                                <div key={rule.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl flex justify-between items-start border border-slate-100 dark:border-slate-800 group hover:border-amber-200 transition-all shadow-sm">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Governance Rule</span>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 leading-relaxed">{rule.description}</p>
+                                                    </div>
+                                                    <button onClick={() => setLocalTimetableSettings((prev) => ({ ...prev, teacherRules: (prev.teacherRules || []).filter(x => x.id !== rule.id) }))} className="text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1 hover:bg-red-50 rounded-lg"><XIcon className="w-4 h-4" /></button>
+                                                </div>
+                                            ))}
+                                            {(!localTimetableSettings.teacherRules || localTimetableSettings.teacherRules.length === 0) && (
+                                                <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-[2rem]">
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest italic">Default AI heuristic active (No overrides)</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-end pt-4 border-t mt-6"><button onClick={handleSaveTimetable} className="btn-primary px-8">Synchronize Teacher Logic</button></div>
                             </div>
                         )}
                         {timetableSubTab === 'exams' && (

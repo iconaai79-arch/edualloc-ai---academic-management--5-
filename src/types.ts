@@ -228,6 +228,17 @@ export interface TimetableSettings {
     maxWeeklyPeriods: number;
     breaks: Break[];
     constraints: TimetableConstraint[];
+    teacherRules?: TeacherLogicRule[];
+}
+
+export type TeacherRuleType = 'max_consecutive_lessons' | 'max_lessons_per_day' | 'min_lessons_per_day' | 'preferred_start_time' | 'preferred_end_time' | 'no_lessons_after';
+
+export interface TeacherLogicRule {
+    id: string;
+    type: TeacherRuleType;
+    value: any;
+    lecturerId?: string; // If null/empty, applies to all
+    description: string;
 }
 
 export type TimetableConstraintType = 'consecutive_subjects' | 'same_day_subjects' | 'same_day_must_subjects' | 'no_break_between_subjects' | 'subject_time_off' | 'non_consecutive_subjects' | 'different_day_subjects' | 'same_time_subjects';

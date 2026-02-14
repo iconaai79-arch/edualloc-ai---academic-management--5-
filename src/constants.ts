@@ -170,7 +170,8 @@ export const INITIAL_TIMETABLE_SETTINGS: TimetableSettings = {
     minWeeklyPeriods: 10,
     maxWeeklyPeriods: 35,
     breaks: [],
-    constraints: []
+    constraints: [],
+    teacherRules: []
 };
 
 export const INITIAL_EXAM_TIMETABLE_SETTINGS: ExamTimetableSettings = {

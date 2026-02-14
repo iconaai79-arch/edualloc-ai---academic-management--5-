@@ -176,11 +176,17 @@ export const generateTimetable = async (
             - Operating Hours/Days: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
             - Curriculum Schedule Profiles (Specific breaks/durations per course): ${JSON.stringify(profiles)}
             - Global Breaks: ${JSON.stringify(settings.breaks)}
+            - Subject Interaction Constraints: ${JSON.stringify(settings.constraints)}
+            - Teacher Specific Logic Rules: ${JSON.stringify(settings.teacherRules)}
             
             CRITICAL INSTRUCTIONS:
             - Every course belongs to a specific "curriculum profile".
             - You MUST respect the specific breaks and durations defined in the Profile for each subject belonging to that profile.
             - Ensure no lecturer is double-booked across different profiles.
+            - TEACHER RULES: You MUST strictly adhere to the "Teacher Specific Logic Rules". 
+              - max_consecutive_lessons: ensure a teacher does not have more than X sessions in a row.
+              - max_lessons_per_day: ensure a teacher does not teach more than X lessons in a single day.
+              - preferred_start_time / preferred_end_time: try to keep lessons for that teacher within these bounds.
             - DEFAULT CONSTRAINT: A subject unit (lesson) CANNOT be allocated consecutively on the same day. If a subject has more than one session on the same day, they MUST be separated by at least one other subject or a scheduled break. This rule does not apply to single sessions that are multiple periods long (e.g., a double period).
             
             Output Requirement:
