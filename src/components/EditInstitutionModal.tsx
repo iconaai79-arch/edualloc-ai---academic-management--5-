@@ -1,20 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Institution, SubscriptionConfig } from '../types';
+import type { Institution, SubscriptionConfig, County } from '../types';
 
 interface EditInstitutionModalProps {
   institution: Institution;
   onClose: () => void;
   onSave: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
   defaultPrices: SubscriptionConfig;
+  counties: County[];
 }
 
-export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices }) => {
+export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution, onClose, onSave, defaultPrices, counties }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phoneNumber: '',
     institutionType: 'University',
+    countyId: '',
     customSubscriptionPrice: {
       monthly: '',
       yearly: '',
@@ -28,6 +30,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         email: institution.email,
         phoneNumber: institution.phoneNumber,
         institutionType: institution.institutionType,
+        countyId: institution.countyId || '',
         customSubscriptionPrice: {
           monthly: institution.customSubscriptionPrice?.monthly?.toString() || '',
           yearly: institution.customSubscriptionPrice?.yearly?.toString() || '',
@@ -59,6 +62,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       email: formData.email,
       phoneNumber: formData.phoneNumber,
       institutionType: formData.institutionType as Institution['institutionType'],
+      countyId: formData.countyId || undefined,
       customSubscriptionPrice: {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
@@ -129,6 +133,15 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option>Polytechnic</option>
                       <option>ECD</option>
                       <option>International</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">County Location</label>
+                    <select name="countyId" value={formData.countyId} onChange={handleChange} className="form-select">
+                      <option value="">-- Select County --</option>
+                      {counties.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                      ))}
                     </select>
                   </div>
                 </div>

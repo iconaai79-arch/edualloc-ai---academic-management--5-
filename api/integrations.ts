@@ -84,17 +84,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 let response;
                 if (provider === 'Zettatel') {
-                    response = await fetch('https://sms.zettatel.com/api/v1/sms/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userid: apiKey,
-                            password: apiSecret,
-                            mobile: cleanPhone,
-                            msg: message,
-                            senderid: fromNumber || 'EduAi',
-                            output: 'json'
-                        })
+                    const params = new URLSearchParams({
+                        userid: apiKey,
+                        password: apiSecret as string,
+                        mobile: cleanPhone,
+                        msg: message || '',
+                        senderid: fromNumber || 'ABMIS',
+                        msgType: 'text',
+                        duplicatecheck: 'true',
+                        sendMethod: 'quick',
+                        output: 'json'
+                    });
+                    response = await fetch(`https://portal.zettatel.com/SMSApi/send?${params.toString()}`, {
+                        method: 'POST', // or GET, most gateways support both for query params
                     });
                 } else if (provider === 'Sematime') {
                     response = await fetch('https://api.sematime.com/api/v1/sms', {
@@ -213,11 +215,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!consumerSecret) missing.push('Consumer Secret');
                 if (!paybillNumber) missing.push('Paybill Number');
                 if (!passkey) missing.push('Passkey');
-                
+
                 console.error('[M-Pesa] Config incomplete:', { paybillNumber, hasKey: !!consumerKey, hasSecret: !!consumerSecret, hasPasskey: !!passkey });
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `M-Pesa credentials incomplete. Missing: ${missing.join(', ')}. Please update in System Settings.` 
+                return res.status(400).json({
+                    success: false,
+                    message: `M-Pesa credentials incomplete. Missing: ${missing.join(', ')}. Please update in System Settings.`
                 });
             }
 

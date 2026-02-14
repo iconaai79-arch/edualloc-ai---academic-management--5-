@@ -1553,6 +1553,7 @@ export const App: React.FC = () => {
                                     emailConfig={companyDetails.emailConfig}
                                     timetableConflicts={timetableConflicts}
                                     currentInstitution={activeInstitution}
+                                    counties={counties}
                                     onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}

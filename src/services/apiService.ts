@@ -432,6 +432,7 @@ export const apiService = {
                 body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
             });
 
+            console.log('[M-Pesa Client] Response :', response);
             console.log('[M-Pesa Client] Response status:', response.status);
 
             const data = await response.json().catch(() => ({}));

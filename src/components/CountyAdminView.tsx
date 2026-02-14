@@ -3081,6 +3081,16 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                     )
                 }
             </main >
-        </div >
+            {showImportModal && onImportInstitutions && (
+                <SmartInstitutionImporterModal
+                    countyId={myCounty.id}
+                    onClose={() => setShowImportModal(false)}
+                    onImport={async (data) => {
+                        await onImportInstitutions(data);
+                        setShowImportModal(false);
+                    }}
+                />
+            )}
+        </div>
     );
 };

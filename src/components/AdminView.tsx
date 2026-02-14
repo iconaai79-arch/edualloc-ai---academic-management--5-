@@ -12,7 +12,7 @@ import type {
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
-    Assignment, Submission, UserUpdateData
+    Submission, UserUpdateData, County, Assignment
 } from '../types';
 import { UserManager } from './UserManager';
 import { TimetableGenerator } from './TimetableGenerator';
@@ -95,6 +95,7 @@ export interface AdminViewProps {
     emailConfig: EmailConfig;
     timetableConflicts: Conflict[];
     currentInstitution?: Institution | null;
+    counties: County[];
 
     onAddUser?: (userData: any) => void;
     onEditUser: (id: string, data: any) => Promise<void>;
@@ -708,8 +709,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 <EditInstitutionModal
                     institution={editingInstitution}
                     onClose={() => setEditingInstitution(null)}
-                    onSave={async (id: string, data: any) => { if (props.onUpdateInstitution) await props.onUpdateInstitution(id, data); setEditingInstitution(null); }}
+                    onSave={async (id, data) => {
+                        if (props.onUpdateInstitution) {
+                            await props.onUpdateInstitution(id, data);
+                        }
+                        setEditingInstitution(null);
+                    }}
                     defaultPrices={companyDetails.subscriptionConfig}
+                    counties={props.counties || []}
                 />
             )}
         </div>

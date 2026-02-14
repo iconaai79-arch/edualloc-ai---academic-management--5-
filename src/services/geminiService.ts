@@ -38,7 +38,7 @@ const sanitizeAiError = (error: any): Error => {
 
     // Scrub internal versioning and paths from technical chatter
     msg = msg.replace(/gemini-1\.5-pro/gi, 'Gemini 3.0 Pro');
-    msg = msg.replace(/gemini-1\.5-flash/gi, 'Gemini 3.0 Pro Core');
+    msg = msg.replace(/gemini-1\.5-flash/gi, 'Gemini 3.0 Flash');
     msg = msg.replace(/gemini-1\.0-pro/gi, 'Gemini 3.0 Pro');
     msg = msg.replace(/models\//gi, '');
     msg = msg.replace(/v1beta/gi, 'Core Engine');
@@ -57,15 +57,18 @@ const sanitizeAiError = (error: any): Error => {
     return sanitizedError;
 };
 
-const safeGenerateContent = async (prompt: string, config: any = {}) => {
+const safeGenerateContent = async (prompt: string, config: any = {}, preferredModel?: 'pro' | 'flash') => {
     checkAiAvailable();
     // Normalize structure for the SDK
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
 
+    const primaryModel = preferredModel === 'flash' ? STANDARD_LOGICAL_CORE : PRO_LOGICAL_CORE;
+    const fallbackModel = preferredModel === 'flash' ? PRO_LOGICAL_CORE : STANDARD_LOGICAL_CORE;
+
     try {
-        // Attempt Primary Pro Architecture
+        // Attempt Primary Architecture
         return await ai!.models.generateContent({
-            model: PRO_LOGICAL_CORE,
+            model: primaryModel,
             contents: contents,
             generationConfig: config
         });
@@ -74,16 +77,16 @@ const safeGenerateContent = async (prompt: string, config: any = {}) => {
         console.error("[System Debug] Engine Error details:", error);
 
         // Broader capture for restriction/missing/permissions
-        const errText = (error.message || '') + JSON.stringify(error);
+        const errText = (error.message || '') + JSON.stringify(error).toLowerCase();
         const isRestricted = errText.includes('404') || errText.includes('not found') ||
             errText.includes('not supported') || errText.includes('permission') ||
             errText.includes('403');
 
         if (isRestricted) {
-            console.warn(`[System] Initializing logical core optimization for continuity.`);
+            console.warn(`[System] Initializing logical core expansion for continuity.`);
             try {
                 return await ai!.models.generateContent({
-                    model: STANDARD_LOGICAL_CORE,
+                    model: fallbackModel,
                     contents: contents,
                     generationConfig: config
                 });
