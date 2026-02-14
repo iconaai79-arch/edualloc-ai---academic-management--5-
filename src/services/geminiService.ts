@@ -67,9 +67,12 @@ const safeGenerateContent = async (prompt: string, config: any = {}) => {
         return await ai!.models.generateContent({
             model: PRO_LOGICAL_CORE,
             contents: contents,
-            config: config
+            generationConfig: config
         });
     } catch (error: any) {
+        // Debug visibility: Log the real error to console for technical support
+        console.error("[System Debug] Engine Error details:", error);
+
         // Broader capture for restriction/missing/permissions
         const errText = (error.message || '') + JSON.stringify(error);
         const isRestricted = errText.includes('404') || errText.includes('not found') ||
@@ -82,7 +85,7 @@ const safeGenerateContent = async (prompt: string, config: any = {}) => {
                 return await ai!.models.generateContent({
                     model: STANDARD_LOGICAL_CORE,
                     contents: contents,
-                    config: config
+                    generationConfig: config
                 });
             } catch (fallbackError: any) {
                 throw sanitizeAiError(fallbackError);
