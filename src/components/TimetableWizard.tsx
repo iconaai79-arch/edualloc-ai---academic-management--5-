@@ -328,7 +328,7 @@ export const TimetableWizard: React.FC<TimetableWizardProps> = ({
                                         className={`p-4 rounded-xl border-2 text-left transition-all ${selectedAiTier === 'premium' ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/10' : 'border-slate-100 dark:border-slate-700 hover:border-slate-200'}`}
                                     >
                                         <div className="flex justify-between items-center mb-1">
-                                            <span className="font-black text-[10px] uppercase tracking-tighter">Gemini 3.0 Pro</span>
+                                            <span className="font-black text-[10px] uppercase tracking-tighter">Gemini 1.5 Pro</span>
                                             {selectedAiTier === 'premium' && <CheckCircleIcon className="w-4 h-4 text-indigo-600" />}
                                         </div>
                                         <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-tight italic">Elite Reasoning</p>
