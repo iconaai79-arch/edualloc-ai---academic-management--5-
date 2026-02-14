@@ -1,6 +1,6 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import nodemailer from 'nodemailer';
+
 
 import { createServerClient } from '../lib/supabase';
 
@@ -9,16 +9,19 @@ export const config = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    // CORS
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Health Check / Options
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString() });
+
+    console.log('[Integration] Receiving Interaction request....');
+
     try {
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-        console.log('[Integration] Receiving Integration request....');
-
-        if (req.method === 'OPTIONS') return res.status(200).end();
-
         // Verify Auth
         const authHeader = req.headers.authorization;
         const supabase = createServerClient(authHeader);
@@ -180,6 +183,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(400).json({ success: false, message: "SMTP credentials incomplete. Please configure in System Settings." });
                 }
 
+                // DYNAMIC IMPORT NODEMAILER
+                const nodemailer = (await import('nodemailer')).default;
+
                 const transporter = nodemailer.createTransport({
                     host,
                     port: Number(port),
@@ -199,6 +205,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     return res.status(200).json({ success: true, message: "Email dispatched.", messageId: info.messageId });
                 } catch (error: any) {
+                    console.error('[Email] Send Failed:', error);
                     return res.status(500).json({ success: false, message: "Failed to send email. Check server logs." });
                 }
             }
