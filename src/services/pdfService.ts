@@ -806,15 +806,20 @@ export const generateMasterCourseTimetablePdf = async (
             doc.text(`${course.name} (${course.code}) - ${level.name}`, margin, yPos);
 
             if (level.classTeacherId) {
-                const classTeacher = getLecturerById(level.classTeacherId);
-                if (classTeacher) {
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'italic');
-                    doc.setTextColor(100);
-                    const teacherText = `Class Teacher: ${classTeacher.name}`;
-                    const textWidth = doc.getTextWidth(teacherText);
-                    doc.text(teacherText, doc.internal.pageSize.getWidth() - margin - textWidth, yPos);
-                    doc.setTextColor(0); // Reset color
+                try {
+                    const classTeacher = getLecturerById(level.classTeacherId);
+                    if (classTeacher) {
+                        doc.setFontSize(10);
+                        doc.setFont('helvetica', 'italic');
+                        doc.setTextColor(100);
+                        const teacherText = `Class Teacher: ${classTeacher.name || 'Unknown'}`;
+                        const textWidth = doc.getTextWidth(teacherText);
+                        const pageWidth = doc.internal.pageSize.getWidth ? doc.internal.pageSize.getWidth() : doc.internal.pageSize.width;
+                        doc.text(teacherText, pageWidth - margin - textWidth, yPos);
+                        doc.setTextColor(0); // Reset color
+                    }
+                } catch (err) {
+                    console.warn("Error adding class teacher to PDF:", err);
                 }
             }
 
