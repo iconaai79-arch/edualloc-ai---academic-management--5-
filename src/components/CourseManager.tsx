@@ -323,6 +323,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [newStreamCourseId, setNewStreamCourseId] = useState('');
     const [newStreamName, setNewStreamName] = useState('');
 
+    const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject } | null>(null);
+
     const [newLessonCourseId, setNewLessonCourseId] = useState('');
     const [newLessonLevelId, setNewLessonLevelId] = useState('');
     const [newLessonSubjectId, setNewLessonSubjectId] = useState('');
@@ -409,7 +411,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         const firstLecturerId = relatedAllocations[0]?.lecturerId;
                         const lecturersNames = relatedAllocations.map(a => userMap.get(a.lecturerId)).filter(Boolean).join(', ');
 
-                        const structure = (subject.lessonStructure || [])
+                        const meta = (level.subjectMetadata || []).find(m => m.subjectId === subject.id);
+                        const structureSource = meta?.lessonStructure || subject.lessonStructure || [];
+                        const structure = (structureSource)
                             .map(ls => `${ls.count}x ${ls.periods === 1 ? 'Single' : ls.periods === 2 ? 'Double' : ls.periods + ' Periods'}`).join(', ') || 'N/A';
 
                         lessons.push({
@@ -497,6 +501,26 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const handleDeleteCourseSubmit = (courseId: string, courseName: string) => {
         setDeletingCourse({ id: courseId, name: courseName });
+    };
+
+    const handleSaveStructureOverride = (structure: LessonStructure[]) => {
+        if (!editingStructureFor) return;
+        const { course, level, subject } = editingStructureFor;
+
+        const currentMeta = level.subjectMetadata || [];
+        const existingIndex = currentMeta.findIndex(m => m.subjectId === subject.id);
+
+        let updatedMeta;
+        if (existingIndex >= 0) {
+            updatedMeta = [...currentMeta];
+            updatedMeta[existingIndex] = { ...updatedMeta[existingIndex], lessonStructure: structure };
+        } else {
+            updatedMeta = [...currentMeta, { subjectId: subject.id, lessonStructure: structure }];
+        }
+
+        const updatedLevels = course.levels.map(l => l.id === level.id ? { ...l, subjectMetadata: updatedMeta } : l);
+        handleStructureSave(course.id, updatedLevels);
+        setEditingStructureFor(null);
     };
 
     const confirmDelete = async () => {
@@ -1567,6 +1591,16 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 />
             )}
 
+            {editingStructureFor && (
+                <SubjectStructureEditorModal
+                    course={editingStructureFor.course}
+                    level={editingStructureFor.level}
+                    subject={editingStructureFor.subject}
+                    onClose={() => setEditingStructureFor(null)}
+                    onSave={handleSaveStructureOverride}
+                />
+            )}
+
             {assigningSubjectsTo && onUpdateCourse && (
                 <div className="fixed inset-0 bg-slate-900/80 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setAssigningSubjectsTo(null)}>
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800" onClick={e => e.stopPropagation()}>
@@ -1601,15 +1635,24 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                             })()}
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
-                                                            handleStructureSave(assigningSubjectsTo.id, updated);
-                                                        }}
-                                                        className="p-1.5 text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                                                    >
-                                                        <XIcon className="w-5 h-5" />
-                                                    </button>
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => setEditingStructureFor({ course: assigningSubjectsTo, level, subject: s })}
+                                                            className="p-1.5 text-slate-300 hover:text-indigo-500 transition-all"
+                                                            title="Modify Structure for this class"
+                                                        >
+                                                            <Bars3Icon className="w-5 h-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                const updated = assigningSubjectsTo.levels.map(l => l.id === level.id ? { ...l, subjectIds: (l.subjectIds || []).filter(id => id !== sid) } : l);
+                                                                handleStructureSave(assigningSubjectsTo.id, updated);
+                                                            }}
+                                                            className="p-1.5 text-slate-300 hover:text-red-500 transition-all"
+                                                        >
+                                                            <XIcon className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ) : null;
                                         })}
@@ -1700,6 +1743,73 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+const SubjectStructureEditorModal = ({ course, level, subject, onClose, onSave }: {
+    course: Course,
+    level: CourseLevel,
+    subject: Subject,
+    onClose: () => void,
+    onSave: (structure: LessonStructure[]) => void
+}) => {
+    const meta = (level.subjectMetadata || []).find(m => m.subjectId === subject.id);
+    const [tempStructure, setTempStructure] = useState<LessonStructure[]>(meta?.lessonStructure || subject.lessonStructure || []);
+
+    const addRow = () => setTempStructure([...tempStructure, { periods: 1, count: 1 }]);
+    const removeRow = (index: number) => setTempStructure(tempStructure.filter((_, i) => i !== index));
+    const updateRow = (index: number, field: keyof LessonStructure, value: any) => {
+        const updated = [...tempStructure];
+        updated[index] = { ...updated[index], [field]: value };
+        setTempStructure(updated);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">{subject.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Refining for: {level.name}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-5 h-5 text-slate-400" /></button>
+                </div>
+                <div className="p-8 space-y-6">
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50">
+                        <p className="text-[10px] text-indigo-700 dark:text-indigo-300 font-bold uppercase tracking-tight leading-relaxed">
+                            Customizing the lesson structure here will override the subject's default settings specifically for this class.
+                        </p>
+                    </div>
+                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {tempStructure.map((row, idx) => (
+                            <div key={idx} className="flex gap-3 items-end p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <div className="flex-1">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Pattern (e.g. 2 for Double)</label>
+                                    <input type="number" value={row.periods} min={1} onChange={e => updateRow(idx, 'periods', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Frequency (per week)</label>
+                                    <input type="number" value={row.count} min={1} onChange={e => updateRow(idx, 'count', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" />
+                                </div>
+                                <button onClick={() => removeRow(idx)} className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /></button>
+                            </div>
+                        ))}
+                        {tempStructure.length === 0 && (
+                            <div className="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">No structure defined</p>
+                            </div>
+                        )}
+                        <button onClick={addRow} className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:border-indigo-300 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
+                            <PlusIcon className="w-4 h-4" /> Add Lesson Block
+                        </button>
+                    </div>
+                </div>
+                <div className="p-8 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex gap-3">
+                    <button onClick={onClose} className="btn-secondary flex-1 h-12 uppercase text-[10px] font-black tracking-widest">Cancel</button>
+                    <button onClick={() => onSave(tempStructure)} className="btn-primary flex-[2] h-12 shadow-lg shadow-indigo-100 uppercase text-[10px] font-black tracking-widest">Apply Class Overrides</button>
+                </div>
+            </div>
         </div>
     );
 };

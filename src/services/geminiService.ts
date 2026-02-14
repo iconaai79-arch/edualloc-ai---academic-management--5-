@@ -5,9 +5,11 @@ import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableS
 // Safely initialize API client. If KEY is missing, it will be null and calls will fail gracefully instead of crashing the app at startup.
 const getSafeKey = () => {
     try {
-        if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
+        if (typeof process !== 'undefined' && process.env) {
+            return process.env.API_KEY || process.env.GEMINI_API_KEY || process.env.VITE_API_KEY || process.env.VITE_GEMINI_API_KEY;
+        }
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-            return (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY;
+            return (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY || (import.meta as any).env.GEMINI_API_KEY;
         }
     } catch (e) { }
     return null;
@@ -159,7 +161,17 @@ export const generateTimetable = async (
             
             Inputs:
             - Approved Allocations: ${JSON.stringify(allocations)}
-            - Subject Details (Structures): ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, structure: s.lessonStructure })))}
+            - Subject Details (Global Default Structures): ${JSON.stringify(subjects.map(s => ({ id: s.id, code: s.code, structure: s.lessonStructure })))}
+            - Course & Level Structure (including subject overrides per class): ${JSON.stringify(courses.map(c => ({
+            id: c.id,
+            name: c.name,
+            levels: c.levels.map(l => ({
+                id: l.id,
+                name: l.name,
+                subjectIds: l.subjectIds,
+                overrides: (l.subjectMetadata || []).map(m => ({ subjectId: m.subjectId, structure: m.lessonStructure }))
+            }))
+        })))}
             - Room Capacities: ${JSON.stringify(rooms.map(r => ({ id: r.id, cap: r.capacity })))}
             - Operating Hours/Days: ${JSON.stringify({ start: settings.startTime, end: settings.endTime, days: settings.operatingDays })}
             - Curriculum Schedule Profiles (Specific breaks/durations per course): ${JSON.stringify(profiles)}
@@ -169,6 +181,7 @@ export const generateTimetable = async (
             - Every course belongs to a specific "curriculum profile".
             - You MUST respect the specific breaks and durations defined in the Profile for each subject belonging to that profile.
             - Ensure no lecturer is double-booked across different profiles.
+            - DEFAULT CONSTRAINT: A subject unit (lesson) CANNOT be allocated consecutively on the same day. If a subject has more than one session on the same day, they MUST be separated by at least one other subject or a scheduled break. This rule does not apply to single sessions that are multiple periods long (e.g., a double period).
             
             Output Requirement:
             Return a JSON array of objects: { day, startTime, endTime, subjectId, lecturerId, roomId }.

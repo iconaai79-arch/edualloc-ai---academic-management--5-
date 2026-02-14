@@ -15,9 +15,9 @@ export const minutesToTime = (minutes: number): string => {
 
 export const GRID_TIME_STEP_MINUTES = 15;
 
-const filterOutBreaks = (slots: { start: string; end: string }[], breaks: TimetableSettings['breaks']) => {
+const filterOutBreaks = (slots: { start: string; end: string }[], breaks: TimetableSettings['breaks'], includeBreaks: boolean = false) => {
   if (!slots || !Array.isArray(slots)) return [];
-  if (!breaks || !Array.isArray(breaks) || breaks.length === 0) return slots;
+  if (includeBreaks || !breaks || !Array.isArray(breaks) || breaks.length === 0) return slots;
 
   const breakIntervals = breaks
     .filter(b => b && b.status !== 'inactive' && b.startTime && b.endTime)
@@ -39,7 +39,7 @@ const filterOutBreaks = (slots: { start: string; end: string }[], breaks: Timeta
   });
 };
 
-export const generateTimeSlots = (settings: TimetableSettings): { start: string; end: string }[] => {
+export const generateTimeSlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string }[] => {
   if (!settings) return [];
   const { startTime = '08:00', endTime = '17:00', breaks = [] } = settings;
   const slots: { start: string; end: string }[] = [];
@@ -58,17 +58,24 @@ export const generateTimeSlots = (settings: TimetableSettings): { start: string;
     currentMinutes += GRID_TIME_STEP_MINUTES;
   }
 
-  return filterOutBreaks(slots, breaks);
+  return filterOutBreaks(slots, breaks, includeBreaks);
 };
 
-export const generateDisplaySlots = (settings: TimetableSettings): { start: string; end: string }[] => {
+export const generateDisplaySlots = (settings: TimetableSettings, includeBreaks: boolean = false): { start: string; end: string }[] => {
   if (!settings) return [];
   const periods = settings.periods || [];
   if (Array.isArray(periods) && periods.length > 0) {
-    return [...periods]
+    const all = [...periods]
       .filter(p => p && p.startTime && p.endTime)
-      .map(p => ({ start: p.startTime, end: p.endTime }))
-      .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+      .map(p => ({ start: p.startTime, end: p.endTime }));
+
+    if (includeBreaks && settings.breaks) {
+      settings.breaks.filter(b => b.status !== 'inactive').forEach(b => {
+        all.push({ start: b.startTime, end: b.endTime });
+      });
+    }
+
+    return all.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
   }
 
   const { startTime = '08:00', endTime = '17:00', cellSpanMinutes = 60, breaks = [] } = settings;
@@ -89,33 +96,41 @@ export const generateDisplaySlots = (settings: TimetableSettings): { start: stri
     currentMinutes += step;
   }
 
-  return filterOutBreaks(slots, breaks);
+  return filterOutBreaks(slots, breaks, includeBreaks);
 };
 
-export const generatePeriodLabels = (settings: TimetableSettings): { label: string; colSpan: number; startTime: string; endTime: string }[] => {
+export const generatePeriodLabels = (
+  settings: TimetableSettings,
+  includeBreaks: boolean = false
+): { label: string; colSpan: number; startTime: string; endTime: string; isBreak?: boolean }[] => {
   if (!settings) return [];
   const periods = settings.periods || [];
   const breaks = settings.breaks || [];
   const cellSpan = settings.cellSpanMinutes || 60;
 
   if (!Array.isArray(periods) || periods.length === 0) {
-    const headers: { label: string; colSpan: number; startTime: string; endTime: string }[] = [];
-    const displaySlots = generateDisplaySlots(settings);
+    const headers: { label: string; colSpan: number; startTime: string; endTime: string; isBreak?: boolean }[] = [];
+    const displaySlots = generateDisplaySlots(settings, includeBreaks);
 
     displaySlots.forEach((slot, index) => {
+      const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+      const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+
       headers.push({
-        label: `Period ${index + 1}`,
+        label: isBreak ? (breakObj?.name || 'Break') : `Period ${index + 1}`,
         colSpan: 1,
         startTime: slot.start,
         endTime: slot.end,
+        isBreak
       });
     });
     return headers;
   }
 
-  return periods
+  const labels: { label: string; colSpan: number; startTime: string; endTime: string; isBreak?: boolean }[] = periods
     .filter(p => {
       if (!p || !p.startTime || !p.endTime) return false;
+      if (includeBreaks) return true;
       for (const b of (breaks || [])) {
         if (b && b.status !== 'inactive' && b.startTime && b.endTime) {
           if (timeToMinutes(p.startTime) >= timeToMinutes(b.startTime) && timeToMinutes(p.endTime) <= timeToMinutes(b.endTime)) {
@@ -128,14 +143,28 @@ export const generatePeriodLabels = (settings: TimetableSettings): { label: stri
     .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
     .map((p, index) => {
       const label = (p.name === p.startTime) ? `Period ${index + 1}` : p.name;
-
       return {
         label: label,
-        colSpan: 1, // Enforce 1 column per period
+        colSpan: 1,
         startTime: p.startTime,
         endTime: p.endTime,
       };
     });
+
+  if (includeBreaks) {
+    breaks.filter(b => b.status !== 'inactive').forEach(b => {
+      labels.push({
+        label: b.name,
+        colSpan: 1,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        isBreak: true
+      });
+    });
+    labels.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  }
+
+  return labels;
 };
 
 export const formatEta = (ms: number | null): string => {

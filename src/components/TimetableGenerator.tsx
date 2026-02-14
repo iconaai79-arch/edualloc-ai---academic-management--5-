@@ -236,11 +236,12 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
     }, [currentUser, courses, subjects, departments]);
 
     const conflictSummary = useMemo(() => {
-        if (!timetableConflicts) return { total: 0, room: 0, lecturer: 0 };
+        if (!timetableConflicts) return { total: 0, room: 0, lecturer: 0, consecutive: 0 };
         return {
             total: timetableConflicts.length,
             room: timetableConflicts.filter(c => c.type === 'room').length,
             lecturer: timetableConflicts.filter(c => c.type === 'lecturer').length,
+            consecutive: timetableConflicts.filter(c => c.type === 'consecutive_subject').length,
         };
     }, [timetableConflicts]);
 
@@ -371,7 +372,11 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                         </h3>
                                         <div className="mt-1 text-sm text-slate-500 font-medium">
                                             {conflictSummary.total > 0 ? (
-                                                <p>Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities. Please refine constraints.</p>
+                                                <p>
+                                                    Overlaps found: {conflictSummary.lecturer} staff, {conflictSummary.room} facilities
+                                                    {conflictSummary.consecutive > 0 && `, ${conflictSummary.consecutive} consecutive subject violations`}.
+                                                    Please refine constraints.
+                                                </p>
                                             ) : (
                                                 <p>Generated plan satisfies 100% of institutional and resource availability parameters.</p>
                                             )}
@@ -413,6 +418,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                     academicYears={academicYears}
                                     activeSemester={activeSemester || null}
                                     onLogAction={onLogAction}
+                                    timetableConflicts={timetableConflicts}
                                 />
                             </div>
                         )}

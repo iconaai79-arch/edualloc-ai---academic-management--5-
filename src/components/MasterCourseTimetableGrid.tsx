@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, AcademicYear, Semester, Institution, CourseLevel } from '../types';
+import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, AcademicYear, Semester, Institution, CourseLevel, Conflict } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { getInitials } from '../utils/stringUtils';
@@ -21,6 +21,7 @@ interface MasterCourseTimetableGridProps {
     activeSemester: Semester | null;
     isSchool?: boolean;
     currentInstitution?: Institution | null;
+    timetableConflicts?: Conflict[];
 }
 
 export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps> = ({
@@ -35,7 +36,8 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
     currentInstitution,
     getSubjectById,
     getLecturerById,
-    getRoomById
+    getRoomById,
+    timetableConflicts
 }) => {
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
     const daysOfWeek = timetableSettings.operatingDays;
@@ -76,95 +78,110 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         }, { subjectCount: 0, totalPeriods: 0, totalHours: 0 });
     }, [workloadData]);
 
-    const getCellEntry = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {
-        const periodStartMinutes = timeToMinutes(period.startTime);
-        
-        const entry = generatedTimetable.find(e => 
+    const getCellEntry = (level: CourseLevel, day: string, period: any) => {
+        return generatedTimetable.find(e =>
             e.day === day &&
-            level.subjectIds.includes(e.subjectId) &&
-            timeToMinutes(e.startTime) === periodStartMinutes
+            (level.subjectIds || []).includes(e.subjectId) &&
+            e.startTime === period.startTime
         );
-        return entry;
     };
 
     const renderHorizontalLayout = () => (
-        <div className="space-y-8 animate-fade-in">
-            {relevantCourses.map(course => {
-                const profile = (currentInstitution?.scheduleProfiles || []).find(p => p.id === course.scheduleProfileId);
+        <div className="space-y-12 animate-fade-in no-break">
+            {relevantCourses.map((course) => {
+                const courseEntries = generatedTimetable.filter(e =>
+                    course.levels.some(l => (l.subjectIds || []).includes(e.subjectId))
+                );
+
                 return (
-                <div key={course.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:overflow-visible print:shadow-none print:border-none print:break-inside-avoid">
-                    <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 print:bg-transparent print:p-0 print:mb-2">
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter print:text-black">
-                            {course.name} ({course.code})
-                            {profile && <span className="ml-2 text-sm text-indigo-600">[{profile.name}]</span>}
-                        </h3>
-                    </div>
-                    <div className="overflow-x-auto print:overflow-visible">
-                        <table className="min-w-full border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-100">
-                                    <th className="p-4 border border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black font-black uppercase text-[10px] tracking-widest text-slate-500" rowSpan={2}>
-                                        {isSchool ? 'Stream' : 'Level'}
-                                    </th>
-                                    {daysOfWeek.map(day => (
-                                        <th key={day} colSpan={periodHeaders.length} className="p-2 border border-slate-200 dark:border-slate-600 font-black text-[10px] uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 print:text-black">{day}</th>
-                                    ))}
-                                </tr>
-                                <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-50">
-                                    {daysOfWeek.map(day => periodHeaders.map(period => (
-                                        <th key={`${day}-${period.label}`} className="p-1 border border-slate-200 dark:border-slate-600 font-bold text-[9px] text-slate-400 dark:text-slate-500 print:text-black uppercase">
-                                            <span className="block">{period.label}</span>
-                                            <span className="block font-mono opacity-60">{period.startTime}</span>
-                                        </th>
-                                    )))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {course.levels.map(level => {
-                                    const occupiedSlots = new Set<string>(); // "day-periodIndex"
-                                    return (
-                                        <tr key={level.id} className="border-t border-slate-200 dark:border-slate-600">
-                                            <td className="p-4 border border-slate-200 dark:border-slate-600 font-bold text-slate-700 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black">{level.name}</td>
-                                            {daysOfWeek.flatMap(day => periodHeaders.map((period, periodIndex) => {
-                                                const slotKey = `${day}-${periodIndex}`;
-                                                if (occupiedSlots.has(slotKey)) return null;
+                    <div key={course.id} className="space-y-4 break-inside-avoid">
+                        <div className="flex items-center gap-3 border-l-4 border-indigo-600 pl-4 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-r-2xl">
+                            <RectangleStackIcon className="w-5 h-5 text-indigo-600" />
+                            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                                {course.name} ({course.code})
+                            </h3>
+                        </div>
 
-                                                const entry = getCellEntry(level, day, period);
-                                                if (entry) {
-                                                    const subject = getSubjectById(entry.subjectId);
-                                                    const lecturer = getLecturerById(entry.lecturerId);
-                                                    const room = getRoomById(entry.roomId);
-                                                    
-                                                    const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                                    const colSpan = Math.round(duration / cellSpanMinutes);
+                        <div className="overflow-x-auto shadow-sm rounded-3xl border border-slate-100 dark:border-slate-800">
+                            <table className="min-w-full border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-100/80 dark:bg-slate-950/50">
+                                        <th rowSpan={2} className="p-3 text-left text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-24">Class / Time</th>
+                                        {periodHeaders.map((p, i) => (
+                                            <th key={i} colSpan={p.colSpan} className={`p-2 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-200/50 dark:border-slate-800/50 ${p.isBreak ? 'text-slate-400 bg-slate-50/50' : 'text-slate-500'}`}>
+                                                {p.label}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                    <tr className="bg-slate-100/50 dark:bg-slate-950/30">
+                                        {periodHeaders.map((p, i) => (
+                                            <th key={i} colSpan={p.colSpan} className={`p-1 text-center font-mono text-[8px] border-l border-slate-200/50 dark:border-slate-800/50 ${p.isBreak ? 'text-slate-300' : 'text-slate-400'}`}>
+                                                {p.startTime}-{p.endTime}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
+                                    {daysOfWeek.map(day => {
+                                        return (
+                                            <tr key={day} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                <td className="p-3 bg-slate-50/30 dark:bg-slate-950/20 border-r border-slate-100 dark:border-slate-800">
+                                                    <div className="text-[10px] font-black text-indigo-600/70 dark:text-indigo-400/70 uppercase tracking-widest leading-none rotate-0">
+                                                        {day.substring(0, 3)}
+                                                    </div>
+                                                </td>
+                                                {periodHeaders.map((period, periodIndex) => {
+                                                    const slotKey = `${day}-${period.startTime}`;
+                                                    const entry = (courseEntries || []).find(e =>
+                                                        e.day === day &&
+                                                        e.startTime === period.startTime
+                                                    );
 
-                                                    for(let k=0; k<colSpan; k++) {
-                                                        occupiedSlots.add(`${day}-${periodIndex + k}`);
+                                                    if (period.isBreak) {
+                                                        return (
+                                                            <td key={slotKey} colSpan={period.colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest select-none">BREAK</span>
+                                                            </td>
+                                                        );
                                                     }
 
-                                                    return (
-                                                        <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400">
-                                                            <div className="rounded-xl p-2 shadow-sm border border-black/5" style={{backgroundColor: generatePastelColor(entry.subjectId)}}>
-                                                                <div className="text-[10px] leading-tight text-slate-900 font-black uppercase tracking-tighter">
-                                                                    <span className="block">{subject?.shortName || subject?.code}</span>
+                                                    if (entry) {
+                                                        const subject = getSubjectById(entry.subjectId);
+                                                        const lecturer = getLecturerById(entry.lecturerId);
+                                                        const room = getRoomById(entry.roomId);
+                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+
+                                                        const isConflicting = timetableConflicts?.some(c =>
+                                                            c.type === 'consecutive_subject' &&
+                                                            c.day === day &&
+                                                            c.conflictingEntries.some(ce => ce.id === entry.id)
+                                                        );
+
+                                                        return (
+                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
+                                                                <div className={`rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                    <div className="text-[10px] leading-tight text-slate-900 font-black uppercase tracking-tighter flex items-center justify-center gap-1">
+                                                                        {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
+                                                                        <span className="block">{subject?.shortName || subject?.code}</span>
+                                                                    </div>
+                                                                    <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
+                                                                        <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
-                                                                    <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                }
-                                                return <td key={slotKey} className="border border-slate-100 dark:border-slate-700 print:border-slate-300"></td>
-                                            }))}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                            </td>
+                                                        );
+                                                    }
+                                                    return <td key={slotKey} className="border border-slate-100 dark:border-slate-800"></td>
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            );
+                );
             })}
         </div>
     );
@@ -176,7 +193,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter border-b-4 border-indigo-600 pb-2 inline-block print:text-black print:border-black">
                         {course.name} ({course.code})
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 print:block">
                         {course.levels.map(level => (
                             <div key={level.id} className="bg-white dark:bg-slate-800 shadow-sm rounded-[2rem] overflow-hidden border border-slate-100 dark:border-slate-700 print:shadow-none print:border-2 print:border-slate-200 print:mb-8 print:break-inside-avoid">
@@ -207,22 +224,34 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         {periodHeaders.map((period, periodIndex) => {
                                                             if (occupiedSlots.has(periodIndex)) return null;
 
+                                                            if (period.isBreak) {
+                                                                // Mark all spanned slots as occupied
+                                                                for (let k = 0; k < period.colSpan; k++) {
+                                                                    occupiedSlots.add(periodIndex + k);
+                                                                }
+                                                                return (
+                                                                    <td key={periodIndex} colSpan={period.colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle bg-slate-50/50 dark:bg-slate-900/40 text-center">
+                                                                        <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">BREAK</span>
+                                                                    </td>
+                                                                );
+                                                            }
+
                                                             const entry = getCellEntry(level, day, period);
                                                             if (entry) {
                                                                 const subject = subjects.find(s => s.id === entry.subjectId);
                                                                 const lecturer = lecturers.find(l => l.id === entry.lecturerId);
                                                                 const room = rooms.find(r => r.id === entry.roomId);
-                                                                
+
                                                                 const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
                                                                 const colSpan = Math.round(duration / cellSpanMinutes);
 
-                                                                for(let k=0; k<colSpan; k++) occupiedSlots.add(periodIndex + k);
+                                                                for (let k = 0; k < colSpan; k++) occupiedSlots.add(periodIndex + k);
 
                                                                 return (
-                                                                    <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle">
-                                                                        <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{backgroundColor: generatePastelColor(entry.subjectId)}}>
+                                                                    <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle text-center">
+                                                                        <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
                                                                             <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{subject?.shortName || subject?.code}</p>
-                                                                            <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.name}</p>
+                                                                            <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</p>
                                                                         </div>
                                                                     </td>
                                                                 );
@@ -247,14 +276,14 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         <div className="space-y-8">
             <div className="flex justify-between items-center no-print">
                 <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <button 
+                    <button
                         onClick={() => setLayoutMode('horizontal')}
                         className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <RectangleStackIcon className="w-4 h-4" />
                         Grid Layout
                     </button>
-                    <button 
+                    <button
                         onClick={() => setLayoutMode('vertical')}
                         className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${layoutMode === 'vertical' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}
                     >
@@ -272,7 +301,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                     <h4 className="text-lg font-black text-slate-300 uppercase tracking-[0.2em]">No Curriculum Data Matching Filters</h4>
                 </div>
             )}
-            
+
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 print:break-inside-avoid print:shadow-none print:border print:border-slate-300">
                 <h3 className="text-xl font-black uppercase tracking-tighter mb-6 print:text-black">Workload Utilisation Summary</h3>
                 <div className="overflow-x-auto">

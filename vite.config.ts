@@ -10,19 +10,22 @@ export default defineConfig(({ mode }) => {
   process.env.SUPABASE_URL = env.SUPABASE_URL || env.VITE_SUPABASE_URL || "";
   process.env.SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || "";
   process.env.DATABASE_URL = env.DATABASE_URL || "";
-  process.env.API_KEY = env.API_KEY || env.VITE_API_KEY || "";
+  process.env.API_KEY = env.API_KEY || env.VITE_API_KEY || env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || "";
+  process.env.GEMINI_API_KEY = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY || "";
 
   return {
     plugins: [react()],
     define: {
       'process.env.NODE_ENV': JSON.stringify(mode),
       'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY),
       'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
       'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
       'process.env.DATABASE_URL': JSON.stringify(process.env.DATABASE_URL),
       'process.env': {
         NODE_ENV: JSON.stringify(mode),
         API_KEY: JSON.stringify(process.env.API_KEY),
+        GEMINI_API_KEY: JSON.stringify(process.env.GEMINI_API_KEY),
         SUPABASE_URL: JSON.stringify(process.env.SUPABASE_URL),
         SUPABASE_ANON_KEY: JSON.stringify(process.env.SUPABASE_ANON_KEY),
         DATABASE_URL: JSON.stringify(process.env.DATABASE_URL)

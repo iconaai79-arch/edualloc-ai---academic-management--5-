@@ -291,7 +291,7 @@ export const App: React.FC = () => {
 
     const allocations = useMemo(() => (Array.isArray(requests) ? requests : []).filter(r => r && (r.status === 'approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending')), [requests]);
 
-    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms), [generatedTimetable, rooms]);
+    const timetableConflicts = useMemo(() => detectTimetableConflicts(generatedTimetable, rooms, courses, subjects), [generatedTimetable, rooms, courses, subjects]);
 
     const courseSizes = useMemo(() => {
         const sizes = new Map<string, number>();

@@ -45,12 +45,12 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
 }) => {
     const safeBuildings = Array.isArray(buildings) ? buildings.filter(Boolean) : [];
     const safeRooms = Array.isArray(rooms) ? rooms.filter(Boolean) : [];
-    
+
     const [buildingFilter, setBuildingFilter] = useState('all');
     const [expandedBuildingIds, setExpandedBuildingIds] = useState<Set<string>>(() => new Set(safeBuildings.map(b => b.id)));
 
     const daysOfWeek = timetableSettings?.operatingDays || [];
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
+    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
 
     const filteredBuildings = useMemo(() => {
@@ -80,7 +80,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
             return newSet;
         });
     };
-    
+
     const utilizationData = useMemo(() => {
         if (!timetableSettings) return [];
         const { operatingDays = [], startTime, endTime } = timetableSettings;
@@ -95,7 +95,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
             const totalOccupiedMinutes = (Array.isArray(generatedTimetable) ? generatedTimetable : [])
                 .filter(entry => entry && entry.roomId === room.id)
                 .reduce((acc, entry) => acc + (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)), 0);
-            
+
             const totalOccupiedHours = totalOccupiedMinutes / 60;
             const utilizationPercentage = (totalOccupiedHours / totalAvailableWeeklyHours) * 100;
 
@@ -124,89 +124,97 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
 
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden print:overflow-visible print:shadow-none print:border-none print:break-inside-avoid">
                 <div className="overflow-x-auto print:overflow-visible">
-                <table className="min-w-full border-collapse text-xs">
-                    <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-100">
-                            <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-50 dark:bg-slate-700/50 z-10 min-w-[150px] print:static print:bg-transparent print:text-black" rowSpan={2}>Building / Room</th>
-                            {daysOfWeek.map(day => (
-                                <th key={day} colSpan={periodHeaders.length} className="p-2 border border-slate-200 dark:border-slate-600 font-bold text-slate-900 dark:text-white print:text-black">{day}</th>
-                            ))}
-                        </tr>
-                        <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-50">
-                            {daysOfWeek.map(day => periodHeaders.map(period => (
-                                <th key={`${day}-${period.label}`} className="p-1 border border-slate-200 dark:border-slate-600 font-normal text-[10px] whitespace-normal text-slate-700 dark:text-slate-300 print:text-black">
-                                    <span className="font-semibold">{period.label}</span><br/>{period.startTime}-{period.endTime}
-                                </th>
-                            )))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredBuildings.flatMap(building => {
-                             const isExpanded = expandedBuildingIds.has(building.id);
-                             const buildingRooms = safeRooms.filter(r => r.buildingId === building.id);
-                             if(buildingRooms.length === 0) return null;
+                    <table className="min-w-full border-collapse text-xs">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-100">
+                                <th className="p-2 border border-slate-200 dark:border-slate-600 sticky left-0 bg-slate-50 dark:bg-slate-700/50 z-10 min-w-[150px] print:static print:bg-transparent print:text-black" rowSpan={2}>Building / Room</th>
+                                {daysOfWeek.map(day => (
+                                    <th key={day} colSpan={periodHeaders.length} className="p-2 border border-slate-200 dark:border-slate-600 font-bold text-slate-900 dark:text-white print:text-black">{day}</th>
+                                ))}
+                            </tr>
+                            <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-50">
+                                {daysOfWeek.map(day => periodHeaders.map(period => (
+                                    <th key={`${day}-${period.label}`} className="p-1 border border-slate-200 dark:border-slate-600 font-normal text-[10px] whitespace-normal text-slate-700 dark:text-slate-300 print:text-black">
+                                        <span className="font-semibold">{period.label}</span><br />{period.startTime}-{period.endTime}
+                                    </th>
+                                )))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredBuildings.flatMap(building => {
+                                const isExpanded = expandedBuildingIds.has(building.id);
+                                const buildingRooms = safeRooms.filter(r => r.buildingId === building.id);
+                                if (buildingRooms.length === 0) return null;
 
-                             const rows = [
-                                <tr key={`bldg-${building.id}`} className="bg-slate-100 dark:bg-slate-700/50 cursor-pointer no-print" onClick={() => toggleBuildingExpansion(building.id)}>
-                                    <td colSpan={1 + (daysOfWeek.length * periodHeaders.length)} className="p-2 border border-slate-200 dark:border-slate-600 font-bold text-left sticky left-0 bg-slate-100 dark:bg-slate-700/50 z-10">
-                                        <div className="flex items-center gap-2">
-                                            {isExpanded ? <ChevronDownIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
-                                            {building.name} ({buildingRooms.length} rooms)
-                                        </div>
-                                    </td>
-                                </tr>,
-                                <tr key={`bldg-print-${building.id}`} className="hidden print:table-row bg-gray-100">
-                                     <td colSpan={1 + (daysOfWeek.length * periodHeaders.length)} className="p-2 border border-slate-300 font-bold text-left text-black">
-                                         {building.name}
-                                     </td>
-                                </tr>
-                             ];
+                                const rows = [
+                                    <tr key={`bldg-${building.id}`} className="bg-slate-100 dark:bg-slate-700/50 cursor-pointer no-print" onClick={() => toggleBuildingExpansion(building.id)}>
+                                        <td colSpan={1 + (daysOfWeek.length * periodHeaders.length)} className="p-2 border border-slate-200 dark:border-slate-600 font-bold text-left sticky left-0 bg-slate-100 dark:bg-slate-700/50 z-10">
+                                            <div className="flex items-center gap-2">
+                                                {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                                                {building.name} ({buildingRooms.length} rooms)
+                                            </div>
+                                        </td>
+                                    </tr>,
+                                    <tr key={`bldg-print-${building.id}`} className="hidden print:table-row bg-gray-100">
+                                        <td colSpan={1 + (daysOfWeek.length * periodHeaders.length)} className="p-2 border border-slate-300 font-bold text-left text-black">
+                                            {building.name}
+                                        </td>
+                                    </tr>
+                                ];
 
-                             if (isExpanded || (typeof window !== 'undefined' && window.matchMedia('print').matches)) { 
-                                 buildingRooms.forEach(room => {
-                                     const occupiedSlots = new Set<string>();
-                                     rows.push(
-                                         <tr key={room.id} className="border-t border-slate-200 dark:border-slate-600 print:border-slate-300">
-                                             <td className="p-2 border border-slate-200 dark:border-slate-600 font-medium sticky left-0 bg-white dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black pl-6">
-                                                 {room.name} <span className="text-[10px] text-slate-500 dark:text-slate-400 print:text-black">(Cap: {room.capacity})</span>
-                                             </td>
-                                             {daysOfWeek.flatMap(day => periodHeaders.map((period, periodIndex) => {
-                                                 const slotKey = `${day}-${periodIndex}`;
-                                                 if (occupiedSlots.has(slotKey)) return null;
+                                if (isExpanded || (typeof window !== 'undefined' && window.matchMedia('print').matches)) {
+                                    buildingRooms.forEach(room => {
+                                        const occupiedSlots = new Set<string>();
+                                        rows.push(
+                                            <tr key={room.id} className="border-t border-slate-200 dark:border-slate-600 print:border-slate-300">
+                                                <td className="p-2 border border-slate-200 dark:border-slate-600 font-medium sticky left-0 bg-white dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black pl-6">
+                                                    {room.name} <span className="text-[10px] text-slate-500 dark:text-slate-400 print:text-black">(Cap: {room.capacity})</span>
+                                                </td>
+                                                {daysOfWeek.flatMap(day => periodHeaders.map((period, periodIndex) => {
+                                                    const slotKey = `${day}-${periodIndex}`;
+                                                    if (occupiedSlots.has(slotKey)) return null;
 
-                                                 const entry = getCellEntry(room.id, day, period);
-                                                 if (entry) {
-                                                     const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === entry.subjectId);
-                                                     const lecturer = (Array.isArray(lecturers) ? lecturers : []).find(l => l && l.id === entry.lecturerId);
-                                                     const course = (Array.isArray(courses) ? courses : []).find(c => c && (c.levels || []).some(lvl => (lvl.subjectIds || []).includes(entry.subjectId)));
-                                                     
-                                                     const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                                     const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+                                                    if (period.isBreak) {
+                                                        return (
+                                                            <td key={slotKey} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest leading-none">BREAK</span>
+                                                            </td>
+                                                        );
+                                                    }
 
-                                                     for(let k=0; k<colSpan; k++) {
-                                                         occupiedSlots.add(`${day}-${periodIndex + k}`);
-                                                     }
+                                                    const entry = getCellEntry(room.id, day, period);
+                                                    if (entry) {
+                                                        const subject = (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === entry.subjectId);
+                                                        const lecturer = (Array.isArray(lecturers) ? lecturers : []).find(l => l && l.id === entry.lecturerId);
+                                                        const course = (Array.isArray(courses) ? courses : []).find(c => c && (c.levels || []).some(lvl => (lvl.subjectIds || []).includes(entry.subjectId)));
 
-                                                     return (
-                                                         <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400" style={{backgroundColor: generatePastelColor(entry.subjectId)}}>
-                                                             <div className="text-[10px] leading-tight text-slate-900 print:text-black">
-                                                                 <strong className="block">{subject?.shortName || subject?.code}</strong>
-                                                                 <span className="block">{getInitials(lecturer?.name || '')}</span>
-                                                                 <span className="block text-[9px] opacity-75">{course?.code}</span>
-                                                             </div>
-                                                         </td>
-                                                     );
-                                                 }
-                                                 return <td key={slotKey} className="border border-slate-200 dark:border-slate-600 print:border-slate-300"></td>
-                                             }))}
-                                         </tr>
-                                     );
-                                 });
-                             }
-                             return rows;
-                        })}
-                    </tbody>
-                </table>
+                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                        const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+
+                                                        for (let k = 0; k < colSpan; k++) {
+                                                            occupiedSlots.add(`${day}-${periodIndex + k}`);
+                                                        }
+
+                                                        return (
+                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                <div className="text-[10px] leading-tight text-slate-900 print:text-black">
+                                                                    <strong className="block">{subject?.shortName || subject?.code}</strong>
+                                                                    <span className="block">{getInitials(lecturer?.name || '')}</span>
+                                                                    <span className="block text-[9px] opacity-75">{course?.code}</span>
+                                                                </div>
+                                                            </td>
+                                                        );
+                                                    }
+                                                    return <td key={slotKey} className="border border-slate-200 dark:border-slate-600 print:border-slate-300"></td>
+                                                }))}
+                                            </tr>
+                                        );
+                                    });
+                                }
+                                return rows;
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

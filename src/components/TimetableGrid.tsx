@@ -35,11 +35,11 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
     // `periodHeaders` define the main column structure
     const periodHeaders = useMemo(() => {
-        return generatePeriodLabels(timetableSettings);
+        return generatePeriodLabels(timetableSettings, true);
     }, [timetableSettings]);
 
     // `displaySlots` are the actual time slots used for the <td> elements
-    const displaySlots = useMemo(() => generateDisplaySlots(timetableSettings), [timetableSettings]);
+    const displaySlots = useMemo(() => generateDisplaySlots(timetableSettings, true), [timetableSettings]);
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
@@ -112,6 +112,9 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                 entry.day === day &&
                                 timeToMinutes(entry.startTime) === slotStartMinutes
                             );
+
+                            const isBreakSlot = timetableSettings.breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                            const breakObj = timetableSettings.breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
                             if (entriesStartingInSlot.length > 0) {
                                 const entry = entriesStartingInSlot[0];
@@ -192,45 +195,26 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                 );
 
                                 i += colSpan - 1;
+                            } else if (isBreakSlot) {
+                                rowCells.push(
+                                    <td key={`break-${day}-${breakObj?.id}`} className="p-1 border border-slate-200 dark:border-slate-600 align-top bg-slate-50/50 dark:bg-slate-700/30">
+                                        <div className="h-full flex items-center justify-center rounded-sm">
+                                            <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 tracking-widest uppercase rotate-180 whitespace-nowrap [writing-mode:vertical-lr]">
+                                                {breakObj?.name || 'BREAK'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                );
                             } else {
-                                const breakHere = timetableSettings.breaks.find(b => b.status !== 'inactive' && timeToMinutes(b.startTime) < timeToMinutes(slot.end) && timeToMinutes(b.endTime) > timeToMinutes(slot.start));
-
-                                if (breakHere && timeToMinutes(breakHere.startTime) === slotStartMinutes) {
-                                    const breakEndMinutes = timeToMinutes(breakHere.endTime);
-                                    let colSpan = 1;
-
-                                    // Breaks usually interrupt slots, but if we are here, we are filling empty space.
-                                    // Simple logic: if break is longer than cellSpan, try to span? 
-                                    // But breaks are usually not in displaySlots. 
-                                    // If we are strictly Period-based, this break logic might be legacy or for "Grid" mode only.
-                                    // Let's keep a simplified duration-based fallback for breaks if they aren't in displaySlots structure.
-                                    const breakDuration = timeToMinutes(breakHere.endTime) - timeToMinutes(breakHere.startTime);
-                                    colSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
-
-                                    // Occupy future slots? Breaks are usually gaps. 
-                                    // If break covers multiple displaySlots (unlikely if filteredOut), we'd need loop.
-                                    // For now, keep simple duration calc for breaks as they are "interstitials".
-                                    rowCells.push(
-                                        <td key={`break-${day}-${breakHere.id}`} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 align-top bg-slate-50/50 dark:bg-slate-700/30">
-                                            <div className="h-full flex items-center justify-center rounded-sm">
-                                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-widest uppercase rotate-90 whitespace-nowrap">
-                                                    {breakHere.name}
-                                                </span>
-                                            </div>
-                                        </td>
-                                    );
-                                    i += colSpan - 1;
-                                } else if (!rowOccupiedSlots.has(slotStartMinutes)) {
-                                    rowCells.push(
-                                        <td
-                                            key={`${day}-${slot.start}`}
-                                            className="p-1 border border-slate-200 dark:border-slate-600 align-top hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                            style={{ minWidth: '64px' }}
-                                            onDragOver={handleDragOver}
-                                            onDrop={(e) => handleDrop(e, day, slot.start)}
-                                        />
-                                    );
-                                }
+                                rowCells.push(
+                                    <td
+                                        key={`${day}-${slot.start}`}
+                                        className="p-1 border border-slate-200 dark:border-slate-600 align-top hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                        style={{ minWidth: '64px' }}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, day, slot.start)}
+                                    />
+                                );
                             }
                         }
 

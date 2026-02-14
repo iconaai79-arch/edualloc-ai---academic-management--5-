@@ -148,10 +148,17 @@ export interface Subject {
     targetCourseLevelId?: string;
 }
 
+export interface LevelSubjectMetadata {
+    subjectId: string;
+    lessonStructure?: LessonStructure[];
+    dedicatedRoomId?: string;
+}
+
 export interface CourseLevel {
     id: string;
     name: string;
     subjectIds: string[];
+    subjectMetadata?: LevelSubjectMetadata[];
 }
 
 export interface Course {
@@ -552,7 +559,7 @@ export interface ExamTimetableEntry {
 }
 
 export interface Conflict {
-    type: 'room' | 'lecturer';
+    type: 'room' | 'lecturer' | 'consecutive_subject';
     resourceId: string;
     day: string;
     startTime: string;

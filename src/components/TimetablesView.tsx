@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { TimetableEntry, Subject, User, Department, Building, Room, LetterheadConfig, Course, TimetableSettings, AllocationRequest, Semester, AcademicYear, Institution } from '../types';
+import type { TimetableEntry, Subject, User, Department, Building, Room, LetterheadConfig, Course, TimetableSettings, AllocationRequest, Semester, AcademicYear, Institution, Conflict } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { DepartmentWorkloadSummary } from './DepartmentWorkloadSummary';
 import { RelationsView } from './RelationsView';
@@ -44,9 +44,11 @@ export interface TimetablesViewProps {
     onSaveTimetableSettings: (config: TimetableSettings) => void;
     academicYears: AcademicYear[];
     activeSemester: Semester | null;
+    isSchool?: boolean;
     currentInstitution?: Institution | null;
     onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onLogAction?: (action: string) => void;
+    timetableConflicts?: Conflict[];
 }
 
 const PdfPreviewModal: React.FC<{ url: string; onClose: () => void }> = ({ url, onClose }) => {
@@ -98,7 +100,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         generatedTimetable = [], subjects = [], lecturers = [], departments = [], courses = [], buildings = [],
         rooms = [], allocations = [], getSubjectById, getLecturerById, getRoomById, letterheadConfig,
         logoUrl, footerImageUrl, currentUser, timetableSettings, activeSemester,
-        academicYears = [], currentInstitution, onMoveTimetableEntry, onLogAction
+        academicYears = [], currentInstitution, onMoveTimetableEntry, onLogAction, timetableConflicts
     } = props;
 
     const [viewMode, setViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff'>('master_course');
@@ -148,7 +150,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         return list.filter(r => r && r.buildingId === selectedBuildingId);
     }, [rooms, selectedBuildingId]);
 
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
+    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
 
     const handleDownloadPdf = async () => {
@@ -269,9 +271,10 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         timetableSettings={timetableSettings}
                         selectedCourseId={selectedCourseForMasterView}
                         academicYears={academicYears || []}
-                        activeSemester={activeSemester}
+                        activeSemester={activeSemester || null}
                         isSchool={isSchool}
                         currentInstitution={currentInstitution}
+                        timetableConflicts={timetableConflicts}
                     />
                 ) : viewMode === 'grid' ? (
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
@@ -306,12 +309,19 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                                         </div>
                                                         <div className="min-w-0">
                                                             <p className="text-sm font-bold text-slate-900 dark:text-white truncate uppercase tracking-tight">{room.name}</p>
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{(buildings || []).find(b => b && b.id === room.buildingId)?.name}</p>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 {periodHeaders.map((period, pIdx) => {
                                                     if (occupiedSlots.has(period.startTime)) return null;
+
+                                                    if (period.isBreak) {
+                                                        return (
+                                                            <td key={pIdx} className="p-1 border-l border-slate-50 dark:border-slate-800 align-middle bg-slate-50/50 dark:bg-slate-900/10 text-center">
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest whitespace-nowrap">BREAK</span>
+                                                            </td>
+                                                        );
+                                                    }
 
                                                     const entry = roomEntries.find(e => e && timeToMinutes(e.startTime) === timeToMinutes(period.startTime));
                                                     if (entry) {

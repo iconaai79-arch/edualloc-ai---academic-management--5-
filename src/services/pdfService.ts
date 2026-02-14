@@ -449,9 +449,10 @@ export const generateTimetablePdf = async (
 
     // Defensive checks for settings
     const daysOfWeek = timetableSettings?.operatingDays || [];
-    const periodHeaders = generatePeriodLabels(timetableSettings);
-    const displaySlots = generateDisplaySlots(timetableSettings);
+    const periodHeaders = generatePeriodLabels(timetableSettings, true);
+    const displaySlots = generateDisplaySlots(timetableSettings, true);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+    const breaks = timetableSettings?.breaks || [];
 
     const head = [
         ['Day', ...periodHeaders.map(period => period.label)],
@@ -469,6 +470,9 @@ export const generateTimetablePdf = async (
 
             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
+            const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+            const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+
             const entry = (generatedTimetable || []).find(e =>
                 e.day === day &&
                 timeToMinutes(e.startTime) === slotStartMinutes
@@ -476,8 +480,14 @@ export const generateTimetablePdf = async (
 
             let cellContent = '';
             let cellColSpan = 1;
+            let cellStyle: any = { valign: 'middle', halign: 'center', fontSize: 8 };
 
-            if (entry) {
+            if (isBreak) {
+                cellContent = breakObj?.name || 'BREAK';
+                cellStyle.fillColor = [240, 240, 240];
+                cellStyle.fontStyle = 'bold';
+                cellStyle.textColor = [100, 100, 100];
+            } else if (entry) {
                 const subject = getSubjectById(entry.subjectId);
                 const lecturer = getLecturerById(entry.lecturerId);
                 const room = getRoomById(entry.roomId);
@@ -501,7 +511,7 @@ export const generateTimetablePdf = async (
             row.push({
                 content: cellContent,
                 colSpan: cellColSpan,
-                styles: { valign: 'middle', halign: 'center', fontSize: 8 },
+                styles: cellStyle,
             });
 
             if (cellColSpan > 1) i += cellColSpan - 1;
@@ -750,9 +760,10 @@ export const generateMasterCourseTimetablePdf = async (
 
     // Safe access to timetableSettings properties
     const days = timetableSettings?.operatingDays || [];
-    const periodHeaders = generatePeriodLabels(timetableSettings);
-    const displaySlots = generateDisplaySlots(timetableSettings);
+    const periodHeaders = generatePeriodLabels(timetableSettings, true);
+    const displaySlots = generateDisplaySlots(timetableSettings, true);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+    const breaks = timetableSettings?.breaks || [];
 
     (courses || []).forEach((course) => {
         if (!course) return;
@@ -782,13 +793,22 @@ export const generateMasterCourseTimetablePdf = async (
 
                     if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
+                    const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                    const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+
                     const entry = (generatedTimetable || []).find(e =>
                         e.day === day &&
                         (level.subjectIds || []).includes(e.subjectId) &&
                         timeToMinutes(e.startTime) === slotStartMinutes
                     );
 
-                    if (entry) {
+                    if (isBreak) {
+                        row.push({
+                            content: breakObj?.name || 'BREAK',
+                            colSpan: 1,
+                            styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100] }
+                        });
+                    } else if (entry) {
                         const subject = getSubjectById(entry.subjectId);
                         const lecturer = getLecturerById(entry.lecturerId);
                         const room = getRoomById(entry.roomId);
