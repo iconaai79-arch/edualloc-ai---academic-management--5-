@@ -106,17 +106,11 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                             <table className="min-w-full border-collapse">
                                 <thead>
                                     <tr className="bg-slate-100/80 dark:bg-slate-950/50">
-                                        <th rowSpan={2} className="p-3 text-left text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-24">Class / Time</th>
+                                        <th className="p-3 text-left text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-r border-slate-200 dark:border-slate-800 w-24">Class / Time</th>
                                         {periodHeaders.map((p, i) => (
                                             <th key={i} colSpan={p.colSpan} className={`p-2 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-200/50 dark:border-slate-800/50 ${p.isBreak ? 'text-slate-400 bg-slate-50/50' : 'text-slate-500'}`}>
                                                 {p.label}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                    <tr className="bg-slate-100/50 dark:bg-slate-950/30">
-                                        {periodHeaders.map((p, i) => (
-                                            <th key={i} colSpan={p.colSpan} className={`p-1 text-center font-mono text-[8px] border-l border-slate-200/50 dark:border-slate-800/50 ${p.isBreak ? 'text-slate-300' : 'text-slate-400'}`}>
-                                                {p.startTime}-{p.endTime}
+                                                <span className="block font-mono text-[8px] opacity-60 mt-1">{p.startTime} - {p.endTime}</span>
                                             </th>
                                         ))}
                                     </tr>
@@ -261,7 +255,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                 {periodHeaders.map((p, i) => (
                                                     <th key={i} colSpan={p.colSpan} className="p-2 text-center text-[10px] font-black uppercase text-slate-400 border-l border-slate-200/50 dark:border-slate-700/50">
                                                         {p.label}
-                                                        <span className="block font-mono text-[8px] opacity-60">{p.startTime}</span>
+                                                        <span className="block font-mono text-[8px] opacity-60">{p.startTime} - {p.endTime}</span>
                                                     </th>
                                                 ))}
                                             </tr>

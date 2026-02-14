@@ -455,8 +455,7 @@ export const generateTimetablePdf = async (
     const breaks = timetableSettings?.breaks || [];
 
     const head = [
-        ['Day', ...periodHeaders.map(period => period.label)],
-        ['', ...periodHeaders.map(period => `${period.startTime}-${period.endTime}`)]
+        ['Day', ...periodHeaders.map(period => `${period.label}\n${period.startTime} - ${period.endTime}`)]
     ];
     const body: any[] = [];
 
@@ -825,7 +824,7 @@ export const generateMasterCourseTimetablePdf = async (
 
             yPos += 5;
 
-            const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime}-${p.endTime}`)]];
+            const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
             const tableBody: any[] = [];
 
             days.forEach(day => {
