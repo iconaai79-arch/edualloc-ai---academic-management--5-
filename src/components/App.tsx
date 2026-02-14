@@ -19,6 +19,7 @@ import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
 import BoardingMasterView from './BoardingMasterView';
 import { ParentView } from './ParentView';
+import { PracticeTeacherView } from './PracticeTeacherView';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
@@ -37,7 +38,7 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote
 
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
@@ -219,7 +220,10 @@ export const App: React.FC = () => {
     const [stockTransactions, setStockTransactions] = useState<StockTransaction[]>([]);
     const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
     const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
+    const [bursaryApplications, setBursaryApplications] = useState<BursaryApplication[]>([]);
+    const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
     const [leaveOutRequests, setLeaveOutRequests] = useState<LeaveOutRequest[]>([]);
+    const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
 
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
@@ -380,7 +384,9 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo] = await Promise.all([
+            setActivityLog(logs || []);
+
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -400,18 +406,19 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<LessonRating>('lesson_ratings', instId).catch(() => []),
                 apiService.fetchModuleRecords<TaAssignment>('ta_assignments', instId).catch(() => []),
                 apiService.fetchModuleRecords<Assessment>('assessments', instId).catch(() => []),
-                apiService.fetchModuleRecords<AssessmentMark>('assessment_marks', instId).catch(() => []),
+                apiService.fetchAssessmentMarks(instId).catch(() => []),
                 apiService.fetchModuleRecords<Book>('books', instId).catch(() => []),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', instId).catch(() => []),
                 apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
                 apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
                 apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory').catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories').catch(() => []),
-                apiService.fetchModuleRecords<CountyStore>('county_stores').catch(() => []),
-                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications').catch(() => []),
-                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds').catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId).catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', instId).catch(() => []),
+                apiService.fetchModuleRecords<CountyStore>('county_stores', instId).catch(() => []),
+                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId).catch(() => []),
+                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', instId).catch(() => []),
                 apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
+                apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
             ]);
 
 
@@ -446,8 +453,9 @@ export const App: React.FC = () => {
             setBursaryApplications(bApps || []);
             setBursaryFunds(bFunds || []);
             setLeaveOutRequests(lo || []);
+            setObservationNotes(obs || []);
 
-
+            setIsGeneratingDemoData(false);
         } catch (error) {
             console.error("Sync Error:", error);
         } finally {

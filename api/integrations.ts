@@ -22,7 +22,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify Auth
     const authHeader = req.headers.authorization;
     const supabase = createServerClient(authHeader);
-    if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
+    if (!supabase) {
+        return res.status(503).json({
+            success: false,
+            message: 'Server Misconfigured: Missing SUPABASE_SERVICE_ROLE_KEY. API methods requiring administrative access are disabled.',
+            error: 'Database service unavailable'
+        });
+    }
 
     let user: any = null;
     try {

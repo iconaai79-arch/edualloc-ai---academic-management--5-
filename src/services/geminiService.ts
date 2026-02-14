@@ -249,15 +249,17 @@ export const generateTimetable = async (
             5. DOUBLE-BOOKING: 
                - Zero tolerance for lecturer, room, or student group overlap.
 
-            6. UNIT DISTRIBUTION: 
-               - Spread lessons for any given unit (subject) throughout the week. 
-               - ABSOLUTELY AVOID scheduling more than one lesson of the same unit per day for a specific student group, unless the lesson structure specifically requires it (e.g. back-to-back double periods).
-            
+            6. UNIT DISTRIBUTION (CRITICAL):
+               - Spread lessons for any given unit (subject) throughout the week.
+               - MAX 1 appearance per subject per day for a specific student group, unless the lesson structure explicitly defines a multi-period block (e.g., 'periods: 2').
+               - IF a subject has single-period lessons (periods: 1), they MUST be on DIFFERENT days.
+               - DO NOT schedule multiple single-period lessons of the same subject on the same day. This is a HARD FAILURE.
+
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
             - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection. Do not always pick the earliest possible slot; distribute lessons across all available valid windows to create a balanced, non-linear feel.
-            - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules.
-            
+            - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules and Unit Distribution Rules.
+
             Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
         `;
 
