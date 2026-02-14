@@ -5,11 +5,20 @@ import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableS
 // Safely initialize API client. If KEY is missing, it will be null and calls will fail gracefully instead of crashing the app at startup.
 const getSafeKey = () => {
     try {
+        // High-Priority lookup for server-side / Vercel contexts
         if (typeof process !== 'undefined' && process.env) {
-            return process.env.API_KEY || process.env.GEMINI_API_KEY || process.env.VITE_API_KEY || process.env.VITE_GEMINI_API_KEY;
+            return process.env.GEMINI_API_KEY ||
+                process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+                process.env.API_KEY ||
+                process.env.VITE_GEMINI_API_KEY ||
+                process.env.VITE_API_KEY;
         }
+        // Client-side lookup for Vite builds
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-            return (import.meta as any).env.VITE_API_KEY || (import.meta as any).env.API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY || (import.meta as any).env.GEMINI_API_KEY;
+            return (import.meta as any).env.VITE_GEMINI_API_KEY ||
+                (import.meta as any).env.VITE_API_KEY ||
+                (import.meta as any).env.GEMINI_API_KEY ||
+                (import.meta as any).env.API_KEY;
         }
     } catch (e) { }
     return null;
