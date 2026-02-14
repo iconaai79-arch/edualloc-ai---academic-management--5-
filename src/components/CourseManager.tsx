@@ -1511,7 +1511,8 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                         <select
                                             value={newLessonLevelId}
                                             onChange={e => setNewLessonLevelId(e.target.value)}
-                                            className="form-select w-full"
+                                            disabled={!!managingLessonsForStreamId}
+                                            className="form-select w-full disabled:bg-slate-100 disabled:text-slate-500"
                                         >
                                             <option value="">-- Select --</option>
                                             {(managingLessonsForCourse.levels || []).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
