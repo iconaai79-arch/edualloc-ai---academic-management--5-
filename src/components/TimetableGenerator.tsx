@@ -427,7 +427,12 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                                             <button onClick={exportToExcel} className="btn-secondary text-[10px] uppercase tracking-widest h-10">Export Datalink</button>
                                         </div>
                                     </div>
-                                    courses={visibleCoursesForManager}
+                                    <TimetablesView
+                                        generatedTimetable={generatedTimetable}
+                                        subjects={subjects}
+                                        lecturers={lecturers}
+                                        departments={departments}
+                                        courses={visibleCoursesForManager}
                                     buildings={buildings}
                                     rooms={rooms}
                                     allocations={allocations}
