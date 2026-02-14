@@ -132,7 +132,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                 </td>
                                                 {periodHeaders.map((period, periodIndex) => {
                                                     const slotKey = `${day}-${period.startTime}`;
-                                                    const entry = (courseEntries || []).find(e =>
+                                                    const slotEntries = (courseEntries || []).filter(e =>
                                                         e.day === day &&
                                                         e.startTime === period.startTime
                                                     );
@@ -145,29 +145,36 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         );
                                                     }
 
-                                                    if (entry) {
-                                                        const subject = getSubjectById(entry.subjectId);
-                                                        const lecturer = getLecturerById(entry.lecturerId);
-                                                        const room = getRoomById(entry.roomId);
-                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                                    if (slotEntries.length > 0) {
+                                                        const primaryEntry = slotEntries[0];
+                                                        const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
-
-                                                        const isConflicting = timetableConflicts?.some(c =>
-                                                            c.type === 'consecutive_subject' &&
-                                                            c.day === day &&
-                                                            c.conflictingEntries.some(ce => ce.id === entry.id)
-                                                        );
 
                                                         return (
                                                             <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle">
-                                                                <div className={`rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
-                                                                    <div className="text-[10px] leading-tight text-slate-900 font-black uppercase tracking-tighter flex items-center justify-center gap-1">
-                                                                        {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
-                                                                        <span className="block">{subject?.shortName || subject?.code}</span>
-                                                                    </div>
-                                                                    <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
-                                                                        <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
-                                                                    </div>
+                                                                <div className="flex h-full gap-1">
+                                                                    {slotEntries.map((entry, idx) => {
+                                                                        const subject = getSubjectById(entry.subjectId);
+                                                                        const lecturer = getLecturerById(entry.lecturerId);
+                                                                        const room = getRoomById(entry.roomId);
+                                                                        const isConflicting = timetableConflicts?.some(c =>
+                                                                            c.type === 'consecutive_subject' &&
+                                                                            c.day === day &&
+                                                                            c.conflictingEntries.some(ce => ce.id === entry.id)
+                                                                        );
+
+                                                                        return (
+                                                                            <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                <div className="text-[10px] leading-tight text-slate-900 font-black uppercase tracking-tighter flex items-center justify-center gap-1">
+                                                                                    {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
+                                                                                    <span className="block">{subject?.shortName || subject?.code}</span>
+                                                                                </div>
+                                                                                <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
+                                                                                    <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </td>
                                                         );

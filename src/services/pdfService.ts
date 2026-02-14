@@ -529,9 +529,9 @@ export const generateTimetablePdf = async (
                 styles: cellStyle,
             });
 
-            // Skip columns if colspan > 1 (autoTable handles the span, but we need to skip the iteration count to align with displaySlots logic if we were iterating strictly 1-by-1, 
+            // Skip columns if colspan > 1 (autoTable handles the span, but we need to skip the iteration count to align with displaySlots logic if we were iterating strictly 1-by-1,
             // BUT here 'i' is the index of displaySlots. If displaySlots are purely time slices, we need to advance 'i'.
-            // displaySlots usually contains ALL slots (breaks + periods). 
+            // displaySlots usually contains ALL slots (breaks + periods).
             // If cellColSpan represents number of *displaySlots* covered, we skip.
             // If cellColSpan represents number of *cellSpanMinutes* units, and displaySlots are also chunked by cellSpanMinutes, we skip.
             // Assuming displaySlots are atomic units of 'cellSpanMinutes' or the exact periods/breaks.
