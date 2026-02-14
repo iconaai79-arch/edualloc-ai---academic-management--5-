@@ -825,16 +825,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800">
                                     <h4 className="font-bold text-lg mb-6 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> AI System Architecture</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <button
-                                            onClick={() => setInstProfile({ ...instProfile, aiModelTier: 'free' })}
-                                            className={`p-4 rounded-xl border-2 text-left transition-all ${instProfile.aiModelTier === 'free' || !instProfile.aiModelTier ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
-                                        >
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="font-black text-xs uppercase tracking-widest text-slate-900 dark:text-white">Free Tier (Gemini 1.5 Flash)</span>
-                                                {(instProfile.aiModelTier === 'free' || !instProfile.aiModelTier) && <CheckIcon className="w-5 h-5 text-indigo-600" />}
-                                            </div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Utilises Gemini 1.5 Flash for rapid response allocation.</p>
-                                        </button>
 
                                         <button
                                             onClick={() => setInstProfile({ ...instProfile, aiModelTier: 'premium' })}
