@@ -861,11 +861,13 @@ export const generateMasterCourseTimetablePdf = async (
                         const lecturer = getLecturerById(entry.lecturerId);
                         const room = getRoomById(entry.roomId);
 
-                        const text = isBlock ? 'BLOCK' : [
-                            subject?.shortName || subject?.code || 'N/A',
-                            getInitials(lecturer?.name || ''),
-                            room?.name || ''
-                        ].filter(Boolean).join('\n');
+                        const text = isBlock
+                            ? entries.map(e => getSubjectById(e.subjectId)?.shortName || getSubjectById(e.subjectId)?.code || 'N/A').join(' / ')
+                            : [
+                                subject?.shortName || subject?.code || 'N/A',
+                                getInitials(lecturer?.name || ''),
+                                room?.name || ''
+                            ].filter(Boolean).join('\n');
 
                         const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
@@ -878,9 +880,9 @@ export const generateMasterCourseTimetablePdf = async (
                             styles: {
                                 halign: 'center',
                                 valign: 'middle',
-                                fontSize: isBlock ? 8 : 7,
-                                fontStyle: isBlock ? 'bold' : 'normal',
-                                fillColor: isBlock ? [245, 245, 245] : getPastelRgb(entry.subjectId)
+                                fontSize: 7,
+                                fontStyle: 'normal',
+                                fillColor: getPastelRgb(entry.subjectId)
                             }
                         });
                         i += colSpan - 1;

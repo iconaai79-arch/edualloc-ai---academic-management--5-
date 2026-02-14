@@ -207,16 +207,14 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                                             }
 
                                                                             return (
-                                                                                <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'} ${isBlockPart ? 'bg-slate-200 dark:bg-slate-700' : ''}`} style={isBlockPart ? {} : { backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                <div key={entry.id} className={`flex-1 rounded-xl p-2 shadow-sm border ${isConflicting ? 'border-red-500 ring-2 ring-red-200 animate-pulse' : 'border-black/5'}`} style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
                                                                                     <div className="text-[10px] leading-tight text-slate-900 dark:text-white font-black uppercase tracking-tighter flex items-center justify-center gap-1">
                                                                                         {isConflicting && <span title="Consecutive Lesson Violation" className="text-red-600">⚠️</span>}
-                                                                                        <span className="block">{isBlockPart ? 'BLOCK' : (subject?.shortName || subject?.code)}</span>
+                                                                                        <span className="block">{subject?.shortName || subject?.code}</span>
                                                                                     </div>
-                                                                                    {!isBlockPart && (
-                                                                                        <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
-                                                                                            <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
-                                                                                        </div>
-                                                                                    )}
+                                                                                    <div className="text-[9px] text-slate-600 font-bold mt-1 opacity-70">
+                                                                                        <span className="block">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</span>
+                                                                                    </div>
                                                                                 </div>
                                                                             );
                                                                         });
@@ -291,7 +289,6 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                             const entries = getCellEntries(level, day, period);
                                                             if (entries && entries.length > 0) {
-                                                                const isBlock = entries.length > 1;
                                                                 const primaryEntry = entries[0];
                                                                 const subject = subjects.find(s => s.id === primaryEntry.subjectId);
                                                                 const lecturer = lecturers.find(l => l.id === primaryEntry.lecturerId);
@@ -304,16 +301,20 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 
                                                                 return (
                                                                     <td key={periodIndex} colSpan={colSpan} className="p-1 border-l border-slate-100 dark:border-slate-800 align-middle text-center">
-                                                                        {isBlock ? (
-                                                                            <div className="rounded-xl p-2 text-center shadow-sm border border-black/5 bg-slate-200 dark:bg-slate-700 h-full flex items-center justify-center">
-                                                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase leading-none tracking-widest">BLOCK</p>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div className="rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(primaryEntry.subjectId) }}>
-                                                                                <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{subject?.shortName || subject?.code}</p>
-                                                                                <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(lecturer?.name || '')} • {room?.shortName || room?.name}</p>
-                                                                            </div>
-                                                                        )}
+                                                                        <div className="flex h-full gap-1">
+                                                                            {entries.map((entry) => {
+                                                                                const s = subjects.find(sub => sub.id === entry.subjectId);
+                                                                                const l = lecturers.find(lec => lec.id === entry.lecturerId);
+                                                                                const r = rooms.find(rom => rom.id === entry.roomId);
+
+                                                                                return (
+                                                                                    <div key={entry.id} className="flex-1 rounded-xl p-2 text-center shadow-sm border border-black/5" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                        <p className="text-[10px] font-black text-slate-900 uppercase leading-none truncate">{s?.shortName || s?.code}</p>
+                                                                                        <p className="text-[8px] font-bold text-slate-500 mt-1 truncate">{getInitials(l?.name || '')} • {r?.shortName || r?.name}</p>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
                                                                     </td>
                                                                 );
                                                             }
