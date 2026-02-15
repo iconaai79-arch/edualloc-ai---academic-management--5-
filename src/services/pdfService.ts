@@ -992,7 +992,14 @@ export const generateMasterCourseTimetablePdf = async (
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-                    yPos += 5;
+                    // START TIMETABLE ON A NEW PAGE
+                    doc.addPage();
+                    yPos = setupPdfHeader(doc, headerImg);
+
+                    doc.setFontSize(14);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${course.name} (${course.code}) - ${level.name} (TIMETABLE)`, margin, yPos);
+                    yPos += 10;
                     const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
                     const tableBody: any[] = [];
 
@@ -1053,12 +1060,19 @@ export const generateMasterCourseTimetablePdf = async (
                         head: tableHead,
                         body: tableBody,
                         theme: 'grid',
-                        styles: { fontSize: 5.5, cellPadding: 1.5, lineWidth: 0.1, overflow: 'linebreak', valign: 'middle', halign: 'center' },
-                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6 },
-                        columnStyles: {
-                            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 15, halign: 'left' }
+                        styles: {
+                            fontSize: 7.5,
+                            cellPadding: 3,
+                            lineWidth: 0.1,
+                            overflow: 'linebreak',
+                            valign: 'middle',
+                            halign: 'center'
                         },
-                        pageBreak: 'avoid',
+                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                        columnStyles: {
+                            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
+                        },
+                        pageBreak: 'auto',
                         tableWidth: 'auto',
                         margin: { left: margin, right: margin }
                     });
