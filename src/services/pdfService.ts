@@ -770,8 +770,12 @@ export const generateMasterCourseTimetablePdf = async (
 ): Promise<Blob> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
-    const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
-    const margin = 14;
+    const isVertical = layoutMode === 'vertical';
+    const doc = new lib.jsPDF({
+        orientation: isVertical ? 'portrait' : 'landscape',
+        format: 'a4'
+    });
+    const margin = isVertical ? 10 : 14;
     let yPos = 20;
 
     try {
@@ -982,7 +986,7 @@ export const generateMasterCourseTimetablePdf = async (
                         body: workloadBody,
                         theme: 'striped',
                         headStyles: { fillColor: [45, 55, 72] },
-                        styles: { fontSize: 7, cellPadding: 2 },
+                        styles: { fontSize: 6.5, cellPadding: 1.5 },
                         margin: { left: margin, right: margin }
                     });
 
@@ -1049,9 +1053,11 @@ export const generateMasterCourseTimetablePdf = async (
                         head: tableHead,
                         body: tableBody,
                         theme: 'grid',
-                        styles: { fontSize: 6, cellPadding: 2, lineWidth: 0.1, overflow: 'linebreak', valign: 'middle', halign: 'center' },
-                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
-                        columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
+                        styles: { fontSize: 5.5, cellPadding: 1.5, lineWidth: 0.1, overflow: 'linebreak', valign: 'middle', halign: 'center' },
+                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6 },
+                        columnStyles: {
+                            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 15, halign: 'left' }
+                        },
                         pageBreak: 'avoid',
                         tableWidth: 'auto',
                         margin: { left: margin, right: margin }
