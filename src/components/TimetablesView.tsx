@@ -18,7 +18,7 @@ import {
     EyeIcon,
     XIcon
 } from './icons/index';
-import { generateMasterCourseTimetablePdf } from '../services/pdfService';
+import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf } from '../services/pdfService';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
 import { generatePastelColor } from '../utils/colorUtils';
@@ -188,6 +188,39 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         }
     };
 
+    const handleDownloadFacilityPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            // Helper for course lookup
+            const getCourseById = (id: string) => (courses || []).find(c => c.id === id);
+
+            const blob = await generateMasterFacilityGridPdf(
+                generatedTimetable,
+                buildings || [],
+                rooms || [],
+                viewModeTitles['grid'],
+                letterheadConfig,
+                footerImageUrl,
+                logoUrl,
+                activeAcademicYear?.name || 'Academic Period',
+                activeSemester?.name || '',
+                timetableSettings,
+                selectedDay,
+                getSubjectById,
+                getLecturerById,
+                getCourseById
+            );
+            const url = URL.createObjectURL(blob);
+            setPreviewPdfUrl(url);
+            onLogAction?.(`Generated and previewed Facility Grid PDF for ${selectedDay}`);
+        } catch (error) {
+            console.error("Failed to generate Facility PDF:", error);
+            alert("An error occurred while generating the PDF.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <style>{`
@@ -216,13 +249,24 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
                 <div className="flex flex-wrap items-center gap-3">
                     {(viewMode === 'grid' || viewMode === 'master_staff') && (
-                        <select
-                            value={selectedDay}
-                            onChange={e => setSelectedDay(e.target.value)}
-                            className="form-select text-[10px] font-black uppercase tracking-widest h-11 w-36"
-                        >
-                            {(timetableSettings?.operatingDays || []).map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                        <>
+                            <select
+                                value={selectedDay}
+                                onChange={e => setSelectedDay(e.target.value)}
+                                className="form-select text-[10px] font-black uppercase tracking-widest h-11 w-36"
+                            >
+                                {(timetableSettings?.operatingDays || []).map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                            {viewMode === 'grid' && (
+                                <button
+                                    onClick={handleDownloadFacilityPdf}
+                                    disabled={isGeneratingPdf}
+                                    className="h-11 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm border border-indigo-100 disabled:opacity-50"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Compiling...' : 'Rooms Report'}
+                                </button>
+                            )}
+                        </>
                     )}
                     {viewMode === 'lecturer_schedule' && (
                         <select

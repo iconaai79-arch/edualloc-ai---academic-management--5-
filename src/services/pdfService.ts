@@ -2,6 +2,7 @@
 import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
+import { generatePastelColor } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
 
 
@@ -1197,4 +1198,167 @@ export const generateLibraryUnreturnedReportPdf = async (
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
+};
+
+export const generateMasterFacilityGridPdf = async (
+    generatedTimetable: TimetableEntry[],
+    buildings: Building[],
+    rooms: Room[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null,
+    logoUrl: string | null,
+    academicYearName: string,
+    activeSemesterName: string,
+    timetableSettings: TimetableSettings,
+    selectedDay: string,
+    getSubjectById: (id: string) => Subject | undefined,
+    getLecturerById: (id: string) => User | undefined,
+    getCourseById: (id: string) => Course | undefined
+): Promise<Blob> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    const margin = 14;
+    let yPos = setupPdfHeader(doc, headerImg);
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 7;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${academicYearName} • ${activeSemesterName} • ${selectedDay}`, margin, yPos);
+    yPos += 15;
+
+    const periodHeaders = generatePeriodLabels(timetableSettings, true);
+    const displaySlots = generateDisplaySlots(timetableSettings, true);
+    const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+    const breaks = timetableSettings?.breaks || [];
+
+    const tableHead = [['Room / Facility', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
+    const tableBody: any[] = [];
+
+    // Group Rooms by Building
+    // Filter rooms that actually exist
+    const safeRooms = (rooms || []).filter(Boolean);
+    const safeBuildings = (buildings || []).filter(Boolean);
+
+    // Sort buildings
+    safeBuildings.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // Create a map of building ID to name for easier lookup if needed, though we iterate buildings
+    // We want to list rooms by building.
+
+    for (const building of safeBuildings) {
+        // Add a section header row for the Building
+        tableBody.push([{
+            content: building.name.toUpperCase(),
+            colSpan: periodHeaders.length + 1,
+            styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105], halign: 'left', cellPadding: 3 }
+        }]);
+
+        const buildingRooms = safeRooms.filter(r => r.buildingId === building.id).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        for (const room of buildingRooms) {
+            const row: any[] = [room.name];
+            const rowOccupiedSlots = new Set<number>();
+
+            for (let i = 0; i < displaySlots.length; i++) {
+                const slot = displaySlots[i];
+                const slotStartMinutes = timeToMinutes(slot.start);
+
+                if (rowOccupiedSlots.has(slotStartMinutes)) continue;
+
+                // Breaks are common to all, usually
+                const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+
+                // Find entry in this room at this time on this day
+                const entries = (generatedTimetable || []).filter(e =>
+                    e.day === selectedDay &&
+                    e.roomId === room.id &&
+                    timeToMinutes(e.startTime) === slotStartMinutes
+                );
+
+                if (isBreak) {
+                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                    row.push({
+                        content: breakText,
+                        colSpan: 1,
+                        styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
+                    });
+                } else if (entries.length > 0) {
+                    const isBlock = entries.length > 1;
+                    const firstEntry = entries[0];
+                    const text = entries.map(e => {
+                        const s = getSubjectById(e.subjectId);
+                        const l = getLecturerById(e.lecturerId);
+                        return [
+                            s?.shortName || s?.code || 'N/A',
+                            l ? getInitials(l.name) : '-'
+                        ].join(' ');
+                    }).join(isBlock ? ' / ' : '\n');
+
+                    const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
+                    const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
+
+                    for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+
+                    row.push({
+                        content: text,
+                        colSpan,
+                        styles: {
+                            halign: 'center',
+                            valign: 'middle',
+                            fontSize: 6,
+                            fontStyle: 'normal',
+                            fillColor: generatePastelColor(firstEntry.subjectId) // Reuse util or similar
+                        }
+                    });
+                    i += colSpan - 1;
+                } else {
+                    row.push('');
+                }
+            }
+            tableBody.push(row);
+        }
+    }
+
+    // Auto Table
+    (doc as any).autoTable({
+        startY: yPos,
+        head: tableHead,
+        body: tableBody,
+        theme: 'grid',
+        styles: {
+            fontSize: 6,
+            cellPadding: 2,
+            lineWidth: 0.1,
+            overflow: 'linebreak',
+            valign: 'middle',
+            halign: 'center'
+        },
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 7
+        },
+        columnStyles: {
+            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' }
+        },
+        pageBreak: 'avoid',
+        tableWidth: 'auto',
+        margin: { left: margin, right: margin }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('blob');
 };
