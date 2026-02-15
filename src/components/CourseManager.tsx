@@ -561,7 +561,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         setDeletingCourse({ id: courseId, name: courseName });
     };
 
-    const handleSaveStructureOverride = (structure: LessonStructure[]) => {
+    const handleSaveStructureOverride = (data: { lessonStructure?: LessonStructure[], dedicatedRoomId?: string }) => {
         if (!editingStructureFor) return;
         const { course, level, subject } = editingStructureFor;
 
@@ -571,9 +571,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         let updatedMeta;
         if (existingIndex >= 0) {
             updatedMeta = [...currentMeta];
-            updatedMeta[existingIndex] = { ...updatedMeta[existingIndex], lessonStructure: structure };
+            updatedMeta[existingIndex] = { ...updatedMeta[existingIndex], ...data };
         } else {
-            updatedMeta = [...currentMeta, { subjectId: subject.id, lessonStructure: structure }];
+            updatedMeta = [...currentMeta, { subjectId: subject.id, lessonStructure: data.lessonStructure || [], dedicatedRoomId: data.dedicatedRoomId }];
         }
 
         const updatedLevels = course.levels.map(l => l.id === level.id ? { ...l, subjectMetadata: updatedMeta } : l);
@@ -592,7 +592,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         else if (structureString === 'Double + Single') structure = [{ periods: 2, count: 1 }, { periods: 1, count: 1 }];
         else structure = [{ periods: 1, count: 1 }]; // Default
 
-        handleSaveStructureOverride(structure);
+        handleSaveStructureOverride({ lessonStructure: structure });
     };
 
     const confirmDelete = async () => {
@@ -1833,6 +1833,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         course={editingStructureFor.course}
                         level={editingStructureFor.level}
                         subject={editingStructureFor.subject}
+                        rooms={rooms || []}
                         onClose={() => setEditingStructureFor(null)}
                         onSave={handleSaveStructureOverride}
                     />
@@ -1991,15 +1992,17 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     );
 };
 
-const SubjectStructureEditorModal = ({ course, level, subject, onClose, onSave }: {
+const SubjectStructureEditorModal = ({ course, level, subject, rooms, onClose, onSave }: {
     course: Course,
     level: CourseLevel,
     subject: Subject,
+    rooms: Room[],
     onClose: () => void,
-    onSave: (structure: LessonStructure[]) => void
+    onSave: (data: { lessonStructure?: LessonStructure[], dedicatedRoomId?: string }) => void
 }) => {
     const meta = (level.subjectMetadata || []).find(m => m.subjectId === subject.id);
     const [tempStructure, setTempStructure] = useState<LessonStructure[]>(meta?.lessonStructure || subject.lessonStructure || []);
+    const [dedicatedRoomId, setDedicatedRoomId] = useState<string>(meta?.dedicatedRoomId || '');
 
     const addRow = () => setTempStructure([...tempStructure, { periods: 1, count: 1 }]);
     const removeRow = (index: number) => setTempStructure(tempStructure.filter((_, i) => i !== index));
@@ -2025,7 +2028,28 @@ const SubjectStructureEditorModal = ({ course, level, subject, onClose, onSave }
                             Customizing the lesson structure here will override the subject's default settings specifically for this class.
                         </p>
                     </div>
-                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+
+                    <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1">Dedicated Room (Optional)</label>
+                        <select
+                            value={dedicatedRoomId}
+                            onChange={(e) => setDedicatedRoomId(e.target.value)}
+                            className="form-select h-11 text-xs font-bold w-full"
+                        >
+                            <option value="">-- Use Class Default: {level.roomId ? (rooms.find(r => r.id === level.roomId)?.name || 'Unknown Room') : 'Not Set'} --</option>
+                            {rooms.map(r => (
+                                <option key={r.id} value={r.id}>{r.name} ({r.capacity} pax)</option>
+                            ))}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1 italic">
+                            Select a specific room for this subject (e.g. Science Lab). If set, it will override the class home room.
+                        </p>
+                    </div>
+
+                    <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar border-t border-slate-100 dark:border-slate-800 pt-4">
+                        <div className="flex justify-between items-center">
+                            <label className="block text-[10px] font-black uppercase text-slate-400 ml-1">Lesson Structure</label>
+                        </div>
                         {tempStructure.map((row, idx) => (
                             <div key={idx} className="flex gap-3 items-end p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
                                 <div className="flex-1">
@@ -2051,7 +2075,7 @@ const SubjectStructureEditorModal = ({ course, level, subject, onClose, onSave }
                 </div>
                 <div className="p-8 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex gap-3">
                     <button onClick={onClose} className="btn-secondary flex-1 h-12 uppercase text-[10px] font-black tracking-widest">Cancel</button>
-                    <button onClick={() => onSave(tempStructure)} className="btn-primary flex-[2] h-12 shadow-lg shadow-indigo-100 uppercase text-[10px] font-black tracking-widest">Apply Class Overrides</button>
+                    <button onClick={() => onSave({ lessonStructure: tempStructure, dedicatedRoomId })} className="btn-primary flex-[2] h-12 shadow-lg shadow-indigo-100 uppercase text-[10px] font-black tracking-widest">Apply Class Overrides</button>
                 </div>
             </div>
         </div>
