@@ -177,7 +177,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                                                     if (period.isBreak) {
                                                         return (
                                                             <td key={slotKey} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
-                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest leading-none">BREAK</span>
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest leading-none block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>BREAK</span>
                                                             </td>
                                                         );
                                                     }

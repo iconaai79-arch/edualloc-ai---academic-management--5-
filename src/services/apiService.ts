@@ -520,15 +520,16 @@ export const apiService = {
             }
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
-    async onAssociateSubjectToCourseLevel(subjectId: string, levelId: string) {
+    async onAssociateSubjectToCourseLevel(subjectId: string | string[], levelId: string) {
         const courses = await this.fetchCourses();
         const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
+        const subjectIds = Array.isArray(subjectId) ? subjectId : [subjectId];
 
         if (course) {
             const updatedLevels = course.levels.map(l => {
                 if (l.id === levelId) {
                     const ids = new Set(l.subjectIds || []);
-                    ids.add(subjectId);
+                    subjectIds.forEach(id => ids.add(id));
                     return { ...l, subjectIds: Array.from(ids) };
                 }
                 return l;

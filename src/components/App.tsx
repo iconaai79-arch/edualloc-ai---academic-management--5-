@@ -585,7 +585,20 @@ export const App: React.FC = () => {
     };
 
     const handleAssociateSubjectToCourseLevel = async (subjectId: string, levelId: string) => {
-        await apiService.onAssociateSubjectToCourseLevel(subjectId, levelId);
+        let subjectIdsToAdd = [subjectId];
+
+        // Check for Option Blocks (Pathways)
+        const pathwayConstraints = (timetableSettings?.constraints || []).filter(c => c.type === 'same_time_subjects');
+        const group = pathwayConstraints.find(c => c.subjectIds.includes(subjectId));
+        if (group) {
+            subjectIdsToAdd = group.subjectIds;
+            const subjectName = subjects.find(s => s.id === subjectId)?.name || subjectId;
+            // Optional: You could notify the user here, but since this is a global handler, 
+            // maybe it's better to keep it silent or handle UI feedback in the components.
+            console.log(`Auto-associating whole option block for ${subjectName}`);
+        }
+
+        await apiService.onAssociateSubjectToCourseLevel(subjectIdsToAdd, levelId);
         loadData();
     };
 

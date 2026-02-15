@@ -1688,7 +1688,15 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                         <button
                                             onClick={() => {
                                                 if (newLessonLevelId && newLessonSubjectId && onAssociateSubjectToCourseLevel) {
-                                                    onAssociateSubjectToCourseLevel(newLessonSubjectId, newLessonLevelId);
+                                                    let subjectIdsToAdd: string[] = [newLessonSubjectId];
+                                                    const group = pathwayConstraints.find(c => c.subjectIds.includes(newLessonSubjectId));
+                                                    if (group) {
+                                                        subjectIdsToAdd = group.subjectIds;
+                                                        const subjectName = (subjects || []).find(sub => sub.id === newLessonSubjectId)?.name || newLessonSubjectId;
+                                                        alert(`Notice: "${subjectName}" is part of an Option Block (${group.description}). All members of this group have been associated.`);
+                                                    }
+
+                                                    onAssociateSubjectToCourseLevel(subjectIdsToAdd as any, newLessonLevelId);
                                                     setNewLessonLevelId('');
                                                     setNewLessonSubjectId('');
                                                 }

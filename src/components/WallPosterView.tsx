@@ -53,13 +53,13 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
             // Flatten courses and levels into unique renderable items
             courses.forEach(course => {
                 if (filterDepartment !== 'all' && course.departmentId !== filterDepartment) return;
-                
+
                 course.levels.forEach(level => {
                     // Find entries for this specific course level
                     const levelSubjectIds = new Set(level.subjectIds);
-                    
+
                     const entries = generatedTimetable.filter(t => levelSubjectIds.has(t.subjectId));
-                    
+
                     if (entries.length > 0) {
                         items.push({
                             id: `${course.id}-${level.id}`,
@@ -73,7 +73,7 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
         } else if (viewMode === 'teacher') {
             lecturers.forEach(lecturer => {
                 if (filterDepartment !== 'all' && lecturer.departmentId !== filterDepartment) return;
-                if (lecturer.role === 'admin') return; 
+                if (lecturer.role === 'admin') return;
 
                 const entries = generatedTimetable.filter(t => t.lecturerId === lecturer.id);
                 if (entries.length > 0) {
@@ -90,7 +90,7 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                 const entries = generatedTimetable.filter(t => t.roomId === room.id);
                 if (entries.length > 0) {
                     const totalSlots = days.length * displaySlots.length;
-                    const occupied = entries.length; 
+                    const occupied = entries.length;
                     const util = totalSlots > 0 ? Math.round((occupied / totalSlots) * 100) : 0;
 
                     items.push({
@@ -144,64 +144,75 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                                 if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
                                 // Check for Break
-                                const breakHere = timetableSettings.breaks.find(b => 
-                                    b.status !== 'inactive' && 
-                                    timeToMinutes(b.startTime) <= slotStartMinutes && 
+                                const breakHere = timetableSettings.breaks.find(b =>
+                                    b.status !== 'inactive' &&
+                                    timeToMinutes(b.startTime) <= slotStartMinutes &&
                                     timeToMinutes(b.endTime) > slotStartMinutes
                                 );
 
                                 if (breakHere && !rowOccupiedSlots.has(slotStartMinutes)) {
-                                     const breakStartMinutes = timeToMinutes(breakHere.startTime);
-                                     const breakDuration = timeToMinutes(breakHere.endTime) - breakStartMinutes;
-                                     const colSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
-                                     
-                                     rowCells.push(
-                                         <td key={`break-${day}-${i}`} colSpan={colSpan} className="border-r border-slate-300 bg-slate-200 p-0 align-middle text-center print-bg-force">
-                                             <span className="block -rotate-90 text-[7px] text-slate-500 font-bold tracking-widest uppercase">{breakHere.name.substring(0,3)}</span>
-                                         </td>
-                                     );
-                                     for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(breakStartMinutes + (k * cellSpanMinutes));
-                                     i += colSpan - 1;
-                                     continue;
+                                    const breakStartMinutes = timeToMinutes(breakHere.startTime);
+                                    const breakDuration = timeToMinutes(breakHere.endTime) - breakStartMinutes;
+                                    const colSpan = Math.max(1, Math.round(breakDuration / cellSpanMinutes));
+
+                                    rowCells.push(
+                                        <td key={`break-${day}-${i}`} colSpan={colSpan} className="border-r border-slate-300 bg-slate-200 p-0 align-middle text-center print-bg-force">
+                                            <span className="block -rotate-90 text-[7px] text-slate-500 font-bold tracking-widest uppercase">{breakHere.name.substring(0, 3)}</span>
+                                        </td>
+                                    );
+                                    for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(breakStartMinutes + (k * cellSpanMinutes));
+                                    i += colSpan - 1;
+                                    continue;
                                 }
 
-                                // Find Entry
-                                const entry = item.data.find(e => 
+                                // Find Entries (plural for blocked lessons)
+                                const entries = item.data.filter(e =>
                                     e.day === day && timeToMinutes(e.startTime) === slotStartMinutes
                                 );
 
-                                if (entry) {
-                                    const subject = getSubject(entry.subjectId);
-                                    const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                                if (entries.length > 0) {
+                                    const primaryEntry = entries[0];
+                                    const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                     const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
 
-                                    const bgColor = subject ? generatePastelColor(subject.id) : '#fff';
-                                    
-                                    // Content depends on view mode
-                                    let contentMain = subject?.shortName || subject?.code || 'N/A';
-                                    let contentSub = '';
+                                    // Occupy slots
+                                    for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
+                                    i += colSpan - 1;
 
-                                    if (viewMode === 'class') {
-                                        contentSub = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
-                                    } else if (viewMode === 'teacher') {
-                                        contentSub = getRoom(entry.roomId)?.name || '';
-                                    } else if (viewMode === 'room') {
-                                        contentSub = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
-                                    }
+                                    // Check if blocked (multiple entries)
+                                    const isBlocked = entries.length > 1;
 
                                     rowCells.push(
-                                        <td key={entry.id} colSpan={colSpan} className="border-r border-slate-300 p-0 align-middle text-center print-color-force-cell" style={{ backgroundColor: bgColor }}>
-                                            <div className="flex flex-col justify-center h-full p-0.5 overflow-hidden leading-none">
-                                                <span className="font-bold text-slate-900 text-[10px]">{contentMain}</span>
-                                                <span className="text-[8px] text-slate-700">{contentSub}</span>
+                                        <td key={primaryEntry.id} colSpan={colSpan} className="border-r border-slate-300 p-0 align-middle text-center print-color-force-cell">
+                                            <div className={`flex h-full ${isBlocked ? 'divide-x divide-slate-300' : ''}`}>
+                                                {entries.map(entry => {
+                                                    const subject = getSubject(entry.subjectId);
+                                                    const bgColor = subject ? generatePastelColor(subject.id) : '#fff';
+
+                                                    // Content depends on view mode
+                                                    let contentMain = subject?.shortName || subject?.code || 'N/A';
+                                                    let contentSub = '';
+
+                                                    if (viewMode === 'class') {
+                                                        contentSub = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
+                                                    } else if (viewMode === 'teacher') {
+                                                        contentSub = getRoom(entry.roomId)?.name || '';
+                                                    } else if (viewMode === 'room') {
+                                                        contentSub = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
+                                                    }
+
+                                                    return (
+                                                        <div key={entry.id} className="flex-1 flex flex-col justify-center h-full p-0.5 overflow-hidden leading-none" style={{ backgroundColor: bgColor }}>
+                                                            <span className="font-bold text-slate-900 text-[10px] truncate w-full block">{contentMain}</span>
+                                                            <span className="text-[8px] text-slate-700 truncate w-full block">{contentSub}</span>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </td>
                                     );
-                                    
-                                    for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
-                                    i += colSpan - 1;
                                 } else {
-                                     rowCells.push(<td key={`empty-${day}-${i}`} className="border-r border-slate-300 bg-white"></td>);
+                                    rowCells.push(<td key={`empty-${day}-${i}`} className="border-r border-slate-300 bg-white"></td>);
                                 }
                             }
 
@@ -247,8 +258,8 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                     {departments.length > 0 && viewMode !== 'room' && (
                         <div>
                             <label className="block text-xs font-medium text-slate-500 uppercase">Filter Department</label>
-                            <select 
-                                value={filterDepartment} 
+                            <select
+                                value={filterDepartment}
                                 onChange={(e) => setFilterDepartment(e.target.value)}
                                 className="mt-1 block w-48 rounded-md border-slate-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
                             >

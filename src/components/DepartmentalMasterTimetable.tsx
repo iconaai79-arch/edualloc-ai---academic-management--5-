@@ -19,9 +19,9 @@ export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetablePr
     const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
-    const getCellEntry = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {
+    const getCellEntries = (level: CourseLevel, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
-        return generatedTimetable.find(e => 
+        return generatedTimetable.filter(e =>
             e.day === day &&
             level.subjectIds.includes(e.subjectId) &&
             timeToMinutes(e.startTime) === periodStartMinutes
@@ -52,50 +52,70 @@ export const DepartmentalMasterTimetable: React.FC<DepartmentalMasterTimetablePr
                                     <tr className="bg-slate-50 dark:bg-slate-700/50 print:bg-gray-50">
                                         {daysOfWeek.map(day => periodHeaders.map(period => (
                                             <th key={`${day}-${period.label}`} className="p-1 border border-slate-200 dark:border-slate-600 font-normal text-[10px] whitespace-normal text-slate-700 dark:text-slate-300 print:text-black">
-                                                <span className="font-semibold">{period.label}</span><br/>{period.startTime}-{period.endTime}
+                                                <span className="font-semibold">{period.label}</span><br />{period.startTime}-{period.endTime}
                                             </th>
                                         )))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {departmentCourses.flatMap(course => 
+                                    {departmentCourses.flatMap(course =>
                                         course.levels.map((level, levelIndex) => {
                                             const occupiedSlots = new Set<string>();
                                             return (
-                                            <tr key={level.id} className="border-t border-slate-200 dark:border-slate-600">
-                                                {levelIndex === 0 && (
-                                                    <td rowSpan={course.levels.length} className="p-2 border border-slate-200 dark:border-slate-600 font-semibold sticky left-0 bg-white dark:bg-slate-800 z-10 align-top print:static print:bg-transparent print:text-black">
-                                                        {course.name}
-                                                    </td>
-                                                )}
-                                                <td className="p-2 border border-slate-200 dark:border-slate-600 font-medium sticky left-24 bg-white dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black">{level.name}</td>
-                                                {daysOfWeek.flatMap(day => periodHeaders.map((period, periodIndex) => {
-                                                    const slotKey = `${day}-${periodIndex}`;
-                                                    if (occupiedSlots.has(slotKey)) return null;
+                                                <tr key={level.id} className="border-t border-slate-200 dark:border-slate-600">
+                                                    {levelIndex === 0 && (
+                                                        <td rowSpan={course.levels.length} className="p-2 border border-slate-200 dark:border-slate-600 font-semibold sticky left-0 bg-white dark:bg-slate-800 z-10 align-top print:static print:bg-transparent print:text-black">
+                                                            {course.name}
+                                                        </td>
+                                                    )}
+                                                    <td className="p-2 border border-slate-200 dark:border-slate-600 font-medium sticky left-24 bg-white dark:bg-slate-800 z-10 print:static print:bg-transparent print:text-black">{level.name}</td>
+                                                    {daysOfWeek.flatMap(day => periodHeaders.map((period, periodIndex) => {
+                                                        const slotKey = `${day}-${periodIndex}`;
+                                                        if (occupiedSlots.has(slotKey)) return null;
 
-                                                    const entry = getCellEntry(level, day, period);
-                                                    if (entry) {
-                                                        const subject = subjects.find(s => s.id === entry.subjectId);
-                                                        const lecturer = lecturers.find(l => l.id === entry.lecturerId);
-                                                        const room = rooms.find(r => r.id === entry.roomId);
-                                                        const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                                                        const colSpan = Math.round(duration / cellSpanMinutes);
-                                                        for(let k=0; k<colSpan; k++) occupiedSlots.add(`${day}-${periodIndex + k}`);
+                                                        if (period.isBreak) {
+                                                            for (let k = 0; k < period.colSpan; k++) occupiedSlots.add(`${day}-${periodIndex + k}`);
+                                                            return (
+                                                                <td key={slotKey} colSpan={period.colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
+                                                                    <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest leading-none block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>BREAK</span>
+                                                                </td>
+                                                            );
+                                                        }
 
-                                                        return (
-                                                            <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400" style={{backgroundColor: generatePastelColor(entry.subjectId)}}>
-                                                                <div className="text-[10px] leading-tight text-slate-900 print:text-black">
-                                                                    <strong className="block">{subject?.shortName || subject?.code}</strong>
-                                                                    <span className="block">{getInitials(lecturer?.name || '')}</span>
-                                                                    <em className="block text-slate-600 print:text-black">{room?.shortName || room?.name}</em>
-                                                                </div>
-                                                            </td>
-                                                        );
-                                                    }
-                                                    return <td key={slotKey} className="border border-slate-200 dark:border-slate-600 print:border-slate-300"></td>
-                                                }))}
-                                            </tr>
-                                        )})
+                                                        const entries = getCellEntries(level, day, period);
+                                                        if (entries.length > 0) {
+                                                            const primaryEntry = entries[0];
+                                                            const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
+                                                            const colSpan = Math.round(duration / cellSpanMinutes);
+                                                            for (let k = 0; k < colSpan; k++) occupiedSlots.add(`${day}-${periodIndex + k}`);
+
+                                                            return (
+                                                                <td key={slotKey} colSpan={colSpan} className="p-1 border border-slate-200 dark:border-slate-600 text-center align-middle print:border-slate-400">
+                                                                    <div className="flex h-full gap-1">
+                                                                        {entries.map(entry => {
+                                                                            const subject = subjects.find(s => s.id === entry.subjectId);
+                                                                            const lecturer = lecturers.find(l => l.id === entry.lecturerId);
+                                                                            const room = rooms.find(r => r.id === entry.roomId);
+
+                                                                            return (
+                                                                                <div key={entry.id} className="flex-1 rounded-sm p-1 text-center shadow-sm" style={{ backgroundColor: generatePastelColor(entry.subjectId) }}>
+                                                                                    <div className="text-[10px] leading-tight text-slate-900 print:text-black">
+                                                                                        <strong className="block">{subject?.shortName || subject?.code}</strong>
+                                                                                        <span className="block">{getInitials(lecturer?.name || '')}</span>
+                                                                                        <em className="block text-slate-600 print:text-black">{room?.shortName || room?.name}</em>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        return <td key={slotKey} className="border border-slate-200 dark:border-slate-600 print:border-slate-300"></td>
+                                                    }))}
+                                                </tr>
+                                            )
+                                        })
                                     )}
                                 </tbody>
                             </table>

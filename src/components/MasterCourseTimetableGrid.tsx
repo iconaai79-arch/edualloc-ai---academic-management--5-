@@ -41,7 +41,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
 }) => {
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal');
     const daysOfWeek = timetableSettings.operatingDays;
-    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings), [timetableSettings]);
+    const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]); // ENABLE BREAKS
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const relevantCourses = useMemo(() => {
@@ -82,7 +82,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
         return generatedTimetable.filter(e =>
             e.day === day &&
             (level.subjectIds || []).includes(e.subjectId) &&
-            e.startTime === period.startTime
+            timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
         );
     };
 
@@ -117,6 +117,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                 </thead>
                                 <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
                                     {daysOfWeek.map(day => {
+                                        const occupiedSlots = new Set<string>();
                                         return (
                                             <tr key={day} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                                 <td className="p-3 bg-slate-50/30 dark:bg-slate-950/20 border-r border-slate-100 dark:border-slate-800">
@@ -126,15 +127,22 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                 </td>
                                                 {periodHeaders.map((period, periodIndex) => {
                                                     const slotKey = `${day}-${period.startTime}`;
+                                                    if (occupiedSlots.has(period.startTime)) return null;
+
                                                     const slotEntries = (courseEntries || []).filter(e =>
                                                         e.day === day &&
-                                                        e.startTime === period.startTime
+                                                        timeToMinutes(e.startTime) === timeToMinutes(period.startTime)
                                                     );
 
                                                     if (period.isBreak) {
+                                                        // Mark all spanned slots as occupied
+                                                        for (let k = 0; k < period.colSpan; k++) {
+                                                            const nextPeriod = periodHeaders[periodIndex + k];
+                                                            if (nextPeriod) occupiedSlots.add(nextPeriod.startTime);
+                                                        }
                                                         return (
                                                             <td key={slotKey} colSpan={period.colSpan} className="p-1 border border-slate-100 dark:border-slate-800 text-center align-middle bg-slate-50/50 dark:bg-slate-900/30 print:bg-gray-50">
-                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest select-none">BREAK</span>
+                                                                <span className="text-[8px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest select-none block mx-auto" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>BREAK</span>
                                                             </td>
                                                         );
                                                     }
@@ -143,6 +151,12 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                                         const primaryEntry = slotEntries[0];
                                                         const duration = timeToMinutes(primaryEntry.endTime) - timeToMinutes(primaryEntry.startTime);
                                                         const colSpan = Math.max(1, Math.round(duration / cellSpanMinutes));
+
+                                                        // Mark occupied slots
+                                                        for (let k = 0; k < colSpan; k++) {
+                                                            const nextPeriod = periodHeaders[periodIndex + k];
+                                                            if (nextPeriod) occupiedSlots.add(nextPeriod.startTime);
+                                                        }
 
                                                         // In horizontal layout, slotEntries contains ALL entries for ALL levels of this course in this slot.
                                                         // To determine if a specific group (Level) has a "BLOCK", we'd need to group by level.
