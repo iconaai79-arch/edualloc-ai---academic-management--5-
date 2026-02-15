@@ -227,6 +227,51 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                         })}
                     </tbody>
                 </table>
+
+                {/* Pathways / Option Blocks Summary */}
+                {(() => {
+                    // 1. Group entries by time slot
+                    const slotMap = new Map<string, TimetableEntry[]>();
+                    item.data.forEach(e => {
+                        const key = `${e.day}-${e.startTime}`;
+                        if (!slotMap.has(key)) slotMap.set(key, []);
+                        slotMap.get(key)!.push(e);
+                    });
+
+                    // 2. Identify blocks (slots with > 1 entry) and deduplicate by subject set
+                    const uniqueBlocks = new Map<string, string[]>(); // key: sortedSubjectIds, value: subjectNames
+
+                    slotMap.forEach((entries) => {
+                        if (entries.length > 1) {
+                            // Sort entries by subject ID to create a unique signature for this set of subjects
+                            const sortedEntries = [...entries].sort((a, b) => a.subjectId.localeCompare(b.subjectId));
+                            const signature = sortedEntries.map(e => e.subjectId).join('|');
+
+                            if (!uniqueBlocks.has(signature)) {
+                                const subjectNames = sortedEntries
+                                    .map(e => getSubject(e.subjectId)?.name || 'Unknown Subject')
+                                    .filter((v, i, a) => a.indexOf(v) === i); // Dedupe names just in case
+                                uniqueBlocks.set(signature, subjectNames);
+                            }
+                        }
+                    });
+
+                    if (uniqueBlocks.size === 0) return null;
+
+                    return (
+                        <div className="border-t border-slate-300 p-2 bg-slate-50 print-bg-force">
+                            <h4 className="font-bold text-[9px] text-slate-700 uppercase mb-1">Pathways / Option Blocks</h4>
+                            <ul className="text-[9px] text-slate-600 space-y-0.5">
+                                {Array.from(uniqueBlocks.values()).map((subjects, idx) => (
+                                    <li key={idx} className="flex items-start gap-1">
+                                        <span className="font-semibold text-slate-800">• Option {idx + 1}:</span>
+                                        <span>{subjects.join(' / ')}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    );
+                })()}
             </div>
         );
     };
