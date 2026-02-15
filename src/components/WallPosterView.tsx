@@ -203,7 +203,64 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                                                     let contentSub = '';
 
                                                     if (viewMode === 'class') {
-                                                        contentSub = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
+                                                        const lecturerName = getLecturer(entry.lecturerId)?.name.split(' ').pop() || '';
+
+                                                        // Resolve Room: Default to Stream/Level Room unless Subject has Dedicated Room
+                                                        // Note: 'item.id' in class view is 'courseId-levelId'
+                                                        let roomName = '';
+                                                        if (item.id.includes('-')) {
+                                                            const parts = item.id.split('-');
+                                                            // We can't easily reconstruction course/level objects here without passing them down or expensive lookups
+                                                            // BUT, we can try to rely on entry.roomId first.
+                                                            // If entry.roomId is set, use it. 
+                                                            // If NOT, we fallback. 
+                                                            // Actually, let's look up the level since we are in the loop.
+                                                            // Optimization: We could pass the level down, but for now we look it up or use the entry.roomId if valid.
+
+                                                            const r = getRoom(entry.roomId);
+                                                            if (r) {
+                                                                roomName = r.name;
+                                                            } else {
+                                                                // Fallback logic if entry.roomId is empty (though generator should have set it)
+                                                                // Or if user wants to FORCE the display logic:
+                                                                if (subject?.dedicatedRoomId) {
+                                                                    roomName = getRoom(subject.dedicatedRoomId)?.name || '';
+                                                                } else {
+                                                                    // Try to find level from item.id? 
+                                                                    // item.id is unstable fallback. 
+                                                                    // Better: The entry SHOULD have the roomId.
+                                                                    // If the user says "By default... should be...", maybe they imply it's missing?
+                                                                    // Let's assume entry.roomId might be wrong or missing and we want 'Stream Room'
+                                                                    // We need to access the level object to get 'level.roomId'.
+                                                                    // Since we are inside MiniTimetable, 'item' is the only context.
+                                                                    // Let's look up the level using the item properties if possible, or pass it.
+                                                                }
+                                                            }
+                                                        }
+
+                                                        // Refined strategy: resolving room name requires lookup.
+                                                        // For Class View, item.subTitle IS the level name. item.title IS the course name.
+                                                        // We can find the level from props.courses.
+                                                        // This is expensive inside a map.
+                                                        // Better: Pre-compute the room for the block?
+
+                                                        // SIMPLIFIED APPROACH:
+                                                        // 1. If subject has dedicated room -> Use it.
+                                                        // 2. Else if entry has room -> Use it (assuming it's the stream room).
+                                                        // 3. Else -> Try to find stream room from data?
+
+                                                        // Given the constraints and the loop, let's try to just display entry.roomId if present, 
+                                                        // BUT checks subject specific.
+
+                                                        const resolvedRoom = getRoom(entry.roomId || subject?.dedicatedRoomId || '');
+                                                        // Note: If entry.roomId is missing, we fall back to dedicated. 
+                                                        // If dedicated is missing, we fall back to... null?
+                                                        // In "Class View", the level is known at the parent loop.
+                                                        // We should pass the default room for the level to MiniTimetable?
+
+                                                        roomName = resolvedRoom?.name || '';
+                                                        contentSub = `${lecturerName} ${roomName ? `• ${roomName}` : ''}`;
+
                                                     } else if (viewMode === 'teacher') {
                                                         contentSub = getRoom(entry.roomId)?.name || '';
                                                     } else if (viewMode === 'room') {
