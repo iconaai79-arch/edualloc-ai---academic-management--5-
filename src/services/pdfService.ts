@@ -771,21 +771,8 @@ export const generateMasterCourseTimetablePdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
-    const [headerImg, footerImg] = await Promise.all([
-        loadImage(letterheadConfig?.headerImageUrl),
-        loadImage(footerImageUrl)
-    ]);
-
     const margin = 14;
-    let yPos = setupPdfHeader(doc, headerImg);
-
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, margin, yPos);
-    yPos += 7;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    let yPos = 20;
 
     try {
         const [headerImg, footerImg] = await Promise.all([
@@ -793,8 +780,7 @@ export const generateMasterCourseTimetablePdf = async (
             loadImage(footerImageUrl)
         ]);
 
-        const margin = 14;
-        let yPos = setupPdfHeader(doc, headerImg);
+        yPos = setupPdfHeader(doc, headerImg);
 
         // Debug: Print visible config
         console.log("PDF Gen: internal config", { layoutMode, coursesLen: courses?.length });
@@ -814,6 +800,7 @@ export const generateMasterCourseTimetablePdf = async (
             doc.text(`Days Configured: ${days?.length || 0}`, margin, 70);
             doc.text(`Timetable Entries: ${generatedTimetable?.length || 0}`, margin, 80);
             doc.text(`Layout Mode: ${layoutMode}`, margin, 90);
+            setupPdfFooter(doc, footerImg);
             return doc.output('blob');
         }
 
@@ -831,7 +818,6 @@ export const generateMasterCourseTimetablePdf = async (
         doc.text(`${academicYearName} • ${activeSemesterName}`, margin, yPos);
         yPos += 15;
 
-        // ... existing variable setups ...
         const periodHeaders = generatePeriodLabels(timetableSettings, true);
         const displaySlots = generateDisplaySlots(timetableSettings, true);
         const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
@@ -932,25 +918,22 @@ export const generateMasterCourseTimetablePdf = async (
 
                 yPos = (doc as any).lastAutoTable.finalY + 15;
                 if (preview) {
-                    const totalPages = doc.internal.getNumberOfPages();
-                    if (totalPages > 1) { for (let i = totalPages; i > 1; i--) doc.deletePage(i); }
+                    setupPdfFooter(doc, footerImg);
                     return doc.output('blob');
                 }
             }
         } else {
-            // ... vertical logic ...
+            // --- VERTICAL LAYOUT ---
             for (const course of (courses || [])) {
                 if (!course) continue;
                 for (const level of (course.levels || [])) {
                     if (!level) continue;
-
                     if (preview && pageCount > 0) break;
 
                     if (pageCount > 0 && yPos > 170) {
                         doc.addPage();
                         yPos = setupPdfHeader(doc, headerImg);
                     }
-
                     pageCount++;
 
                     doc.setFontSize(12);
@@ -971,28 +954,25 @@ export const generateMasterCourseTimetablePdf = async (
                                 doc.setTextColor(0);
                             }
                         } catch (err) {
-                            console.warn("Error adding class teacher to PDF:", err);
+                            console.warn("Class teacher lookup error:", err);
                         }
                     }
 
                     yPos += 5;
-
                     const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
                     const tableBody: any[] = [];
 
-                    days.forEach(day => {
+                    days.forEach((day, dIndex) => {
                         const row: any[] = [day];
                         const rowOccupiedSlots = new Set<number>();
 
                         for (let i = 0; i < displaySlots.length; i++) {
                             const slot = displaySlots[i];
                             const slotStartMinutes = timeToMinutes(slot.start);
-
                             if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
                             const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
                             const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-
                             const entries = (generatedTimetable || []).filter(e =>
                                 e.day === day &&
                                 (level.subjectIds || []).includes(e.subjectId) &&
@@ -1000,30 +980,31 @@ export const generateMasterCourseTimetablePdf = async (
                             );
 
                             if (isBreak) {
-                                const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
-                                row.push({ content: breakText, colSpan: 1, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 } });
+                                if (dIndex === 0) {
+                                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                                    row.push({
+                                        content: breakText,
+                                        colSpan: 1,
+                                        rowSpan: days.length,
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
+                                    });
+                                }
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const firstEntry = entries[0];
                                 const text = entries.map(e => {
                                     const s = getSubjectById(e.subjectId);
                                     const l = getLecturerById(e.lecturerId);
-
                                     const subjMeta = (level.subjectMetadata || []).find(m => m.subjectId === e.subjectId);
                                     let effectiveRoomId = e.roomId;
-                                    // Use dedicated room only if no room is assigned
-                                    if (!effectiveRoomId && subjMeta?.dedicatedRoomId) {
-                                        effectiveRoomId = subjMeta.dedicatedRoomId;
-                                    }
+                                    if (!effectiveRoomId && subjMeta?.dedicatedRoomId) effectiveRoomId = subjMeta.dedicatedRoomId;
                                     const r = getRoomById(effectiveRoomId);
-
                                     return isBlock ? (s?.shortName || s?.code || 'N/A') : [s?.shortName || s?.code || 'N/A', getInitials(l?.name || ''), r?.name || ''].filter(Boolean).join('\n');
                                 }).join(isBlock ? ' / ' : '\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
-
                                 row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: generatePastelColorRgb(firstEntry.subjectId) } });
                                 i += colSpan - 1;
                             } else {
@@ -1047,10 +1028,8 @@ export const generateMasterCourseTimetablePdf = async (
                     });
 
                     yPos = (doc as any).lastAutoTable.finalY + 15;
-
                     if (preview) {
-                        const totalPages = doc.internal.getNumberOfPages();
-                        if (totalPages > 1) { for (let i = totalPages; i > 1; i--) doc.deletePage(i); }
+                        setupPdfFooter(doc, footerImg);
                         return doc.output('blob');
                     }
                 }
@@ -1062,25 +1041,14 @@ export const generateMasterCourseTimetablePdf = async (
         return doc.output('blob');
 
     } catch (error: any) {
-        console.error("PDF Gen Error Trapped:", error);
+        console.error("PDF Gen Error:", error);
         doc.addPage();
-        doc.setFontSize(20);
+        doc.setFontSize(16);
         doc.setTextColor(255, 0, 0);
-        doc.text("CRITICAL ERROR GENERATING PDF", 14, 40);
-        doc.setFontSize(12);
+        doc.text("ERROR GENERATING PDF", margin, 40);
+        doc.setFontSize(10);
         doc.setTextColor(0);
-
-        const errorMsg = error?.message || String(error);
-        const errorStack = error?.stack || 'No stack trace';
-
-        // Wrap text
-        const splitError = doc.splitTextToSize(`Error: ${errorMsg}`, 270);
-        doc.text(splitError, 14, 60);
-
-        doc.setFontSize(8);
-        const splitStack = doc.splitTextToSize(errorStack, 270);
-        doc.text(splitStack, 14, 80);
-
+        doc.text(error?.message || String(error), margin, 60);
         return doc.output('blob');
     }
 };
@@ -1408,11 +1376,22 @@ export const generateMasterFacilityGridPdf = async (
                     if (timeToMinutes(e.startTime) !== slotStartMinutes) return false;
 
                     // Resolve effective room
-                    // Priority 1: entry.roomId (Explicit Assignment)
-                    // Priority 2: Subject-level override (Dedicated Room)
-                    const effectiveRoomId = e.roomId || subjectDedicatedRoomMap.get(e.subjectId);
+                    // Priority 1: entry.roomId (Explicit Assignment) -> ALWAYS VALID
+                    if (e.roomId === room.id) return true;
 
-                    return effectiveRoomId === room.id;
+                    // Priority 2: Subject-level override (Dedicated Room) -> ONLY IF ROOM IS SHARED
+                    // "If the room is marked as shared any allocation can be done if not strictly assign the allocated only"
+                    if (!e.roomId) {
+                        const dedicatedId = subjectDedicatedRoomMap.get(e.subjectId);
+                        if (dedicatedId === room.id) {
+                            // If room is SHARED, we allow this implicit allocation.
+                            // If room is NOT shared, strict rules apply (must be explicitly assigned to be here).
+                            // This prevents dedicated rooms from auto-filling non-shared spaces unless explicitly set.
+                            return room.isShared === true;
+                        }
+                    }
+
+                    return false;
                 });
 
                 if (isBreak) {
