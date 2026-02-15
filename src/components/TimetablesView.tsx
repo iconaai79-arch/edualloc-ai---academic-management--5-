@@ -208,7 +208,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 selectedDay,
                 getSubjectById,
                 getLecturerById,
-                getCourseById
+                getCourseById,
+                courses || [] // Pass courses for strict room lookup
             );
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);

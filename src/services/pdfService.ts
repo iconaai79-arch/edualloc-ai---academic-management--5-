@@ -1214,7 +1214,8 @@ export const generateMasterFacilityGridPdf = async (
     selectedDay: string,
     getSubjectById: (id: string) => Subject | undefined,
     getLecturerById: (id: string) => User | undefined,
-    getCourseById: (id: string) => Course | undefined
+    getCourseById: (id: string) => Course | undefined,
+    courses: Course[]
 ): Promise<Blob> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -1226,6 +1227,18 @@ export const generateMasterFacilityGridPdf = async (
 
     const margin = 14;
     let yPos = setupPdfHeader(doc, headerImg);
+
+    // Build Subject Dedicated Room Map for strict enforcement
+    const subjectDedicatedRoomMap = new Map<string, string>();
+    (courses || []).forEach(c => {
+        (c.levels || []).forEach(l => {
+            (l.subjectMetadata || []).forEach(m => {
+                if (m.dedicatedRoomId) {
+                    subjectDedicatedRoomMap.set(m.subjectId, m.dedicatedRoomId);
+                }
+            });
+        });
+    });
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
@@ -1281,11 +1294,18 @@ export const generateMasterFacilityGridPdf = async (
                 const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
                 // Find entry in this room at this time on this day
-                const entries = (generatedTimetable || []).filter(e =>
-                    e.day === selectedDay &&
-                    e.roomId === room.id &&
-                    timeToMinutes(e.startTime) === slotStartMinutes
-                );
+                // We strictly check for overrides first.
+                const entries = (generatedTimetable || []).filter(e => {
+                    if (e.day !== selectedDay) return false;
+                    if (timeToMinutes(e.startTime) !== slotStartMinutes) return false;
+
+                    // Resolve effective room
+                    // Priority 1: Subject-level override (Dedicated Room)
+                    // Priority 2: entry.roomId (Default)
+                    const effectiveRoomId = subjectDedicatedRoomMap.get(e.subjectId) || e.roomId;
+
+                    return effectiveRoomId === room.id;
+                });
 
                 if (isBreak) {
                     const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
