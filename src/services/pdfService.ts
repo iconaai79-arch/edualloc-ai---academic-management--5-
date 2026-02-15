@@ -925,75 +925,6 @@ export const generateMasterCourseTimetablePdf = async (
         } else {
             // --- VERTICAL LAYOUT ---
 
-            // SUMMARY PAGE: Workload & Pathways (Only if multiple courses/levels)
-            const totalItems = courses.reduce((acc, c) => acc + (c.levels?.length || 0), 0);
-
-            if (totalItems > 1) {
-                if (pageCount > 0) {
-                    doc.addPage();
-                    yPos = setupPdfHeader(doc, headerImg);
-                }
-                pageCount++;
-
-                doc.setFontSize(14);
-                doc.setFont('helvetica', 'bold');
-                doc.text("WORKLOAD & PATHWAYS SUMMARY", margin, yPos);
-                yPos += 10;
-
-                // 1. Calculate Workload Stats
-                const lecturerWorkload = new Map<string, { periods: number, subjects: Set<string> }>();
-                (generatedTimetable || []).forEach(e => {
-                    const lStat = lecturerWorkload.get(e.lecturerId) || { periods: 0, subjects: new Set() };
-                    lStat.periods += 1;
-                    lStat.subjects.add(e.subjectId);
-                    lecturerWorkload.set(e.lecturerId, lStat);
-                });
-
-                // 2. Workload Table
-                const workloadBody = Array.from(lecturerWorkload.entries()).map(([id, stats]) => {
-                    const l = getLecturerById(id);
-                    return [l?.name || 'Unknown', stats.subjects.size, stats.periods];
-                }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-
-                (doc as any).autoTable({
-                    startY: yPos,
-                    head: [['Teacher / Lecturer', 'Unique Subjects', 'Total Periods']],
-                    body: workloadBody,
-                    theme: 'striped',
-                    headStyles: { fillColor: [45, 55, 72] },
-                    styles: { fontSize: 8 },
-                    margin: { left: margin, right: margin }
-                });
-
-                yPos = (doc as any).lastAutoTable.finalY + 15;
-
-                // 3. Pathways / Grade Summary Table
-                doc.setFontSize(12);
-                doc.setFont('helvetica', 'bold');
-                doc.text("PATHWAYS / GRADE ALLOCATION", margin, yPos);
-                yPos += 7;
-
-                const pathwaysBody: any[] = [];
-                for (const course of (courses || [])) {
-                    for (const level of (course.levels || [])) {
-                        const count = (generatedTimetable || []).filter(e => (level.subjectIds || []).includes(e.subjectId)).length;
-                        pathwaysBody.push([`${course.code} ${level.name}`, count]);
-                    }
-                }
-
-                (doc as any).autoTable({
-                    startY: yPos,
-                    head: [['Grade / Pathway', 'Scheduled Periods']],
-                    body: pathwaysBody,
-                    theme: 'striped',
-                    headStyles: { fillColor: [30, 41, 59] },
-                    styles: { fontSize: 8 },
-                    margin: { left: margin, right: margin }
-                });
-
-                yPos = (doc as any).lastAutoTable.finalY + 20;
-            }
-
             // Proceed with Main Timetable Blocks
             for (const course of (courses || [])) {
                 if (!course) continue;
@@ -1007,7 +938,7 @@ export const generateMasterCourseTimetablePdf = async (
                     }
                     pageCount++;
 
-                    doc.setFontSize(12);
+                    doc.setFontSize(14);
                     doc.setFont('helvetica', 'bold');
                     doc.text(`${course.name} (${course.code}) - ${level.name}`, margin, yPos);
 
@@ -1024,10 +955,38 @@ export const generateMasterCourseTimetablePdf = async (
                                 doc.text(teacherText, pageWidth - margin - textWidth, yPos);
                                 doc.setTextColor(0);
                             }
-                        } catch (err) {
-                            console.warn("Class teacher lookup error:", err);
-                        }
+                        } catch (err) { console.warn("Class teacher lookup error:", err); }
                     }
+                    yPos += 10;
+
+                    // --- PER-CLASS WORKLOAD SUMMARY ---
+                    const classEntries = (generatedTimetable || []).filter(e => (level.subjectIds || []).includes(e.subjectId));
+                    const classLecturerWorkload = new Map<string, { periods: number, subjects: Set<string> }>();
+
+                    classEntries.forEach(e => {
+                        const lStat = classLecturerWorkload.get(e.lecturerId) || { periods: 0, subjects: new Set() };
+                        lStat.periods += 1;
+                        lStat.subjects.add(e.subjectId);
+                        classLecturerWorkload.set(e.lecturerId, lStat);
+                    });
+
+                    const workloadBody = Array.from(classLecturerWorkload.entries()).map(([id, stats]) => {
+                        const l = getLecturerById(id);
+                        const subjNames = Array.from(stats.subjects).map(sid => getSubjectById(sid)?.shortName || 'Unknown').join(', ');
+                        return [l?.name || 'Unknown', subjNames, stats.periods];
+                    }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+                    (doc as any).autoTable({
+                        startY: yPos,
+                        head: [['Staff Name', 'Subjects Taught', 'Periods']],
+                        body: workloadBody,
+                        theme: 'striped',
+                        headStyles: { fillColor: [45, 55, 72] },
+                        styles: { fontSize: 7, cellPadding: 2 },
+                        margin: { left: margin, right: margin }
+                    });
+
+                    yPos = (doc as any).lastAutoTable.finalY + 10;
 
                     yPos += 5;
                     const tableHead = [['Day', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
