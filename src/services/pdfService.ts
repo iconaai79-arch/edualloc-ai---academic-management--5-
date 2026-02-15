@@ -890,7 +890,7 @@ export const generateMasterCourseTimetablePdf = async (
 
                                     const r = getRoomById(effectiveRoomId);
                                     return [s?.shortName || s?.code || 'N/A', l ? getInitials(l.name) : '-', r?.name || ''].filter(Boolean).join(' ');
-                                }).join(isBlock ? ' / ' : '\n');
+                                }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
@@ -1039,8 +1039,8 @@ export const generateMasterCourseTimetablePdf = async (
                                     let effectiveRoomId = e.roomId;
                                     if (!effectiveRoomId && subjMeta?.dedicatedRoomId) effectiveRoomId = subjMeta.dedicatedRoomId;
                                     const r = getRoomById(effectiveRoomId);
-                                    return isBlock ? (s?.shortName || s?.code || 'N/A') : [s?.shortName || s?.code || 'N/A', getInitials(l?.name || ''), r?.name || ''].filter(Boolean).join('\n');
-                                }).join(isBlock ? ' / ' : '\n---\n');
+                                    return [s?.shortName || s?.code || 'N/A', getInitials(l?.name || ''), r?.name || ''].filter(Boolean).join('\n');
+                                }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
@@ -1451,7 +1451,7 @@ export const generateMasterFacilityGridPdf = async (
                                 const s = getSubjectById(e.subjectId);
                                 const l = getLecturerById(e.lecturerId);
                                 return [s?.shortName || s?.code || 'N/A', l ? getInitials(l.name) : '-'].join(' ');
-                            }).join(isBlock ? ' / ' : '\n');
+                            }).join('\n---\n');
 
                             const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                             const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
