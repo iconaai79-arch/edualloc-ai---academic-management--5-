@@ -76,7 +76,7 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
         doc.setPage(i);
 
         if (footerImg) {
-            const footerMargin = 15;
+            const footerMargin = 10; // Reduced from 15
             const availableWidth = pageWidth - (margin * 2);
             const aspectRatio = footerImg.width / footerImg.height;
             let finalWidth = availableWidth;
@@ -95,10 +95,10 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
         doc.setFontSize(8);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(150, 150, 150);
-        doc.text(copyrightText, margin, pageHeight - 10);
+        doc.text(copyrightText, margin, pageHeight - 7); // Pushed down from 10
 
         const pageNumText = `Page ${i} of ${pageCount}`;
-        doc.text(pageNumText, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        doc.text(pageNumText, pageWidth - margin, pageHeight - 7, { align: 'right' }); // Pushed down from 10
     }
 };
 
@@ -917,7 +917,7 @@ export const generateMasterCourseTimetablePdf = async (
                     columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
                     pageBreak: 'avoid',
                     tableWidth: 'auto',
-                    margin: { left: margin, right: margin },
+                    margin: { left: margin, right: margin, bottom: 25 },
                     willDrawCell: (data: any) => {
                         const cell = data.cell;
                         const raw = cell.raw as any;
@@ -1011,7 +1011,7 @@ export const generateMasterCourseTimetablePdf = async (
                         theme: 'striped',
                         headStyles: { fillColor: [45, 55, 72] },
                         styles: { fontSize: 6.5, cellPadding: 1.5 },
-                        margin: { left: margin, right: margin }
+                        margin: { left: margin, right: margin, bottom: 25 }
                     });
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
@@ -1100,7 +1100,7 @@ export const generateMasterCourseTimetablePdf = async (
                         },
                         pageBreak: 'auto',
                         tableWidth: 'auto',
-                        margin: { left: margin, right: margin },
+                        margin: { left: margin, right: margin, bottom: 25 },
                         willDrawCell: (data: any) => {
                             const cell = data.cell;
                             const raw = cell.raw as any;
@@ -1530,7 +1530,7 @@ export const generateMasterFacilityGridPdf = async (
                 columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
                 pageBreak: 'auto',
                 tableWidth: 'auto',
-                margin: { left: margin, right: margin },
+                margin: { left: margin, right: margin, bottom: 25 },
                 willDrawCell: (data: any) => {
                     const cell = data.cell;
                     const raw = cell.raw as any;
