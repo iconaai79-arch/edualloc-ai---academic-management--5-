@@ -1060,16 +1060,16 @@ export const generateMasterCourseTimetablePdf = async (
                         body: tableBody,
                         theme: 'grid',
                         styles: {
-                            fontSize: 7.5,
-                            cellPadding: 2,
+                            fontSize: 6.5,
+                            cellPadding: 1.5,
                             lineWidth: 0.1,
                             overflow: 'linebreak',
                             valign: 'middle',
                             halign: 'center'
                         },
-                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
                         columnStyles: {
-                            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 25, halign: 'left' }
+                            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
                         pageBreak: 'auto',
                         tableWidth: 'auto',
