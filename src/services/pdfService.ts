@@ -869,7 +869,7 @@ export const generateMasterCourseTimetablePdf = async (
 
                             if (isBreak) {
                                 const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
-                                row.push({ content: breakText, colSpan: 1, styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 } });
+                                row.push({ content: breakText, colSpan: 1, styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 } });
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const text = entries.map(e => {
@@ -897,7 +897,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
-                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: customColors[0] } });
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'bold', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1051,7 +1051,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         content: breakText,
                                         colSpan: 1,
                                         rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 10, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
                                     });
                                 }
                             } else if (entries.length > 0) {
@@ -1072,7 +1072,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
-                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: customColors[0] } });
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'bold', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1492,7 +1492,7 @@ export const generateMasterFacilityGridPdf = async (
                             const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
                             row.push({
                                 content: breakText, colSpan: 1,
-                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
+                                styles: { halign: 'center', valign: 'middle', fontSize: 9, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
                             });
                         } else if (entries.length > 0) {
                             const isBlock = entries.length > 1;
@@ -1509,7 +1509,7 @@ export const generateMasterFacilityGridPdf = async (
                             const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
                             row.push({
                                 content: text, colSpan, customColors,
-                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'normal', fillColor: customColors[0] }
+                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'bold', fillColor: customColors[0] }
                             });
                             i += colSpan - 1;
                         } else {
