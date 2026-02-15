@@ -1375,17 +1375,7 @@ export const generateMasterFacilityGridPdf = async (
     // Create a map of building ID to name for easier lookup if needed, though we iterate buildings
     // We want to list rooms by building.
 
-    // Build Subject Dedicated Room Map for strict enforcement
-    const subjectDedicatedRoomMap = new Map<string, string>();
-    (courses || []).forEach(course => {
-        (course.levels || []).forEach(level => {
-            (level.subjectMetadata || []).forEach(meta => {
-                if (meta.dedicatedRoomId) {
-                    subjectDedicatedRoomMap.set(meta.subjectId, meta.dedicatedRoomId);
-                }
-            });
-        });
-    });
+
 
     for (const building of safeBuildings) {
         // Add a section header row for the Building
