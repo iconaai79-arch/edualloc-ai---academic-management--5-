@@ -331,8 +331,18 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
 
                 {/* Grid of Timetables */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 print:block">
-                    {itemsToRender.map((item) => (
-                        <div key={item.id} className="poster-grid-item print:inline-block print:w-[32%] print:align-top print:mr-[1%] print:mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+                    {itemsToRender.map((item, index) => (
+                        <div
+                            key={item.id}
+                            className="poster-grid-item print:block print:w-full print:h-[100vh] print:mb-0"
+                            style={{
+                                breakInside: 'avoid',
+                                pageBreakInside: 'avoid',
+                                get pageBreakAfter() {
+                                    return index === itemsToRender.length - 1 ? 'auto' : 'always';
+                                }
+                            }}
+                        >
                             <MiniTimetable item={item} />
                         </div>
                     ))}
