@@ -58,7 +58,16 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
                     // Find entries for this specific course level
                     const levelSubjectIds = new Set(level.subjectIds);
 
-                    const entries = generatedTimetable.filter(t => levelSubjectIds.has(t.subjectId));
+                    const entries = generatedTimetable.filter(t => {
+                        if (!levelSubjectIds.has(t.subjectId)) return false;
+
+                        // Strict check: if subject is specific to a level, enforce it
+                        const subject = getSubject(t.subjectId);
+                        if (subject?.targetCourseLevelId && subject.targetCourseLevelId !== level.id) {
+                            return false;
+                        }
+                        return true;
+                    });
 
                     if (entries.length > 0) {
                         items.push({
