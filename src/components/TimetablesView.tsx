@@ -110,6 +110,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [selectedBuildingId, setSelectedBuildingId] = useState<string>('all');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+    const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical'); // List Layout by default to match PDF default
 
     const activeAcademicYear = useMemo(() => (academicYears || []).find(y => y && y.status === 'active'), [academicYears]);
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
@@ -175,7 +176,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 getSubjectById,
                 getLecturerById,
                 getRoomById, // Pass the room getter to resolve dedicated rooms
-                true // Preview mode: generate only first page
+                true, // Preview mode: generate only first page
+                layoutMode // Pass the current layout mode
             );
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);
@@ -320,6 +322,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         isSchool={isSchool}
                         currentInstitution={currentInstitution}
                         timetableConflicts={timetableConflicts}
+                        layoutMode={layoutMode}
+                        onLayoutModeChange={setLayoutMode}
                     />
                 ) : viewMode === 'grid' ? (
                     <div className="space-y-6 animate-fade-in">
