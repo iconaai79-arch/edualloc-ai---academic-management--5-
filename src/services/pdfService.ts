@@ -1001,7 +1001,7 @@ export const generateMasterCourseTimetablePdf = async (
                 if (!course) continue;
                 for (const level of (course.levels || [])) {
                     if (!level) continue;
-                    if (preview && pageCount > 0) break;
+                    if (preview && pageCount >= 3) break;
 
                     if (pageCount > 0) {
                         doc.addPage();
@@ -1108,7 +1108,7 @@ export const generateMasterCourseTimetablePdf = async (
                         return doc.output('blob');
                     }
                 }
-                if (preview && pageCount > 0) break;
+                if (preview && pageCount >= 3) break;
             }
         }
 
