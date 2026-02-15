@@ -7,7 +7,6 @@ export const generatePastelColor = (seed: string): string => {
   // Using high lightness and moderate saturation for a soft pastel color
   return `hsl(${h}, 80%, 92%)`;
 };
-};
 
 export const generatePastelColorRgb = (seed: string): [number, number, number] => {
   let hash = 0;
