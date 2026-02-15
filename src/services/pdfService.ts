@@ -1028,7 +1028,9 @@ export const generateMasterCourseTimetablePdf = async (
                     });
 
                     yPos = (doc as any).lastAutoTable.finalY + 15;
-                    if (preview) {
+                    // In Vertical/List mode, we want to show all classes for the first course at least, 
+                    // or up to a few classes globally if multiple courses exist.
+                    if (preview && pageCount >= 3) {
                         setupPdfFooter(doc, footerImg);
                         return doc.output('blob');
                     }
@@ -1289,183 +1291,168 @@ export const generateMasterFacilityGridPdf = async (
     getSubjectById: (id: string) => Subject | undefined,
     getLecturerById: (id: string) => User | undefined,
     getCourseById: (id: string) => Course | undefined,
-    courses: Course[]
+    courses: Course[],
+    preview: boolean = false
 ): Promise<Blob> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
-    const [headerImg, footerImg] = await Promise.all([
-        loadImage(letterheadConfig?.headerImageUrl),
-        loadImage(footerImageUrl)
-    ]);
-
     const margin = 14;
-    let yPos = setupPdfHeader(doc, headerImg);
+    let yPos = 20;
 
-    // Build Subject Dedicated Room Map for strict enforcement
-    const subjectDedicatedRoomMap = new Map<string, string>();
-    (courses || []).forEach(c => {
-        (c.levels || []).forEach(l => {
-            (l.subjectMetadata || []).forEach(m => {
-                if (m.dedicatedRoomId) {
-                    subjectDedicatedRoomMap.set(m.subjectId, m.dedicatedRoomId);
-                }
+    try {
+        const [headerImg, footerImg] = await Promise.all([
+            loadImage(letterheadConfig?.headerImageUrl),
+            loadImage(footerImageUrl)
+        ]);
+
+        yPos = setupPdfHeader(doc, headerImg);
+
+        // Build Subject Dedicated Room Map for strict enforcement
+        const subjectDedicatedRoomMap = new Map<string, string>();
+        (courses || []).forEach(c => {
+            (c.levels || []).forEach(l => {
+                (l.subjectMetadata || []).forEach(m => {
+                    if (m.dedicatedRoomId) {
+                        subjectDedicatedRoomMap.set(m.subjectId, m.dedicatedRoomId);
+                    }
+                });
             });
         });
-    });
 
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, margin, yPos);
-    yPos += 7;
+        const days = timetableSettings?.operatingDays || [];
+        const periodHeaders = generatePeriodLabels(timetableSettings, true);
+        const displaySlots = generateDisplaySlots(timetableSettings, true);
+        const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+        const breaks = timetableSettings?.breaks || [];
 
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${academicYearName} • ${activeSemesterName} • ${selectedDay}`, margin, yPos);
-    yPos += 15;
+        // Filter rooms and buildings
+        const safeRooms = (rooms || []).filter(Boolean);
+        const safeBuildings = (buildings || []).filter(Boolean).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-    const periodHeaders = generatePeriodLabels(timetableSettings, true);
-    const displaySlots = generateDisplaySlots(timetableSettings, true);
-    const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
-    const breaks = timetableSettings?.breaks || [];
+        let pageCount = 0;
 
-    const tableHead = [['Room / Facility', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
-    const tableBody: any[] = [];
+        // Determine which days to include. If it's a "Facility Grid" we might want all days like the Grade Map.
+        // We'll loop through days to match Grade Map behavior if that's what's requested.
+        for (const day of days) {
+            if (preview && pageCount > 0) break;
 
-    // Group Rooms by Building
-    // Filter rooms that actually exist
-    const safeRooms = (rooms || []).filter(Boolean);
-    const safeBuildings = (buildings || []).filter(Boolean);
+            if (pageCount > 0) {
+                doc.addPage();
+                yPos = setupPdfHeader(doc, headerImg);
+            }
+            pageCount++;
 
-    // Sort buildings
-    safeBuildings.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text(title, margin, yPos);
+            yPos += 7;
 
-    // Create a map of building ID to name for easier lookup if needed, though we iterate buildings
-    // We want to list rooms by building.
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${day} • ${academicYearName} • ${activeSemesterName}`, margin, yPos);
+            yPos += 15;
 
+            const tableHead = [['Room / Facility', ...periodHeaders.map(p => `${p.label}\n${p.startTime} - ${p.endTime}`)]];
+            const tableBody: any[] = [];
 
+            for (const building of safeBuildings) {
+                // Section header for Building
+                tableBody.push([{
+                    content: building.name.toUpperCase(),
+                    colSpan: periodHeaders.length + 1,
+                    styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105], halign: 'left', cellPadding: 3 }
+                }]);
 
-    for (const building of safeBuildings) {
-        // Add a section header row for the Building
-        tableBody.push([{
-            content: building.name.toUpperCase(),
-            colSpan: periodHeaders.length + 1,
-            styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [71, 85, 105], halign: 'left', cellPadding: 3 }
-        }]);
+                const buildingRooms = safeRooms.filter(r => r.buildingId === building.id).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-        const buildingRooms = safeRooms.filter(r => r.buildingId === building.id).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                for (const room of buildingRooms) {
+                    const row: any[] = [room.name];
+                    const rowOccupiedSlots = new Set<number>();
 
-        for (const room of buildingRooms) {
-            const row: any[] = [room.name];
-            const rowOccupiedSlots = new Set<number>();
+                    for (let i = 0; i < displaySlots.length; i++) {
+                        const slot = displaySlots[i];
+                        const slotStartMinutes = timeToMinutes(slot.start);
+                        if (rowOccupiedSlots.has(slotStartMinutes)) continue;
 
-            for (let i = 0; i < displaySlots.length; i++) {
-                const slot = displaySlots[i];
-                const slotStartMinutes = timeToMinutes(slot.start);
+                        const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                        const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
 
-                if (rowOccupiedSlots.has(slotStartMinutes)) continue;
+                        const entries = (generatedTimetable || []).filter(e => {
+                            if (e.day !== day) return false;
+                            if (timeToMinutes(e.startTime) !== slotStartMinutes) return false;
+                            if (e.roomId === room.id) return true;
+                            if (!e.roomId) {
+                                const dedicatedId = subjectDedicatedRoomMap.get(e.subjectId);
+                                if (dedicatedId === room.id) return room.isShared === true;
+                            }
+                            return false;
+                        });
 
-                // Breaks are common to all, usually
-                const isBreak = breaks.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
-                const breakObj = breaks.find(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+                        if (isBreak) {
+                            const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                            row.push({
+                                content: breakText, colSpan: 1,
+                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
+                            });
+                        } else if (entries.length > 0) {
+                            const isBlock = entries.length > 1;
+                            const firstEntry = entries[0];
+                            const text = entries.map(e => {
+                                const s = getSubjectById(e.subjectId);
+                                const l = getLecturerById(e.lecturerId);
+                                return [s?.shortName || s?.code || 'N/A', l ? getInitials(l.name) : '-'].join(' ');
+                            }).join(isBlock ? ' / ' : '\n');
 
-                // Find entry in this room at this time on this day
-                // We strictly check for overrides first.
-                const entries = (generatedTimetable || []).filter(e => {
-                    if (e.day !== selectedDay) return false;
-                    if (timeToMinutes(e.startTime) !== slotStartMinutes) return false;
+                            const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
+                            const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
+                            for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
-                    // Resolve effective room
-                    // Priority 1: entry.roomId (Explicit Assignment) -> ALWAYS VALID
-                    if (e.roomId === room.id) return true;
-
-                    // Priority 2: Subject-level override (Dedicated Room) -> ONLY IF ROOM IS SHARED
-                    // "If the room is marked as shared any allocation can be done if not strictly assign the allocated only"
-                    if (!e.roomId) {
-                        const dedicatedId = subjectDedicatedRoomMap.get(e.subjectId);
-                        if (dedicatedId === room.id) {
-                            // If room is SHARED, we allow this implicit allocation.
-                            // If room is NOT shared, strict rules apply (must be explicitly assigned to be here).
-                            // This prevents dedicated rooms from auto-filling non-shared spaces unless explicitly set.
-                            return room.isShared === true;
+                            row.push({
+                                content: text, colSpan,
+                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'normal', fillColor: generatePastelColorRgb(firstEntry.subjectId) }
+                            });
+                            i += colSpan - 1;
+                        } else {
+                            row.push('');
                         }
                     }
-
-                    return false;
-                });
-
-                if (isBreak) {
-                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
-                    row.push({
-                        content: breakText,
-                        colSpan: 1,
-                        styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [150, 150, 150], cellPadding: 1 }
-                    });
-                } else if (entries.length > 0) {
-                    const isBlock = entries.length > 1;
-                    const firstEntry = entries[0];
-                    const text = entries.map(e => {
-                        const s = getSubjectById(e.subjectId);
-                        const l = getLecturerById(e.lecturerId);
-                        return [
-                            s?.shortName || s?.code || 'N/A',
-                            l ? getInitials(l.name) : '-'
-                        ].join(' ');
-                    }).join(isBlock ? ' / ' : '\n');
-
-                    const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
-                    const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
-
-                    for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
-
-                    row.push({
-                        content: text,
-                        colSpan,
-                        styles: {
-                            halign: 'center',
-                            valign: 'middle',
-                            fontSize: 6,
-                            fontStyle: 'normal',
-                            fillColor: generatePastelColorRgb(firstEntry.subjectId) // Reuse util or similar
-                        }
-                    });
-                    i += colSpan - 1;
-                } else {
-                    row.push('');
+                    tableBody.push(row);
                 }
             }
-            tableBody.push(row);
+
+            (doc as any).autoTable({
+                startY: yPos,
+                head: tableHead,
+                body: tableBody,
+                theme: 'grid',
+                styles: { fontSize: 6, cellPadding: 2, lineWidth: 0.1, overflow: 'linebreak', valign: 'middle', halign: 'center' },
+                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+                columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
+                pageBreak: 'avoid',
+                tableWidth: 'auto',
+                margin: { left: margin, right: margin }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 15;
+            if (preview) {
+                setupPdfFooter(doc, footerImg);
+                return doc.output('blob');
+            }
         }
+
+        setupPdfFooter(doc, footerImg);
+        return doc.output('blob');
+
+    } catch (error: any) {
+        console.error("Facility Grid PDF Error:", error);
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.setTextColor(255, 0, 0);
+        doc.text("ERROR GENERATING FACILITY PDF", margin, 40);
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text(error?.message || String(error), margin, 60);
+        return doc.output('blob');
     }
-
-    // Auto Table
-    (doc as any).autoTable({
-        startY: yPos,
-        head: tableHead,
-        body: tableBody,
-        theme: 'grid',
-        styles: {
-            fontSize: 6,
-            cellPadding: 2,
-            lineWidth: 0.1,
-            overflow: 'linebreak',
-            valign: 'middle',
-            halign: 'center'
-        },
-        headStyles: {
-            fillColor: [30, 41, 59],
-            textColor: 255,
-            fontStyle: 'bold',
-            fontSize: 7
-        },
-        columnStyles: {
-            0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' }
-        },
-        pageBreak: 'avoid',
-        tableWidth: 'auto',
-        margin: { left: margin, right: margin }
-    });
-
-    setupPdfFooter(doc, footerImg);
-    return doc.output('blob');
 };
