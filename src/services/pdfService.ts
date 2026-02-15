@@ -925,76 +925,74 @@ export const generateMasterCourseTimetablePdf = async (
         } else {
             // --- VERTICAL LAYOUT ---
 
-            // SUMMARY PAGE: Workload & Pathways
-            if (pageCount > 0) {
-                doc.addPage();
-                yPos = setupPdfHeader(doc, headerImg);
-            }
-            pageCount++;
+            // SUMMARY PAGE: Workload & Pathways (Only if multiple courses/levels)
+            const totalItems = courses.reduce((acc, c) => acc + (c.levels?.length || 0), 0);
 
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text("WORKLOAD & PATHWAYS SUMMARY", margin, yPos);
-            yPos += 10;
-
-            // 1. Calculate Workload Stats
-            const lecturerWorkload = new Map<string, { periods: number, subjects: Set<string> }>();
-            const gradeWorkload = new Map<string, number>();
-
-            (generatedTimetable || []).forEach(e => {
-                const lStat = lecturerWorkload.get(e.lecturerId) || { periods: 0, subjects: new Set() };
-                lStat.periods += 1;
-                lStat.subjects.add(e.subjectId);
-                lecturerWorkload.set(e.lecturerId, lStat);
-            });
-
-            // 2. Workload Table
-            const workloadBody = Array.from(lecturerWorkload.entries()).map(([id, stats]) => {
-                const l = getLecturerById(id);
-                return [
-                    l?.name || 'Unknown',
-                    stats.subjects.size,
-                    stats.periods
-                ];
-            }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-
-            (doc as any).autoTable({
-                startY: yPos,
-                head: [['Teacher / Lecturer', 'Unique Subjects', 'Total Periods']],
-                body: workloadBody,
-                theme: 'striped',
-                headStyles: { fillColor: [45, 55, 72] },
-                styles: { fontSize: 8 },
-                margin: { left: margin, right: margin }
-            });
-
-            yPos = (doc as any).lastAutoTable.finalY + 15;
-
-            // 3. Pathways / Grade Summary Table
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text("PATHWAYS / GRADE ALLOCATION", margin, yPos);
-            yPos += 7;
-
-            const pathwaysBody: any[] = [];
-            for (const course of (courses || [])) {
-                for (const level of (course.levels || [])) {
-                    const count = (generatedTimetable || []).filter(e => (level.subjectIds || []).includes(e.subjectId)).length;
-                    pathwaysBody.push([`${course.code} ${level.name}`, count]);
+            if (totalItems > 1) {
+                if (pageCount > 0) {
+                    doc.addPage();
+                    yPos = setupPdfHeader(doc, headerImg);
                 }
+                pageCount++;
+
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text("WORKLOAD & PATHWAYS SUMMARY", margin, yPos);
+                yPos += 10;
+
+                // 1. Calculate Workload Stats
+                const lecturerWorkload = new Map<string, { periods: number, subjects: Set<string> }>();
+                (generatedTimetable || []).forEach(e => {
+                    const lStat = lecturerWorkload.get(e.lecturerId) || { periods: 0, subjects: new Set() };
+                    lStat.periods += 1;
+                    lStat.subjects.add(e.subjectId);
+                    lecturerWorkload.set(e.lecturerId, lStat);
+                });
+
+                // 2. Workload Table
+                const workloadBody = Array.from(lecturerWorkload.entries()).map(([id, stats]) => {
+                    const l = getLecturerById(id);
+                    return [l?.name || 'Unknown', stats.subjects.size, stats.periods];
+                }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+                (doc as any).autoTable({
+                    startY: yPos,
+                    head: [['Teacher / Lecturer', 'Unique Subjects', 'Total Periods']],
+                    body: workloadBody,
+                    theme: 'striped',
+                    headStyles: { fillColor: [45, 55, 72] },
+                    styles: { fontSize: 8 },
+                    margin: { left: margin, right: margin }
+                });
+
+                yPos = (doc as any).lastAutoTable.finalY + 15;
+
+                // 3. Pathways / Grade Summary Table
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text("PATHWAYS / GRADE ALLOCATION", margin, yPos);
+                yPos += 7;
+
+                const pathwaysBody: any[] = [];
+                for (const course of (courses || [])) {
+                    for (const level of (course.levels || [])) {
+                        const count = (generatedTimetable || []).filter(e => (level.subjectIds || []).includes(e.subjectId)).length;
+                        pathwaysBody.push([`${course.code} ${level.name}`, count]);
+                    }
+                }
+
+                (doc as any).autoTable({
+                    startY: yPos,
+                    head: [['Grade / Pathway', 'Scheduled Periods']],
+                    body: pathwaysBody,
+                    theme: 'striped',
+                    headStyles: { fillColor: [30, 41, 59] },
+                    styles: { fontSize: 8 },
+                    margin: { left: margin, right: margin }
+                });
+
+                yPos = (doc as any).lastAutoTable.finalY + 20;
             }
-
-            (doc as any).autoTable({
-                startY: yPos,
-                head: [['Grade / Pathway', 'Scheduled Periods']],
-                body: pathwaysBody,
-                theme: 'striped',
-                headStyles: { fillColor: [30, 41, 59] },
-                styles: { fontSize: 8 },
-                margin: { left: margin, right: margin }
-            });
-
-            yPos = (doc as any).lastAutoTable.finalY + 20;
 
             // Proceed with Main Timetable Blocks
             for (const course of (courses || [])) {
