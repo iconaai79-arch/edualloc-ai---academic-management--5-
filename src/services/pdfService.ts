@@ -831,7 +831,7 @@ export const generateMasterCourseTimetablePdf = async (
         if (layoutMode === 'horizontal') {
             // --- HORIZONTAL / GRID LAYOUT ---
             for (const day of days) {
-                if (preview && pageCount > 0) break;
+                if (preview && doc.internal.getNumberOfPages() >= 2) break;
 
                 if (pageCount > 0) {
                     doc.addPage();
@@ -945,10 +945,6 @@ export const generateMasterCourseTimetablePdf = async (
                 });
 
                 yPos = (doc as any).lastAutoTable.finalY + 15;
-                if (preview) {
-                    setupPdfFooter(doc, footerImg);
-                    return doc.output('blob');
-                }
             }
         } else {
             // --- VERTICAL LAYOUT ---
@@ -958,7 +954,7 @@ export const generateMasterCourseTimetablePdf = async (
                 if (!course) continue;
                 for (const level of (course.levels || [])) {
                     if (!level) continue;
-                    if (preview && pageCount >= 3) break;
+                    if (preview && pageCount >= 1) break;
 
                     if (pageCount > 0) {
                         doc.addPage();
@@ -1129,12 +1125,12 @@ export const generateMasterCourseTimetablePdf = async (
                     yPos = (doc as any).lastAutoTable.finalY + 15;
                     // In Vertical/List mode, we want to show all classes for the first course at least, 
                     // or up to a few classes globally if multiple courses exist.
-                    if (preview && pageCount >= 3) {
+                    if (preview && pageCount >= 1) {
                         setupPdfFooter(doc, footerImg);
                         return doc.output('blob');
                     }
                 }
-                if (preview && pageCount >= 3) break;
+                if (preview && pageCount >= 1) break;
             }
         }
 
@@ -1434,7 +1430,7 @@ export const generateMasterFacilityGridPdf = async (
         // Determine which days to include. If it's a "Facility Grid" we might want all days like the Grade Map.
         // We'll loop through days to match Grade Map behavior if that's what's requested.
         for (const day of days) {
-            if (preview && pageCount > 0) break;
+            if (preview && doc.internal.getNumberOfPages() >= 2) break;
 
             if (pageCount > 0) {
                 doc.addPage();
@@ -1557,10 +1553,6 @@ export const generateMasterFacilityGridPdf = async (
             });
 
             yPos = (doc as any).lastAutoTable.finalY + 15;
-            if (preview) {
-                setupPdfFooter(doc, footerImg);
-                return doc.output('blob');
-            }
         }
 
         setupPdfFooter(doc, footerImg);
