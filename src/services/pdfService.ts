@@ -918,7 +918,7 @@ export const generateMasterCourseTimetablePdf = async (
                     pageBreak: 'avoid',
                     tableWidth: 'auto',
                     margin: { left: margin, right: margin },
-                    didDrawCell: (data: any) => {
+                    willDrawCell: (data: any) => {
                         const cell = data.cell;
                         const raw = cell.raw as any;
                         if (raw && raw.customColors && raw.customColors.length > 1) {
@@ -929,6 +929,13 @@ export const generateMasterCourseTimetablePdf = async (
                                 data.doc.setFillColor(r, g, b);
                                 data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
                             }
+                            cell.styles.fillColor = null; // Skip default background drawing
+                        }
+                    },
+                    didDrawCell: (data: any) => {
+                        const cell = data.cell;
+                        const raw = cell.raw as any;
+                        if (raw && raw.customColors && raw.customColors.length > 1) {
                             // Redraw the border to stay on top
                             data.doc.setDrawColor(200);
                             data.doc.setLineWidth(0.1);
@@ -1057,7 +1064,7 @@ export const generateMasterCourseTimetablePdf = async (
                                     let effectiveRoomId = e.roomId;
                                     if (!effectiveRoomId && subjMeta?.dedicatedRoomId) effectiveRoomId = subjMeta.dedicatedRoomId;
                                     const r = getRoomById(effectiveRoomId);
-                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join('\n ');
+                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join('\n');
                                 }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
@@ -1094,7 +1101,7 @@ export const generateMasterCourseTimetablePdf = async (
                         pageBreak: 'auto',
                         tableWidth: 'auto',
                         margin: { left: margin, right: margin },
-                        didDrawCell: (data: any) => {
+                        willDrawCell: (data: any) => {
                             const cell = data.cell;
                             const raw = cell.raw as any;
                             if (raw && raw.customColors && raw.customColors.length > 1) {
@@ -1105,6 +1112,13 @@ export const generateMasterCourseTimetablePdf = async (
                                     data.doc.setFillColor(r, g, b);
                                     data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
                                 }
+                                cell.styles.fillColor = null;
+                            }
+                        },
+                        didDrawCell: (data: any) => {
+                            const cell = data.cell;
+                            const raw = cell.raw as any;
+                            if (raw && raw.customColors && raw.customColors.length > 1) {
                                 data.doc.setDrawColor(200);
                                 data.doc.setLineWidth(0.1);
                                 data.doc.rect(cell.x, cell.y, cell.width, cell.height, 'S');
@@ -1517,7 +1531,7 @@ export const generateMasterFacilityGridPdf = async (
                 pageBreak: 'auto',
                 tableWidth: 'auto',
                 margin: { left: margin, right: margin },
-                didDrawCell: (data: any) => {
+                willDrawCell: (data: any) => {
                     const cell = data.cell;
                     const raw = cell.raw as any;
                     if (raw && raw.customColors && raw.customColors.length > 1) {
@@ -1528,6 +1542,13 @@ export const generateMasterFacilityGridPdf = async (
                             data.doc.setFillColor(r, g, b);
                             data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
                         }
+                        cell.styles.fillColor = null;
+                    }
+                },
+                didDrawCell: (data: any) => {
+                    const cell = data.cell;
+                    const raw = cell.raw as any;
+                    if (raw && raw.customColors && raw.customColors.length > 1) {
                         data.doc.setDrawColor(200);
                         data.doc.setLineWidth(0.1);
                         data.doc.rect(cell.x, cell.y, cell.width, cell.height, 'S');
