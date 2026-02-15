@@ -934,18 +934,41 @@ export const generateMasterCourseTimetablePdf = async (
                 head: tableHead,
                 body: tableBody,
                 theme: 'grid',
-                styles: { fontSize: 7, cellPadding: 1, lineWidth: 0.1, overflow: 'linebreak' },
-                headStyles: { fillColor: [45, 55, 72], textColor: 255 },
-                columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 245], cellWidth: 'auto' } },
+                styles: {
+                    fontSize: 6, // Reduced font size for better fit
+                    cellPadding: 2,
+                    lineWidth: 0.1,
+                    overflow: 'linebreak',
+                    valign: 'middle',
+                    halign: 'center'
+                },
+                headStyles: {
+                    fillColor: [30, 41, 59], // Darker, more professional blue-grey
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    fontSize: 7 // Slightly larger for headers
+                },
+                columnStyles: {
+                    0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } // Lighter grey for day column
+                },
                 pageBreak: 'avoid',
-                tableWidth: 'auto', // Ensure it uses available width respecting margins
+                tableWidth: 'auto',
                 margin: { left: margin, right: margin }
             });
 
             yPos = (doc as any).lastAutoTable.finalY + 15;
 
-            // If preview mode, break after the first level's timetable is generated
-            if (preview) return doc.output('blob');
+            // Strict Single Page Enforcement for Preview
+            if (preview) {
+                const totalPages = doc.internal.getNumberOfPages();
+                if (totalPages > 1) {
+                    // If autoTable created new pages, delete them and keep only the first one
+                    for (let i = totalPages; i > 1; i--) {
+                        doc.deletePage(i);
+                    }
+                }
+                return doc.output('blob');
+            }
         }
         // If preview mode, break after the first course (though the inner loop break handles it too)
         if (preview && pageCount > 0) break;
