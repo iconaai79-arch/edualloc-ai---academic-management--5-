@@ -798,6 +798,21 @@ export const generateMasterCourseTimetablePdf = async (
 
     let pageCount = 0;
 
+    // DEBUG: Check for missing data and render a debug page if necessary
+    if (!courses || courses.length === 0 || !days || days.length === 0) {
+        doc.addPage();
+        doc.setFontSize(20);
+        doc.setTextColor(255, 0, 0);
+        doc.text("DEBUG: NO DATA TO DISPLAY", margin, 40);
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text(`Courses Found: ${courses?.length || 0}`, margin, 60);
+        doc.text(`Days Configured: ${days?.length || 0}`, margin, 70);
+        doc.text(`Timetable Entries: ${generatedTimetable?.length || 0}`, margin, 80);
+        doc.text(`Layout Mode: ${layoutMode}`, margin, 90);
+        return doc.output('blob');
+    }
+
     if (layoutMode === 'horizontal') {
         // --- HORIZONTAL / GRID LAYOUT ---
         // One huge table per day or flowing.
