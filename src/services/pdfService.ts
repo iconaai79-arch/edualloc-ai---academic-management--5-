@@ -889,14 +889,15 @@ export const generateMasterCourseTimetablePdf = async (
                                     }
 
                                     const r = getRoomById(effectiveRoomId);
-                                    return [s?.shortName || s?.code || 'N/A', l ? getInitials(l.name) : '-', r?.name || ''].filter(Boolean).join(' ');
+                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join(' ');
                                 }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
-                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: generatePastelColorRgb(entries[0].subjectId) } });
+                                const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -916,7 +917,24 @@ export const generateMasterCourseTimetablePdf = async (
                     columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
                     pageBreak: 'avoid',
                     tableWidth: 'auto',
-                    margin: { left: margin, right: margin }
+                    margin: { left: margin, right: margin },
+                    didDrawCell: (data: any) => {
+                        const cell = data.cell;
+                        const raw = cell.raw as any;
+                        if (raw && raw.customColors && raw.customColors.length > 1) {
+                            const colors = raw.customColors;
+                            const stripeHeight = cell.height / colors.length;
+                            for (let k = 0; k < colors.length; k++) {
+                                const [r, g, b] = colors[k];
+                                data.doc.setFillColor(r, g, b);
+                                data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
+                            }
+                            // Redraw the border to stay on top
+                            data.doc.setDrawColor(200);
+                            data.doc.setLineWidth(0.1);
+                            data.doc.rect(cell.x, cell.y, cell.width, cell.height, 'S');
+                        }
+                    }
                 });
 
                 yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -1039,13 +1057,15 @@ export const generateMasterCourseTimetablePdf = async (
                                     let effectiveRoomId = e.roomId;
                                     if (!effectiveRoomId && subjMeta?.dedicatedRoomId) effectiveRoomId = subjMeta.dedicatedRoomId;
                                     const r = getRoomById(effectiveRoomId);
-                                    return [s?.shortName || s?.code || 'N/A', getInitials(l?.name || ''), r?.name || ''].filter(Boolean).join('\n');
+                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join('\n ');
                                 }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
-                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: generatePastelColorRgb(firstEntry.subjectId) } });
+
+                                const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1073,7 +1093,23 @@ export const generateMasterCourseTimetablePdf = async (
                         },
                         pageBreak: 'auto',
                         tableWidth: 'auto',
-                        margin: { left: margin, right: margin }
+                        margin: { left: margin, right: margin },
+                        didDrawCell: (data: any) => {
+                            const cell = data.cell;
+                            const raw = cell.raw as any;
+                            if (raw && raw.customColors && raw.customColors.length > 1) {
+                                const colors = raw.customColors;
+                                const stripeHeight = cell.height / colors.length;
+                                for (let k = 0; k < colors.length; k++) {
+                                    const [r, g, b] = colors[k];
+                                    data.doc.setFillColor(r, g, b);
+                                    data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
+                                }
+                                data.doc.setDrawColor(200);
+                                data.doc.setLineWidth(0.1);
+                                data.doc.rect(cell.x, cell.y, cell.width, cell.height, 'S');
+                            }
+                        }
                     });
 
                     yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -1449,17 +1485,17 @@ export const generateMasterFacilityGridPdf = async (
                             const firstEntry = entries[0];
                             const text = entries.map(e => {
                                 const s = getSubjectById(e.subjectId);
-                                const l = getLecturerById(e.lecturerId);
-                                return [s?.shortName || s?.code || 'N/A', l ? getInitials(l.name) : '-'].join(' ');
+                                return (s?.shortName || s?.code || 'N/A');
                             }).join('\n---\n');
 
                             const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
                             const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                             for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
+                            const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
                             row.push({
-                                content: text, colSpan,
-                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'normal', fillColor: generatePastelColorRgb(firstEntry.subjectId) }
+                                content: text, colSpan, customColors,
+                                styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'normal', fillColor: customColors[0] }
                             });
                             i += colSpan - 1;
                         } else {
@@ -1478,9 +1514,25 @@ export const generateMasterFacilityGridPdf = async (
                 styles: { fontSize: 6, cellPadding: 2, lineWidth: 0.1, overflow: 'linebreak', valign: 'middle', halign: 'center' },
                 headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
                 columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 'auto', halign: 'left' } },
-                pageBreak: 'avoid',
+                pageBreak: 'auto',
                 tableWidth: 'auto',
-                margin: { left: margin, right: margin }
+                margin: { left: margin, right: margin },
+                didDrawCell: (data: any) => {
+                    const cell = data.cell;
+                    const raw = cell.raw as any;
+                    if (raw && raw.customColors && raw.customColors.length > 1) {
+                        const colors = raw.customColors;
+                        const stripeHeight = cell.height / colors.length;
+                        for (let k = 0; k < colors.length; k++) {
+                            const [r, g, b] = colors[k];
+                            data.doc.setFillColor(r, g, b);
+                            data.doc.rect(cell.x, cell.y + (k * stripeHeight), cell.width, stripeHeight, 'F');
+                        }
+                        data.doc.setDrawColor(200);
+                        data.doc.setLineWidth(0.1);
+                        data.doc.rect(cell.x, cell.y, cell.width, cell.height, 'S');
+                    }
+                }
             });
 
             yPos = (doc as any).lastAutoTable.finalY + 15;
