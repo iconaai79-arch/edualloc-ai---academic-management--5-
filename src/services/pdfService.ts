@@ -2,7 +2,7 @@
 import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
-import { generatePastelColor } from '../utils/colorUtils';
+import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
 
 
@@ -907,7 +907,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
-                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: generatePastelColor(entries[0].subjectId) } });
+                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: generatePastelColorRgb(entries[0].subjectId) } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1024,7 +1024,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 const colSpan = Math.max(1, Math.round(maxDuration / cellSpanMinutes));
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
-                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: generatePastelColor(firstEntry.subjectId) } });
+                                row.push({ content: text, colSpan, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'normal', fillColor: generatePastelColorRgb(firstEntry.subjectId) } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1447,7 +1447,7 @@ export const generateMasterFacilityGridPdf = async (
                             valign: 'middle',
                             fontSize: 6,
                             fontStyle: 'normal',
-                            fillColor: generatePastelColor(firstEntry.subjectId) // Reuse util or similar
+                            fillColor: generatePastelColorRgb(firstEntry.subjectId) // Reuse util or similar
                         }
                     });
                     i += colSpan - 1;
