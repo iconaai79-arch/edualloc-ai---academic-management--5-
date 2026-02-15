@@ -768,7 +768,7 @@ export const generateMasterCourseTimetablePdf = async (
 ): Promise<Blob> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
-    const doc = new lib.jsPDF({ orientation: 'landscape' });
+    const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
     const [headerImg, footerImg] = await Promise.all([
         loadImage(letterheadConfig?.headerImageUrl),
         loadImage(footerImageUrl)
@@ -874,7 +874,26 @@ export const generateMasterCourseTimetablePdf = async (
                         const text = entries.map(e => {
                             const s = getSubjectById(e.subjectId);
                             const l = getLecturerById(e.lecturerId);
-                            const r = getRoomById(e.roomId);
+
+                            // STRICT ROOM LOOKUP LOGIC
+                            // 1. Check for specific subject metadata in this level
+                            const subjMeta = (level.subjectMetadata || []).find(m => m.subjectId === e.subjectId);
+                            // 2. Check for override
+                            // Note: Per-structure override (granular) is hard to match exactly to time slot without re-simulating allocation structure.
+                            // However, if a top-level dedicatedRoomId exists, we use it. 
+                            // If the user set granular rooms, they are stored in lessonStructure inside meta. 
+                            // Ideally, the generator should have set e.roomId. If e.roomId is "wrong", we assume the generator failed to pick up the override.
+                            // But for now, we prioritize the level-subject dedicated room if set.
+                            let effectiveRoomId = e.roomId;
+                            if (subjMeta?.dedicatedRoomId) {
+                                effectiveRoomId = subjMeta.dedicatedRoomId;
+                            }
+                            // If we want to support granular overrides, we'd need to know *which* lesson block this is. 
+                            // Since we lack that context here easily, we rely on the generator for granular, 
+                            // but force the global subject override if present.
+
+                            const r = getRoomById(effectiveRoomId);
+
                             return isBlock
                                 ? (s?.shortName || s?.code || 'N/A')
                                 : [
@@ -915,10 +934,11 @@ export const generateMasterCourseTimetablePdf = async (
                 head: tableHead,
                 body: tableBody,
                 theme: 'grid',
-                styles: { fontSize: 7, cellPadding: 1, lineWidth: 0.1 },
+                styles: { fontSize: 7, cellPadding: 1, lineWidth: 0.1, overflow: 'linebreak' },
                 headStyles: { fillColor: [45, 55, 72], textColor: 255 },
-                columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 245] } },
+                columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 245], cellWidth: 'auto' } },
                 pageBreak: 'avoid',
+                tableWidth: 'auto', // Ensure it uses available width respecting margins
                 margin: { left: margin, right: margin }
             });
 

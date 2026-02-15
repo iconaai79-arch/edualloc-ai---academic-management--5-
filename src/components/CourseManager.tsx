@@ -2051,14 +2051,27 @@ const SubjectStructureEditorModal = ({ course, level, subject, rooms, onClose, o
                             <label className="block text-[10px] font-black uppercase text-slate-400 ml-1">Lesson Structure</label>
                         </div>
                         {tempStructure.map((row, idx) => (
-                            <div key={idx} className="flex gap-3 items-end p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                <div className="flex-1">
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Pattern (e.g. 2 for Double)</label>
-                                    <input type="number" value={row.periods} min={1} onChange={e => updateRow(idx, 'periods', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" />
+                            <div key={idx} className="flex flex-wrap gap-3 items-end p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <div className="flex-1 min-w-[100px]">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Pattern</label>
+                                    <input type="number" value={row.periods} min={1} onChange={e => updateRow(idx, 'periods', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" placeholder="Periods" />
                                 </div>
-                                <div className="flex-1">
-                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Frequency (per week)</label>
-                                    <input type="number" value={row.count} min={1} onChange={e => updateRow(idx, 'count', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" />
+                                <div className="flex-1 min-w-[100px]">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Freq/Week</label>
+                                    <input type="number" value={row.count} min={1} onChange={e => updateRow(idx, 'count', parseInt(e.target.value))} className="form-input h-10 text-xs font-bold" placeholder="Count" />
+                                </div>
+                                <div className="flex-[2] min-w-[150px]">
+                                    <label className="block text-[9px] font-black uppercase text-slate-400 mb-1.5 ml-1">Room (Optional)</label>
+                                    <select
+                                        value={row.dedicatedRoomId || ''}
+                                        onChange={(e) => updateRow(idx, 'dedicatedRoomId', e.target.value || undefined)}
+                                        className="form-select h-10 text-[10px] font-bold"
+                                    >
+                                        <option value="">-- Default --</option>
+                                        {rooms.map(r => (
+                                            <option key={r.id} value={r.id}>{r.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <button onClick={() => removeRow(idx)} className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /></button>
                             </div>
