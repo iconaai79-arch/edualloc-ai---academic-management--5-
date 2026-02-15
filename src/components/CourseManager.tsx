@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings } from '../types';
-import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon } from './icons/index';
+import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon, TrashIcon } from './icons/index';
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
 

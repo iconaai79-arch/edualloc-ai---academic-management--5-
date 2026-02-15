@@ -174,9 +174,9 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 timetableSettings,
                 getSubjectById,
                 getLecturerById,
-                getRoomById
+                getRoomById, // Pass the room getter to resolve dedicated rooms
+                true // Preview mode: generate only first page
             );
-
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);
             onLogAction?.(`Generated and previewed ${viewModeTitles[viewMode]} PDF`);

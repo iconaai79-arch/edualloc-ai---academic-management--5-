@@ -763,7 +763,8 @@ export const generateMasterCourseTimetablePdf = async (
     timetableSettings: TimetableSettings,
     getSubjectById: (id: string) => Subject | undefined,
     getLecturerById: (id: string) => User | undefined,
-    getRoomById: (id: string) => Room | undefined
+    getRoomById: (id: string) => Room | undefined,
+    preview: boolean = false
 ): Promise<Blob> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -793,15 +794,26 @@ export const generateMasterCourseTimetablePdf = async (
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
     const breaks = timetableSettings?.breaks || [];
 
-    (courses || []).forEach((course) => {
-        if (!course) return;
-        (course.levels || []).forEach((level) => {
-            if (!level) return;
-            // Check if we need a new page
-            if (yPos > 170) {
+    let pageCount = 0;
+
+    for (const course of (courses || [])) {
+        if (!course) continue;
+        for (const level of (course.levels || [])) {
+            if (!level) continue;
+
+            // For preview, we only want the first page
+            if (preview && pageCount > 0) break;
+
+            // Check if we need a new page (except for the very first one which is already set up)
+            if (pageCount > 0 && yPos > 170) {
                 doc.addPage();
                 yPos = setupPdfHeader(doc, headerImg);
             }
+
+            // If strictly ensuring single page for preview, we might just stop if yPos is too high even on first page, 
+            // but usually we want at least one timetable. 
+            // The structure here is: one big PDF with many timetables flowing. 
+            // If preview is true, we break the outer loop after the first level is processed.
 
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
@@ -888,6 +900,8 @@ export const generateMasterCourseTimetablePdf = async (
                                 fillColor: getPastelRgb(firstEntry.subjectId)
                             }
                         });
+                        // Skip the next slots covered by colSpan
+                        // Note: The loop increment happens at end of loop, so we subtract 1
                         i += colSpan - 1;
                     } else {
                         row.push('');
@@ -896,7 +910,7 @@ export const generateMasterCourseTimetablePdf = async (
                 tableBody.push(row);
             });
 
-            doc.autoTable({
+            (doc as any).autoTable({
                 startY: yPos,
                 head: tableHead,
                 body: tableBody,
@@ -904,12 +918,18 @@ export const generateMasterCourseTimetablePdf = async (
                 styles: { fontSize: 7, cellPadding: 1, lineWidth: 0.1 },
                 headStyles: { fillColor: [45, 55, 72], textColor: 255 },
                 columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 245] } },
-                pageBreak: 'avoid'
+                pageBreak: 'avoid',
+                margin: { left: margin, right: margin }
             });
 
             yPos = (doc as any).lastAutoTable.finalY + 15;
-        });
-    });
+
+            // If preview mode, break after the first level's timetable is generated
+            if (preview) return doc.output('blob');
+        }
+        // If preview mode, break after the first course (though the inner loop break handles it too)
+        if (preview && pageCount > 0) break;
+    }
 
     setupPdfFooter(doc, footerImg);
     return doc.output('blob');
