@@ -184,7 +184,7 @@ export const WallPosterView: React.FC<WallPosterViewProps> = ({
 
                                     rowCells.push(
                                         <td key={primaryEntry.id} colSpan={colSpan} className="border-r border-slate-300 p-0 align-middle text-center print-color-force-cell">
-                                            <div className={`flex h-full ${isBlocked ? 'divide-x divide-slate-300' : ''}`}>
+                                            <div className={`flex flex-col h-full ${isBlocked ? 'divide-y divide-slate-300' : ''}`}>
                                                 {entries.map(entry => {
                                                     const subject = getSubject(entry.subjectId);
                                                     const bgColor = subject ? generatePastelColor(subject.id) : '#fff';
