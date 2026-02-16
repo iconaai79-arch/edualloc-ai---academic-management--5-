@@ -266,6 +266,13 @@ export const generateTimetable = async (
                - ROOM PRIORITY: Subject 'dedicatedRoomId' > Stream 'homeRoomId' > Global Room Allocation.
                - CONFLICTS: If a 'homeRoomId' is occupied by another group, fall back to any other available room with sufficient capacity, but flag this as a soft-preference violation.
 
+            8. LECTURER WORKLOAD FAIRNESS (CRITICAL & NON-NEGOTIABLE):
+               - SPREAD THE LOAD: You MUST NOT schedule all of a lecturer's lessons on a single day. This is a FATAL COMPLIANCE ERROR.
+               - MAX 3 PER DAY: Unless a lecturer has > 15 lessons/week, NEVER schedule more than 3 lessons for them on a single day.
+               - DISTRIBUTE EVENLY: If a teacher has 5 lessons, scheduling 5 on Monday is FORBIDDEN. You MUST schedule 1 per day (Mon-Fri).
+               - TEACHER FATIGUE (NO BACK-TO-BACK): Avoid scheduling more than 2 consecutive lessons for the same teacher. Insert a gap (free period) after every 2 consecutive lessons to allow for rest, unless it is a single 3-period block of the SAME subject.
+               - DAILY PRESENCE: If total lessons >= operating days, the teacher MUST have at least one slot every day.
+
             PLANNING STRATEGY:
             - Use a "First-Pass" to place high-priority/constrained subjects first.
             - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection. Do not always pick the earliest possible slot; distribute lessons across all available valid windows to create a balanced, non-linear feel.
