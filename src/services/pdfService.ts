@@ -1020,8 +1020,8 @@ export const generateMasterCourseTimetablePdf = async (
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-                    // Check space before starting timetable
-                    if (yPos > doc.internal.pageSize.getHeight() - 100) {
+                    // Check space before starting timetable (Relaxed check to allow fitting on same page)
+                    if (yPos > doc.internal.pageSize.getHeight() - 35) {
                         doc.addPage();
                         yPos = setupPdfHeader(doc, headerImg);
                     }
