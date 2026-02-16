@@ -1012,10 +1012,6 @@ export const generateMasterCourseTimetablePdf = async (
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-                    // START TIMETABLE ON A NEW PAGE
-                    doc.addPage();
-                    yPos = setupPdfHeader(doc, headerImg);
-
                     doc.setFontSize(14);
                     doc.setFont('helvetica', 'bold');
                     doc.text(`${course.name} (${course.code}) - ${level.name} (TIMETABLE)`, margin, yPos);
