@@ -1043,7 +1043,7 @@ export const generateMasterCourseTimetablePdf = async (
                             );
 
                             if (isBreak) {
-                                // Render break for every day (no rowSpan) to avoid layout issues
+                                // Render break for every day (rows separate but visually aligned)
                                 const breakText = (breakObj?.name || 'BREAK');
                                 row.push({
                                     content: breakText,
@@ -1055,9 +1055,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         fillColor: [240, 240, 240],
                                         fontStyle: 'bold',
                                         textColor: [100, 100, 100],
-                                        cellPadding: 1,
-                                        // Rotate text to fit narrow columns if needed, or keep horizontal if short
-                                        rotate: 90
+                                        cellPadding: 1
                                     }
                                 });
                             } else if (entries.length > 0) {
@@ -1065,12 +1063,8 @@ export const generateMasterCourseTimetablePdf = async (
                                 const firstEntry = entries[0];
                                 const text = entries.map(e => {
                                     const s = getSubjectById(e.subjectId);
-                                    const l = getLecturerById(e.lecturerId);
-                                    const subjMeta = (level.subjectMetadata || []).find(m => m.subjectId === e.subjectId);
-                                    let effectiveRoomId = e.roomId;
-                                    if (!effectiveRoomId && subjMeta?.dedicatedRoomId) effectiveRoomId = subjMeta.dedicatedRoomId;
-                                    const r = getRoomById(effectiveRoomId);
-                                    return [s?.shortName || s?.code || 'N/A', r?.name || ''].filter(Boolean).join('\n');
+                                    // Room info hidden for list layout as requested
+                                    return s?.shortName || s?.code || 'N/A';
                                 }).join('\n---\n');
 
                                 const maxDuration = Math.max(...entries.map(e => timeToMinutes(e.endTime) - timeToMinutes(e.startTime)));
@@ -1104,6 +1098,7 @@ export const generateMasterCourseTimetablePdf = async (
                         columnStyles: {
                             0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
+                        pageBreak: 'avoid',
                         margin: { left: margin, right: margin, bottom: 25 },
                         willDrawCell: (data: any) => {
                             const cell = data.cell;
