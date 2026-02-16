@@ -4,6 +4,25 @@ import ReactDOM from 'react-dom/client';
 import { App } from './components/App';
 import '../index.css';
 
+// Suppress specific Vercel branding/info logs that inject into the console
+if (typeof window !== 'undefined') {
+  const originalLog = console.log;
+  const originalInfo = console.info;
+  const suppressedKeywords = ['vercel.com/oss', 'vercel.com/careers', 'vercel-status.com'];
+
+  const filterLogs = (originalFn: any) => (...args: any[]) => {
+    const isSuppressed = args.some(arg =>
+      typeof arg === 'string' && suppressedKeywords.some(kw => arg.includes(kw))
+    );
+    if (!isSuppressed) {
+      originalFn(...args);
+    }
+  };
+
+  console.log = filterLogs(originalLog);
+  console.info = filterLogs(originalInfo);
+}
+
 class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: any) {
     super(props);
