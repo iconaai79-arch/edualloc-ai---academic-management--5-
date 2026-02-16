@@ -176,7 +176,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 getSubjectById,
                 getLecturerById,
                 getRoomById, // Pass the room getter to resolve dedicated rooms
-                true, // Preview mode: generate only first page
+                false, // Full document mode
                 layoutMode // Pass the current layout mode
             );
             const url = URL.createObjectURL(blob);
@@ -212,7 +212,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                 getLecturerById,
                 getCourseById,
                 courses || [], // Pass courses for strict room lookup
-                true // Preview mode
+                false // Full document mode
             );
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);
