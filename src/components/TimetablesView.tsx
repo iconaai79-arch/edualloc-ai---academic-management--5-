@@ -15,12 +15,14 @@ import {
     DocumentArrowDownIcon,
     UserIcon,
     RectangleStackIcon,
+    ArrowsRightLeftIcon,
     EyeIcon,
     XIcon
 } from './icons/index';
 import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf } from '../services/pdfService';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
+import { LecturerTimetableList } from './LecturerTimetableList';
 import { generatePastelColor } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
 
@@ -300,6 +302,22 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         </>
                     )}
                     {viewMode === 'lecturer_schedule' && (
+                        <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 h-11 items-center gap-1">
+                            <button
+                                onClick={() => setLayoutMode('horizontal')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                <ArrowsRightLeftIcon className="w-3.5 h-3.5" /> Grid
+                            </button>
+                            <button
+                                onClick={() => setLayoutMode('vertical')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'vertical' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                            >
+                                <RectangleStackIcon className="w-3.5 h-3.5" /> List
+                            </button>
+                        </div>
+                    )}
+                    {viewMode === 'lecturer_schedule' && (
                         <>
                             <select
                                 value={selectedLecturerId}
@@ -325,6 +343,20 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     )}
                     {viewMode === 'master_course' && (
                         <>
+                            <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 h-11 items-center gap-1">
+                                <button
+                                    onClick={() => setLayoutMode('horizontal')}
+                                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'horizontal' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    <ArrowsRightLeftIcon className="w-3.5 h-3.5" /> Grid
+                                </button>
+                                <button
+                                    onClick={() => setLayoutMode('vertical')}
+                                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${layoutMode === 'vertical' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    <RectangleStackIcon className="w-3.5 h-3.5" /> List
+                                </button>
+                            </div>
                             <select
                                 value={selectedCourseForMasterView}
                                 onChange={e => setSelectedCourseForMasterView(e.target.value)}
@@ -469,15 +501,26 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             <h3 className="text-xl font-black uppercase tracking-tighter">{viewModeTitles[viewMode]}</h3>
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-x-auto">
-                            <TimetableGrid
-                                entries={filteredEntries || []}
-                                getSubjectById={getSubjectById}
-                                getLecturerById={getLecturerById}
-                                getRoomById={getRoomById}
-                                timetableSettings={timetableSettings}
-                                onMoveLesson={onMoveTimetableEntry}
-                                isEditable={!!onMoveTimetableEntry}
-                            />
+                            {viewMode === 'lecturer_schedule' && layoutMode === 'vertical' ? (
+                                <LecturerTimetableList
+                                    entries={filteredEntries || []}
+                                    getSubjectById={getSubjectById}
+                                    getLecturerById={getLecturerById}
+                                    getRoomById={getRoomById}
+                                    courses={courses || []}
+                                    timetableSettings={timetableSettings}
+                                />
+                            ) : (
+                                <TimetableGrid
+                                    entries={filteredEntries || []}
+                                    getSubjectById={getSubjectById}
+                                    getLecturerById={getLecturerById}
+                                    getRoomById={getRoomById}
+                                    timetableSettings={timetableSettings}
+                                    onMoveLesson={onMoveTimetableEntry}
+                                    isEditable={!!onMoveTimetableEntry}
+                                />
+                            )}
                         </div>
                     </div>
                 )}
