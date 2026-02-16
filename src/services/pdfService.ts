@@ -1006,15 +1006,17 @@ export const generateMasterCourseTimetablePdf = async (
                         body: workloadBody,
                         theme: 'striped',
                         headStyles: { fillColor: [45, 55, 72] },
-                        styles: { fontSize: 6.5, cellPadding: 1.5 },
+                        styles: { fontSize: 7, cellPadding: 1.5 },
                         margin: { left: margin, right: margin, bottom: 25 }
                     });
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-                    // FORCE PAGE BREAK FOR TIMETABLE (REQUIREMENT: 2 PAGES PER CLASS)
-                    doc.addPage();
-                    yPos = setupPdfHeader(doc, headerImg);
+                    // Check space before starting timetable
+                    if (yPos > doc.internal.pageSize.getHeight() - 100) {
+                        doc.addPage();
+                        yPos = setupPdfHeader(doc, headerImg);
+                    }
 
                     doc.setFontSize(14);
                     doc.setFont('helvetica', 'bold');
@@ -1047,7 +1049,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         content: breakText,
                                         colSpan: 1,
                                         rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 0.5 }
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 8, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
                                     });
                                 }
                             } else if (entries.length > 0) {
@@ -1068,7 +1070,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
-                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 5, fontStyle: 'bold', fillColor: customColors[0] } });
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'bold', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1083,18 +1085,17 @@ export const generateMasterCourseTimetablePdf = async (
                         body: tableBody,
                         theme: 'grid',
                         styles: {
-                            fontSize: 5,
-                            cellPadding: 0.5,
+                            fontSize: 7,
+                            cellPadding: 1.5,
                             lineWidth: 0.1,
                             overflow: 'linebreak',
                             valign: 'middle',
                             halign: 'center'
                         },
-                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6 },
+                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
                         columnStyles: {
                             0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
-                        tableWidth: 'wrap',
                         margin: { left: margin, right: margin, bottom: 25 },
                         willDrawCell: (data: any) => {
                             const cell = data.cell;
