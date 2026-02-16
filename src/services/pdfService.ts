@@ -1653,18 +1653,19 @@ export const generateLecturerTimetablePdf = async (
                 ['Distinct Subjects', workloadStats.subjects.toString()]
             ];
 
+            // Workload Summary - Compact
             (doc as any).autoTable({
                 startY: yPos,
                 head: [['Metric', 'Value']],
                 body: workloadBody,
                 theme: 'striped',
-                headStyles: { fillColor: [45, 55, 72] },
-                styles: { fontSize: 8, cellPadding: 2 },
-                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 30 } },
+                headStyles: { fillColor: [45, 55, 72], fontSize: 7, fontStyle: 'bold' },
+                styles: { fontSize: 7, cellPadding: 1 },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 }, 1: { cellWidth: 20 } },
                 margin: { left: margin, right: margin }
             });
 
-            yPos = (doc as any).lastAutoTable.finalY + 10;
+            yPos = (doc as any).lastAutoTable.finalY + 5; // Reduced gap
 
             const tableHead = [['Time', ...days]];
             const tableBodyRows: any[] = [];
@@ -1702,8 +1703,8 @@ export const generateLecturerTimetablePdf = async (
                             ].filter(Boolean).join('\n');
 
                             const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
-                            const colSpan = 1; // Simplification: assume 1 slot for now or hand-wave rowSpan logic for this specific PDF 
-                            // Creating rowSpan in simple autoTime loop is complex without pre-processing. 
+                            const colSpan = 1; // Simplification: assume 1 slot for now or hand-wave rowSpan logic for this specific PDF
+                            // Creating rowSpan in simple autoTime loop is complex without pre-processing.
                             // For this "Preview", we list it in the starting slot.
 
                             row.push({
@@ -1712,8 +1713,9 @@ export const generateLecturerTimetablePdf = async (
                                     fillColor: generatePastelColorRgb(entry.subjectId),
                                     halign: 'center',
                                     valign: 'middle',
-                                    fontSize: 7,
-                                    fontStyle: 'bold'
+                                    fontSize: 6, // Reduced from 7
+                                    fontStyle: 'bold',
+                                    cellPadding: 0.5 // Reduced padding
                                 }
                             });
                         } else {
@@ -1729,10 +1731,10 @@ export const generateLecturerTimetablePdf = async (
                 head: tableHead,
                 body: tableBodyRows,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
-                styles: { fontSize: 8, cellPadding: 1, overflow: 'linebreak', valign: 'middle' },
-                columnStyles: { 0: { cellWidth: 25, fontStyle: 'bold', fillColor: [248, 250, 252] } },
-                margin: { left: margin, right: margin, bottom: 25 },
+                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7, halign: 'center' }, // Reduced from 8
+                styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak', valign: 'middle' }, // Reduced from 8
+                columnStyles: { 0: { cellWidth: 20, fontStyle: 'bold', fillColor: [248, 250, 252] } }, // Reduced width
+                margin: { left: margin, right: margin, bottom: 15 },
                 pageBreak: 'avoid'
             });
         }
