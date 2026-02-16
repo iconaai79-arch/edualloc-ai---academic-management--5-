@@ -771,7 +771,7 @@ export const generateMasterCourseTimetablePdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({
-        orientation: layoutMode === 'vertical' ? 'portrait' : 'landscape',
+        orientation: 'landscape',
         format: 'a4'
     });
     const margin = 14;
@@ -1047,7 +1047,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         content: breakText,
                                         colSpan: 1,
                                         rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 6, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 0.5 }
                                     });
                                 }
                             } else if (entries.length > 0) {
@@ -1068,7 +1068,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
-                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'bold', fillColor: customColors[0] } });
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 5, fontStyle: 'bold', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1083,14 +1083,14 @@ export const generateMasterCourseTimetablePdf = async (
                         body: tableBody,
                         theme: 'grid',
                         styles: {
-                            fontSize: 6,
-                            cellPadding: 1,
+                            fontSize: 5,
+                            cellPadding: 0.5,
                             lineWidth: 0.1,
                             overflow: 'linebreak',
                             valign: 'middle',
                             halign: 'center'
                         },
-                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+                        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 6 },
                         columnStyles: {
                             0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
