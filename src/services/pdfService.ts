@@ -996,7 +996,15 @@ export const generateMasterCourseTimetablePdf = async (
 
                     const workloadBody = Array.from(classLecturerWorkload.entries()).map(([id, stats]) => {
                         const l = getLecturerById(id);
-                        const subjNames = Array.from(stats.subjects).map(sid => getSubjectById(sid)?.shortName || 'Unknown').join(', ');
+                        const subjNames = Array.from(stats.subjects).map(sid => {
+                            const s = getSubjectById(sid);
+                            // Find metadata for this subject in this level to get dedicated room
+                            const subjMeta = (level.subjectMetadata || []).find(m => m.subjectId === sid);
+                            const roomId = subjMeta?.dedicatedRoomId;
+                            const r = roomId ? getRoomById(roomId) : undefined;
+                            const roomText = r ? ` (${r.name})` : '';
+                            return (s?.shortName || s?.code || 'Unknown') + roomText;
+                        }).join(', ');
                         return [l?.name || 'Unknown', subjNames, stats.periods];
                     }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
