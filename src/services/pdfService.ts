@@ -1021,7 +1021,7 @@ export const generateMasterCourseTimetablePdf = async (
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
                     // Check space before starting timetable (Relaxed check to allow fitting on same page)
-                    if (yPos > doc.internal.pageSize.getHeight() - 35) {
+                    if (yPos > doc.internal.pageSize.getHeight() - 20) {
                         doc.addPage();
                         yPos = setupPdfHeader(doc, headerImg);
                     }
@@ -1051,21 +1051,26 @@ export const generateMasterCourseTimetablePdf = async (
                             );
 
                             if (isBreak) {
-                                // Render break for every day (rows separate but visually aligned)
-                                const breakText = (breakObj?.name || 'BREAK');
-                                row.push({
-                                    content: breakText,
-                                    colSpan: 1,
-                                    styles: {
-                                        halign: 'center',
-                                        valign: 'middle',
-                                        fontSize: 6,
-                                        fillColor: [240, 240, 240],
-                                        fontStyle: 'bold',
-                                        textColor: [100, 100, 100],
-                                        cellPadding: 1
-                                    }
-                                });
+                                if (dIndex === 0) {
+                                    // Use rowSpan to create a single vertical break column across all days
+                                    // Vertical text layout
+                                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
+                                    row.push({
+                                        content: breakText,
+                                        colSpan: 1,
+                                        rowSpan: days.length,
+                                        styles: {
+                                            halign: 'center',
+                                            valign: 'middle',
+                                            fontSize: 6,
+                                            fillColor: [240, 240, 240],
+                                            fontStyle: 'bold',
+                                            textColor: [100, 100, 100],
+                                            cellPadding: 1
+                                        }
+                                    });
+                                }
+                                // For other days, we don't push anything because rowSpan covers it
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const firstEntry = entries[0];
