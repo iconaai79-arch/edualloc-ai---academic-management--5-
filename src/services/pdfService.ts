@@ -1043,7 +1043,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         content: breakText,
                                         colSpan: 1,
                                         rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 10, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 2 }
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 8, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
                                     });
                                 }
                             } else if (entries.length > 0) {
@@ -1090,8 +1090,8 @@ export const generateMasterCourseTimetablePdf = async (
                         columnStyles: {
                             0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
-                        pageBreak: 'auto',
-                        tableWidth: 'auto',
+                        pageBreak: 'avoid',
+                        tableWidth: 'wrap',
                         margin: { left: margin, right: margin, bottom: 25 },
                         willDrawCell: (data: any) => {
                             const cell = data.cell;
