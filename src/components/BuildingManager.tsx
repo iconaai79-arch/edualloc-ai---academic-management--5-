@@ -17,7 +17,8 @@ import {
     ArrowUpTrayIcon,
     SparklesIcon,
     DocumentArrowDownIcon,
-    MapPinIcon
+    MapPinIcon,
+    UsersIcon
 } from './icons/index';
 import { findLocationCoordinates } from '../services/geminiService';
 import { SmartRoomImporterModal } from './SmartRoomImporterModal';
@@ -456,7 +457,7 @@ const AddRoomForm: React.FC<{
                 status: 'active',
                 equipment: equipment.split(',').map(e => e.trim()).filter(Boolean),
                 isShared,
-                concurrentSessions: isShared ? (parseInt(concurrentSessions, 10) || 1) : undefined,
+                concurrentSessions: isShared ? Math.max(1, parseInt(concurrentSessions, 10) || 1) : undefined,
             });
             onCancel();
         }
@@ -837,6 +838,33 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                                                 <input type="number" step="any" value={editRoomData.location?.latitude || ''} onChange={e => setEditRoomData({ ...editRoomData, location: { latitude: parseFloat(e.target.value) || 0, longitude: editRoomData.location?.longitude || 0 } })} className="form-input py-1 text-xs" placeholder="Lat" />
                                                                 <input type="number" step="any" value={editRoomData.location?.longitude || ''} onChange={e => setEditRoomData({ ...editRoomData, location: { latitude: editRoomData.location?.latitude || 0, longitude: parseFloat(e.target.value) || 0 } })} className="form-input py-1 text-xs" placeholder="Lon" />
                                                             </div>
+                                                            <div className="flex items-center gap-3 py-1">
+                                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={editRoomData.isShared || false}
+                                                                        onChange={e => setEditRoomData({
+                                                                            ...editRoomData,
+                                                                            isShared: e.target.checked,
+                                                                            concurrentSessions: e.target.checked ? (editRoomData.concurrentSessions || 1) : undefined
+                                                                        })}
+                                                                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                                    />
+                                                                    <span className="text-[10px] font-bold uppercase text-slate-500">Shared</span>
+                                                                </label>
+                                                                {editRoomData.isShared && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-[10px] text-slate-400">Limit:</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editRoomData.concurrentSessions || 1}
+                                                                            onChange={e => setEditRoomData({ ...editRoomData, concurrentSessions: Math.max(1, parseInt(e.target.value) || 1) })}
+                                                                            className="form-input py-0.5 px-2 text-xs w-12 font-bold text-center"
+                                                                            min="1"
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                             <div className="flex gap-2 pt-2">
                                                                 <button onClick={handleSaveRoomEdit} className="btn-primary flex-1 py-1 px-4 text-xs font-black">Save</button>
                                                                 <button onClick={() => setEditingRoomId(null)} className="btn-secondary flex-1 py-1 px-4 text-xs font-black">Cancel</button>
@@ -849,6 +877,12 @@ export const BuildingManager: React.FC<BuildingManagerProps> = ({ buildings = []
                                                                 <span className="text-[10px] font-mono font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded shadow-sm border text-indigo-500 uppercase">{room.shortName}</span>
                                                             </div>
                                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity: <span className="text-slate-900 dark:text-white">{room.capacity} Units</span></p>
+                                                            {room.isShared && (
+                                                                <div className="flex items-center gap-1 mb-1">
+                                                                    <UsersIcon className="w-3 h-3 text-indigo-500" />
+                                                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Shared (Max: {room.concurrentSessions || 1})</span>
+                                                                </div>
+                                                            )}
                                                             {room.location && (
                                                                 <p className="text-[9px] font-mono text-slate-400 truncate mb-6">Loc: {room.location.latitude.toFixed(4)}, {room.location.longitude.toFixed(4)}</p>
                                                             )}

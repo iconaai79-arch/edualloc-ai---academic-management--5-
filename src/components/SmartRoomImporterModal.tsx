@@ -111,7 +111,8 @@ export const SmartRoomImporterModal: React.FC<SmartRoomImporterModalProps> = ({
                     capacity: parseInt(capacity, 10) || 0,
                     buildingId: bId,
                     status: 'active',
-                    equipment: String(equipment).split(',').map(e => e.trim()).filter(Boolean)
+                    equipment: String(equipment).split(',').map(e => e.trim()).filter(Boolean),
+                    isShared: false,
                 });
 
             } catch (e: any) {
