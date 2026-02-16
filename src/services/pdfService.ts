@@ -1043,15 +1043,23 @@ export const generateMasterCourseTimetablePdf = async (
                             );
 
                             if (isBreak) {
-                                if (dIndex === 0) {
-                                    const breakText = (breakObj?.name || 'BREAK').split('').join('\n');
-                                    row.push({
-                                        content: breakText,
-                                        colSpan: 1,
-                                        rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 8, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
-                                    });
-                                }
+                                // Render break for every day (no rowSpan) to avoid layout issues
+                                const breakText = (breakObj?.name || 'BREAK');
+                                row.push({
+                                    content: breakText,
+                                    colSpan: 1,
+                                    styles: {
+                                        halign: 'center',
+                                        valign: 'middle',
+                                        fontSize: 6,
+                                        fillColor: [240, 240, 240],
+                                        fontStyle: 'bold',
+                                        textColor: [100, 100, 100],
+                                        cellPadding: 1,
+                                        // Rotate text to fit narrow columns if needed, or keep horizontal if short
+                                        rotate: 90
+                                    }
+                                });
                             } else if (entries.length > 0) {
                                 const isBlock = entries.length > 1;
                                 const firstEntry = entries[0];
