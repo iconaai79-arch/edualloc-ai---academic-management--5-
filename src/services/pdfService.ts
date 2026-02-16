@@ -1012,6 +1012,12 @@ export const generateMasterCourseTimetablePdf = async (
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
+                    // Check if we have enough space for the timetable, otherwise start a new page
+                    if (yPos > 100) {
+                        doc.addPage();
+                        yPos = setupPdfHeader(doc, headerImg);
+                    }
+
                     doc.setFontSize(14);
                     doc.setFont('helvetica', 'bold');
                     doc.text(`${course.name} (${course.code}) - ${level.name} (TIMETABLE)`, margin, yPos);
@@ -1043,7 +1049,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         content: breakText,
                                         colSpan: 1,
                                         rowSpan: days.length,
-                                        styles: { halign: 'center', valign: 'middle', fontSize: 8, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
+                                        styles: { halign: 'center', valign: 'middle', fontSize: 7, fillColor: [240, 240, 240], fontStyle: 'bold', textColor: [100, 100, 100], cellPadding: 1 }
                                     });
                                 }
                             } else if (entries.length > 0) {
@@ -1064,7 +1070,7 @@ export const generateMasterCourseTimetablePdf = async (
                                 for (let k = 0; k < colSpan; k++) rowOccupiedSlots.add(slotStartMinutes + (k * cellSpanMinutes));
 
                                 const customColors = entries.map(e => generatePastelColorRgb(e.subjectId));
-                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 7, fontStyle: 'bold', fillColor: customColors[0] } });
+                                row.push({ content: text, colSpan, customColors, styles: { halign: 'center', valign: 'middle', fontSize: 6, fontStyle: 'bold', fillColor: customColors[0] } });
                                 i += colSpan - 1;
                             } else {
                                 row.push('');
@@ -1079,8 +1085,8 @@ export const generateMasterCourseTimetablePdf = async (
                         body: tableBody,
                         theme: 'grid',
                         styles: {
-                            fontSize: 6.5,
-                            cellPadding: 1.5,
+                            fontSize: 6,
+                            cellPadding: 1,
                             lineWidth: 0.1,
                             overflow: 'linebreak',
                             valign: 'middle',
