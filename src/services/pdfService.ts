@@ -1012,11 +1012,9 @@ export const generateMasterCourseTimetablePdf = async (
 
                     yPos = (doc as any).lastAutoTable.finalY + 10;
 
-                    // Check if we have enough space for the timetable, otherwise start a new page
-                    if (yPos > 100) {
-                        doc.addPage();
-                        yPos = setupPdfHeader(doc, headerImg);
-                    }
+                    // FORCE PAGE BREAK FOR TIMETABLE (REQUIREMENT: 2 PAGES PER CLASS)
+                    doc.addPage();
+                    yPos = setupPdfHeader(doc, headerImg);
 
                     doc.setFontSize(14);
                     doc.setFont('helvetica', 'bold');
