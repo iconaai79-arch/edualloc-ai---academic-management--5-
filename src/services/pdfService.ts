@@ -1062,7 +1062,7 @@ export const generateMasterCourseTimetablePdf = async (
                                         styles: {
                                             halign: 'center',
                                             valign: 'middle',
-                                            fontSize: 6,
+                                            fontSize: 8,
                                             fillColor: [240, 240, 240],
                                             fontStyle: 'bold',
                                             textColor: [100, 100, 100],
