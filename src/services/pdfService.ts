@@ -771,7 +771,7 @@ export const generateMasterCourseTimetablePdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({
-        orientation: 'landscape',
+        orientation: layoutMode === 'vertical' ? 'portrait' : 'landscape',
         format: 'a4'
     });
     const margin = 14;
@@ -1094,7 +1094,6 @@ export const generateMasterCourseTimetablePdf = async (
                         columnStyles: {
                             0: { fontStyle: 'bold', fillColor: [248, 250, 252], cellWidth: 20, halign: 'left' }
                         },
-                        pageBreak: 'avoid',
                         tableWidth: 'wrap',
                         margin: { left: margin, right: margin, bottom: 25 },
                         willDrawCell: (data: any) => {
