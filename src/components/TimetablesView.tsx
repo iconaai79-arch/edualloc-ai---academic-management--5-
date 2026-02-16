@@ -18,7 +18,7 @@ import {
     EyeIcon,
     XIcon
 } from './icons/index';
-import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf } from '../services/pdfService';
+import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf } from '../services/pdfService';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
 import { generatePastelColor } from '../utils/colorUtils';
@@ -140,6 +140,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const filteredEntries = useMemo(() => {
         const list = Array.isArray(generatedTimetable) ? generatedTimetable : [];
         if (viewMode === 'lecturer_schedule') {
+            if (selectedLecturerId === 'all') return list; // Return all for "All" view (though grid handles single)
             return selectedLecturerId ? list.filter(e => e && e.lecturerId === selectedLecturerId) : [];
         }
         return list;
@@ -158,27 +159,53 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         if (!generatedTimetable || generatedTimetable.length === 0) return;
         setIsGeneratingPdf(true);
         try {
-            const coursesToInclude = selectedCourseForMasterView === 'all'
-                ? (courses || [])
-                : (courses || []).filter(c => c && c.id === selectedCourseForMasterView);
+            let blob: Blob;
 
-            const blob = await generateMasterCourseTimetablePdf(
-                generatedTimetable,
-                coursesToInclude,
-                viewModeTitles['master_course'],
-                "",
-                letterheadConfig,
-                footerImageUrl,
-                logoUrl,
-                activeAcademicYear?.name || 'Academic Period',
-                activeSemester?.name || '',
-                timetableSettings,
-                getSubjectById,
-                getLecturerById,
-                getRoomById, // Pass the room getter to resolve dedicated rooms
-                false, // Full document mode
-                layoutMode // Pass the current layout mode
-            );
+            if (viewMode === 'lecturer_schedule') {
+                const targetLecturers = selectedLecturerId === 'all'
+                    ? filteredLecturers
+                    : filteredLecturers.filter(l => l.id === selectedLecturerId);
+
+                blob = await generateLecturerTimetablePdf(
+                    generatedTimetable,
+                    targetLecturers,
+                    viewModeTitles['lecturer_schedule'],
+                    "",
+                    letterheadConfig,
+                    footerImageUrl,
+                    logoUrl,
+                    activeAcademicYear?.name || 'Academic Period',
+                    activeSemester?.name || '',
+                    timetableSettings,
+                    getSubjectById,
+                    getRoomById,
+                    courses || [],
+                    false
+                );
+            } else {
+                const coursesToInclude = selectedCourseForMasterView === 'all'
+                    ? (courses || [])
+                    : (courses || []).filter(c => c && c.id === selectedCourseForMasterView);
+
+                blob = await generateMasterCourseTimetablePdf(
+                    generatedTimetable,
+                    coursesToInclude,
+                    viewModeTitles['master_course'],
+                    "",
+                    letterheadConfig,
+                    footerImageUrl,
+                    logoUrl,
+                    activeAcademicYear?.name || 'Academic Period',
+                    activeSemester?.name || '',
+                    timetableSettings,
+                    getSubjectById,
+                    getLecturerById,
+                    getRoomById, // Pass the room getter to resolve dedicated rooms
+                    false, // Full document mode
+                    layoutMode // Pass the current layout mode
+                );
+            }
+
             const url = URL.createObjectURL(blob);
             setPreviewPdfUrl(url);
             onLogAction?.(`Generated and previewed ${viewModeTitles[viewMode]} PDF`);
@@ -273,16 +300,28 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                         </>
                     )}
                     {viewMode === 'lecturer_schedule' && (
-                        <select
-                            value={selectedLecturerId}
-                            onChange={e => setSelectedLecturerId(e.target.value)}
-                            className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
-                        >
-                            <option value="">Select {staffLabel}...</option>
-                            {filteredLecturers.map(l => (
-                                <option key={l.id} value={l.id}>{l.name}</option>
-                            ))}
-                        </select>
+                        <>
+                            <select
+                                value={selectedLecturerId}
+                                onChange={e => setSelectedLecturerId(e.target.value)}
+                                className="form-select text-[10px] font-black uppercase tracking-widest h-11 lg:w-48"
+                            >
+                                <option value="">Select individual...</option>
+                                <option value="all">All {staffLabel}s</option>
+                                {filteredLecturers.map(l => (
+                                    <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                            </select>
+                            {selectedLecturerId === 'all' && (
+                                <button
+                                    onClick={handleDownloadPdf}
+                                    disabled={isGeneratingPdf}
+                                    className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm border border-indigo-100 disabled:opacity-50"
+                                >
+                                    <EyeIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Compiling...' : 'All PDF'}
+                                </button>
+                            )}
+                        </>
                     )}
                     {viewMode === 'master_course' && (
                         <>

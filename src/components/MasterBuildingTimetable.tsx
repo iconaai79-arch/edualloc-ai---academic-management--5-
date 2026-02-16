@@ -47,6 +47,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
     const safeRooms = Array.isArray(rooms) ? rooms.filter(Boolean) : [];
 
     const [buildingFilter, setBuildingFilter] = useState('all');
+    const [roomFilter, setRoomFilter] = useState('all');
     const [expandedBuildingIds, setExpandedBuildingIds] = useState<Set<string>>(() => new Set(safeBuildings.map(b => b.id)));
 
     const daysOfWeek = timetableSettings?.operatingDays || [];
@@ -59,6 +60,22 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
         }
         return safeBuildings.filter(b => b.id === buildingFilter);
     }, [safeBuildings, buildingFilter]);
+
+    const filteredRoomsForDropdown = useMemo(() => {
+        if (buildingFilter === 'all') return safeRooms;
+        return safeRooms.filter(r => r.buildingId === buildingFilter);
+    }, [safeRooms, buildingFilter]);
+
+    const roomsToDisplay = useMemo(() => {
+        let rooms = safeRooms;
+        if (buildingFilter !== 'all') {
+            rooms = rooms.filter(r => r.buildingId === buildingFilter);
+        }
+        if (roomFilter !== 'all') {
+            rooms = rooms.filter(r => r.id === roomFilter);
+        }
+        return rooms;
+    }, [safeRooms, buildingFilter, roomFilter]);
 
     const getCellEntries = (roomId: string, day: string, period: { startTime: string; endTime: string; }) => {
         const periodStartMinutes = timeToMinutes(period.startTime);
@@ -89,8 +106,6 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
         const totalAvailableWeeklyHours = operatingHoursPerDay * operatingDays.length;
         if (totalAvailableWeeklyHours <= 0) return [];
 
-        const roomsToDisplay = buildingFilter === 'all' ? safeRooms : safeRooms.filter(r => r.buildingId === buildingFilter);
-
         return roomsToDisplay.map(room => {
             const totalOccupiedMinutes = (Array.isArray(generatedTimetable) ? generatedTimetable : [])
                 .filter(entry => entry && entry.roomId === room.id)
@@ -101,11 +116,11 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
 
             return { room, totalOccupiedHours, utilizationPercentage };
         }).sort((a, b) => b.utilizationPercentage - a.utilizationPercentage);
-    }, [buildingFilter, safeRooms, generatedTimetable, timetableSettings]);
+    }, [roomsToDisplay, generatedTimetable, timetableSettings]);
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-end mb-4 no-print">
+            <div className="flex justify-end mb-4 no-print gap-4">
                 <div className="w-full sm:w-64">
                     <label htmlFor="building-filter-master" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                         Filter by Building
@@ -113,11 +128,28 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                     <select
                         id="building-filter-master"
                         value={buildingFilter}
-                        onChange={e => setBuildingFilter(e.target.value)}
+                        onChange={e => {
+                            setBuildingFilter(e.target.value);
+                            setRoomFilter('all'); // Reset room filter when building changes
+                        }}
                         className="mt-1 form-select w-full"
                     >
                         <option value="all">All Buildings</option>
                         {safeBuildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                </div>
+                <div className="w-full sm:w-64">
+                    <label htmlFor="room-filter-master" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Filter by Facility
+                    </label>
+                    <select
+                        id="room-filter-master"
+                        value={roomFilter}
+                        onChange={e => setRoomFilter(e.target.value)}
+                        className="mt-1 form-select w-full"
+                    >
+                        <option value="all">All Facilities</option>
+                        {filteredRoomsForDropdown.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -143,7 +175,7 @@ export const MasterBuildingTimetable: React.FC<MasterBuildingTimetableProps> = (
                         <tbody>
                             {filteredBuildings.flatMap(building => {
                                 const isExpanded = expandedBuildingIds.has(building.id);
-                                const buildingRooms = safeRooms.filter(r => r.buildingId === building.id);
+                                const buildingRooms = roomsToDisplay.filter(r => r.buildingId === building.id);
                                 if (buildingRooms.length === 0) return null;
 
                                 const rows = [

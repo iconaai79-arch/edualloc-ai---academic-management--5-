@@ -1586,3 +1586,163 @@ export const generateMasterFacilityGridPdf = async (
         return doc.output('blob');
     }
 };
+
+export const generateLecturerTimetablePdf = async (
+    generatedTimetable: TimetableEntry[],
+    lecturers: User[],
+    title: string,
+    subtitle: string,
+    letterheadConfig: LetterheadConfig,
+    footerImageUrl: string | null,
+    logoUrl: string | null,
+    academicYearName: string,
+    semesterName: string,
+    timetableSettings: TimetableSettings,
+    getSubjectById: (id: string) => Subject | undefined,
+    getRoomById: (id: string) => Room | undefined,
+    courses: Course[],
+    preview: boolean = false
+): Promise<Blob> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF({ orientation: 'landscape', format: 'a4' });
+    const margin = 14;
+    let yPos = 20;
+
+    try {
+        const [headerImg, footerImg] = await Promise.all([
+            loadImage(letterheadConfig?.headerImageUrl),
+            loadImage(footerImageUrl)
+        ]);
+
+        yPos = setupPdfHeader(doc, headerImg);
+
+        const days = timetableSettings?.operatingDays || [];
+        const periodHeaders = generatePeriodLabels(timetableSettings, true);
+        const displaySlots = generateDisplaySlots(timetableSettings, true);
+        let pageCount = 0;
+
+        for (const lecturer of lecturers) {
+            if (preview && pageCount >= 1) break;
+
+            if (pageCount > 0) {
+                doc.addPage();
+                yPos = setupPdfHeader(doc, headerImg);
+            }
+            pageCount++;
+
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${lecturer.name} - Timetable`, margin, yPos);
+            yPos += 7;
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${academicYearName} ${semesterName ? `- ${semesterName}` : ''}`, margin, yPos);
+            yPos += 10;
+
+            const lecturerEntries = (generatedTimetable || []).filter(e => e.lecturerId === lecturer.id);
+            const workloadStats = {
+                periods: lecturerEntries.length,
+                hours: lecturerEntries.reduce((acc, e) => acc + (timeToMinutes(e.endTime) - timeToMinutes(e.startTime)) / 60, 0),
+                subjects: new Set(lecturerEntries.map(e => e.subjectId)).size
+            };
+
+            const workloadBody = [
+                ['Total Periods', workloadStats.periods.toString()],
+                ['Total Hours', workloadStats.hours.toFixed(1)],
+                ['Distinct Subjects', workloadStats.subjects.toString()]
+            ];
+
+            (doc as any).autoTable({
+                startY: yPos,
+                head: [['Metric', 'Value']],
+                body: workloadBody,
+                theme: 'striped',
+                headStyles: { fillColor: [45, 55, 72] },
+                styles: { fontSize: 8, cellPadding: 2 },
+                columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 30 } },
+                margin: { left: margin, right: margin }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 10;
+
+            const tableHead = [['Time', ...days]];
+            const tableBodyRows: any[] = [];
+
+            // Simple row-by-row generation for the grid
+            for (const slot of displaySlots) {
+                const row: any[] = [`${slot.label}\n${slot.start} - ${slot.end}`];
+                const isGlobalBreak = timetableSettings?.breaks?.some(b => b.status !== 'inactive' && b.startTime === slot.start && b.endTime === slot.end);
+
+                // Check if break applies to the slot generally (simplification)
+                if (isGlobalBreak) {
+                    // Span entire row for break
+                    for (let d = 0; d < days.length; d++) {
+                        row.push({ content: 'BREAK', styles: { fillColor: [240, 240, 240], halign: 'center', valign: 'middle', fontStyle: 'bold', fontSize: 6, textColor: 150 } });
+                    }
+                } else {
+                    for (const day of days) {
+                        const entry = lecturerEntries.find(e => e.day === day && timeToMinutes(e.startTime) === timeToMinutes(slot.start));
+                        if (entry) {
+                            const subject = getSubjectById(entry.subjectId);
+                            const room = getRoomById(entry.roomId);
+
+                            // Try to find which class this belongs to
+                            let className = '';
+                            const course = courses.find(c => c.levels.some(l => (l.subjectIds || []).includes(entry.subjectId)));
+                            if (course) {
+                                const lvl = course.levels.find(l => (l.subjectIds || []).includes(entry.subjectId));
+                                className = `${course.code} ${lvl?.name || ''}`;
+                            }
+
+                            const cellContent = [
+                                subject?.shortName || subject?.code || 'Subject',
+                                className,
+                                room?.name || ''
+                            ].filter(Boolean).join('\n');
+
+                            const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+                            const colSpan = 1; // Simplification: assume 1 slot for now or hand-wave rowSpan logic for this specific PDF 
+                            // Creating rowSpan in simple autoTime loop is complex without pre-processing. 
+                            // For this "Preview", we list it in the starting slot.
+
+                            row.push({
+                                content: cellContent,
+                                styles: {
+                                    fillColor: generatePastelColorRgb(entry.subjectId),
+                                    halign: 'center',
+                                    valign: 'middle',
+                                    fontSize: 7,
+                                    fontStyle: 'bold'
+                                }
+                            });
+                        } else {
+                            row.push('');
+                        }
+                    }
+                }
+                tableBodyRows.push(row);
+            }
+
+            (doc as any).autoTable({
+                startY: yPos,
+                head: tableHead,
+                body: tableBodyRows,
+                theme: 'grid',
+                headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+                styles: { fontSize: 8, cellPadding: 1, overflow: 'linebreak', valign: 'middle' },
+                columnStyles: { 0: { cellWidth: 25, fontStyle: 'bold', fillColor: [248, 250, 252] } },
+                margin: { left: margin, right: margin, bottom: 25 },
+                pageBreak: 'avoid'
+            });
+        }
+
+    } catch (e) {
+        console.error("PDF Generation Error", e);
+        // Fallback or error page
+        const err = e as Error;
+        doc.addPage();
+        doc.text(`Error: ${err.message}`, margin, 20);
+    }
+    return doc.output('blob');
+};
