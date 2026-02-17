@@ -6,7 +6,7 @@ import type {
     PayrollRun, Invoice, Receipt, Course, FeeStructure, Semester, AcademicYear,
     CompanyDetails, MpesaTransaction, TimetableSettings, Building, Appointment,
     FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument,
-    CountyInventoryItem
+    CountyInventoryItem, Department
 } from '../types';
 import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
@@ -132,7 +132,8 @@ const formatDuration = (timeIn?: string, timeOut?: string) => {
 export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const {
         securityAlerts = [], visitors = [], appointments = [], users = [],
-        onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus
+        onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
+        onLogAction
     } = props;
     const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts'>('checkpoint');
 
@@ -158,10 +159,10 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             setTimeout(() => setLookupStatus('idle'), 2000);
         }
     };
-    const handleRegisterWalkIn = (e: React.FormEvent) => {
+    const handleRegisterWalkIn = async (e: React.FormEvent) => {
         e.preventDefault();
         if (onAddVisitor && walkInForm.name && walkInForm.purpose) {
-            onAddVisitor({
+            await onAddVisitor({
                 name: walkInForm.name,
                 phoneNumber: walkInForm.phone,
                 purpose: walkInForm.purpose,
@@ -172,15 +173,16 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: props.user.institutionId
             });
+            await props.onLogAction?.(`Registered visitor: ${walkInForm.name} for ${walkInForm.purpose}`);
             setIsRegistering(false);
             setLookupStatus('idle');
             setWalkInForm({ name: '', phone: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '' });
             alert("Visitor Registered & Signed In");
         }
     };
-    const handleCheckInAppointment = (apt: Appointment) => {
+    const handleCheckInAppointment = async (apt: Appointment) => {
         if (onAddVisitor && onUpdateAppointmentStatus) {
-            onAddVisitor({
+            await onAddVisitor({
                 name: apt.guestName,
                 email: apt.guestEmail,
                 phoneNumber: apt.guestPhone,
@@ -190,24 +192,27 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 timeIn: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 institutionId: apt.institutionId
             });
-            onUpdateAppointmentStatus(apt.id, 'completed');
+            await onUpdateAppointmentStatus(apt.id, 'completed');
+            await props.onLogAction?.(`Checked in appointment guest: ${apt.guestName}`);
             alert(`Check-in complete for ${apt.guestName}`);
         }
     };
+    const isSchool = ['Primary', 'Secondary', 'ECD', 'International'].includes(props.currentInstitution?.institutionType || '');
+    const dashboardTitle = isSchool ? "School Security Hub" : "Campus Security Hub";
+
     return (
-        <BaseDashboard title="Campus Security Hub" icon={<ShieldIcon className="w-6 h-6 text-slate-600" />}>
+        <BaseDashboard title={dashboardTitle} icon={<ShieldIcon className="w-6 h-6 text-slate-600" />}>
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
                 <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar pb-1">
                     {[
                         { id: 'checkpoint', label: 'Gate Checkpoint', icon: <CameraIcon className="w-4 h-4" /> },
-                        { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'expected', label: 'Expected Guests', icon: <CalendarDaysIcon className="w-4 h-4" />, count: todaysAppointments.length },
-
-                        { id: 'logs', label: 'On-Site Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
+                        { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
+                        { id: 'logs', label: 'Security Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                            {tab.icon} {tab.label} {tab.count !== undefined && tab.count > 0 && (<span className="bg-red-50 text-white text-[9px] px-1.5 py-0.5 rounded-full">{tab.count}</span>)}
+                            {tab.icon} {tab.label} {tab.count !== undefined && tab.count > 0 && (<span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm">{tab.count}</span>)}
                         </button>
                     ))}
                 </nav>
@@ -215,45 +220,128 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             {activeTab === 'checkpoint' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in-up">
                     <div className="space-y-6">
-                        <h3 className="text-xl font-black uppercase tracking-tight">Access Control</h3>
+                        <div className="flex flex-col">
+                            <h3 className="text-xl font-black uppercase tracking-tight">Access Control</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase mt-1">Manage physical entry and exit</p>
+                        </div>
                         <div className="grid grid-cols-1 gap-4">
                             <button onClick={() => setIsRegistering(true)} className="flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-indigo-100 hover:border-indigo-500 shadow-sm transition-all group">
                                 <div className="p-4 bg-indigo-50 dark:bg-indigo-900 rounded-2xl text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
                                     <UserIcon className="w-10 h-10" />
                                 </div>
-                                <span className="font-black text-sm uppercase tracking-widest">Register Walk-in</span>
-                                <p className="text-xs text-slate-400 mt-2">New visitor arriving at gate</p>
+                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Register Walk-in</span>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter">New visitor profile creation</p>
                             </button>
                             <button onClick={() => setIsScanning(true)} className="flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-emerald-100 hover:border-emerald-500 shadow-sm transition-all group">
                                 <div className="p-4 bg-emerald-50 dark:bg-emerald-900 rounded-2xl text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
                                     <CameraIcon className="w-10 h-10" />
                                 </div>
-                                <span className="font-black text-sm uppercase tracking-widest">Scan License Plate</span>
-                                <p className="text-xs text-slate-400 mt-2">Verify faculty or guest vehicle</p>
+                                <span className="font-black text-sm uppercase tracking-widest text-slate-900 dark:text-white">Scan License Plate</span>
+                                <p className="text-xs text-slate-400 mt-2 font-bold uppercase tracking-tighter">Automated extraction via OCR</p>
                             </button>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 h-fit">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-black uppercase tracking-tight">Active at Checkpoint</h3>
-                            <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">Real-time</span>
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span className="text-[10px] font-black uppercase text-indigo-600">LIVE FEED</span>
+                            </div>
                         </div>
-                        <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
+                        <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar pr-2">
                             {activeVisitors.slice(0, 10).map(v => (
-                                <div key={v.id} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group transition-all hover:border-indigo-100">
+                                <div key={v.id} className="p-5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center group transition-all hover:border-indigo-100 hover:shadow-md">
                                     <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 mb-1">
                                             <p className="font-black text-slate-800 dark:text-white uppercase text-sm truncate">{v.name}</p>
                                             {v.vehiclePlate && (
                                                 <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[9px] rounded font-black border border-slate-700 shadow-sm">{v.vehiclePlate}</span>
                                             )}
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">IN: {v.timeIn} • {v.purpose}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md">{v.purpose}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {v.timeIn}</span>
+                                        </div>
                                     </div>
-                                    <button onClick={() => onCheckoutVisitor?.(v.id)} className="p-2.5 bg-white dark:bg-slate-800 text-red-600 rounded-xl shadow-sm border border-red-50 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 shrink-0"><ArrowRightOnRectangleIcon className="w-4 h-4" /></button>
+                                    <button
+                                        onClick={async () => {
+                                            onCheckoutVisitor?.(v.id);
+                                            await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                        }}
+                                        className="p-3 bg-red-50 text-red-600 rounded-xl shadow-sm border border-red-50 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                        title="Secure Checkout"
+                                    >
+                                        <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                                    </button>
                                 </div>
                             ))}
+                            {activeVisitors.length === 0 && (
+                                <div className="py-20 text-center flex flex-col items-center gap-4">
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full">
+                                        <ShieldIcon className="w-8 h-8 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Registry is currently empty</p>
+                                </div>
+                            )}
                         </div>
+                        {activeVisitors.length > 10 && (
+                            <button onClick={() => setActiveTab('logs')} className="w-full mt-4 py-3 border-t border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 transition-colors">
+                                View All Records ({activeVisitors.length})
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'expected' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight">Expected Guests</h3>
+                            <p className="text-xs text-slate-400 mt-1 uppercase font-bold">Planned appointments for today</p>
+                        </div>
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl">
+                            <CalendarDaysIcon className="w-6 h-6" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {todaysAppointments.map(apt => (
+                            <div key={apt.id} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4 relative overflow-hidden group hover:border-indigo-200 transition-all">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 font-black shadow-sm">
+                                        {apt.guestName.charAt(0)}
+                                    </div>
+                                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase rounded-lg border border-indigo-100">Appointment</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-800 dark:text-white uppercase text-base truncate">{apt.guestName}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{apt.purpose}</p>
+                                </div>
+                                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                        <ClockIcon className="w-3.5 h-3.5 text-indigo-500" /> {apt.startTime} - {apt.endTime}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                        <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Host: {users.find(u => u.id === apt.hostId)?.name || 'N/A'}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleCheckInAppointment(apt)}
+                                    className="w-full py-3.5 bg-indigo-600 hover:bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-indigo-100 dark:shadow-none"
+                                >
+                                    Verify & Sign-In
+                                </button>
+                            </div>
+                        ))}
+                        {todaysAppointments.length === 0 && (
+                            <div className="col-span-full py-20 text-center flex flex-col items-center gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full opacity-50">
+                                    <CalendarDaysIcon className="w-10 h-10 text-slate-300" />
+                                </div>
+                                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No pending appointments scheduled for today</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -274,6 +362,150 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             )}
 
             {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
+
+            {activeTab === 'logs' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Registry</h3>
+                                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Currently identified personnel on premises</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span className="text-[10px] font-black uppercase text-emerald-600">Secure Live Status</span>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                                <thead>
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visitor / Name</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Access Time</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Host / Destination</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Assets</th>
+                                        <th className="px-4 py-3 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
+                                    {activeVisitors.map(v => {
+                                        const host = users.find(u => u.id === v.hostId);
+                                        return (
+                                            <tr key={v.id} className="group hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition-colors">
+                                                <td className="px-4 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-black text-xs shadow-inner">
+                                                            {v.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-black text-slate-800 dark:text-white uppercase text-sm">{v.name}</div>
+                                                            <div className="text-[10px] text-slate-500 font-bold">{v.phoneNumber}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{v.timeIn}</span>
+                                                    </div>
+                                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-tight mt-1">{v.visitDate}</div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase truncate max-w-[150px]">{host?.name || 'N/A'}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{v.purpose}</div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    {v.vehiclePlate ? (
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="px-2 py-0.5 bg-slate-900 text-white font-mono text-[9px] rounded-md border border-slate-700 text-center shadow-sm">{v.vehiclePlate}</span>
+                                                            <span className="text-[9px] font-bold text-slate-400 truncate max-w-[100px] uppercase">{v.vehicleModel}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest opacity-50">Pedestrian</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <button
+                                                        onClick={async () => {
+                                                            onCheckoutVisitor?.(v.id);
+                                                            await onLogAction?.(`Checked out visitor: ${v.name}`);
+                                                        }}
+                                                        className="px-4 py-2 bg-red-50 dark:bg-red-950/30 text-red-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all active:scale-95 border border-red-100 dark:border-red-900/50"
+                                                    >
+                                                        Finalize Exit
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {activeVisitors.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-20 text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full mb-3 opacity-50">
+                                                        <ClipboardListIcon className="w-8 h-8 text-slate-300" />
+                                                    </div>
+                                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Registry is currently empty</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                            <ArchiveBoxIcon className="w-32 h-32 text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="mb-6">
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Checkout History</h3>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-widest">Archive of previous visitors</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                                <thead>
+                                    <tr>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visitor / Contact</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Visit Date</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Entry / Exit</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Duration</th>
+                                        <th className="px-4 py-3 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Purpose</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-900/50">
+                                    {(visitors || []).filter(v => !!v.timeOut).sort((a, b) => b.visitDate.localeCompare(a.visitDate)).slice(0, 20).map(v => (
+                                        <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20 transition-colors">
+                                            <td className="px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-300 uppercase">
+                                                <div>{v.name}</div>
+                                                <div className="text-[10px] text-slate-400 font-normal">{v.phoneNumber || 'NO CONTACT'}</div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-400">{v.visitDate}</td>
+                                            <td className="px-4 py-3 text-[11px] font-black uppercase space-y-0.5">
+                                                <div className="text-indigo-500 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> {v.timeIn}</div>
+                                                <div className="text-slate-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> {v.timeOut}</div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-lg truncate">
+                                                    {formatDuration(v.timeIn, v.timeOut)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">{v.purpose}</td>
+                                        </tr>
+                                    ))}
+                                    {(visitors || []).filter(v => !!v.timeOut).length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px] italic">No historical records found</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
 
 
             {isRegistering && (

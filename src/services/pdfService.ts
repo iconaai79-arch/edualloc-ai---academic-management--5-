@@ -661,9 +661,117 @@ export const generateWorkloadStatisticsPdf = async (
     const doc = new lib.jsPDF();
     const [headerImg, footerImg] = await Promise.all([loadImage(letterheadConfig?.headerImageUrl), loadImage(footerImageUrl)]);
     let yPos = setupPdfHeader(doc, headerImg);
-    doc.text(title, 14, yPos);
-    yPos += 15;
-    (summaryStats || []).forEach(s => { doc.text(`${s.label}: ${s.value}`, 14, yPos); yPos += 7; });
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 12;
+
+    // Summary Statistics Cards (Row layout)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+
+    let xPos = margin;
+    const cardWidth = (pageWidth - (margin * 2)) / 4;
+
+    (summaryStats || []).forEach(s => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(s.label.toUpperCase(), xPos, yPos);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(45, 55, 72);
+        doc.text(String(s.value), xPos, yPos + 7);
+        xPos += cardWidth;
+    });
+
+    yPos += 20;
+
+    // Faculty Workload Table
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text("Faculty Workload Summary", margin, yPos);
+    yPos += 5;
+
+    const workloadHead = [['Faculty Member', 'Allocated Units', 'Cnt', 'Periods', 'Hrs/Wk']];
+    const workloadBody = (lecturerWorkload || []).map(lec => [
+        lec.name,
+        lec.subjectNames || 'None',
+        lec.subjectCount,
+        lec.totalPeriods,
+        lec.totalHours.toFixed(1)
+    ]);
+
+    const grandTotalHours = (lecturerWorkload || []).reduce((sum, lec) => sum + lec.totalHours, 0);
+    const grandTotalPeriods = (lecturerWorkload || []).reduce((sum, lec) => sum + lec.totalPeriods, 0);
+
+    doc.autoTable({
+        startY: yPos,
+        head: workloadHead,
+        body: workloadBody,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 3 },
+        columnStyles: {
+            0: { cellWidth: 40 },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 15, halign: 'center' },
+            3: { cellWidth: 20, halign: 'center' },
+            4: { cellWidth: 20, halign: 'center' }
+        },
+        foot: [[
+            { content: 'GRAND TOTAL', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: String(grandTotalPeriods), styles: { halign: 'center', fontStyle: 'bold' } },
+            { content: `${grandTotalHours.toFixed(1)} Hrs`, styles: { halign: 'center', fontStyle: 'bold' } }
+        ]],
+        footStyles: { fillColor: [240, 240, 240], textColor: 0 }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Subject Allocation Status
+    if (yPos > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        yPos = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Subject Allocation Audit", margin, yPos);
+    yPos += 5;
+
+    const subjectHead = [['Code', 'Subject Name', 'Department', 'Status']];
+    const subjectBody = (subjectAllocationStatus || []).map(s => [
+        s.code,
+        s.name,
+        s.departmentName,
+        s.allocatedPeriods > 0 ? 'ALLOCATED' : 'PENDING'
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: subjectHead,
+        body: subjectBody,
+        theme: 'striped',
+        headStyles: { fillColor: [74, 85, 104], textColor: 255, fontSize: 8 },
+        styles: { fontSize: 7 },
+        columnStyles: {
+            3: { fontStyle: 'bold', textColor: [0, 100, 0] } // Default green for status
+        },
+        didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 3) {
+                if (data.cell.raw === 'PENDING') {
+                    data.cell.styles.textColor = [200, 0, 0];
+                }
+            }
+        }
+    });
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
@@ -1671,7 +1779,7 @@ export const generateLecturerTimetablePdf = async (
             const tableBodyRows: any[] = [];
 
             // Sort entries for this lecturer: Day (in order of operatingDays), then StartTime
-            const dayOrder = (timetableSettings?.operatingDays || []);
+            const dayOrder = (timetableSettings?.operatingDays || []) as string[];
             const sortedEntries = [...lecturerEntries].sort((a, b) => {
                 const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
                 if (dayDiff !== 0) return dayDiff;

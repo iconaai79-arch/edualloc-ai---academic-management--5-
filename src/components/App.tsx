@@ -1509,18 +1509,47 @@ export const App: React.FC = () => {
                                     securityAlerts={securityAlerts}
                                     appointments={appointments}
                                     // Actually appointments are used. Adding fetching for them.
-                                    onAddVisitor={async (v) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` }); loadData(); }}
-                                    onCheckoutVisitor={async (id) => { const v = visitors.find(x => x.id === id); if (v) await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() }); loadData(); }}
-                                    onAddAlert={async (a) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' }); loadData(); }}
-                                    onResolveAlert={async (id) => { const a = securityAlerts.find(x => x.id === id); if (a) await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' }); loadData(); }}
-                                    onUpdateAppointmentStatus={async (id, status) => { /* Placeholder for appointment update */ loadData(); }}
+                                    onAddVisitor={async (v) => {
+                                        await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}` });
+                                        await handleLogAction(`Registered visitor: ${v.name}`);
+                                        loadData();
+                                    }}
+                                    onCheckoutVisitor={async (id) => {
+                                        const v = visitors.find(x => x.id === id);
+                                        if (v) {
+                                            await apiService.saveModuleRecord('visitors', { ...v, timeOut: new Date().toLocaleTimeString() });
+                                            await handleLogAction(`Checked out visitor: ${v.name}`);
+                                        }
+                                        loadData();
+                                    }}
+                                    onAddAlert={async (a) => {
+                                        await apiService.saveModuleRecord('security_alerts', { ...a, id: `alert_${Date.now()}`, institutionId: currentUser.institutionId, createdBy: currentUser.id, createdAt: new Date().toISOString(), status: 'active' });
+                                        await handleLogAction(`Logged security alert: ${a.type} - ${a.severity}`);
+                                        loadData();
+                                    }}
+                                    onResolveAlert={async (id) => {
+                                        const a = securityAlerts.find(x => x.id === id);
+                                        if (a) {
+                                            await apiService.saveModuleRecord('security_alerts', { ...a, status: 'resolved' });
+                                            await handleLogAction(`Resolved security alert: ${a.type}`);
+                                        }
+                                        loadData();
+                                    }}
+                                    onUpdateAppointmentStatus={async (id, status) => {
+                                        const apt = appointments.find(a => a.id === id);
+                                        if (apt) {
+                                            await apiService.saveModuleRecord('appointments', { ...apt, status });
+                                            await handleLogAction(`Updated appointment status for ${apt.guestName} to ${status}`);
+                                        }
+                                        loadData();
+                                    }}
                                     currentInstitution={activeInstitution}
                                     courses={courses}
                                     academicYears={academicYears}
                                     semesters={semesters}
                                     departments={departments}
                                     companyDetails={companyDetails}
-                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onLogAction={handleLogAction}
                                 />
 
                             ) : activeRole === 'info_desk' ? (
@@ -1682,26 +1711,27 @@ export const App: React.FC = () => {
                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
                                     onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
-                                    onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
-                                    onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
-                                    onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
-                                    onUpdateLogo={(logo) => onUpdateInstitution(activeInstitution!.id, { logoUrl: logo })}
-                                    onUpdateThemeColor={(color) => onUpdateInstitution(activeInstitution!.id, { themeColor: color })}
+                                    onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay}/${sem}`); }}
+                                    onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay}/${sem}`); }}
+                                    onSaveTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { timetableSettings: config }); handleLogAction(`Saved timetable settings`); }}
+                                    onSaveExamTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config }); handleLogAction(`Saved exam timetable settings`); }}
+                                    onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}
+                                    onUpdateFooterImage={(footer) => { onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer }); handleLogAction(`Updated institution footer image`); }}
+                                    onUpdateThemeColor={(color) => { onUpdateInstitution(activeInstitution!.id, { themeColor: color }); handleLogAction(`Updated institution theme color`); }}
                                     onUpdateInstitution={onUpdateInstitution}
-                                    onAddTask={async (t) => apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() })}
-                                    onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); }}
-                                    onDeleteTask={async (id) => apiService.deleteModuleRecord('tasks', id)}
-                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
-                                    onSendSms={async (r, m) => apiService.sendSms(r, m)}
-                                    onSaveSmsConfig={() => { }}
-                                    onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); loadData(); }}
-                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); }}
-                                    onAddUnavailability={() => { }}
-                                    onUpdateUnavailability={() => { }}
+                                    onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
+                                    onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
+                                    onDeleteTask={async (id) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.deleteModuleRecord('tasks', id); await handleLogAction(`Deleted task: ${task.title}`); loadData(); } }}
+                                    onLogAction={handleLogAction}
+                                    onSendSms={async (r, m) => { const res = await apiService.sendSms(r, m); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
+                                    onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}
+                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction(`Withdrew allocation request`); loadData(); }}
+                                    onAddUnavailability={async (u) => { /* Placeholder */ await handleLogAction(`Added unavailability`); }}
+                                    onUpdateUnavailability={async (id, u) => { /* Placeholder */ await handleLogAction(`Updated unavailability`); }}
                                     onDeleteUnavailability={() => { }}
                                     onManageUnavailability={() => { }}
-                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
+                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
                                     onDeleteParent={() => { }}
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
