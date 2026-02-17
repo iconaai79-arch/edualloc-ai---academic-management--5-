@@ -11,6 +11,10 @@ import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, E
 import { RoomUtilizationReport } from './RoomUtilizationReport.tsx';
 import { TimetablesView } from './TimetablesView.tsx';
 import { VisualReports } from './VisualReports.tsx';
+import { CourseProgressReport } from './CourseProgressReport.tsx';
+import { EnrollmentCapacityReport } from './EnrollmentCapacityReport.tsx';
+import { ActivityLogView } from './ActivityLogView.tsx';
+import { RoomDistanceReport } from './RoomDistanceReport.tsx';
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -41,6 +45,8 @@ interface ReportsDashboardProps {
     academicYears: AcademicYear[];
     activeSemester: Semester | null;
     visitors: Visitor[];
+    activityLog: ActivityLog[];
+    courseSizes: Map<string, number>;
 }
 
 const ProgressBar: React.FC<{ value: number; max: number }> = ({ value, max }) => {
@@ -201,7 +207,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         timetableSettings,
         activeSemester,
         academicYears = [],
-        visitors = []
+        visitors = [],
+        activityLog = [],
+        courseSizes = new Map()
     } = props;
 
     const [subTab, setSubTab] = useState('visuals');
@@ -368,8 +376,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const subTabs = [
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
         { key: 'stats', label: 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
+        { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
+        { key: 'enrollment_capacity', label: 'Enrollment vs Capacity', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'utilization', label: 'Room Utilization', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3" /> },
+        { key: 'distance', label: 'Travel Distance Report', icon: <DocumentArrowDownIcon className="w-5 h-5 mr-3" /> },
         { key: 'advisory', label: 'Room Advisory Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
+        { key: 'audit', label: 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'conflicts', label: 'Conflict Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
         { key: 'attendance', label: 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
@@ -544,6 +556,31 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 </table>
                             </div>
                         </div>
+                    )}
+                    {subTab === 'progress' && (
+                        <CourseProgressReport
+                            courses={courses}
+                            subjects={subjects}
+                            allTimetableEntries={allTimetableEntries}
+                        />
+                    )}
+                    {subTab === 'enrollment_capacity' && (
+                        <EnrollmentCapacityReport
+                            rooms={rooms}
+                            allTimetableEntries={allTimetableEntries}
+                            courseSizes={courseSizes}
+                            courses={courses}
+                            subjects={subjects}
+                        />
+                    )}
+                    {subTab === 'audit' && (
+                        <ActivityLogView activityLog={activityLog} />
+                    )}
+                    {subTab === 'distance' && (
+                        <RoomDistanceReport
+                            rooms={rooms}
+                            buildings={buildings}
+                        />
                     )}
                     {subTab === 'utilization' && (
                         <RoomUtilizationReport

@@ -659,6 +659,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         currentInstitution={props.currentInstitution}
                         requests={requests || []}
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                        activityLog={props.activityLog || []}
+                        courseSizes={props.courseSizes}
                     />
                 )}
             </main>

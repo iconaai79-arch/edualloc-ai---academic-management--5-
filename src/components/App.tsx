@@ -60,20 +60,29 @@ const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
     </div>
 );
 
-const PerspectiveReturnButton: React.FC<{ role: Role | null; onReturn: () => void }> = ({ role, onReturn }) => {
-    if (!role) return null;
+const PerspectiveReturnButton: React.FC<{
+    role: Role | null;
+    isImpersonatedSession?: boolean;
+    onReturn: () => void;
+    onRestoreSession?: () => void;
+}> = ({ role, isImpersonatedSession, onReturn, onRestoreSession }) => {
+    if (!role && !isImpersonatedSession) return null;
     return (
         <div className="fixed bottom-24 left-6 z-[200] animate-fade-in-up no-print">
             <button
-                onClick={onReturn}
+                onClick={isImpersonatedSession ? onRestoreSession : onReturn}
                 className="flex items-center gap-3 pl-2 pr-6 py-2 bg-slate-900 text-white rounded-full shadow-2xl hover:scale-105 transition-transform border-2 border-indigo-500 group"
             >
                 <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg group-hover:bg-indigo-500 transition-colors">
                     <ArrowRightOnRectangleIcon className="w-5 h-5 text-white" />
                 </div>
                 <div className="text-left">
-                    <p className="text-[9px] font-black uppercase tracking-widest opacity-80 text-indigo-200">Viewing as</p>
-                    <p className="text-xs font-black uppercase tracking-tight text-white">{role.replace('_', ' ')}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest opacity-80 text-indigo-200">
+                        {isImpersonatedSession ? 'System Access' : 'Viewing as'}
+                    </p>
+                    <p className="text-xs font-black uppercase tracking-tight text-white">
+                        {isImpersonatedSession ? 'Return to Super Admin' : (role || '').replace('_', ' ')}
+                    </p>
                 </div>
             </button>
         </div>
@@ -161,6 +170,12 @@ export const App: React.FC = () => {
 
 
     const [impersonatedRole, setImpersonatedRole] = useState<Role | null>(null);
+    const [originalSuperAdminSession, setOriginalSuperAdminSession] = useState<User | null>(() => {
+        try {
+            const stored = localStorage.getItem('eduai_super_admin_session');
+            return stored ? JSON.parse(stored) : null;
+        } catch (e) { return null; }
+    });
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [counties, setCounties] = useState<County[]>([]);
@@ -471,6 +486,8 @@ export const App: React.FC = () => {
         apiService.clearSession();
         setCurrentUser(null);
         setImpersonatedRole(null);
+        setOriginalSuperAdminSession(null);
+        localStorage.removeItem('eduai_super_admin_session');
     };
 
     // --- Infrastructure Handlers ---
@@ -710,6 +727,12 @@ export const App: React.FC = () => {
         const admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
         if (admin) {
+            // If the current user is a super admin, save them as the original session
+            if (currentUser?.role === 'super_admin') {
+                setOriginalSuperAdminSession(currentUser);
+                localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
+            }
+
             const impersonatedUser = { ...admin, isImpersonated: true };
             setCurrentUser(impersonatedUser);
             apiService.storeSession(impersonatedUser);
@@ -717,6 +740,16 @@ export const App: React.FC = () => {
         } else {
             console.warn(`Admin lookup failed for institution ${institutionId}. Available users:`, users.filter(u => u.institutionId === institutionId));
             alert("No admin account found for this institution.");
+        }
+    };
+
+    const onRestoreSuperAdminSession = () => {
+        if (originalSuperAdminSession) {
+            setCurrentUser(originalSuperAdminSession);
+            apiService.storeSession(originalSuperAdminSession);
+            setOriginalSuperAdminSession(null);
+            localStorage.removeItem('eduai_super_admin_session');
+            loadData(true);
         }
     };
 
@@ -1867,7 +1900,12 @@ export const App: React.FC = () => {
                     </>
                 )}
                 {companyDetails.chatAssistantConfig?.enabled && <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />}
-                <PerspectiveReturnButton role={impersonatedRole} onReturn={() => setImpersonatedRole(null)} />
+                <PerspectiveReturnButton
+                    role={impersonatedRole}
+                    isImpersonatedSession={!!originalSuperAdminSession}
+                    onReturn={() => setImpersonatedRole(null)}
+                    onRestoreSession={onRestoreSuperAdminSession}
+                />
             </div>
         </AppErrorBoundary>
     );
