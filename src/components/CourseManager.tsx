@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings } from '../types';
-import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon, TrashIcon } from './icons/index';
+import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings, TimetableEntry, LessonStructure } from '../types';
+import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon, TrashIcon, ChartBarIcon, EyeIcon } from './icons/index';
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
+import { CourseProgressReport } from './CourseProgressReport';
+import { PdfPreviewModal } from './PdfPreviewModal';
 
 declare var XLSX: any;
 
@@ -293,6 +295,7 @@ interface CourseManagerProps {
     users?: User[];
     allocations?: AllocationRequest[];
     timetableSettings?: TimetableSettings;
+    allTimetableEntries?: TimetableEntry[];
     onSaveTimetableSettings?: (settings: TimetableSettings) => void;
     onLogAction?: (action: string) => Promise<void>;
 }
@@ -302,7 +305,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     onAddCourse, onUpdateCourse, onDeleteCourse, onImportCourses, onAssociateSubjectToCourseLevel, onDisassociateSubjectFromCourseLevel,
     onDirectAssign, onWithdrawRequest, onUpdateRequest,
     currentUser, currentInstitution,
-    rooms = [], users = [], allocations = [],
+    rooms = [], users = [], allocations = [], allTimetableEntries = [],
     timetableSettings, onSaveTimetableSettings, onLogAction
 }) => {
     const [managerTab, setManagerTab] = useState<'courses' | 'streams' | 'pathways' | 'lessons'>('courses');
@@ -336,6 +339,10 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [selectedPathwayCourseId, setSelectedPathwayCourseId] = useState('');
     const [newPathwaySubjectIds, setNewPathwaySubjectIds] = useState<string[]>([]);
     const [pathwayProcessing, setPathwayProcessing] = useState(false);
+
+    const [viewingProgressOf, setViewingProgressOf] = useState<Course | null>(null);
+    const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+    const [previewPdfFilename, setPreviewPdfFilename] = useState<string | null>(null);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const isPrimary = currentInstitution?.institutionType === 'Primary';
@@ -1317,6 +1324,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => setEditingCourse(course)} className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Edit</button>
                                             <button onClick={() => setManagingLessonsForCourse(course)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Lessons</button>
+                                            <button onClick={() => setViewingProgressOf(course)} className="px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Progress</button>
                                             <button onClick={() => setAssigningSubjectsTo(course)} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Registry</button>
                                             <button onClick={() => handleDeleteCourseSubmit(course.id, course.name)} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest">Delete</button>
                                         </div>
@@ -1437,6 +1445,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white dark:bg-emerald-900/30 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 Lessons
+                                            </button>
+                                            <button
+                                                onClick={() => setViewingProgressOf(courses.find(c => c.id === stream.courseId) || null)}
+                                                className="flex items-center gap-1.5 px-4 py-2 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white dark:bg-amber-900/30 dark:text-amber-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Progress
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteStream(stream.courseId, stream.streamId)}
@@ -1988,7 +2002,42 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                     </div>
                 )
             }
+            {viewingProgressOf && (
+                <div className="fixed inset-0 bg-slate-900/80 z-[150] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setViewingProgressOf(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Academic Progress: {viewingProgressOf.name}</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Real-time Coverage & Syllabus Analytics</p>
+                            </div>
+                            <button onClick={() => setViewingProgressOf(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><XIcon className="w-6 h-6" /></button>
+                        </div>
+                        <div className="p-8 flex-grow overflow-y-auto custom-scrollbar">
+                            <CourseProgressReport
+                                subjects={subjects}
+                                courses={[viewingProgressOf]}
+                                allTimetableEntries={allTimetableEntries}
+                                letterheadConfig={letterheadConfig}
+                                footerImageUrl={footerImageUrl}
+                                onPreviewPdf={(url, filename) => {
+                                    setPreviewPdfUrl(url);
+                                    setPreviewPdfFilename(filename);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {previewPdfUrl && (
+                <PdfPreviewModal
+                    url={previewPdfUrl}
+                    filename={previewPdfFilename || 'Report.pdf'}
+                    onClose={() => setPreviewPdfUrl(null)}
+                />
+            )}
         </div >
+
     );
 };
 

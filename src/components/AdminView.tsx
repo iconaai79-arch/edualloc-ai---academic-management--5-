@@ -591,6 +591,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onUpdateCourse={props.onUpdateCourse}
                         onDeleteCourse={props.onDeleteCourse}
                         allocations={props.allocations || []}
+                        allTimetableEntries={props.allTimetableEntries || []}
                         currentUser={props.currentUser}
                         timetableSettings={props.timetableSettings}
                         onSaveTimetableSettings={props.onSaveTimetableSettings}
