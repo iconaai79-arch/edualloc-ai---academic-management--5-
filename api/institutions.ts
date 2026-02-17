@@ -1,16 +1,24 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServerClient } from '../lib/supabase';
+import { getAuthenticatedUser } from '../lib/auth-server';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createServerClient(req.headers.authorization);
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
+
+    // JWT Validation & Institution Derivation
+    const authUser = await getAuthenticatedUser(supabase);
+    if (!authUser) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         if (req.method === 'GET') {
             const { id } = req.query;
             let query = supabase.from('institutions').select('*');
 
-            if (id) {
+            // Regular users can only see their own institution
+            if (authUser.role !== 'super_admin') {
+                query = query.eq('id', authUser.institutionId);
+            } else if (id) {
                 query = query.eq('id', id);
             }
 
@@ -20,6 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'POST') {
+            // Only super_admin can create or update institutions generally
+            if (authUser.role !== 'super_admin') {
+                // Allow regular admin to update THEIR OWN institution ONLY
+                const instData = req.body;
+                if (!instData || instData.id !== authUser.institutionId) {
+                    return res.status(403).json({ error: 'Forbidden: You can only update your own institution' });
+                }
+            }
+
             const instData = req.body;
             if (!instData) return res.status(400).json({ error: 'Missing request body' });
 
@@ -29,6 +46,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (req.method === 'DELETE') {
+            // ONLY super_admin can delete institutions
+            if (authUser.role !== 'super_admin') {
+                return res.status(403).json({ error: 'Forbidden: Only super admins can delete institutions' });
+            }
+
             const { id } = req.query;
             if (!id || Array.isArray(id)) return res.status(400).json({ error: 'Missing or invalid id parameter' });
 

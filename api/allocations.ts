@@ -2,6 +2,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { query, mapToCamelCase } from '../lib/db_connect';
 import { createServerClient } from '../lib/supabase';
+import { getAuthenticatedUser } from '../lib/auth-server';
 
 export default async function handler(
   request: VercelRequest,
@@ -17,18 +18,21 @@ export default async function handler(
   // Verify Auth
   const supabase = createServerClient(request.headers.authorization);
   if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return response.status(401).json({ error: 'Unauthorized' });
+
+  // JWT Validation & Institution Derivation
+  const user = await getAuthenticatedUser(supabase);
+  if (!user) return response.status(401).json({ error: 'Unauthorized' });
+
+  const { institutionId, role } = user;
 
   try {
     if (request.method === 'GET') {
-      const { institutionId } = request.query;
-      const id = Array.isArray(institutionId) ? institutionId[0] : institutionId;
+      // Always filter by institution_id unless super_admin
+      const sql = role === 'super_admin'
+        ? 'SELECT * FROM allocation_requests ORDER BY timestamp DESC'
+        : 'SELECT * FROM allocation_requests WHERE institution_id = $1 ORDER BY timestamp DESC';
 
-      const sql = id
-        ? 'SELECT * FROM allocation_requests WHERE institution_id = $1 ORDER BY timestamp DESC'
-        : 'SELECT * FROM allocation_requests ORDER BY timestamp DESC';
-      const params = id ? [id] : [];
+      const params = role === 'super_admin' ? [] : [institutionId];
 
       const res = await query(sql, params);
 
@@ -57,14 +61,15 @@ export default async function handler(
 
     if (request.method === 'POST') {
       const {
-        subjectId, lecturerId, institutionId, status,
+        subjectId, lecturerId, status,
         priority, justification, academicYearId, semesterId, preferences, signatureUrl, proposedChanges
       } = request.body;
 
-      if (!subjectId || !lecturerId || !institutionId) {
+      if (!subjectId || !lecturerId) {
         return response.status(400).json({ error: "Missing required fields" });
       }
 
+      // Enforce the user's institutionId
       await query(`
         INSERT INTO allocation_requests (
           subject_id, lecturer_id, institution_id, status, 
@@ -89,6 +94,11 @@ export default async function handler(
       if (rows.length === 0) return response.status(404).json({ error: "Request not found" });
       const current = rows[0];
 
+      // Ownership Check
+      if (current.institution_id !== institutionId && role !== 'super_admin') {
+        return response.status(403).json({ error: "Forbidden: Access denied to this resource" });
+      }
+
       let finalPriority = priority || current.priority;
       let finalJustification = justification || current.justification;
       let finalProposed = current.proposed_changes;
@@ -98,9 +108,6 @@ export default async function handler(
         finalProposed = proposedChanges ? JSON.stringify(proposedChanges) : null;
       }
 
-      // --- LOGIC: Apply Modification (Approval) ---
-      // If status is becoming approved, and it was previously a change request,
-      // we merge the proposed changes into the main record and clear the proposed field.
       if (current.status === 'change_request_pending' && status === 'approved') {
         let proposed: any = null;
         try {
@@ -110,14 +117,10 @@ export default async function handler(
         if (proposed) {
           finalPriority = proposed.priority || finalPriority;
           finalJustification = proposed.justification || finalJustification;
-          // Clear the proposal now that it is applied
           finalProposed = null;
         }
       }
 
-      // --- LOGIC: Reject Modification ---
-      // If explicit null is sent for proposedChanges (via onUpdateRequest from frontend),
-      // it means we are clearing the proposal (Rejection of change) but keeping the status as approved (original state).
       if (request.body.proposedChanges === null) {
         finalProposed = null;
       }
@@ -141,6 +144,15 @@ export default async function handler(
       const { id } = request.query;
       const reqId = Array.isArray(id) ? id[0] : id;
       if (!reqId) return response.status(400).json({ error: "Request ID is required" });
+
+      // Ownership Check
+      const currentRes = await query('SELECT institution_id FROM allocation_requests WHERE id = $1', [reqId]);
+      if (currentRes.rows.length > 0) {
+        const item = currentRes.rows[0] as any;
+        if (item.institution_id !== institutionId && role !== 'super_admin') {
+          return response.status(403).json({ error: "Forbidden: Access denied" });
+        }
+      }
 
       await query('DELETE FROM allocation_requests WHERE id = $1', [reqId]);
       return response.status(200).json({ success: true });

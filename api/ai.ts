@@ -1,6 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Use the correct SDK package
 
+import { createServerClient } from '../lib/supabase';
+import { getAuthenticatedUser } from '../lib/auth-server';
+
 const getSafeKey = () => {
     return process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
@@ -8,7 +11,6 @@ const getSafeKey = () => {
 };
 
 const apiKey = getSafeKey();
-// Initialize the client with the API key
 const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -19,6 +21,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
+
+    // Verify Auth
+    const supabase = createServerClient(req.headers.authorization);
+    if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
+    const userResult = await getAuthenticatedUser(supabase);
+    if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 

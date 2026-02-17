@@ -2,6 +2,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { query, mapToCamelCase } from '../lib/db_connect';
 import { createServerClient } from '../lib/supabase';
+import { getAuthenticatedUser } from '../lib/auth-server';
 
 export default async function handler(
   request: VercelRequest,
@@ -16,15 +17,19 @@ export default async function handler(
   // Verify Auth
   const supabase = createServerClient(request.headers.authorization);
   if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return response.status(401).json({ error: 'Unauthorized' });
+
+  // JWT Validation & Institution Derivation
+  const user = await getAuthenticatedUser(supabase);
+  if (!user) return response.status(401).json({ error: 'Unauthorized' });
+
+  const { institutionId, role } = user;
 
   try {
     // GET: Load timetable for a specific semester
     if (request.method === 'GET') {
-      const { institutionId, semesterId } = request.query;
-      if (!institutionId) return response.status(400).json({ error: "Institution ID required" });
+      const { semesterId } = request.query;
 
+      // Enforce institution filter
       let sql = 'SELECT * FROM timetable_entries WHERE institution_id = $1';
       let params = [institutionId];
 
@@ -39,9 +44,9 @@ export default async function handler(
 
     // POST: Save generated timetable (Bulk Insert)
     if (request.method === 'POST') {
-      const { entries, institutionId, academicYearId, semesterId } = request.body;
+      const { entries, academicYearId, semesterId } = request.body;
 
-      if (!entries || !Array.isArray(entries) || !institutionId || !semesterId) {
+      if (!entries || !Array.isArray(entries) || !semesterId) {
         return response.status(400).json({ error: "Invalid payload" });
       }
 
@@ -64,7 +69,7 @@ export default async function handler(
             e.subjectId,
             e.lecturerId,
             e.roomId,
-            institutionId,
+            institutionId, // ENFORCED
             academicYearId,
             semesterId
           );

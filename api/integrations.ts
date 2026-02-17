@@ -212,6 +212,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (action === 'initiateStkPush') {
                 console.log('[M-Pesa] Initiating STK Push...');
+
+                // --- RATE LIMITING ---
+                // Prevents toll fraud/bombing by limiting requests per user/phone
+                const cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
+                const now = new Date();
+                const oneMinuteAgo = new Date(now.getTime() - 60000).toISOString();
+
+                const { data: recentTxns, error: rateError } = await supabase
+                    .from('mpesa_transactions')
+                    .select('id')
+                    .or(`phone_number.eq.${cleanPhone},metadata->>userId.eq.${user.id}`)
+                    .gt('created_at', oneMinuteAgo);
+
+                if (rateError) {
+                    console.error('[M-Pesa] Rate limit check failed:', rateError);
+                } else if (recentTxns && recentTxns.length >= 2) {
+                    return res.status(429).json({
+                        success: false,
+                        message: "Too many requests. Please wait a minute before trying again."
+                    });
+                }
+                // ---------------------
+
                 const hasBodyConfig = bodyConfig?.consumerKey || bodyConfig?.consumer_key;
                 const mpesaConfig = hasBodyConfig ? bodyConfig : systemSettings.mpesa_config;
                 if (!mpesaConfig) return res.status(400).json({ success: false, message: "M-Pesa configuration is missing. Please set it up in the Super Admin settings." });
