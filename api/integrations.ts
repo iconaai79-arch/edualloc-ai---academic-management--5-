@@ -59,7 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(500).json({
                     success: false,
                     message: "System configuration error. Please contact administrator.",
-                    // error: tableError.message // HIDDEN
+                    error: tableError.message,
+                    hint: "Ensure the 'system_settings' table exists and is accessible."
                 });
             }
 
@@ -161,7 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (action === 'sendEmail') {
-                const hasBodyConfig = bodyConfig?.host || bodyConfig?.resendApiKey;
+                const hasBodyConfig = bodyConfig?.host || bodyConfig?.resendApiKey || bodyConfig?.provider;
                 const emailConfig = hasBodyConfig ? bodyConfig : systemSettings.email_config;
 
                 if (!emailConfig) {
@@ -504,7 +505,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(500).json({
                 success: false,
                 message: "Internal server error.",
-                // error: globalError.message // HIDDEN
+                error: globalError.message,
+                stack: process.env.NODE_ENV === 'development' ? globalError.stack : undefined
             });
         }
     } catch (topLevelError: any) {

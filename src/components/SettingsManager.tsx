@@ -498,7 +498,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             if (data.success) {
                 alert('Test email sent successfully to ' + localCompanyInfo.email);
             } else {
-                alert('Failed to send test email: ' + data.message);
+                const details = data.error ? `\n\nDetails: ${data.error}` : '';
+                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+                alert(`Failed to send test email: ${data.message}${details}${hint}`);
             }
         } catch (error: any) {
             alert('Error sending test email: ' + error.message);
