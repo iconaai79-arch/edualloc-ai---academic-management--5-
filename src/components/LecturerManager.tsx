@@ -609,7 +609,15 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                             {filteredUsers.map(u => (
                                 <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
                                     <td className="px-6 py-4 text-sm font-medium">{u.name}</td>
-                                    <td className="px-6 py-4 text-sm capitalize">{u.role.replace('_', ' ')}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-wrap gap-1">
+                                            {(u.roles && u.roles.length > 0 ? u.roles : [u.role]).map((r, idx) => (
+                                                <span key={idx} className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                    {r.replace('_', ' ')}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 text-right space-x-2">
                                         <button onClick={() => setEditingUser(u)} className="text-blue-600 hover:underline">Edit</button>
                                         <button onClick={() => onDeleteUser(u.id)} className="text-red-600 hover:underline">Delete</button>

@@ -791,7 +791,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-wrap gap-1">
-                                            {(u.roles || [u.role]).map((r, idx) => (
+                                            {(u.roles && u.roles.length > 0 ? u.roles : [u.role]).map((r, idx) => (
                                                 <span key={idx} className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                                                     {r.replace('_', ' ')}
                                                 </span>

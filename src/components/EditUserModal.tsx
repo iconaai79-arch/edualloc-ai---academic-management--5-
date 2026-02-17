@@ -30,7 +30,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setPhoneNumber(user.phoneNumber);
       setStaffId(user.staffId || '');
       setExpertise(user.expertise?.join(', ') || '');
-      setRoles(user.roles || [user.role]);
+      setRoles(user.roles && user.roles.length > 0 ? user.roles : [user.role]);
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
@@ -63,14 +63,15 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
     }
 
     if (name.trim() && email.trim() && phoneNumber.trim() && staffId.trim()) {
+      const uniqueRoles = [...new Set(roles)];
       onSave(user.id, {
         name,
         email,
         phoneNumber,
         staffId,
         expertise: expertiseArray,
-        role: roles[0], // Keep first as primary
-        roles: roles,
+        role: uniqueRoles[0], // Keep first as primary
+        roles: uniqueRoles,
         departmentId: needsDepartment ? assignedDepartmentId : undefined,
         gender
       });
@@ -162,11 +163,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {(isSchool ? [
-                        'head_teacher', 'deputy', 'dos', 'teacher', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
-                      ] : [
-                        'lecturer', 'hod', 'tto', 'admin', 'deputy', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
-                      ]).map((r) => (
+                      {[
+                        'head_teacher', 'deputy', 'dos', 'teacher', 'admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
+                      ].map((r) => (
                         <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
                           <input
                             type="checkbox"
@@ -182,8 +181,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {(!isSchool && roles.some(r => ['admin', 'deputy', 'hod', 'lecturer', 'tto'].includes(r))) && (
-                    <div>
+                  {roles.some(r => rolesWithDepartment.includes(r)) && (
+                    <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
                         <option value="" disabled>Select Department</option>
@@ -207,6 +206,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none">Apply Unit Records</button>
           </div>
         </form>
+
       </div>
       <style>{`
         .form-input, .form-select { display: block; width: 100%; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 0.75rem 1rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; outline: none; }

@@ -680,8 +680,20 @@ export const App: React.FC = () => {
     const onEditUser = async (id: string, data: any) => {
         const existing = users.find(u => u.id === id);
         if (existing) {
-            await apiService.saveModuleRecord('users', { ...existing, ...data, id });
-            loadData();
+            const updatedUser = { ...existing, ...data, id };
+            await apiService.saveModuleRecord('users', updatedUser);
+
+            // Update local state immediately for better responsiveness
+            setUsers(prev => prev.map(u => u.id === id ? updatedUser : u));
+
+            // If the user edited their own profile, update the current user state and session
+            if (currentUser?.id === id) {
+                const finalUser = { ...currentUser, ...updatedUser };
+                setCurrentUser(finalUser);
+                apiService.storeSession(finalUser);
+            }
+
+            await loadData();
         }
     };
 
