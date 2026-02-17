@@ -36,15 +36,36 @@ export default defineConfig(({ mode }) => {
     },
     configureServer(server: any) {
       server.middlewares.use(async (req: any, res: any, next: any) => {
-        if (req.url?.startsWith('/api/') && req.method === 'POST') {
-          // Parse the endpoint from the URL (e.g. /api/ai -> ai, /api/integrations -> integrations)
-          // Simple check to prevent directory traversal
+        if (req.url?.startsWith('/api/') && (req.method === 'POST' || req.method === 'OPTIONS')) {
           const urlParts = req.url.split('?')[0].split('/');
-          const endpoint = urlParts[2]; // /api/ai -> [ '', 'api', 'ai' ]
+          const endpoint = urlParts[2];
 
           if (!endpoint || endpoint.includes('..') || endpoint.includes('\\')) {
             next();
             return;
+          }
+
+          const handlerPath = `/api/${endpoint}.ts`;
+
+          if (req.method === 'OPTIONS') {
+            try {
+              const vRes: any = {
+                setHeader: (k: string, v: string) => res.setHeader(k, v),
+                status: (code: number) => { res.statusCode = code; return vRes; },
+                end: () => res.end(),
+                json: (data: any) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(data)); return vRes; }
+              };
+              const handlerModule = await server.ssrLoadModule(handlerPath);
+              await handlerModule.default({ method: 'OPTIONS', headers: req.headers }, vRes);
+              return;
+            } catch (e) {
+              res.statusCode = 200;
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+              res.end();
+              return;
+            }
           }
 
           let body = '';

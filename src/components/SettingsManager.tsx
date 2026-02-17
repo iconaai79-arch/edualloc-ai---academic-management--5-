@@ -14,6 +14,7 @@ import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
 import { BrandedPaper } from './BrandedPaper';
 import { GradingSystemManager } from './GradingSystemManager';
+import { supabase } from '../lib/supabase';
 import {
     PrinterIcon,
     MapPinIcon,
@@ -483,9 +484,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestEmail = async () => {
         setIsSavingConfigs(true);
         try {
-            const sessionStr = localStorage.getItem('sb-fuxncsclzuvyrpjisjws-auth-token'); // Supabase default key pattern or custom
-            const session = sessionStr ? JSON.parse(sessionStr) : null;
-            const token = session?.access_token || localStorage.getItem('eduai_token');
+            const { data: { session } } = await (supabase?.auth.getSession() || { data: { session: null } });
+            let token = session?.access_token;
+
+            if (!token) {
+                const sessionStr = Object.entries(localStorage).find(([k]) => k.includes('-auth-token'))?.[1];
+                token = sessionStr ? JSON.parse(sessionStr).access_token : localStorage.getItem('eduai_token');
+            }
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -519,9 +524,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestSms = async () => {
         setIsSavingConfigs(true);
         try {
-            const sessionStr = localStorage.getItem('sb-fuxncsclzuvyrpjisjws-auth-token');
-            const session = sessionStr ? JSON.parse(sessionStr) : null;
-            const token = session?.access_token || localStorage.getItem('eduai_token');
+            const { data: { session } } = await (supabase?.auth.getSession() || { data: { session: null } });
+            let token = session?.access_token;
+
+            if (!token) {
+                const sessionStr = Object.entries(localStorage).find(([k]) => k.includes('-auth-token'))?.[1];
+                token = sessionStr ? JSON.parse(sessionStr).access_token : localStorage.getItem('eduai_token');
+            }
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
