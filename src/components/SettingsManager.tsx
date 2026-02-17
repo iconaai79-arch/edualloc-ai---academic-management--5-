@@ -483,9 +483,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestEmail = async () => {
         setIsSavingConfigs(true);
         try {
+            const sessionStr = localStorage.getItem('sb-fuxncsclzuvyrpjisjws-auth-token'); // Supabase default key pattern or custom
+            const session = sessionStr ? JSON.parse(sessionStr) : null;
+            const token = session?.access_token || localStorage.getItem('eduai_token');
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
                 body: JSON.stringify({
                     action: 'sendEmail',
                     recipient: localCompanyInfo.email,
@@ -512,9 +519,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestSms = async () => {
         setIsSavingConfigs(true);
         try {
+            const sessionStr = localStorage.getItem('sb-fuxncsclzuvyrpjisjws-auth-token');
+            const session = sessionStr ? JSON.parse(sessionStr) : null;
+            const token = session?.access_token || localStorage.getItem('eduai_token');
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
                 body: JSON.stringify({
                     action: 'sendSms',
                     recipient: localCompanyInfo.phone,
