@@ -1838,3 +1838,209 @@ export const generateLecturerTimetablePdf = async (
     }
     return doc.output('blob');
 };
+
+export const generateCourseProgressPdf = async (
+    reportData: any[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 10;
+
+    reportData.forEach((course) => {
+        if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(45, 55, 72);
+        doc.text(course.name, margin, yPos);
+        yPos += 7;
+
+        course.levels.forEach((level: any) => {
+            if (yPos > 240) {
+                doc.addPage();
+                yPos = 20;
+            }
+
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(74, 85, 104);
+            doc.text(`${level.name} - Coverage: ${level.overallPercent}%`, margin, yPos);
+            yPos += 5;
+
+            const head = [['Subject', 'Code', 'Scheduled', 'Required', 'Coverage (%)']];
+            const body = level.subjects.map((s: any) => [
+                s.name,
+                s.code,
+                s.scheduled,
+                s.required,
+                `${s.percent}%`
+            ]);
+
+            doc.autoTable({
+                startY: yPos,
+                head: head,
+                body: body,
+                theme: 'striped',
+                headStyles: { fillColor: [45, 55, 72], fontSize: 8 },
+                styles: { fontSize: 8 },
+                margin: { left: margin },
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 10;
+        });
+
+        yPos += 5;
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateEnrollmentCapacityPdf = async (
+    analysis: any[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 12;
+
+    // Executive Summary Card Layout
+    const metrics = [
+        { label: 'Critical Areas', value: `${analysis.filter(r => r.overcrowdedSessions > 0).length} Rooms` },
+        { label: 'Avg. Occupancy', value: `${Math.round(analysis.reduce((sum, r) => sum + r.avgRatio, 0) / (analysis.length || 1))}%` },
+        { label: 'Optimized', value: `${analysis.filter(r => r.avgRatio > 50 && r.avgRatio <= 100).length} Rooms` },
+        { label: 'Underused', value: `${analysis.filter(r => r.sessionCount > 0 && r.avgRatio < 30).length} Rooms` }
+    ];
+
+    let xPos = margin;
+    const cardWidth = (pageWidth - (margin * 2)) / 4;
+    metrics.forEach(m => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(m.label.toUpperCase(), xPos, yPos);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(45, 55, 72);
+        doc.text(m.value, xPos, yPos + 6);
+        xPos += cardWidth;
+    });
+
+    yPos += 20;
+
+    // Detailed Table
+    const head = [['Facility Name', 'Capacity', 'Peak Students', 'Avg Density', 'Risk Status']];
+    const body = analysis.map(room => [
+        room.roomName,
+        room.capacity,
+        room.maxEnrollment,
+        `${Math.round(room.avgRatio)}%`,
+        room.overcrowdedSessions > 0 ? `${room.overcrowdedSessions} Overcrowded` : room.sessionCount === 0 ? 'Not in Use' : 'Optimal'
+    ]);
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], fontSize: 8 },
+        styles: { fontSize: 8 },
+        didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 4) {
+                if (data.cell.raw.includes('Overcrowded')) {
+                    data.cell.styles.textColor = [200, 0, 0];
+                } else if (data.cell.raw === 'Optimal') {
+                    data.cell.styles.textColor = [0, 128, 0];
+                }
+            }
+        }
+    });
+
+    // Session Breakdowns (Top 5 critical rooms)
+    const criticalRooms = analysis.filter(r => r.overcrowdedSessions > 0).slice(0, 5);
+    if (criticalRooms.length > 0) {
+        doc.addPage();
+        yPos = setupPdfHeader(doc, headerImg);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text("Critical Overcrowding Insights (Top 5)", margin, yPos);
+        yPos += 10;
+
+        criticalRooms.forEach(room => {
+            if (yPos > 240) {
+                doc.addPage();
+                yPos = setupPdfHeader(doc, headerImg);
+            }
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Facility: ${room.roomName}`, margin, yPos);
+            yPos += 5;
+
+            const subHead = [['Day', 'Time', 'Subject / Class', 'Enrollment', 'Status']];
+            const subBody = room.sessionInsights.map((s: any) => [
+                s.day,
+                s.time,
+                `${s.subjectName}\n${s.className}`,
+                `${s.enrollment}/${s.capacity}`,
+                s.isOvercrowded ? 'CRITICAL' : 'OK'
+            ]);
+
+            (doc as any).autoTable({
+                startY: yPos,
+                head: subHead,
+                body: subBody,
+                theme: 'striped',
+                headStyles: { fillColor: [74, 85, 104], fontSize: 7 },
+                styles: { fontSize: 7 },
+                columnStyles: { 4: { fontStyle: 'bold' } },
+                didParseCell: (data: any) => {
+                    if (data.section === 'body' && data.column.index === 4 && String(data.cell.raw) === 'CRITICAL') {
+                        data.cell.styles.textColor = [200, 0, 0];
+                    }
+                }
+            });
+
+            yPos = (doc as any).lastAutoTable.finalY + 10;
+        });
+    }
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

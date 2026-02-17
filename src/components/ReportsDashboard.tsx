@@ -628,6 +628,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             courses={courses}
                             subjects={subjects}
                             allTimetableEntries={allTimetableEntries}
+                            letterheadConfig={letterheadConfig}
+                            footerImageUrl={footerImageUrl}
+                            onPreviewPdf={(url, filename) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'enrollment_capacity' && (
@@ -637,6 +643,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             courseSizes={courseSizes}
                             courses={courses}
                             subjects={subjects}
+                            letterheadConfig={letterheadConfig}
+                            footerImageUrl={footerImageUrl}
+                            onPreviewPdf={(url, filename) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'audit' && (

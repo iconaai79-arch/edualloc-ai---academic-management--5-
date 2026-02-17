@@ -1,12 +1,16 @@
 
-import React, { useMemo } from 'react';
-import type { Subject, Course, TimetableEntry, LessonStructure } from '../types';
-import { AcademicCapIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons';
+import React, { useMemo, useState } from 'react';
+import type { Subject, Course, TimetableEntry, LessonStructure, LetterheadConfig } from '../types';
+import { AcademicCapIcon, CheckCircleIcon, ExclamationTriangleIcon, PrinterIcon, EyeIcon } from './icons';
+import { generateCourseProgressPdf } from '../services/pdfService';
 
 interface CourseProgressReportProps {
     subjects: Subject[];
     courses: Course[];
     allTimetableEntries: TimetableEntry[];
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 const calculateTotalPeriods = (structure: LessonStructure[] | undefined): number => {
@@ -14,10 +18,21 @@ const calculateTotalPeriods = (structure: LessonStructure[] | undefined): number
     return structure.reduce((sum, s) => sum + (s.periods || 0) * (s.count || 0), 0);
 };
 
-export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({ subjects, courses, allTimetableEntries }) => {
+export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({
+    subjects, courses, allTimetableEntries, letterheadConfig, footerImageUrl, onPreviewPdf
+}) => {
+    const [courseFilter, setCourseFilter] = useState('all');
+    const [levelFilter, setLevelFilter] = useState('all');
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const filteredCourses = useMemo(() => {
+        if (courseFilter === 'all') return courses;
+        return courses.filter(c => c.id === courseFilter);
+    }, [courses, courseFilter]);
+
     const reportData = useMemo(() => {
-        return courses.map(course => {
-            const courseLevels = course.levels || [];
+        return filteredCourses.map(course => {
+            const courseLevels = (course.levels || []).filter(l => levelFilter === 'all' || l.id === levelFilter);
             const levelStats = courseLevels.map(level => {
                 const levelSubjectIds = level.subjectIds || [];
                 const levelSubjects = subjects.filter(s => levelSubjectIds.includes(s.id));
@@ -57,15 +72,79 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({ subj
                 name: course.name,
                 levels: levelStats
             };
-        });
-    }, [subjects, courses, allTimetableEntries]);
+        }).filter(c => c.levels.length > 0);
+    }, [subjects, filteredCourses, allTimetableEntries, levelFilter]);
+
+    const handlePreviewPdf = async () => {
+        setIsGenerating(true);
+        try {
+            const pdfUrl = await generateCourseProgressPdf(
+                reportData,
+                "Academic Coverage Analysis Report",
+                letterheadConfig,
+                footerImageUrl || null
+            );
+            onPreviewPdf?.(pdfUrl, `Course_Progress_Report.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate PDF");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     return (
         <div className="space-y-12 animate-fade-in-up">
-            <header>
-                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Academic Coverage Analysis</h3>
-                <p className="text-sm text-slate-500">Comparison of required teaching hours vs. actual scheduled hours in the master timetable.</p>
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Academic Coverage Analysis</h3>
+                    <p className="text-sm text-slate-500">Comparison of required teaching hours vs. actual scheduled hours.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 no-print">
+                    <button
+                        onClick={() => window.print()}
+                        className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-600 hover:text-indigo-600 transition-all shadow-sm"
+                        title="Print View"
+                    >
+                        <PrinterIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={handlePreviewPdf}
+                        disabled={isGenerating}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isGenerating ? "Preparing..." : <><EyeIcon className="w-4 h-4" /> PDF Preview</>}
+                    </button>
+                </div>
             </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 no-print">
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Filter Course</label>
+                    <select
+                        value={courseFilter}
+                        onChange={(e) => { setCourseFilter(e.target.value); setLevelFilter('all'); }}
+                        className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                    >
+                        <option value="all">All Courses</option>
+                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Filter Stream/Level</label>
+                    <select
+                        value={levelFilter}
+                        onChange={(e) => setLevelFilter(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                    >
+                        <option value="all">All Streams</option>
+                        {courseFilter !== 'all' && courses.find(c => c.id === courseFilter)?.levels?.map(l => (
+                            <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
 
             {reportData.map(course => (
                 <div key={course.id} className="space-y-6">
@@ -124,7 +203,7 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({ subj
             {reportData.length === 0 && (
                 <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
                     <ExclamationTriangleIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No course data available to track progress.</p>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No matching records found.</p>
                 </div>
             )}
         </div>

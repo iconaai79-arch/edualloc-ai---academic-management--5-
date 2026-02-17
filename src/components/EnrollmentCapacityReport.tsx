@@ -1,7 +1,8 @@
 
-import React, { useMemo } from 'react';
-import type { Room, TimetableEntry, Course, Subject } from '../types';
-import { BuildingOfficeIcon, UserGroupIcon, ExclamationTriangleIcon, CheckCircleIcon } from './icons';
+import React, { useMemo, useState } from 'react';
+import type { Room, TimetableEntry, Course, Subject, LetterheadConfig } from '../types';
+import { BuildingOfficeIcon, UserGroupIcon, ExclamationTriangleIcon, CheckCircleIcon, EyeIcon, PrinterIcon } from './icons';
+import { generateEnrollmentCapacityPdf } from '../services/pdfService';
 
 interface EnrollmentCapacityReportProps {
     rooms: Room[];
@@ -9,6 +10,9 @@ interface EnrollmentCapacityReportProps {
     courseSizes: Map<string, number>;
     courses: Course[];
     subjects: Subject[];
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 export const EnrollmentCapacityReport: React.FC<EnrollmentCapacityReportProps> = ({
@@ -16,10 +20,21 @@ export const EnrollmentCapacityReport: React.FC<EnrollmentCapacityReportProps> =
     allTimetableEntries,
     courseSizes,
     courses,
-    subjects
+    subjects,
+    letterheadConfig,
+    footerImageUrl,
+    onPreviewPdf
 }) => {
+    const [facilityFilter, setFacilityFilter] = useState('all');
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const filteredRooms = useMemo(() => {
+        if (facilityFilter === 'all') return rooms;
+        return rooms.filter(r => r.id === facilityFilter);
+    }, [rooms, facilityFilter]);
+
     const analysis = useMemo(() => {
-        const roomUsage = rooms.map(room => {
+        const roomUsage = filteredRooms.map(room => {
             const sessions = allTimetableEntries.filter(e => e.roomId === room.id);
 
             const sessionInsights = sessions.map(session => {
@@ -61,13 +76,50 @@ export const EnrollmentCapacityReport: React.FC<EnrollmentCapacityReportProps> =
         });
 
         return roomUsage.sort((a, b) => b.overcrowdedSessions - a.overcrowdedSessions || b.avgRatio - a.avgRatio);
-    }, [rooms, allTimetableEntries, courseSizes, courses, subjects]);
+    }, [filteredRooms, allTimetableEntries, courseSizes, courses, subjects]);
+
+    const handlePreviewPdf = async () => {
+        setIsGenerating(true);
+        try {
+            const pdfUrl = await generateEnrollmentCapacityPdf(
+                analysis,
+                "Enrollment vs. Capacity Analysis Report",
+                letterheadConfig,
+                footerImageUrl || null
+            );
+            onPreviewPdf?.(pdfUrl, `Enrollment_Risk_Report.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate PDF");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
 
     return (
         <div className="space-y-10 animate-fade-in-up">
-            <header>
-                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Space vs. Enrollment Analysis</h3>
-                <p className="text-sm text-slate-500">Identifying overcrowding risks and optimizing lecture hall utilization based on actual student density.</p>
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Space vs. Enrollment Analysis</h3>
+                    <p className="text-sm text-slate-500">Identifying overcrowding risks and optimizing lecture hall utilization.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 no-print">
+                    <button
+                        onClick={() => window.print()}
+                        className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-600 hover:text-indigo-600 transition-all shadow-sm"
+                        title="Print View"
+                    >
+                        <PrinterIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={handlePreviewPdf}
+                        disabled={isGenerating}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isGenerating ? "Preparing..." : <><EyeIcon className="w-4 h-4" /> PDF Preview</>}
+                    </button>
+                </div>
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -94,6 +146,20 @@ export const EnrollmentCapacityReport: React.FC<EnrollmentCapacityReportProps> =
                     <p className="text-3xl font-black text-amber-600 tracking-tighter">
                         {analysis.filter(r => r.sessionCount > 0 && r.avgRatio < 30).length} Rooms
                     </p>
+                </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 no-print flex items-center gap-4">
+                <div className="flex-1 space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Facility Overlook</label>
+                    <select
+                        value={facilityFilter}
+                        onChange={(e) => setFacilityFilter(e.target.value)}
+                        className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                    >
+                        <option value="all">Check All Facilities</option>
+                        {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
                 </div>
             </div>
 
