@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Subject, User, Room, TimetableEntry, AcademicYear, Semester, TimetableSettings } from '../types';
+import type { Subject, User, Room, TimetableEntry, AcademicYear, Semester, TimetableSettings, Course } from '../types';
 import { analyzeTimetableSpreadsheet } from '../services/geminiService';
 import { SparklesIcon, XIcon } from './icons';
 import { minutesToTime, timeToMinutes } from '../utils/timeUtils';
@@ -13,6 +13,7 @@ interface TimetableImporterProps {
     subjects: Subject[];
     lecturers: User[];
     rooms: Room[];
+    courses: Course[];
     onImport: (entries: Omit<TimetableEntry, 'id' | 'institutionId' | 'academicYearId' | 'semesterId'>[]) => void;
     academicYearId: string;
     semesterId: string;
@@ -26,7 +27,7 @@ const ALL_MAPPING_FIELDS: MappingField[] = ['day', 'startTime', 'endTime', 'subj
 const MANDATORY_FIELDS: MappingField[] = ['startTime', 'subjectCode', 'lecturerName', 'roomName'];
 
 
-export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, onClose, subjects, lecturers, rooms, onImport, academicYearId, semesterId, timetableSettings, aiModelTier }) => {
+export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, onClose, subjects, lecturers, rooms, courses, onImport, academicYearId, semesterId, timetableSettings, aiModelTier }) => {
     const [step, setStep] = useState<ImportStep>('upload');
     const [file, setFile] = useState<File | null>(null);
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
@@ -62,7 +63,7 @@ export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, on
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 setRawData(jsonData);
 
-                const mapping = await analyzeTimetableSpreadsheet(headers, aiModelTier);
+                const mapping = await analyzeTimetableSpreadsheet(headers);
                 setAiMapping(mapping as Record<MappingField, string | null>);
                 setUserMapping(mapping as Record<MappingField, string>);
                 setStep('mapping');
@@ -131,6 +132,24 @@ export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, on
 
                 if (!endTime) throw new Error("Could not determine End Time.");
 
+                // --- Find Course and Level association ---
+                let courseId = '';
+                let courseLevelId = '';
+
+                // Try to find which course/level this subject belongs to
+                for (const course of courses) {
+                    const level = course.levels.find(l => l.subjectIds.includes(subjectId));
+                    if (level) {
+                        courseId = course.id;
+                        courseLevelId = level.id;
+                        break;
+                    }
+                }
+
+                if (!courseId || !courseLevelId) {
+                    throw new Error(`Could not find course/level association for subject "${subjectCode}". Ensure the subject is linked to a course level in Settings.`);
+                }
+
                 // --- Handle day logic ---
                 const dayValue = userMapping.day ? row[userMapping.day] : null;
 
@@ -138,7 +157,7 @@ export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, on
                     // Day is specified, create single entry
                     const dayString = String(dayValue).trim();
                     if (!dayString) throw new Error("Day column has an empty value.");
-                    /* FIXED: Added required snake_case properties to match TimetableEntry type */
+                    /* FIXED: Added required properties to match TimetableEntry type */
                     validEntries.push({
                         day: dayString,
                         startTime,
@@ -146,16 +165,20 @@ export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, on
                         subjectId,
                         lecturerId,
                         roomId,
+                        courseId,
+                        courseLevelId,
                         start_time: startTime,
                         end_time: endTime,
                         subject_id: subjectId,
                         lecturer_id: lecturerId,
-                        room_id: roomId
+                        room_id: roomId,
+                        course_id: courseId,
+                        course_level_id: courseLevelId
                     });
                 } else {
                     // Day is not specified, create entry for each operating day
                     timetableSettings.operatingDays.forEach(dayOfWeek => {
-                        /* FIXED: Added required snake_case properties to match TimetableEntry type */
+                        /* FIXED: Added required properties to match TimetableEntry type */
                         validEntries.push({
                             day: dayOfWeek,
                             startTime,
@@ -163,11 +186,15 @@ export const TimetableImporter: React.FC<TimetableImporterProps> = ({ isOpen, on
                             subjectId,
                             lecturerId,
                             roomId,
+                            courseId,
+                            courseLevelId,
                             start_time: startTime,
                             end_time: endTime,
                             subject_id: subjectId,
                             lecturer_id: lecturerId,
-                            room_id: roomId
+                            room_id: roomId,
+                            course_id: courseId,
+                            course_level_id: courseLevelId
                         });
                     });
                 }

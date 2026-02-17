@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { TimetableEntry, Room, RoomConflict, LetterheadConfig } from '../types';
 import { generateAdvisoryReportPdf } from '../services/pdfService';
-import { ExclamationIcon, CheckIcon } from './icons';
+import { ExclamationIcon, CheckIcon, EyeIcon } from './icons';
 
 interface AdvisoryReportViewProps {
     generatedTimetable: TimetableEntry[];
@@ -10,6 +10,7 @@ interface AdvisoryReportViewProps {
     letterheadConfig: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
@@ -18,6 +19,7 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
     letterheadConfig,
     logoUrl,
     footerImageUrl,
+    onPreviewPdf
 }) => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -62,6 +64,25 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
         });
     }, [generatedTimetable, rooms, totalRoomCapacity]);
 
+    const handlePreviewPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const pdfDataUri = await generateAdvisoryReportPdf(
+                roomConflicts,
+                rooms.length,
+                letterheadConfig,
+                logoUrl,
+                footerImageUrl
+            );
+            onPreviewPdf?.(pdfDataUri, `Room_Advisory_Report.pdf`);
+        } catch (error) {
+            console.error('Failed to generate PDF preview:', error);
+            alert('An error occurred while generating the PDF preview.');
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     const handleGeneratePdf = async () => {
         setIsGeneratingPdf(true);
         try {
@@ -85,7 +106,7 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
             setIsGeneratingPdf(false);
         }
     };
-    
+
     if (generatedTimetable.length === 0) {
         return (
             <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
@@ -100,18 +121,29 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
         <div className="space-y-6">
             <div className="flex flex-wrap gap-4 justify-between items-center">
                 <h3 className="text-xl font-semibold">Room Allocation Advisory Report</h3>
-                <button
-                    onClick={handleGeneratePdf}
-                    disabled={isGeneratingPdf || roomConflicts.length === 0}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[var(--color-primary)] hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isGeneratingPdf ? 'Generating PDF...' : 'Generate PDF Report'}
-                </button>
+                <div className="flex items-center gap-2">
+                    {onPreviewPdf && (
+                        <button
+                            onClick={handlePreviewPdf}
+                            disabled={isGeneratingPdf || roomConflicts.length === 0}
+                            className="inline-flex items-center px-4 py-2 border border-slate-300 dark:border-slate-600 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <EyeIcon className="w-4 h-4 mr-2" /> {isGeneratingPdf ? 'Preparing...' : 'Preview'}
+                        </button>
+                    )}
+                    <button
+                        onClick={handleGeneratePdf}
+                        disabled={isGeneratingPdf || roomConflicts.length === 0}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[var(--color-primary)] hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isGeneratingPdf ? 'Generating PDF...' : 'Generate PDF Report'}
+                    </button>
+                </div>
             </div>
-            
-             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
                 <h4 className="text-lg font-medium text-slate-800 dark:text-slate-100">Report Summary</h4>
-                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-slate-100 dark:bg-slate-700/50 p-4 rounded-lg">
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Concurrent Room Capacity</p>
                         <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalRoomCapacity}</p>
@@ -120,11 +152,11 @@ export const AdvisoryReportView: React.FC<AdvisoryReportViewProps> = ({
                         <p className={`text-sm font-medium ${roomConflicts.length > 0 ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>Conflicting Time Slots</p>
                         <p className={`mt-1 text-3xl font-semibold ${roomConflicts.length > 0 ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'}`}>{roomConflicts.length}</p>
                     </div>
-                 </div>
+                </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
-                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                     <thead className="bg-slate-50 dark:bg-slate-700">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Day</th>

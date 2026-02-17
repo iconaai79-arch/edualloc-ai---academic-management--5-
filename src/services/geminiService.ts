@@ -278,14 +278,21 @@ export const generateTimetable = async (
             - RANDOMIZED VARIETY: Introduce stochastic variety in slot selection. Do not always pick the earliest possible slot; distribute lessons across all available valid windows to create a balanced, non-linear feel.
             - Use a "Verification-Pass" to check every single entry against the Faculty Governance Rules and Unit Distribution Rules.
 
-            Output: JSON array { day, startTime, endTime, subjectId, lecturerId, roomId }.
+            Output: JSON array of objects with these exact keys: { day, startTime, endTime, subjectId, lecturerId, roomId, courseId, courseLevelId }.
         `;
 
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         const result = sanitizeAndParseJson(response.text || "[]");
         return (Array.isArray(result) ? result : []).map((entry: any) => ({
             ...entry,
-            id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            id: `entry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            start_time: entry.startTime,
+            end_time: entry.endTime,
+            subject_id: entry.subjectId,
+            lecturer_id: entry.lecturerId,
+            room_id: entry.roomId,
+            course_id: entry.courseId,
+            course_level_id: entry.courseLevelId
         }));
     } catch (error) {
         console.error("AI timetable error:", error);

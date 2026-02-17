@@ -210,6 +210,8 @@ CREATE TABLE IF NOT EXISTS timetable_entries (
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     academic_year_id TEXT REFERENCES academic_years(id) ON DELETE SET NULL,
     semester_id TEXT REFERENCES semesters(id) ON DELETE SET NULL,
+    course_id TEXT REFERENCES courses(id) ON DELETE CASCADE,
+    course_level_id TEXT,
     attendance_status TEXT DEFAULT 'present',
     shared_with_practice_teacher_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     is_conflicting BOOLEAN DEFAULT FALSE,

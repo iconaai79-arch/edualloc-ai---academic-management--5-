@@ -527,6 +527,7 @@ export const TimetableGenerator: React.FC<TimetableGeneratorProps> = ({
                     subjects={subjects}
                     lecturers={lecturers}
                     rooms={rooms}
+                    courses={courses}
                     onImport={async (entries) => {
                         await onTimetableGenerated(entries, activeAcademicYear.id, activeSemester.id);
                         onLogAction?.('Imported Timetable from Excel');

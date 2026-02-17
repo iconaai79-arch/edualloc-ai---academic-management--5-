@@ -312,6 +312,8 @@ export interface TimetableEntry {
     subject_id?: string;
     lecturer_id?: string;
     room_id?: string;
+    course_id?: string;
+    course_level_id?: string;
 }
 
 export interface AcademicYear {

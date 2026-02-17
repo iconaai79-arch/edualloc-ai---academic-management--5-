@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Building, Room, TimetableEntry, TimetableSettings, LetterheadConfig } from '../types';
 import { timeToMinutes } from '../utils/timeUtils';
-import { PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { PrinterIcon, DocumentArrowDownIcon, EyeIcon } from './icons';
 import { generateRoomUtilizationPdf } from '../services/pdfService';
 
 interface RoomUtilizationReportProps {
@@ -13,6 +13,7 @@ interface RoomUtilizationReportProps {
     letterheadConfig: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 const UtilizationBar: React.FC<{ percentage: number }> = ({ percentage }) => {
@@ -40,7 +41,8 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
     timetableSettings,
     letterheadConfig,
     logoUrl,
-    footerImageUrl
+    footerImageUrl,
+    onPreviewPdf
 }) => {
     const [selectedBuildingId, setSelectedBuildingId] = useState<string>(buildings[0]?.id || 'all');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -62,7 +64,7 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
 
         return roomsInBuilding.map(room => {
             const roomTimetable = generatedTimetable.filter(entry => entry.roomId === room.id);
-            
+
             const totalOccupiedMinutes = roomTimetable.reduce((acc, entry) => {
                 const start = timeToMinutes(entry.startTime);
                 const end = timeToMinutes(entry.endTime);
@@ -110,12 +112,32 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
         }
     };
 
+    const handlePreviewPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const buildingName = selectedBuildingId === 'all' ? 'All Buildings' : buildings.find(b => b.id === selectedBuildingId)?.name || 'Building';
+            const pdfUrl = await generateRoomUtilizationPdf(
+                utilizationData,
+                `Room Utilization Report - ${buildingName}`,
+                letterheadConfig,
+                footerImageUrl,
+                logoUrl
+            );
+            onPreviewPdf?.(pdfUrl, `Room_Utilization_${buildingName.replace(/\s+/g, '_')}.pdf`);
+        } catch (error) {
+            console.error("PDF Generation Error", error);
+            alert("Failed to generate PDF preview");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap gap-4 justify-between items-center no-print">
                 <div className="w-full sm:w-64">
                     <label htmlFor="building-filter" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                       Filter by Building
+                        Filter by Building
                     </label>
                     <select
                         id="building-filter"
@@ -127,12 +149,17 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
                         {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
                 </div>
-                 <div className="flex items-center gap-2 self-end">
+                <div className="flex items-center gap-2 self-end">
                     <button onClick={handlePrint} className="btn-secondary inline-flex items-center gap-2">
-                        <PrinterIcon className="w-5 h-5"/> Print
+                        <PrinterIcon className="w-5 h-5" /> Print
                     </button>
+                    {onPreviewPdf && (
+                        <button onClick={handlePreviewPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
+                            <EyeIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Preparing...' : 'Preview'}
+                        </button>
+                    )}
                     <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
-                        <DocumentArrowDownIcon className="w-5 h-5"/> {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
+                        <DocumentArrowDownIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Generating...' : 'Download PDF'}
                     </button>
                 </div>
             </div>
@@ -167,7 +194,7 @@ export const RoomUtilizationReport: React.FC<RoomUtilizationReportProps> = ({
                     )}
                 </ul>
             </div>
-             <style>{`
+            <style>{`
                 .form-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
                 @media print {
                     .no-print { display: none !important; }

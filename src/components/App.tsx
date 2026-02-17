@@ -400,7 +400,7 @@ export const App: React.FC = () => {
 
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -433,6 +433,10 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', instId).catch(() => []),
                 apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
+                apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
+                apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
+                apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
+                apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
             ]);
 
 
@@ -468,6 +472,10 @@ export const App: React.FC = () => {
             setBursaryFunds(bFunds || []);
             setLeaveOutRequests(lo || []);
             setObservationNotes(obs || []);
+            setVisitors(vis || []);
+            setSecurityAlerts(sec || []);
+            setRequisitions(req || []);
+            setTimeOffRequests(tor || []);
 
             setIsGeneratingDemoData(false);
         } catch (error) {
@@ -1467,6 +1475,7 @@ export const App: React.FC = () => {
                                     onDeleteSemester={async (id) => { await apiService.deleteModuleRecord('semesters', id); loadData(); }}
                                     timetableSettings={timetableSettings}
                                     onSaveTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: config })}
+                                    lessonRatings={lessonRatings}
                                     buildings={buildings}
                                     onAddBuilding={handleAddBuilding}
                                     onAddBuildings={async (b) => { }}

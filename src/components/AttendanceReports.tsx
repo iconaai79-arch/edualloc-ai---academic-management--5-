@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, Subject, Department, Course, TimetableEntry, LetterheadConfig, StudentAttendance, Institution } from '../types';
-import { CheckIcon, XIcon, ClockIcon, PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { CheckIcon, XIcon, ClockIcon, PrinterIcon, DocumentArrowDownIcon, EyeIcon } from './icons';
 
 // Let TypeScript know that these are global variables from the script tags
 declare var jspdf: any;
@@ -19,6 +19,7 @@ interface AttendanceReportsProps {
     logoUrl: string | null;
     footerImageUrl: string | null;
     currentInstitution?: Institution | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => {
@@ -37,7 +38,7 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => {
 
 
 export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
-    currentUser, users, subjects, departments, courses, generatedTimetable, studentAttendances, studentCheckIns, letterheadConfig, logoUrl, footerImageUrl, currentInstitution
+    currentUser, users, subjects, departments, courses, generatedTimetable, studentAttendances, studentCheckIns, letterheadConfig, logoUrl, footerImageUrl, currentInstitution, onPreviewPdf
 }) => {
     const [tab, setTab] = useState<'lecturer' | 'student'>('lecturer');
     const [searchInputValue, setSearchInputValue] = useState('');
@@ -82,10 +83,10 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
         let data = visibleLecturers.map(lecturer => {
             const scheduledLessons = generatedTimetable.filter(e => e.lecturerId === lecturer.id);
             const total = scheduledLessons.length;
-            /* FIXED: Changed attendanceStatus to attendance_status to match type definition */
-            const attended = scheduledLessons.filter(e => e.attendance_status === 'present').length;
-            /* FIXED: Changed attendanceStatus to attendance_status to match type definition */
-            const absenceRequested = scheduledLessons.filter(e => e.attendance_status === 'pending_absence_request' || e.attendance_status === 'approved_absence').length;
+            /* FIXED: Changed attendance_status to attendanceStatus to match type definition */
+            const attended = scheduledLessons.filter(e => e.attendanceStatus === 'present').length;
+            /* FIXED: Changed attendance_status to attendanceStatus to match type definition */
+            const absenceRequested = scheduledLessons.filter(e => e.attendanceStatus === 'pending_absence_request' || e.attendanceStatus === 'approved_absence').length;
             const notMarked = total - attended - absenceRequested;
             const rate = total > 0 ? (attended / total) * 100 : 0;
             return {
@@ -115,7 +116,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
             const studentEnrolledIds = new Set(student.enrolledSubjectIds || []);
             const scheduledLessons = generatedTimetable.filter(e => studentEnrolledIds.has(e.subjectId));
             const total = scheduledLessons.length;
-            
+
             const attendedCount = scheduledLessons.filter(lesson => {
                 // Lecturer's mark is definitive
                 const lecturerRecord = studentAttendances.find(att => att.timetableEntryId === lesson.id && att.studentId === student.id);
@@ -149,19 +150,19 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                 student.course.toLowerCase().includes(searchTerm)
             );
         }
-        
+
         return data.sort((a, b) => a.name.localeCompare(b.name));
     }, [visibleStudents, generatedTimetable, studentAttendances, studentCheckIns, courseMap, searchTerm]);
-    
+
     const handlePrint = () => {
         window.print();
     };
 
-    const handleDownloadPdf = async () => {
+    const handlePreviewPdf = async () => {
         setIsGeneratingPdf(true);
         try {
             const doc = new jspdf.jsPDF({ orientation: 'landscape' });
-            
+
             const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
                 return new Promise((resolve) => {
                     if (!url) return resolve(null);
@@ -172,42 +173,42 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                     img.onerror = () => { console.error("Failed to load image for PDF."); resolve(null); };
                 });
             };
-    
+
             const setupHeader = (doc: any, logoImg: HTMLImageElement | null, title: string) => {
                 const margin = 14;
                 const pageWidth = doc.internal.pageSize.getWidth();
                 let headerStartY = 15;
-    
+
                 if (logoImg) {
                     const logoWidth = 20;
                     const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
                     doc.addImage(logoImg, 'PNG', margin, headerStartY, logoWidth, logoHeight);
                 }
-    
+
                 const textX = margin + (logoImg ? 25 : 0);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(16);
                 doc.text(currentInstitution?.name || 'Institution Report', textX, headerStartY + 5);
-    
+
                 const lineY = headerStartY + 25;
                 doc.setDrawColor(180, 180, 180);
                 doc.line(margin, lineY, pageWidth - margin, lineY);
-    
+
                 doc.setFontSize(14);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(0);
                 doc.text(title, margin, lineY + 10);
-                
+
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(80);
                 doc.text(`Report Generated: ${new Date().toLocaleString()}`, margin, lineY + 15);
-    
+
                 return lineY + 25;
             };
-            
+
             const setupFooter = (doc: any, footerImg: HTMLImageElement | null) => {
-                 if (footerImg) {
+                if (footerImg) {
                     const pageWidth = doc.internal.pageSize.getWidth();
                     const pageHeight = doc.internal.pageSize.getHeight();
                     const footerMargin = 10;
@@ -215,7 +216,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                     const aspectRatio = footerImg.width / footerImg.height;
                     let finalWidth = availableWidth;
                     let finalHeight = finalWidth / aspectRatio;
-                    const maxHeight = 30; 
+                    const maxHeight = 30;
                     if (finalHeight > maxHeight) {
                         finalHeight = maxHeight;
                         finalWidth = finalHeight * aspectRatio;
@@ -224,26 +225,26 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                     const yPos = pageHeight - finalHeight - footerMargin;
                     doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
                 }
-                 const pageCount = doc.internal.getNumberOfPages();
-                 for (let i = 1; i <= pageCount; i++) {
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
                     doc.setPage(i);
                     doc.setFontSize(8);
                     doc.setTextColor(150);
                     doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-                 }
+                }
             };
-            
+
             const [logoImg, footerImg] = await Promise.all([
                 loadImage(logoUrl),
                 loadImage(footerImageUrl)
             ]);
-            
+
             const reportTitle = tab === 'lecturer' ? "Lecturer Attendance Report" : "Student Attendance Report";
             const tableStartY = setupHeader(doc, logoImg, reportTitle);
-    
+
             let head: string[][] = [];
             let body: (string | number)[][] = [];
-    
+
             if (tab === 'lecturer') {
                 head = [['Lecturer', 'Department', 'Scheduled', 'Attended', 'Absence', 'Not Marked', 'Rate']];
                 body = lecturerReportData.map(d => [d.name, d.department, d.total, d.attended, d.absenceRequested, d.notMarked, `${d.rate.toFixed(0)}%`]);
@@ -251,7 +252,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                 head = [['Student', 'Course', 'Total Classes', 'Attended', 'Rate']];
                 body = studentReportData.map(d => [d.name, d.course, d.total, d.attended, `${d.rate.toFixed(0)}%`]);
             }
-            
+
             doc.autoTable({
                 head: head,
                 body: body,
@@ -262,9 +263,126 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                     setupFooter(doc, footerImg);
                 }
             });
-            
+
+            const dataUri = doc.output('datauristring');
+            onPreviewPdf?.(dataUri, `${reportTitle.replace(/\s/g, '_')}.pdf`);
+
+        } catch (e) {
+            console.error("Failed to generate PDF", e);
+            alert("An error occurred while generating the PDF.");
+        } finally {
+            setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleDownloadPdf = async () => {
+        setIsGeneratingPdf(true);
+        try {
+            const doc = new jspdf.jsPDF({ orientation: 'landscape' });
+
+            const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
+                return new Promise((resolve) => {
+                    if (!url) return resolve(null);
+                    const img = new Image();
+                    img.crossOrigin = "Anonymous";
+                    img.src = url;
+                    img.onload = () => resolve(img);
+                    img.onerror = () => { console.error("Failed to load image for PDF."); resolve(null); };
+                });
+            };
+
+            const setupHeader = (doc: any, logoImg: HTMLImageElement | null, title: string) => {
+                const margin = 14;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                let headerStartY = 15;
+
+                if (logoImg) {
+                    const logoWidth = 20;
+                    const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+                    doc.addImage(logoImg, 'PNG', margin, headerStartY, logoWidth, logoHeight);
+                }
+
+                const textX = margin + (logoImg ? 25 : 0);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.text(currentInstitution?.name || 'Institution Report', textX, headerStartY + 5);
+
+                const lineY = headerStartY + 25;
+                doc.setDrawColor(180, 180, 180);
+                doc.line(margin, lineY, pageWidth - margin, lineY);
+
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(0);
+                doc.text(title, margin, lineY + 10);
+
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(80);
+                doc.text(`Report Generated: ${new Date().toLocaleString()}`, margin, lineY + 15);
+
+                return lineY + 25;
+            };
+
+            const setupFooter = (doc: any, footerImg: HTMLImageElement | null) => {
+                if (footerImg) {
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const pageHeight = doc.internal.pageSize.getHeight();
+                    const footerMargin = 10;
+                    const availableWidth = pageWidth - (footerMargin * 2);
+                    const aspectRatio = footerImg.width / footerImg.height;
+                    let finalWidth = availableWidth;
+                    let finalHeight = finalWidth / aspectRatio;
+                    const maxHeight = 30;
+                    if (finalHeight > maxHeight) {
+                        finalHeight = maxHeight;
+                        finalWidth = finalHeight * aspectRatio;
+                    }
+                    const xPos = (pageWidth - finalWidth) / 2;
+                    const yPos = pageHeight - finalHeight - footerMargin;
+                    doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
+                }
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(8);
+                    doc.setTextColor(150);
+                    doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+                }
+            };
+
+            const [logoImg, footerImg] = await Promise.all([
+                loadImage(logoUrl),
+                loadImage(footerImageUrl)
+            ]);
+
+            const reportTitle = tab === 'lecturer' ? "Lecturer Attendance Report" : "Student Attendance Report";
+            const tableStartY = setupHeader(doc, logoImg, reportTitle);
+
+            let head: string[][] = [];
+            let body: (string | number)[][] = [];
+
+            if (tab === 'lecturer') {
+                head = [['Lecturer', 'Department', 'Scheduled', 'Attended', 'Absence', 'Not Marked', 'Rate']];
+                body = lecturerReportData.map(d => [d.name, d.department, d.total, d.attended, d.absenceRequested, d.notMarked, `${d.rate.toFixed(0)}%`]);
+            } else {
+                head = [['Student', 'Course', 'Total Classes', 'Attended', 'Rate']];
+                body = studentReportData.map(d => [d.name, d.course, d.total, d.attended, `${d.rate.toFixed(0)}%`]);
+            }
+
+            doc.autoTable({
+                head: head,
+                body: body,
+                startY: tableStartY,
+                theme: 'grid',
+                headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+                didDrawPage: (data: any) => {
+                    setupFooter(doc, footerImg);
+                }
+            });
+
             doc.save(`${reportTitle.replace(/\s/g, '_')}.pdf`);
-    
+
         } catch (e) {
             console.error("Failed to generate PDF", e);
             alert("An error occurred while generating the PDF.");
@@ -276,7 +394,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
 
     const renderLecturerReport = () => (
         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
-             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                 <thead className="bg-slate-50 dark:bg-slate-700">
                     <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Lecturer</th>
@@ -309,7 +427,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
             </table>
         </div>
     );
-    
+
     const renderStudentReport = () => (
         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
@@ -323,7 +441,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                     </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                     {studentReportData.map(data => (
+                    {studentReportData.map(data => (
                         <tr key={data.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{data.name}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{data.course}</td>
@@ -380,7 +498,7 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
             `}</style>
             <div className="flex flex-wrap gap-4 justify-between items-center no-print">
                 <h3 className="text-xl font-semibold">Attendance Reports</h3>
-                 <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex flex-wrap gap-4 items-center">
                     <div className="flex gap-2 items-center w-full sm:w-auto">
                         <input
                             type="text"
@@ -406,13 +524,23 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                         <button
+                        <button
                             onClick={handlePrint}
                             className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-500 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600"
                         >
                             <PrinterIcon className="w-5 h-5" />
                             Print
                         </button>
+                        {onPreviewPdf && (
+                            <button
+                                onClick={handlePreviewPdf}
+                                disabled={isGeneratingPdf}
+                                className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-500 text-sm font-medium rounded-md shadow-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50"
+                            >
+                                <EyeIcon className="w-5 h-5" />
+                                {isGeneratingPdf ? 'Preparing...' : 'Preview'}
+                            </button>
+                        )}
                         <button
                             onClick={handleDownloadPdf}
                             disabled={isGeneratingPdf}
@@ -429,19 +557,19 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button
                         onClick={() => setTab('lecturer')}
-                        className={`${ tab === 'lecturer' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:border-slate-300' } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        className={`${tab === 'lecturer' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:border-slate-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                     >
                         Lecturer Attendance
                     </button>
                     <button
                         onClick={() => setTab('student')}
-                        className={`${ tab === 'student' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:border-slate-300' } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        className={`${tab === 'student' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:border-slate-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                     >
                         Student Attendance
                     </button>
                 </nav>
             </div>
-            
+
             <div className="printable-area">
                 <h3 className="text-xl font-semibold mb-4 hidden print:block dark:text-white">
                     {tab === 'lecturer' ? 'Lecturer Attendance Report' : 'Student Attendance Report'}

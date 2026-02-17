@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor } from '../types';
+import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog } from '../types';
 import { AdvisoryReportView } from './AdvisoryReportView.tsx';
 import { ConflictReport } from './ConflictReport.tsx';
 import { AttendanceReports } from './AttendanceReports.tsx';
@@ -15,6 +15,8 @@ import { CourseProgressReport } from './CourseProgressReport.tsx';
 import { EnrollmentCapacityReport } from './EnrollmentCapacityReport.tsx';
 import { ActivityLogView } from './ActivityLogView.tsx';
 import { RoomDistanceReport } from './RoomDistanceReport.tsx';
+import { PdfPreviewModal } from './PdfPreviewModal';
+import { EyeIcon } from './icons/index.ts';
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -75,6 +77,7 @@ const ExamTimetableReport: React.FC<{
     logoUrl: string | null;
     footerImageUrl: string | null;
     currentInstitution?: Institution | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }> = ({
     examTimetable = [],
     subjects = [],
@@ -88,7 +91,8 @@ const ExamTimetableReport: React.FC<{
     letterheadConfig,
     logoUrl,
     footerImageUrl,
-    currentInstitution
+    currentInstitution,
+    onPreviewPdf
 }) => {
         const [departmentFilter, setDepartmentFilter] = useState(
             currentUser?.role === 'hod' ? currentUser.departmentId || 'all' : 'all'
@@ -145,6 +149,30 @@ const ExamTimetableReport: React.FC<{
             }
         };
 
+        const handlePreviewPdf = async () => {
+            setIsGeneratingPdf(true);
+            try {
+                const pdfUrl = await generateExamTimetablePdf(
+                    filteredEntries,
+                    getSubjectById || (id => undefined),
+                    getLecturerById || (id => undefined),
+                    getRoomById || (id => undefined),
+                    buildings || [],
+                    courses || [],
+                    title,
+                    letterheadConfig,
+                    footerImageUrl,
+                    logoUrl
+                );
+                onPreviewPdf?.(pdfUrl, `Exam_Timetable_${departmentFilter}.pdf`);
+            } catch (error) {
+                console.error("Failed to generate PDF for preview:", error);
+                alert("Could not generate the PDF preview.");
+            } finally {
+                setIsGeneratingPdf(false);
+            }
+        };
+
         const handlePrint = () => {
             window.print();
         };
@@ -174,6 +202,9 @@ const ExamTimetableReport: React.FC<{
                     <div className="flex items-center gap-2">
                         <button onClick={handlePrint} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
                             <PrinterIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Preparing...' : 'Print'}
+                        </button>
+                        <button onClick={handlePreviewPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
+                            <EyeIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Preparing...' : 'Preview'}
                         </button>
                         <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
                             <DocumentArrowDownIcon className="w-5 h-5" /> {isGeneratingPdf ? 'Generating...' : 'PDF'}
@@ -205,8 +236,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         contracts = [],
         buildings = [],
         timetableSettings,
-        activeSemester,
         academicYears = [],
+        activeSemester = null,
         visitors = [],
         activityLog = [],
         courseSizes = new Map()
@@ -215,6 +246,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
     const [isWorkloadPdfGenerating, setIsWorkloadPdfGenerating] = useState(false);
+    const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+    const [previewPdfFilename, setPreviewPdfFilename] = useState<string>('');
 
     const calculateTotalPeriods = (structure: LessonStructure[] | undefined): number => {
         if (!structure || !Array.isArray(structure)) return 0;
@@ -373,6 +406,36 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         }
     };
 
+    const handlePreviewWorkloadPdf = async () => {
+        setIsWorkloadPdfGenerating(true);
+        try {
+            const summaryStats = [
+                { label: 'Total Subjects', value: totalSubjectsCount },
+                { label: 'Allocated Subjects', value: allocatedSubjectsCount },
+                { label: 'Total Requests', value: totalRequestsCount },
+                { label: 'Total Staff', value: filteredLecturers.length },
+            ];
+
+            const pdfUrl = await generateWorkloadStatisticsPdf(
+                summaryStats,
+                departmentWorkload,
+                lecturerWorkload,
+                subjectAllocationStatus,
+                `Workload & Statistics Report${departmentFilter !== 'all' ? ` - ${(Array.isArray(departments) ? departments : []).find(d => d && d.id === departmentFilter)?.name}` : ''}`,
+                letterheadConfig,
+                footerImageUrl,
+                logoUrl
+            );
+            setPreviewPdfFilename(`Workload_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+            setPreviewPdfUrl(pdfUrl);
+        } catch (error) {
+            console.error("PDF Generation Error", error);
+            alert("Failed to generate PDF preview");
+        } finally {
+            setIsWorkloadPdfGenerating(false);
+        }
+    };
+
     const subTabs = [
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
         { key: 'stats', label: 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
@@ -443,6 +506,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                 <div className="flex items-center gap-2">
                                     <button onClick={handlePrintStats} className="btn-secondary inline-flex items-center gap-2">
                                         <PrinterIcon className="w-5 h-5" /> Print
+                                    </button>
+                                    <button onClick={handlePreviewWorkloadPdf} disabled={isWorkloadPdfGenerating} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50">
+                                        <EyeIcon className="w-5 h-5" /> {isWorkloadPdfGenerating ? 'Preparing...' : 'Preview'}
                                     </button>
                                     <button onClick={handleDownloadWorkloadPdf} disabled={isWorkloadPdfGenerating} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
                                         <DocumentArrowDownIcon className="w-5 h-5" /> {isWorkloadPdfGenerating ? 'Generating...' : 'Download PDF'}
@@ -591,6 +657,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl}
                             footerImageUrl={footerImageUrl}
+                            onPreviewPdf={(url: string, filename: string) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'advisory' && (
@@ -600,6 +670,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             letterheadConfig={letterheadConfig}
                             logoUrl={logoUrl}
                             footerImageUrl={footerImageUrl}
+                            onPreviewPdf={(url, filename) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'conflicts' && (
@@ -655,6 +729,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             logoUrl={logoUrl}
                             footerImageUrl={footerImageUrl}
                             currentInstitution={currentInstitution}
+                            onPreviewPdf={(url: string, filename: string) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'generated_timetable' && (
@@ -683,6 +761,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     )}
                 </main>
             </div>
+            {previewPdfUrl && (
+                <PdfPreviewModal
+                    url={previewPdfUrl}
+                    filename={previewPdfFilename}
+                    onClose={() => setPreviewPdfUrl(null)}
+                />
+            )}
         </div>
     );
 };
