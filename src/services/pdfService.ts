@@ -2044,3 +2044,154 @@ export const generateEnrollmentCapacityPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+export const generateRoomDistanceReportPdf = async (
+    stats: any,
+    buildingLocations: any[],
+    buildingMatrix: any[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 12;
+
+    // Stats Cards
+    const metrics = [
+        { label: 'Mapped Rooms', value: `${stats.geocodedCount}` },
+        { label: 'Avg. Walk', value: stats.avgDistanceText },
+        { label: 'Max Span', value: stats.maxDistanceText }
+    ];
+
+    let xPos = margin;
+    const cardWidth = (pageWidth - (margin * 2)) / 3;
+    metrics.forEach(m => {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text(m.label.toUpperCase(), xPos, yPos);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(45, 55, 72);
+        doc.text(m.value, xPos, yPos + 6);
+        xPos += cardWidth;
+    });
+
+    yPos += 25;
+
+    // Building matrix Section
+    if (buildingLocations.length > 1) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text("Inter-Building Distance Matrix", margin, yPos);
+        yPos += 8;
+
+        const head = [['From \\ To', ...buildingLocations.map(b => b.name)]];
+        const body = buildingMatrix.map(row => [
+            row.source.name,
+            ...row.distances.map((dist: number, idx: number) => {
+                if (row.source.id === buildingLocations[idx].id) return '-';
+                const km = dist >= 1000;
+                const dText = km ? `${(dist / 1000).toFixed(2)} km` : `${Math.round(dist)} m`;
+                return dText;
+            })
+        ]);
+
+        (doc as any).autoTable({
+            startY: yPos,
+            head,
+            body,
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72], fontSize: 7 },
+            styles: { fontSize: 7 },
+            margin: { left: margin }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // Footnote
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text("* Distances are calculated using Haversine formula (air distance). Estimated walking times assume 84m/min.", margin, doc.internal.pageSize.getHeight() - 40);
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateRoomProximityReportPdf = async (
+    baseRoomName: string,
+    neighbors: any[],
+    title: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin, yPos);
+    yPos += 10;
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Reference Facility: ${baseRoomName}`, margin, yPos);
+    yPos += 15;
+
+    // Table
+    const head = [['Nearest Room', 'Building', 'Distance', 'Est. Walk Time']];
+    const body = neighbors.map(n => [
+        n.name,
+        n.buildingName,
+        n.distanceText,
+        n.timeText
+    ]);
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], fontSize: 9 },
+        styles: { fontSize: 8 },
+        margin: { left: margin }
+    });
+
+    // Footnote
+    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(150, 150, 150);
+    doc.text("* Results represent the closest 10 facilities by air distance.", margin, finalY);
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

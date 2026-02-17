@@ -1,12 +1,16 @@
 
 import React, { useMemo, useState } from 'react';
-import type { Room, Building } from '../types';
+import type { Room, Building, LetterheadConfig } from '../types';
 import { calculateDistance } from '../utils/locationUtils';
-import { MapIcon, MapPinIcon, ClockIcon } from './icons';
+import { MapIcon, MapPinIcon, ClockIcon, EyeIcon, PrinterIcon } from './icons';
+import { generateRoomDistanceReportPdf, generateRoomProximityReportPdf } from '../services/pdfService';
 
 interface RoomDistanceReportProps {
     rooms: Room[];
     buildings: Building[];
+    letterheadConfig?: LetterheadConfig;
+    footerImageUrl?: string | null;
+    onPreviewPdf?: (url: string, filename: string) => void;
 }
 
 // Standard walking speed: ~1.4 m/s or ~84 m/min
@@ -24,8 +28,16 @@ const formatTime = (meters: number) => {
     return `${minutes} min walk`;
 };
 
-export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, buildings }) => {
+export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({
+    rooms,
+    buildings,
+    letterheadConfig,
+    footerImageUrl,
+    onPreviewPdf
+}) => {
     const [baseRoomId, setBaseRoomId] = useState<string>('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isGeneratingProximity, setIsGeneratingProximity] = useState(false);
 
     // 1. Identify Buildings and calculate their Centroids if they don't have explicit location
     const buildingLocations = useMemo(() => {
@@ -67,9 +79,9 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
             .map(target => ({
                 ...target,
                 distance: calculateDistance(
-                    sourceRoom.location!.latitude, 
-                    sourceRoom.location!.longitude, 
-                    target.location!.latitude, 
+                    sourceRoom.location!.latitude,
+                    sourceRoom.location!.longitude,
+                    target.location!.latitude,
                     target.location!.longitude
                 )
             }))
@@ -85,8 +97,8 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
         let count = 0;
 
         // Simplified average calculation (sample based)
-        for(let i=0; i<geocodedRooms.length; i++) {
-            for(let j=i+1; j<geocodedRooms.length; j++) {
+        for (let i = 0; i < geocodedRooms.length; i++) {
+            for (let j = i + 1; j < geocodedRooms.length; j++) {
                 const d = calculateDistance(
                     geocodedRooms[i].location!.latitude,
                     geocodedRooms[i].location!.longitude,
@@ -101,9 +113,60 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
         return {
             maxDistance: maxDist,
             avgDistance: count > 0 ? totalDist / count : 0,
-            geocodedCount: geocodedRooms.length
+            geocodedCount: geocodedRooms.length,
+            maxDistanceText: formatDistance(maxDist),
+            avgDistanceText: formatTime(count > 0 ? totalDist / count : 0)
         };
     }, [geocodedRooms]);
+
+    const handlePreviewPdf = async () => {
+        setIsGenerating(true);
+        try {
+            const pdfUrl = await generateRoomDistanceReportPdf(
+                stats,
+                buildingLocations,
+                buildingMatrix,
+                "Campus Travel Distance Analysis",
+                letterheadConfig,
+                footerImageUrl || null
+            );
+            onPreviewPdf?.(pdfUrl, `Distance_Analysis_Report.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate PDF");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handlePreviewProximityPdf = async () => {
+        const sourceRoom = rooms.find(r => r.id === baseRoomId);
+        if (!sourceRoom || roomNeighbors.length === 0) return;
+
+        setIsGeneratingProximity(true);
+        try {
+            const formattedNeighbors = roomNeighbors.map(n => ({
+                name: n.name,
+                buildingName: buildings.find(b => b.id === n.buildingId)?.name || 'Unknown',
+                distanceText: formatDistance(n.distance),
+                timeText: formatTime(n.distance)
+            }));
+
+            const pdfUrl = await generateRoomProximityReportPdf(
+                sourceRoom.name,
+                formattedNeighbors,
+                "Room Proximity Analysis",
+                letterheadConfig,
+                footerImageUrl || null
+            );
+            onPreviewPdf?.(pdfUrl, `Proximity_Analysis_${sourceRoom.name}.pdf`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate PDF");
+        } finally {
+            setIsGeneratingProximity(false);
+        }
+    };
 
     if (geocodedRooms.length === 0) {
         return (
@@ -119,6 +182,30 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
 
     return (
         <div className="space-y-8">
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Campus Logistics Analysis</h3>
+                    <p className="text-sm text-slate-500">Geospatial distance mapping between academic facilities.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 no-print">
+                    <button
+                        onClick={() => window.print()}
+                        className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-600 hover:text-indigo-600 transition-all shadow-sm"
+                        title="Print View"
+                    >
+                        <PrinterIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                        onClick={handlePreviewPdf}
+                        disabled={isGenerating || !stats}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isGenerating ? "Preparing..." : <><EyeIcon className="w-4 h-4" /> PDF Preview</>}
+                    </button>
+                </div>
+            </header>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
@@ -139,18 +226,18 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
                         </div>
                         <div>
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Avg. Campus Walk</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats ? formatTime(stats.avgDistance) : 'N/A'}</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats ? stats.avgDistanceText : 'N/A'}</p>
                         </div>
                     </div>
                 </div>
-                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-full">
                             <MapPinIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                         </div>
                         <div>
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Max Campus Span</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats ? formatDistance(stats.maxDistance) : 'N/A'}</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats ? stats.maxDistanceText : 'N/A'}</p>
                         </div>
                     </div>
                 </div>
@@ -201,19 +288,30 @@ export const RoomDistanceReport: React.FC<RoomDistanceReportProps> = ({ rooms, b
             {/* Room Analysis */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
                 <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white">Room Proximity Analysis</h3>
-                
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Reference Room</label>
-                    <select 
-                        value={baseRoomId} 
-                        onChange={e => setBaseRoomId(e.target.value)} 
-                        className="block w-full sm:w-96 rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] sm:text-sm dark:bg-slate-700 dark:text-white p-2"
-                    >
-                        <option value="">-- Select a room to view neighbors --</option>
-                        {geocodedRooms.sort((a,b) => a.name.localeCompare(b.name)).map(r => (
-                            <option key={r.id} value={r.id}>{r.name} (Capacity: {r.capacity})</option>
-                        ))}
-                    </select>
+
+                <div className="mb-6 flex flex-col sm:flex-row items-end gap-4">
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Reference Room</label>
+                        <select
+                            value={baseRoomId}
+                            onChange={e => setBaseRoomId(e.target.value)}
+                            className="block w-full rounded-md border-slate-300 dark:border-slate-600 shadow-sm focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)] sm:text-sm dark:bg-slate-700 dark:text-white p-2"
+                        >
+                            <option value="">-- Select a room to view neighbors --</option>
+                            {geocodedRooms.sort((a, b) => a.name.localeCompare(b.name)).map(r => (
+                                <option key={r.id} value={r.id}>{r.name} (Capacity: {r.capacity})</option>
+                            ))}
+                        </select>
+                    </div>
+                    {baseRoomId && (
+                        <button
+                            onClick={handlePreviewProximityPdf}
+                            disabled={isGeneratingProximity || roomNeighbors.length === 0}
+                            className="px-6 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2 h-[38px] border-2 border-indigo-100"
+                        >
+                            {isGeneratingProximity ? "Processing..." : <><EyeIcon className="w-4 h-4" /> Export Proximity PDF</>}
+                        </button>
+                    )}
                 </div>
 
                 {baseRoomId && (

@@ -23,7 +23,8 @@ import {
     ArrowRightOnRectangleIcon,
     ExclamationTriangleIcon,
     ArrowPathIcon,
-    EnvelopeIcon
+    EnvelopeIcon,
+    ArrowsRightLeftIcon
 } from './icons/index';
 import { SecurityAlertManager } from './SecurityAlertManager';
 import { LicensePlateScanner } from './LicensePlateScanner';
@@ -34,6 +35,7 @@ import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+import { timeToMinutes } from '../utils/timeUtils';
 
 
 export interface SupportStaffViewProps {
@@ -714,22 +716,263 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
 };
 
 export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
-    const { visitors = [], generatedTimetable = [], getSubjectById, getRoomById, getLecturerById, timetableSettings } = props;
+    const {
+        visitors = [],
+        generatedTimetable = [],
+        getSubjectById,
+        getRoomById,
+        getLecturerById,
+        timetableSettings,
+        users = [],
+        onUpdateVisitor,
+        onLogAction
+    } = props;
+
+    const [activeTab, setActiveTab] = useState<'schedule' | 'guests' | 'finder'>('schedule');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [redirectingVisitor, setRedirectingVisitor] = useState<Visitor | null>(null);
+    const [newHostId, setNewHostId] = useState('');
+
+    const activeVisitors = useMemo(() => visitors.filter(v => v.timeIn && !v.timeOut), [visitors]);
+
+    const handleRedirect = async () => {
+        if (!redirectingVisitor || !newHostId) return;
+        await onUpdateVisitor?.(redirectingVisitor.id, { hostId: newHostId });
+        await onLogAction?.(`Redirected visitor ${redirectingVisitor.name} to new host`);
+        setRedirectingVisitor(null);
+        setNewHostId('');
+        alert("Visitor redirected successfully.");
+    };
+
+    const searchResults = useMemo(() => {
+        if (searchQuery.length < 2) return [];
+        return users.filter(u =>
+            u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (u.staffId && u.staffId.toLowerCase().includes(searchQuery.toLowerCase()))
+        ).slice(0, 10);
+    }, [searchQuery, users]);
+
+    const findLocation = (user: User) => {
+        const now = new Date();
+        const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+        const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const currentMins = timeToMinutes(currentTime);
+
+        const entry = (generatedTimetable || []).find(e => {
+            if (e.day !== currentDay) return false;
+            if (user.role === 'teacher' || user.role === 'lecturer') {
+                return e.lecturerId === user.id && currentMins >= timeToMinutes(e.startTime) && currentMins < timeToMinutes(e.endTime);
+            }
+            if (user.role === 'student') {
+                return e.courseLevelId === user.courseLevelId && currentMins >= timeToMinutes(e.startTime) && currentMins < timeToMinutes(e.endTime);
+            }
+            return false;
+        });
+
+        if (!entry) return null;
+        const room = getRoomById?.(entry.roomId);
+        const subject = getSubjectById?.(entry.subjectId);
+        return { room: room?.name || 'Unknown Room', subject: subject?.name || 'Class', timeSlot: `${entry.startTime} - ${entry.endTime}` };
+    };
+
     return (
-        <BaseDashboard title="Visitor Center" icon={<InformationCircleIcon className="w-6 h-6 text-slate-600" />}>
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
-                <h3 className="text-xl font-black uppercase tracking-tight mb-6">Institutional Schedule Hub</h3>
-                <TimetableGrid
-                    entries={generatedTimetable!}
-                    subjects={props.subjects || []}
-                    courses={props.courses || []}
-                    rooms={props.rooms || []}
-                    getSubjectById={getSubjectById!}
-                    getRoomById={getRoomById!}
-                    getLecturerById={getLecturerById!}
-                    timetableSettings={timetableSettings!}
-                />
+        <BaseDashboard title="Visitor Center & Information" icon={<InformationCircleIcon className="w-6 h-6 text-slate-600" />}>
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar pb-1">
+                    {[
+                        { id: 'schedule', label: 'Institutional Schedule', icon: <CalendarDaysIcon className="w-4 h-4" /> },
+                        { id: 'guests', label: 'Live Guest Hub', icon: <UserIcon className="w-4 h-4" />, count: activeVisitors.length },
+                        { id: 'finder', label: 'Personnel Finder', icon: <MagnifyingGlassIcon className="w-4 h-4" /> }
+                    ].map(tab => (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                            {tab.icon} {tab.label} {tab.count !== undefined && tab.count > 0 && (<span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm">{tab.count}</span>)}
+                        </button>
+                    ))}
+                </nav>
             </div>
+
+            {activeTab === 'schedule' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
+                    <h3 className="text-xl font-black uppercase tracking-tight mb-6">Institutional Schedule Hub</h3>
+                    <TimetableGrid
+                        entries={generatedTimetable!}
+                        subjects={props.subjects || []}
+                        courses={props.courses || []}
+                        rooms={props.rooms || []}
+                        getSubjectById={getSubjectById!}
+                        getRoomById={getRoomById!}
+                        getLecturerById={getLecturerById!}
+                        timetableSettings={timetableSettings!}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'guests' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Active Guests</h3>
+                                <p className="text-xs text-slate-400 mt-1 uppercase font-bold">Manage visitors currently on premises</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {activeVisitors.map(v => (
+                                <div key={v.id} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4 relative overflow-hidden group hover:border-indigo-200 transition-all">
+                                    <div className="flex justify-between items-start">
+                                        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 font-black shadow-sm">
+                                            {v.name.charAt(0)}
+                                        </div>
+                                        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase rounded-lg border border-emerald-100 italic">ON PREMISES</span>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-slate-800 dark:text-white uppercase text-base truncate">{v.name}</h4>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{v.purpose}</p>
+                                    </div>
+                                    <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                            <ClockIcon className="w-3.5 h-3.5 text-indigo-500" /> Entered at {v.timeIn}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                                            <UserIcon className="w-3.5 h-3.5 text-slate-400" /> Current Host: {users.find(u => u.id === v.hostId)?.name || 'N/A'}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setRedirectingVisitor(v)}
+                                        className="w-full py-3 bg-white dark:bg-slate-800 border-2 border-indigo-100 dark:border-indigo-900 text-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-indigo-600 hover:text-white flex items-center justify-center gap-2"
+                                    >
+                                        <ArrowsRightLeftIcon className="w-4 h-4" /> Redirect Visitor
+                                    </button>
+                                </div>
+                            ))}
+                            {activeVisitors.length === 0 && (
+                                <div className="col-span-full py-20 text-center flex flex-col items-center gap-4">
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full">
+                                        <UserIcon className="w-10 h-10 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No active guests checked in</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'finder' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="max-w-2xl mx-auto space-y-8">
+                            <div className="text-center">
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Real-Time Personnel Locator</h3>
+                                <p className="text-sm text-slate-400 mt-2">Locate students and teachers based on current institutional timetable.</p>
+                            </div>
+
+                            <div className="relative group">
+                                <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search by name or staff/student ID..."
+                                    className="w-full h-16 pl-12 pr-4 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl font-bold focus:border-indigo-600 focus:ring-0 transition-all outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-4">
+                                {searchResults.map(user => {
+                                    const loc = findLocation(user);
+                                    return (
+                                        <div key={user.id} className="p-6 bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 flex justify-between items-center hover:border-indigo-100 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600">
+                                                    <UserIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black uppercase text-slate-900 dark:text-white">{user.name}</h4>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{user.role} • {user.staffId || 'No ID'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                {loc ? (
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-2 justify-end text-emerald-600">
+                                                            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                            <span className="text-xs font-black uppercase">Currently in Session</span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{loc.subject}</p>
+                                                        <div className="flex items-center gap-2 justify-end text-[10px] font-black uppercase text-slate-400">
+                                                            <MapPinIcon className="w-3 h-3" /> {loc.room}
+                                                        </div>
+                                                        <div className="text-[9px] font-bold text-indigo-600 mt-1">{loc.timeSlot}</div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-slate-400 italic text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-lg">
+                                                        Off Duty / No Scheduled Class
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {searchQuery.length >= 2 && searchResults.length === 0 && (
+                                    <div className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-xs">
+                                        No personnel matching your search
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Redirect Modal */}
+            {redirectingVisitor && (
+                <div className="fixed inset-0 bg-slate-900/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight">Redirect Visitor</h3>
+                                <p className="text-xs text-slate-400 mt-1 uppercase font-bold">Assign to a different host</p>
+                            </div>
+                            <button onClick={() => setRedirectingVisitor(null)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center gap-4 border border-indigo-100 dark:border-indigo-800">
+                                <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center text-indigo-600 shadow-sm font-black">
+                                    {redirectingVisitor.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="font-black text-slate-900 dark:text-white uppercase truncate">{redirectingVisitor.name}</p>
+                                    <p className="text-[10px] text-indigo-600 font-bold uppercase">Current Host: {users.find(u => u.id === redirectingVisitor.hostId)?.name || 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Select New Host / Personnel</label>
+                                <select
+                                    className="w-full h-14 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 font-bold focus:border-indigo-600 transition-all font-sans"
+                                    value={newHostId}
+                                    onChange={(e) => setNewHostId(e.target.value)}
+                                >
+                                    <option value="">Select Target Host</option>
+                                    {users.filter(u => u.id !== redirectingVisitor.hostId).map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                onClick={handleRedirect}
+                                disabled={!newHostId}
+                                className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                Confirm Redirection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </BaseDashboard>
     );
 };

@@ -658,6 +658,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <RoomDistanceReport
                             rooms={rooms}
                             buildings={buildings}
+                            letterheadConfig={letterheadConfig}
+                            footerImageUrl={footerImageUrl}
+                            onPreviewPdf={(url, filename) => {
+                                setPreviewPdfUrl(url);
+                                setPreviewPdfFilename(filename);
+                            }}
                         />
                     )}
                     {subTab === 'utilization' && (
