@@ -17,9 +17,12 @@ interface ParentViewProps {
     getRoomById: (id: string) => Room | undefined;
     timetableSettings: TimetableSettings;
     buildings: Building[];
+    studentCheckIns: Record<string, string>;
     leaveOutRequests: LeaveOutRequest[];
     onUpdateLeaveOut?: (id: string, data: Partial<LeaveOutRequest>) => Promise<void>;
 }
+
+import { AttendanceAnalytics } from './AttendanceAnalytics';
 
 const ChildCard: React.FC<{ child: User, course?: Course, attendances: StudentAttendance[], timetable: TimetableEntry[], subjects: Subject[] }> = ({ child, course, attendances, timetable, subjects }) => {
     const childAttendances = attendances.filter(a => a.studentId === child.id);
@@ -173,6 +176,17 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                         timetable={generatedTimetable}
                                         subjects={subjects}
                                     />
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <AttendanceAnalytics
+                                            timetable={generatedTimetable}
+                                            studentAttendances={studentAttendances}
+                                            studentCheckIns={props.studentCheckIns}
+                                            users={users}
+                                            subjects={subjects}
+                                            institutionId={user.institutionId}
+                                            studentId={child.id}
+                                        />
+                                    </div>
                                     <LeaveOutManager
                                         child={child}
                                         requests={props.leaveOutRequests || []}

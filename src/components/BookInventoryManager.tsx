@@ -77,7 +77,15 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         e.preventDefault();
         try {
             const bookData = editingBook
-                ? { ...editingBook, ...newBook }
+                ? {
+                    ...editingBook,
+                    ...newBook,
+                    institutionId, // Ensure it's present for older records
+                    // Ensure available copies stay in sync if quantity changed
+                    available: newBook.quantity !== editingBook.quantity
+                        ? Math.max(0, (newBook.quantity || 0) - (editingBook.quantity - editingBook.available))
+                        : editingBook.available
+                }
                 : {
                     ...newBook,
                     id: `bk_${Date.now()}`,
@@ -94,8 +102,9 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
             setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '' });
             loadBooks();
             onDataChange();
-        } catch (error) {
-            alert('Failed to save book record.');
+        } catch (error: any) {
+            console.error('Book Save Error:', error);
+            alert(`Failed to save book record: ${error.message || 'Unknown database error'}`);
         }
     };
 
@@ -125,7 +134,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Title, Artist, or ISBN..."
+                            placeholder="Title, Author, or ISBN..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-xs font-bold focus:ring-2 focus:ring-indigo-500"

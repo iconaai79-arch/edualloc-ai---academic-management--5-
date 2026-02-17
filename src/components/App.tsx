@@ -1647,6 +1647,7 @@ export const App: React.FC = () => {
                                     getRoomById={getRoomById}
                                     timetableSettings={timetableSettings!}
                                     buildings={buildings}
+                                    studentCheckIns={studentCheckIns}
                                     leaveOutRequests={leaveOutRequests}
                                     onUpdateLeaveOut={async (id, data) => {
                                         const req = leaveOutRequests.find(r => r.id === id);

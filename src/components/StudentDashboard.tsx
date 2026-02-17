@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, TimetableEntry, Subject, Room, Course, CourseLevel, TimetableSettings, LetterheadConfig, LessonRating, UserTask, Institution } from '../types';
-import { AcademicCapIcon, ArrowTrendingUpIcon, BellIcon, SunIcon, ClockInIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon, StarIcon } from './icons';
+import type { User, TimetableEntry, Subject, Room, Course, CourseLevel, TimetableSettings, LetterheadConfig, LessonRating, UserTask, Institution, StudentAttendance } from '../types';
+import { AcademicCapIcon, ArrowTrendingUpIcon, BellIcon, SunIcon, ClockInIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon, StarIcon, PaperAirplaneIcon, ClockIcon, InformationCircleIcon, UserIcon } from './icons';
 import { TimetableGrid } from './TimetableGrid';
 import { generateStudentTimetablePdf } from '../services/pdfService';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';
 import { getInitials } from '../utils/stringUtils';
-
+import { AttendanceAnalytics } from './AttendanceAnalytics';
 
 interface StudentDashboardProps {
     user: User;
     timetable: TimetableEntry[];
     course: Course | null;
     level: CourseLevel | null;
+    subjects: Subject[];
+    users: User[];
     getSubjectById: (id: string) => Subject | undefined;
     getRoomById: (id: string) => Room | undefined;
     getLecturerById: (id: string) => User | undefined;
@@ -30,12 +32,13 @@ interface StudentDashboardProps {
     onUpdateTask: (taskId: string, isComplete: boolean) => void;
     onDeleteTask: (taskId: string) => void;
     currentInstitution?: Institution | null;
+    studentAttendances: StudentAttendance[];
 }
 
 const formatTimeRemaining = (targetTime: Date, now: Date): string => {
     const diffMs = targetTime.getTime() - now.getTime();
     if (diffMs <= 0) return "Starting now";
-    
+
     const diffSeconds = Math.floor(diffMs / 1000);
     const minutes = Math.floor(diffSeconds / 60);
     const seconds = diffSeconds % 60;
@@ -56,7 +59,7 @@ const timeStringToDate = (timeString: string): Date => {
 };
 
 
-export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution }) => {
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timetable, course, level, subjects, users, getSubjectById, getRoomById, getLecturerById, now, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, lessonRatings, onRateLesson, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances }) => {
     const enrolledSubjectsCount = user.enrolledSubjectIds?.length || 0;
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [checkInState, setCheckInState] = useState<Record<string, {
@@ -64,6 +67,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         message: string;
         mapUrl?: string;
     }>>({});
+
+    const [smsNotifyEnabled, setSmsNotifyEnabled] = useState(true);
+    const [lastNotifiedEntryId, setLastNotifiedEntryId] = useState<string | null>(null);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const courseLabel = isSchool ? 'My Grade' : 'My Course';
@@ -77,7 +83,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
 
         let current: TimetableEntry | null = null;
         let next: TimetableEntry | null = null;
-        
+
         for (const lesson of todaysLessons) {
             const lessonStart = timeStringToDate(lesson.startTime);
             const lessonEnd = timeStringToDate(lesson.endTime);
@@ -90,10 +96,29 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 }
             }
         }
-        
+
         return { currentLesson: current, nextLesson: next };
     }, [now, timetable]);
-    
+
+    // Auto-Notification Logic (Simulation)
+    useEffect(() => {
+        if (nextLesson && smsNotifyEnabled && nextLesson.id !== lastNotifiedEntryId) {
+            const lessonStart = timeStringToDate(nextLesson.startTime);
+            const diffMs = lessonStart.getTime() - now.getTime();
+            const diffMin = diffMs / (1000 * 60);
+
+            // Trigger when 10 minutes or less
+            if (diffMin <= 10 && diffMin > 0) {
+                const subject = getSubjectById(nextLesson.subjectId);
+                const room = getRoomById(nextLesson.roomId);
+                const lecturer = getLecturerById(nextLesson.lecturerId);
+
+                console.log(`[SMS Simulation] To: ${user.phoneNumber} - "Hi ${user.name}, your next class ${subject?.name} starts in 10 mins at room ${room?.name}. Your tutor ${lecturer?.name} is ready!"`);
+                setLastNotifiedEntryId(nextLesson.id);
+            }
+        }
+    }, [now, nextLesson, smsNotifyEnabled, lastNotifiedEntryId]);
+
     const pastLessonsToRate = useMemo(() => {
         const todayStr = dayMapping[now.getDay()];
         const ratedEntryIds = new Set(lessonRatings.filter(r => r.studentId === user.id).map(r => r.timetableEntryId));
@@ -113,15 +138,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         setIsGeneratingPdf(true);
         try {
             const pdfUrl = await generateStudentTimetablePdf(
-                user, 
-                timetable, 
-                getSubjectById, 
-                getLecturerById, 
-                getRoomById, 
-                letterheadConfig, 
-                footerImageUrl, 
-                course, 
-                level, 
+                user,
+                timetable,
+                getSubjectById,
+                getLecturerById,
+                getRoomById,
+                letterheadConfig,
+                footerImageUrl,
+                course,
+                level,
                 timetableSettings
             );
             const link = document.createElement('a');
@@ -143,15 +168,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         setIsGeneratingPdf(true);
         try {
             const pdfUrl = await generateStudentTimetablePdf(
-                user, 
-                timetable, 
-                getSubjectById, 
-                getLecturerById, 
-                getRoomById, 
-                letterheadConfig, 
-                footerImageUrl, 
-                course, 
-                level, 
+                user,
+                timetable,
+                getSubjectById,
+                getLecturerById,
+                getRoomById,
+                letterheadConfig,
+                footerImageUrl,
+                course,
+                level,
                 timetableSettings
             );
             const pdfWindow = window.open("");
@@ -180,7 +205,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
         }
 
         if (!navigator.geolocation) {
-             setCheckInState(prev => ({
+            setCheckInState(prev => ({
                 ...prev,
                 [lesson.id]: {
                     status: 'error',
@@ -197,7 +222,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 message: "Verifying your location..."
             }
         }));
-        
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
@@ -206,7 +231,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 if (distance <= PROXIMITY_THRESHOLD_METERS) {
                     onStudentLessonCheckIn(lesson.id);
                     setCheckInState(prev => {
-                        const newState = {...prev};
+                        const newState = { ...prev };
                         delete newState[lesson.id];
                         return newState;
                     });
@@ -222,7 +247,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 }
             },
             (error) => {
-                 setCheckInState(prev => ({
+                setCheckInState(prev => ({
                     ...prev,
                     [lesson.id]: {
                         status: 'error',
@@ -236,16 +261,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
 
     const renderLessonProgress = () => {
         if (!currentLesson) return null;
-        
+
         const subject = getSubjectById(currentLesson.subjectId);
         const room = getRoomById(currentLesson.roomId);
-        
+
         const lessonStart = timeStringToDate(currentLesson.startTime);
         const lessonEnd = timeStringToDate(currentLesson.endTime);
         const totalDuration = lessonEnd.getTime() - lessonStart.getTime();
         const elapsed = now.getTime() - lessonStart.getTime();
         const progress = Math.min(100, (elapsed / totalDuration) * 100);
-        
+
         const checkInKey = `${user.id}-${currentLesson.id}`;
         const isCheckedIn = studentCheckIns[checkInKey];
         const currentCheckInState = checkInState[currentLesson.id];
@@ -263,8 +288,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
                 </div>
                 {!isCheckedIn && (
                     <div className="mt-4">
-                        <button 
-                            onClick={() => handleCheckInAttempt(currentLesson)} 
+                        <button
+                            onClick={() => handleCheckInAttempt(currentLesson)}
                             disabled={currentCheckInState?.status === 'checking'}
                             className="btn-primary w-full sm:w-auto inline-flex items-center gap-2"
                         >
@@ -284,63 +309,170 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, timeta
     };
 
     return (
-        <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">Welcome, {user.name}</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{courseLabel}</h3>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{course?.name || 'Not Enrolled'}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{levelLabel}</h3>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{level?.name || 'N/A'}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Enrolled Subjects</h3>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{enrolledSubjectsCount}</p>
+        <div className="space-y-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-3xl font-black tracking-tighter uppercase">Member Dashboard</h2>
+                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className={`p-2 rounded-xl transition-colors ${smsNotifyEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <BellIcon className="w-5 h-5" />
+                    </div>
+                    <div className="pr-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Push Notifications</p>
+                        <button
+                            onClick={() => setSmsNotifyEnabled(!smsNotifyEnabled)}
+                            className="text-xs font-bold text-slate-900 dark:text-white uppercase leading-none hover:text-indigo-600 transition-colors"
+                        >
+                            {smsNotifyEnabled ? 'Enabled' : 'Disabled'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{courseLabel}</h3>
+                    <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{course?.name || 'Not Enrolled'}</p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{levelLabel}</h3>
+                    <p className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{level?.name || 'N/A'}</p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Enrolled Subjects</h3>
+                    <p className="text-xl font-black text-indigo-600 uppercase tracking-tight">{enrolledSubjectsCount} Modules</p>
+                </div>
+            </div>
+
+            {/* Engagement Card - Next Class Notification */}
+            {nextLesson && (
+                <div className={`p-8 rounded-[3rem] shadow-2xl transition-all duration-500 overflow-hidden relative ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                    ? 'bg-indigo-600 text-white ring-8 ring-indigo-100'
+                    : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700'
+                    }`}>
+                    <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                        <div className="flex items-center gap-6 text-center lg:text-left">
+                            <div className={`p-5 rounded-[2rem] ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                ? 'bg-white/20 border border-white/30'
+                                : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'
+                                }`}>
+                                <ClockIcon className="w-10 h-10" />
+                            </div>
+                            <div>
+                                <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                    ? 'text-indigo-100'
+                                    : 'text-slate-400'
+                                    }`}>
+                                    Up Next Notification
+                                </h3>
+                                <h4 className="text-2xl font-black uppercase tracking-tighter leading-none mb-2">
+                                    {getSubjectById(nextLesson.subjectId)?.name}
+                                </h4>
+                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <MapPinIcon className="w-4 h-4 opacity-70" />
+                                        <span className="text-sm font-bold uppercase tracking-tight">Room {getRoomById(nextLesson.roomId)?.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <UserIcon className="w-4 h-4 opacity-70" />
+                                        <span className="text-sm font-bold uppercase tracking-tight underline cursor-help" title={`View profile of ${getLecturerById(nextLesson.lecturerId)?.name}`}>
+                                            Tutor: {getLecturerById(nextLesson.lecturerId)?.name}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col items-center lg:items-end gap-3">
+                            <div className={`px-6 py-3 rounded-2xl text-xl font-black tabular-nums transition-colors ${timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000
+                                ? 'bg-white text-indigo-600'
+                                : 'bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white'
+                                }`}>
+                                {formatTimeRemaining(timeStringToDate(nextLesson.startTime), now)}
+                            </div>
+                            {smsNotifyEnabled && (
+                                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest opacity-80">
+                                    <PaperAirplaneIcon className="w-3 h-3" />
+                                    <span>SMS alert scheduled</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Progress bar background for upcoming */}
+                    {timeStringToDate(nextLesson.startTime).getTime() - now.getTime() <= 600000 && (
+                        <div className="absolute bottom-0 left-0 h-1 bg-white/30 transition-all duration-1000" style={{ width: '100%', animation: 'shrink 600s linear' }} />
+                    )}
+                </div>
+            )}
+
             {renderLessonProgress()}
 
-            {nextLesson && !currentLesson && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-xl font-semibold mb-2">Next Lesson</h3>
-                    <p className="font-bold text-lg text-slate-800 dark:text-slate-100">{getSubjectById(nextLesson.subjectId)?.name}</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Starts at {nextLesson.startTime} ({formatTimeRemaining(timeStringToDate(nextLesson.startTime), now)}) in Room {getRoomById(nextLesson.roomId)?.name}
-                    </p>
-                </div>
-            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                    {pastLessonsToRate.length > 0 && (
+                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <h3 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center justify-between">
+                                Review Attendance
+                                <StarIcon className="w-5 h-5 text-amber-500" />
+                            </h3>
+                            <ul className="space-y-4">
+                                {pastLessonsToRate.map(lesson => (
+                                    <li key={lesson.id} className="flex justify-between items-center p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100/50 dark:border-slate-800 transition-all hover:translate-x-1">
+                                        <div>
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{getSubjectById(lesson.subjectId)?.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">with {getLecturerById(lesson.lecturerId)?.name}</p>
+                                        </div>
+                                        <button onClick={() => onRateLesson(lesson)} className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                            Rate Module
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
 
-            {pastLessonsToRate.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <h3 className="text-xl font-semibold mb-4">Rate Past Lessons</h3>
-                    <ul className="space-y-3">
-                        {pastLessonsToRate.map(lesson => (
-                            <li key={lesson.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 rounded-md">
-                                <div>
-                                    <p className="font-semibold text-slate-800 dark:text-slate-200">{getSubjectById(lesson.subjectId)?.name}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">with {getLecturerById(lesson.lecturerId)?.name} at {lesson.startTime}</p>
-                                </div>
-                                <button onClick={() => onRateLesson(lesson)} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-amber-500 hover:bg-amber-600">
-                                    <StarIcon className="w-4 h-4"/> Rate
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+                    <MyTasks
+                        tasks={userTasks}
+                        onAddTask={onAddTask}
+                        onUpdateTask={onUpdateTask}
+                        onDeleteTask={onDeleteTask}
+                    />
                 </div>
-            )}
-            
-            <MyTasks
-                tasks={userTasks}
-                onAddTask={onAddTask}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-            />
 
-            <style>{`.btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 600; }`}</style>
+                <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-xl font-black uppercase tracking-tighter">Behavioral Stats</h3>
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl">
+                            <ArrowTrendingUpIcon className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <AttendanceAnalytics
+                        timetable={timetable}
+                        studentAttendances={studentAttendances}
+                        studentCheckIns={studentCheckIns}
+                        users={users}
+                        subjects={subjects}
+                        institutionId={user.institutionId}
+                        studentId={user.id}
+                    />
+                </div>
+            </div>
+
+            <style>{`
+                @keyframes shrink {
+                    from { width: 100%; }
+                    to { width: 0%; }
+                }
+                .btn-primary { 
+                    padding: 0.75rem 1.5rem; 
+                    background-color: var(--color-primary); 
+                    color: white; 
+                    border-radius: 1rem; 
+                    font-weight: 900; 
+                    text-transform: uppercase; 
+                    font-size: 0.75rem; 
+                    letter-spacing: 0.05em; 
+                }
+            `}</style>
         </div>
     );
 };

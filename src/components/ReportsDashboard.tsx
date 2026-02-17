@@ -16,7 +16,8 @@ import { EnrollmentCapacityReport } from './EnrollmentCapacityReport.tsx';
 import { ActivityLogView } from './ActivityLogView.tsx';
 import { RoomDistanceReport } from './RoomDistanceReport.tsx';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { EyeIcon } from './icons/index.ts';
+import { EyeIcon, TrendingUpIcon } from './icons/index.ts';
+import { AttendanceAnalytics } from './AttendanceAnalytics';
 
 interface ReportsDashboardProps {
     lecturers: User[];
@@ -450,6 +451,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
         { key: 'exam_timetable', label: 'Exam Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
+        { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
     ];
 
     return (
@@ -776,6 +778,21 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             activeSemester={activeSemester}
                             currentInstitution={currentInstitution}
                         />
+                    )}
+                    {subTab === 'patterns' && (
+                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-xl font-black uppercase tracking-tighter">Institutional Behavioral Patterns</h3>
+                            </div>
+                            <AttendanceAnalytics
+                                timetable={allTimetableEntries}
+                                studentAttendances={studentAttendances}
+                                studentCheckIns={studentCheckIns}
+                                users={lecturers}
+                                subjects={subjects}
+                                institutionId={currentUser.institutionId}
+                            />
+                        </div>
                     )}
                 </main>
             </div>

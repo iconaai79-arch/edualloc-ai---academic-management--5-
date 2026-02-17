@@ -354,7 +354,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                 </nav>
             </div>
 
-            {activeTab === 'dashboard' && <StudentDashboard user={user} timetable={studentTimetable} course={course} level={level} getSubjectById={getSubjectById} getRoomById={getRoomById} getLecturerById={getLecturerById} now={now} timetableSettings={timetableSettings} studentCheckIns={studentCheckIns} onStudentLessonCheckIn={onStudentLessonCheckIn} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} lessonRatings={lessonRatings} onRateLesson={onRateLesson} userTasks={userTasks} onAddTask={onAddTask} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentInstitution={currentInstitution} />}
+            {activeTab === 'dashboard' && <StudentDashboard user={user} timetable={studentTimetable} course={course} level={level} subjects={subjects} users={users} getSubjectById={getSubjectById} getRoomById={getRoomById} getLecturerById={getLecturerById} now={now} timetableSettings={timetableSettings} studentCheckIns={studentCheckIns} onStudentLessonCheckIn={onStudentLessonCheckIn} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} lessonRatings={lessonRatings} onRateLesson={onRateLesson} userTasks={userTasks} onAddTask={onAddTask} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentInstitution={currentInstitution} studentAttendances={props.studentAttendances} />}
             {activeTab === 'my_timetable' && (
                 <div>
                     <div className="flex flex-wrap gap-4 justify-between items-center mb-4 no-print">
