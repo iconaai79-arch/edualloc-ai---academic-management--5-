@@ -219,14 +219,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const now = new Date();
                 const oneMinuteAgo = new Date(now.getTime() - 60000).toISOString();
 
+                // FIX: Use 'timestamp' column instead of 'created_at' as per mpesa_transactions schema
                 const { data: recentTxns, error: rateError } = await supabase
                     .from('mpesa_transactions')
                     .select('id')
-                    .or(`phone_number.eq.${cleanPhone},metadata->>userId.eq.${user.id}`)
-                    .gt('created_at', oneMinuteAgo);
+                    .eq('phone_number', cleanPhone)
+                    .gt('timestamp', oneMinuteAgo);
 
                 if (rateError) {
                     console.error('[M-Pesa] Rate limit check failed:', rateError);
+                    // Skip rate limiting if check fails (log but don't block)
                 } else if (recentTxns && recentTxns.length >= 2) {
                     return res.status(429).json({
                         success: false,
