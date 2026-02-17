@@ -246,6 +246,20 @@ CREATE TABLE IF NOT EXISTS assignments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS extension_requests (
+    id TEXT PRIMARY KEY,
+    assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    file_data_url TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    due_date DATE NOT NULL,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS submissions (
     id TEXT PRIMARY KEY,
     assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
@@ -672,6 +686,72 @@ CREATE TABLE IF NOT EXISTS extension_requests (
     status TEXT DEFAULT 'pending',
     requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS bulletin_items (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    category TEXT NOT NULL,
+    date DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    author_id TEXT REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_collections (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    document_type TEXT NOT NULL,
+    owner_name TEXT NOT NULL,
+    owner_id TEXT,
+    owner_phone TEXT,
+    status TEXT DEFAULT 'Pending',
+    dropped_off_by TEXT NOT NULL,
+    dropped_off_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    collected_date TIMESTAMP WITH TIME ZONE,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS watchlist_records (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    phone_number TEXT,
+    id_number TEXT,
+    reason TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    added_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_requests (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    status TEXT DEFAULT 'Pending',
+    reported_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    reported_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS teacher_check_ins (
+    id TEXT PRIMARY KEY,
+    teacher_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    check_in_date DATE NOT NULL,
+    morning_check_in_time TEXT,
+    morning_check_in_status TEXT DEFAULT 'Pending',
+    morning_location TEXT,
+    morning_notes TEXT,
+    afternoon_check_in_time TEXT,
+    afternoon_check_in_status TEXT DEFAULT 'Pending',
+    afternoon_location TEXT,
+    afternoon_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 `;
 
     sql += `\n\n-- ==========================================================================\n`;

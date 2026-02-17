@@ -38,7 +38,8 @@ import type {
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
-    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote
+    AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
+    BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn
 
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
@@ -237,6 +238,11 @@ export const App: React.FC = () => {
     const [bursaryFunds, setBursaryFunds] = useState<CountyBursaryFund[]>([]);
 
     const [leaveOutRequests, setLeaveOutRequests] = useState<LeaveOutRequest[]>([]);
+    const [bulletinItems, setBulletinItems] = useState<BulletinItem[]>([]);
+    const [documentCollections, setDocumentCollections] = useState<DocumentCollection[]>([]);
+    const [watchlist, setWatchlist] = useState<WatchlistRecord[]>([]);
+    const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
+    const [teacherCheckIns, setTeacherCheckIns] = useState<TeacherCheckIn[]>([]);
     const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
 
 
@@ -400,7 +406,7 @@ export const App: React.FC = () => {
 
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -437,6 +443,11 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
                 apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
                 apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
+                apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
+                apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),
+                apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
+                apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
+                apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
             ]);
 
 
@@ -476,6 +487,11 @@ export const App: React.FC = () => {
             setSecurityAlerts(sec || []);
             setRequisitions(req || []);
             setTimeOffRequests(tor || []);
+            setBulletinItems(fBulletin || []);
+            setDocumentCollections(fDocs || []);
+            setWatchlist(fWatch || []);
+            setMaintenanceRequests(fMaint || []);
+            setTeacherCheckIns(fCheckIn || []);
 
             setIsGeneratingDemoData(false);
         } catch (error) {
@@ -1555,12 +1571,39 @@ export const App: React.FC = () => {
                             ) : activeRole === 'info_desk' ? (
                                 <InfoDeskView
                                     user={currentUser}
+                                    users={users}
                                     visitors={visitors}
                                     generatedTimetable={generatedTimetable}
                                     timetableSettings={timetableSettings}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
                                     getLecturerById={getLecturerById}
+                                    teacherCheckIns={teacherCheckIns}
+                                    timeOffRequests={timeOffRequests}
+                                    studentAbsenceRequests={studentAbsenceRequests}
+                                    leaveOutRequests={leaveOutRequests}
+                                    bulletinItems={bulletinItems}
+                                    documentCollections={documentCollections}
+                                    watchlist={watchlist}
+                                    maintenanceRequests={maintenanceRequests}
+                                    studentAttendances={studentAttendances}
+                                    invoices={invoices}
+                                    rooms={rooms}
+                                    onAddBulletinItem={async (item) => {
+                                        await apiService.saveModuleRecord('bulletin_items', { ...item, id: `bulletin_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() });
+                                        loadData();
+                                    }}
+                                    onUpdateDocumentStatus={async (id, status) => {
+                                        const doc = documentCollections.find(d => d.id === id);
+                                        if (doc) {
+                                            await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
+                                            loadData();
+                                        }
+                                    }}
+                                    onAddMaintenanceRequest={async (req) => {
+                                        await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
+                                        loadData();
+                                    }}
                                 />
                             ) : activeRole === 'store' ? (
                                 <StoreView
@@ -1741,7 +1784,6 @@ export const App: React.FC = () => {
                                     onSendTestEmail={async (r) => ({ success: true, message: 'Test email sent.' })}
                                     onSaveEmailConfig={() => { }}
                                     onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
-                                    onUpdateFooterImage={(footer) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
                                     onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                     onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}

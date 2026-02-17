@@ -1437,3 +1437,55 @@ export interface LeaveOutWithDetails extends LeaveOutRequest {
     boardingMasterName?: string;
     securityName?: string;
 }
+
+// ============================================
+// INFO DESK EXTENSIONS
+// ============================================
+
+export interface BulletinItem {
+    id: string;
+    institutionId: string;
+    title: string;
+    content: string;
+    category: 'Announcement' | 'Event' | 'Emergency' | 'Holiday';
+    date: string;
+    createdAt: string;
+    authorId: string;
+}
+
+export interface DocumentCollection {
+    id: string;
+    institutionId: string;
+    documentType: string;
+    ownerName: string;
+    ownerId?: string;
+    ownerPhone?: string;
+    status: 'Ready' | 'Collected' | 'Pending';
+    droppedOffBy: string;
+    droppedOffDate: string;
+    collectedDate?: string;
+    notes?: string;
+}
+
+export interface WatchlistRecord {
+    id: string;
+    institutionId: string;
+    name: string;
+    phoneNumber?: string;
+    idNumber?: string;
+    reason: string;
+    severity: 'Low' | 'Medium' | 'High';
+    addedBy: string;
+    createdAt: string;
+}
+
+export interface MaintenanceRequest {
+    id: string;
+    institutionId: string;
+    roomId: string;
+    description: string;
+    priority: 'Low' | 'Medium' | 'High' | 'Urgent';
+    status: 'Pending' | 'In Progress' | 'Completed';
+    reportedBy: string;
+    reportedAt: string;
+}
