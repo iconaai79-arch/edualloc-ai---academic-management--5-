@@ -7,7 +7,7 @@ import { AttendanceReports } from './AttendanceReports.tsx';
 import { AssessmentReports } from './AssessmentReports.tsx';
 import { ExamTimetableGrid } from './ExamTimetableGrid.tsx';
 import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from '../services/pdfService.ts';
-import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon } from './icons/index.ts';
+import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon, CheckCircleIcon, UserGroupIcon } from './icons/index.ts';
 import { RoomUtilizationReport } from './RoomUtilizationReport.tsx';
 import { TimetablesView } from './TimetablesView.tsx';
 import { VisualReports } from './VisualReports.tsx';
