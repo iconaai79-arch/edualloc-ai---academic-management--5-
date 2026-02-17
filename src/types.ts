@@ -295,11 +295,15 @@ export interface TimetableEntry {
     subjectId: string;
     lecturerId: string;
     roomId: string;
-    institutionId?: string;
-    academicYearId?: string;
-    semesterId?: string;
+    institutionId: string;
+    academicYearId: string;
+    semesterId: string;
+    courseId: string;
+    courseLevelId: string;
     attendanceStatus?: 'present' | 'absent' | 'late' | 'pending_absence_request' | 'approved_absence';
     isConflicting?: boolean;
+    scenarioId?: string;
+    versionName?: string;
     duration?: number;
     sharedWithPracticeTeacherId?: string | null;
     // Database aliases
@@ -1026,6 +1030,8 @@ export interface StudentRegistrationData {
     courseLevelId: string;
     password?: string;
 }
+
+
 
 export interface BiometricConfig {
     enabled: boolean;

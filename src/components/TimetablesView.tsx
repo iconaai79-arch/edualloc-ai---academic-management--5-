@@ -513,6 +513,9 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             ) : (
                                 <TimetableGrid
                                     entries={filteredEntries || []}
+                                    subjects={subjects || []}
+                                    courses={courses || []}
+                                    rooms={rooms || []}
                                     getSubjectById={getSubjectById}
                                     getLecturerById={getLecturerById}
                                     getRoomById={getRoomById}

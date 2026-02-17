@@ -1,11 +1,14 @@
 
 import React, { useState } from 'react';
-import type { User, TimetableEntry, Subject, Room, TimetableSettings, ObservationNote } from '../types';
+import type { User, TimetableEntry, Subject, Room, TimetableSettings, ObservationNote, Course } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { JoinedLessonsManager } from './JoinedLessonsManager';
 
 interface PracticeTeacherViewProps {
   user: User;
+  subjects: Subject[];
+  courses: Course[];
+  rooms: Room[];
   generatedTimetable: TimetableEntry[];
   getSubjectById: (id: string) => Subject | undefined;
   getRoomById: (id: string) => Room | undefined;
@@ -17,6 +20,9 @@ interface PracticeTeacherViewProps {
 
 export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
   user,
+  subjects,
+  courses,
+  rooms,
   generatedTimetable,
   getSubjectById,
   getRoomById,
@@ -43,26 +49,24 @@ export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Practice Teacher Dashboard</h2>
-      
+
       <div className="border-b border-slate-200 dark:border-slate-700">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab('timetable')}
-            className={`${
-              activeTab === 'timetable'
-                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'timetable'
+              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             My Timetable
           </button>
           <button
             onClick={() => setActiveTab('manager')}
-            className={`${
-              activeTab === 'manager'
-                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'manager'
+              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Joined Lessons Manager
           </button>
@@ -77,6 +81,9 @@ export const PracticeTeacherView: React.FC<PracticeTeacherViewProps> = ({
           <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
             <TimetableGrid
               entries={myTimetable}
+              subjects={subjects}
+              courses={courses}
+              rooms={rooms}
               getSubjectById={getSubjectById}
               getRoomById={getRoomById}
               getLecturerById={getLecturerById}

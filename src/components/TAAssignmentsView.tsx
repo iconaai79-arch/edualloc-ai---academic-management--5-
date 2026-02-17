@@ -1,11 +1,13 @@
 import React from 'react';
-import type { TaAssignment, Subject, User, TimetableEntry, Room, TimetableSettings } from '../types';
+import type { TaAssignment, Subject, User, TimetableEntry, Room, TimetableSettings, Course } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 
 interface TAAssignmentsViewProps {
   assignments: TaAssignment[];
   subjects: Subject[];
   users: User[];
+  courses: Course[];
+  rooms: Room[];
   timetable: TimetableEntry[];
   getSubjectById: (id: string) => Subject | undefined;
   getLecturerById: (id: string) => User | undefined;
@@ -17,6 +19,8 @@ export const TAAssignmentsView: React.FC<TAAssignmentsViewProps> = ({
   assignments,
   subjects,
   users,
+  courses,
+  rooms,
   timetable,
   getSubjectById,
   getLecturerById,
@@ -49,6 +53,9 @@ export const TAAssignmentsView: React.FC<TAAssignmentsViewProps> = ({
                 <h4 className="text-lg font-semibold mb-2">Weekly Schedule</h4>
                 <TimetableGrid
                   entries={subjectTimetable}
+                  subjects={subjects}
+                  courses={courses}
+                  rooms={rooms}
                   getSubjectById={getSubjectById}
                   getLecturerById={getLecturerById}
                   getRoomById={getRoomById}

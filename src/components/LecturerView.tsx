@@ -228,6 +228,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Staff Schedule</h3>
                         <TimetableGrid
                             entries={lecturerTimetable}
+                            subjects={subjects || []}
+                            courses={courses || []}
+                            rooms={props.rooms || []}
                             getSubjectById={getSubjectById}
                             getLecturerById={id => user}
                             getRoomById={getRoomById}

@@ -143,6 +143,7 @@ interface StudentViewProps {
     users: User[];
     courses: Course[];
     subjects: Subject[];
+    rooms: Room[];
     departments: Department[];
     enrollmentRequests: EnrollmentRequest[];
     onSubmitEnrollmentRequest: (subjectIds: string[], signatureUrl: string | null) => void;
@@ -202,7 +203,10 @@ const AbsenceStatusBadge: React.FC<{ status: StudentAbsenceRequest['status'] }> 
 }
 
 export const StudentView: React.FC<StudentViewProps> = (props) => {
-    const { user, users, courses, subjects, departments, enrollmentRequests, onSubmitEnrollmentRequest, generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById, timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution } = props;
+    const {
+        user, users, courses, subjects, rooms, departments, enrollmentRequests, onSubmitEnrollmentRequest,
+        generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
+        timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
@@ -363,7 +367,17 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
                     <div className="printable-area">
                         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
                             {studentTimetable.length > 0 ? (
-                                <TimetableGrid entries={studentTimetable} getSubjectById={getSubjectById} getLecturerById={getLecturerById} getRoomById={getRoomById} timetableSettings={timetableSettings} renderCellActions={renderCellActions} />
+                                <TimetableGrid
+                                    entries={studentTimetable}
+                                    subjects={subjects}
+                                    courses={courses}
+                                    rooms={rooms || []}
+                                    getSubjectById={getSubjectById}
+                                    getLecturerById={getLecturerById}
+                                    getRoomById={getRoomById}
+                                    timetableSettings={timetableSettings}
+                                    renderCellActions={renderCellActions}
+                                />
                             ) : (
                                 <div className="p-12 text-center">
                                     <div className="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">

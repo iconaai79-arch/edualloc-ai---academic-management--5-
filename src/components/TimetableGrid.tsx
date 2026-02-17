@@ -1,13 +1,17 @@
 
 import React, { useMemo, useState } from 'react';
-import type { TimetableEntry, Subject, User, Room, TimetableSettings } from '../types';
+import type { TimetableEntry, Subject, User, Room, TimetableSettings, Course } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
 import { GRID_TIME_STEP_MINUTES, timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { ExclamationTriangleIcon } from './icons';
 import { getInitials } from '../utils/stringUtils';
+import { checkMoveValidity } from '../utils/conflictUtils';
 
 interface TimetableGridProps {
     entries: TimetableEntry[];
+    subjects: Subject[];
+    courses: Course[];
+    rooms: Room[];
     getSubjectById: (id: string) => Subject | undefined;
     getLecturerById: (id: string) => User | undefined;
     getRoomById: (id: string) => Room | undefined;
@@ -21,6 +25,9 @@ interface TimetableGridProps {
 
 export const TimetableGrid: React.FC<TimetableGridProps> = ({
     entries,
+    subjects,
+    courses,
+    rooms,
     getSubjectById,
     getLecturerById,
     getRoomById,
@@ -43,6 +50,20 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
     const cellSpanMinutes = timetableSettings.cellSpanMinutes || 60;
 
     const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
+    const [hoveredSlot, setHoveredSlot] = useState<{ day: string, startTime: string } | null>(null);
+
+    const dropValidation = useMemo(() => {
+        if (!draggedEntryId || !hoveredSlot) return null;
+        return checkMoveValidity(
+            draggedEntryId,
+            hoveredSlot.day,
+            hoveredSlot.startTime,
+            entries,
+            rooms,
+            courses,
+            subjects
+        );
+    }, [draggedEntryId, hoveredSlot, entries, rooms, courses, subjects]);
 
     const handleDragStart = (e: React.DragEvent, entry: TimetableEntry) => {
         if (!isEditable) return;
@@ -55,19 +76,25 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
     const handleDragEnd = (e: React.DragEvent) => {
         setDraggedEntryId(null);
+        setHoveredSlot(null);
         (e.target as HTMLElement).style.opacity = '1';
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
+    const handleDragOver = (e: React.DragEvent, day: string, startTime: string) => {
         if (!isEditable) return;
         e.preventDefault(); // Necessary to allow dropping
         e.dataTransfer.dropEffect = 'move';
+
+        if (hoveredSlot?.day !== day || hoveredSlot?.startTime !== startTime) {
+            setHoveredSlot({ day, startTime });
+        }
     };
 
     const handleDrop = (e: React.DragEvent, day: string, startTime: string) => {
         if (!isEditable || !onMoveLesson) return;
         e.preventDefault();
         const entryId = e.dataTransfer.getData('text/plain');
+        setHoveredSlot(null);
         if (entryId) {
             onMoveLesson(entryId, day, startTime);
         }
@@ -134,9 +161,14 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                     <td
                                         key={`${day}-${slot.start}`}
                                         colSpan={colSpan}
-                                        className="p-1 border border-slate-200 dark:border-slate-600 align-top relative"
+                                        className={`p-1 border border-slate-200 dark:border-slate-600 align-top relative transition-colors duration-200 ${hoveredSlot?.day === day && hoveredSlot?.startTime === slot.start
+                                            ? dropValidation?.isValid
+                                                ? 'bg-emerald-50/80 dark:bg-emerald-900/40 ring-2 ring-inset ring-emerald-500'
+                                                : 'bg-rose-50/80 dark:bg-rose-900/40 ring-2 ring-inset ring-rose-500'
+                                            : ''
+                                            }`}
                                         style={{ minWidth: (colSpan * 64) + 'px' }}
-                                        onDragOver={handleDragOver}
+                                        onDragOver={(e) => handleDragOver(e, day, slot.start)}
                                         onDrop={(e) => handleDrop(e, day, slot.start)}
                                     >
                                         <div className="flex h-full gap-1 overflow-hidden">
@@ -212,9 +244,14 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
                                 rowCells.push(
                                     <td
                                         key={`${day}-${slot.start}`}
-                                        className="p-1 border border-slate-200 dark:border-slate-600 align-top hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                        className={`p-1 border border-slate-200 dark:border-slate-600 align-top transition-colors duration-200 ${hoveredSlot?.day === day && hoveredSlot?.startTime === slot.start
+                                            ? dropValidation?.isValid
+                                                ? 'bg-emerald-50/80 dark:bg-emerald-900/40 ring-2 ring-inset ring-emerald-500'
+                                                : 'bg-rose-50/80 dark:bg-rose-900/40 ring-2 ring-inset ring-rose-500'
+                                            : 'hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                                            }`}
                                         style={{ minWidth: '64px' }}
-                                        onDragOver={handleDragOver}
+                                        onDragOver={(e) => handleDragOver(e, day, slot.start)}
                                         onDrop={(e) => handleDrop(e, day, slot.start)}
                                     />
                                 );

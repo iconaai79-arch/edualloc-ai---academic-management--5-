@@ -487,7 +487,16 @@ export const InfoDeskView: React.FC<SupportStaffViewProps> = (props) => {
         <BaseDashboard title="Visitor Center" icon={<InformationCircleIcon className="w-6 h-6 text-slate-600" />}>
             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in-up">
                 <h3 className="text-xl font-black uppercase tracking-tight mb-6">Institutional Schedule Hub</h3>
-                <TimetableGrid entries={generatedTimetable!} getSubjectById={getSubjectById!} getRoomById={getRoomById!} getLecturerById={getLecturerById!} timetableSettings={timetableSettings!} />
+                <TimetableGrid
+                    entries={generatedTimetable!}
+                    subjects={props.subjects || []}
+                    courses={props.courses || []}
+                    rooms={props.rooms || []}
+                    getSubjectById={getSubjectById!}
+                    getRoomById={getRoomById!}
+                    getLecturerById={getLecturerById!}
+                    timetableSettings={timetableSettings!}
+                />
             </div>
         </BaseDashboard>
     );

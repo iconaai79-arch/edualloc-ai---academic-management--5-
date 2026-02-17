@@ -1317,6 +1317,7 @@ export const App: React.FC = () => {
                                     users={users}
                                     courses={courses}
                                     subjects={subjects}
+                                    rooms={rooms}
                                     enrollmentRequests={enrollmentRequests}
                                     generatedTimetable={generatedTimetable}
                                     examTimetable={examTimetable}
