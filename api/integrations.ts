@@ -161,52 +161,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (action === 'sendEmail') {
-                const hasBodyConfig = bodyConfig?.host && bodyConfig?.username;
+                const hasBodyConfig = bodyConfig?.host || bodyConfig?.resendApiKey;
                 const emailConfig = hasBodyConfig ? bodyConfig : systemSettings.email_config;
 
                 if (!emailConfig) {
-                    console.error("[Email] No configuration found in body or system_settings.");
-                    return res.status(400).json({ success: false, message: "SMTP configuration is missing. Please set it up in the Super Admin settings." });
+                    console.error("[Email] No configuration found.");
+                    return res.status(400).json({ success: false, message: "Email configuration is missing. Please set it up in the Super Admin settings." });
                 }
 
-                console.log(`[Email] Sending to ${recipient} using ${hasBodyConfig ? 'provided config' : 'system settings'}`);
+                const provider = emailConfig.provider || 'smtp';
+                const fromName = emailConfig.fromName || emailConfig.from_name || "EduAi Notification";
+                const fromEmail = emailConfig.fromEmail || emailConfig.from_email || "notifications@edualloc.ai";
 
+                // --- PROVIDER 1: RESEND (Recommended Lasting Solution) ---
+                if (provider === 'resend' || emailConfig.resendApiKey) {
+                    const resendApiKey = emailConfig.resendApiKey || emailConfig.apiKey;
+                    if (!resendApiKey) return res.status(400).json({ success: false, message: "Resend API Key is missing." });
+
+                    console.log(`[Email] Sending via Resend to ${recipient}`);
+                    try {
+                        const resendResponse = await fetch('https://api.resend.com/emails', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${resendApiKey}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                from: `${fromName} <${fromEmail}>`,
+                                to: [recipient],
+                                subject: subject || "EduAi Notification",
+                                text: message,
+                                html: (message || '').replace(/\n/g, '<br>')
+                            })
+                        });
+
+                        const resendData = await resendResponse.json();
+                        if (!resendResponse.ok) throw new Error(resendData.message || JSON.stringify(resendData));
+
+                        return res.status(200).json({ success: true, message: "Email dispatched via Resend.", messageId: resendData.id });
+                    } catch (error: any) {
+                        console.error('[Email] Resend API Failed:', error);
+                        return res.status(500).json({ success: false, message: `Resend Error: ${error.message}` });
+                    }
+                }
+
+                // --- PROVIDER 2: SMTP (Classic) ---
                 const host = emailConfig.host;
-                const port = emailConfig.port;
+                const port = Number(emailConfig.port || 587);
                 const username = emailConfig.username;
                 const smtpPassword = emailConfig.password;
-                const fromName = emailConfig.from_name || emailConfig.fromName || "EduAi Notification";
-                const fromEmail = emailConfig.from_email || emailConfig.fromEmail;
+                const encryption = emailConfig.encryption || 'tls'; // tls, ssl, none
 
                 if (!host || !username || !smtpPassword) {
-                    console.error("[Email] Incomplete SMTP credentials:", { host: !!host, user: !!username, pass: !!smtpPassword });
-                    return res.status(400).json({ success: false, message: "SMTP credentials incomplete. Please configure in System Settings." });
+                    return res.status(400).json({ success: false, message: "SMTP credentials incomplete." });
                 }
+
+                console.log(`[Email] Dispatching via SMTP: ${host}:${port} (${encryption})`);
 
                 // DYNAMIC IMPORT NODEMAILER
                 const nodemailer = (await import('nodemailer')).default;
 
                 const transporter = nodemailer.createTransport({
                     host,
-                    port: Number(port),
-                    secure: Number(port) === 465,
+                    port,
+                    // Port 465 usually uses secure: true, Port 587 starts as plain then uses STARTTLS
+                    secure: port === 465 || encryption === 'ssl',
                     auth: { user: username, pass: smtpPassword },
-                    connectionTimeout: 10000,
-                    tls: { rejectUnauthorized: false }
+                    connectionTimeout: 15000, // Increased for serverless environments
+                    greetingTimeout: 10000,   // Wait for the server to greet
+                    socketTimeout: 20000,
+                    tls: {
+                        // Crucial for some private/corporate SMTP servers
+                        rejectUnauthorized: encryption !== 'none',
+                        minVersion: 'TLSv1.2'
+                    }
                 });
 
                 try {
                     const info = await transporter.sendMail({
-                        from: `"${fromName || 'EduAi System'}" <${fromEmail}>`,
+                        from: `"${fromName}" <${fromEmail}>`,
                         to: recipient,
                         subject: subject || "EduAi Notification",
                         text: message,
                         html: (message || '').replace(/\n/g, '<br>')
                     });
-                    return res.status(200).json({ success: true, message: "Email dispatched.", messageId: info.messageId });
+                    console.log('[Email] Success:', info.messageId);
+                    return res.status(200).json({ success: true, message: "Email dispatched via SMTP.", messageId: info.messageId });
                 } catch (error: any) {
-                    console.error('[Email] Send Failed:', error);
-                    return res.status(500).json({ success: false, message: "Failed to send email. Check server logs." });
+                    console.error('[Email] SMTP Error Trace:', error.code, error.command, error.message);
+
+                    let hint = "Check your SMTP credentials and port settings.";
+                    if (error.code === 'EAUTH') hint = "Invalid username or password.";
+                    if (error.code === 'ESOCKET') hint = "Connection timed out. Check if port is open or host is correct.";
+                    if (error.code === 'EENVELOPE') hint = "Invalid 'From' address. Make sure it matches your SMTP user permission.";
+
+                    return res.status(500).json({
+                        success: false,
+                        message: `Email Relay Failure: ${error.message}`,
+                        hint
+                    });
                 }
             }
 

@@ -367,11 +367,13 @@ export interface SmsConfig {
 }
 
 export interface EmailConfig {
-    host: string;
-    port: number;
-    username: string;
-    password: string;
-    encryption: 'tls' | 'ssl' | 'none';
+    provider: 'smtp' | 'resend';
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    encryption?: 'tls' | 'ssl' | 'none';
+    resendApiKey?: string;
     fromName: string;
     fromEmail: string;
 }
