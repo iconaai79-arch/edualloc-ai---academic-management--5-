@@ -60,7 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 2: Auth Bridge - Fallback to verifying against custom 'users' table 
-        // if JWT check failed or if token is a custom ID.
         if ((!user || authError) && token && !isJwt) {
             console.log(`[Auth Bridge] Attempting database verification for custom ID: ${token?.substring(0, 8)}...`);
             const { data: dbUser } = await supabase
@@ -69,8 +68,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .eq('id', token)
                 .maybeSingle();
 
-            if (dbUser && (['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin'].includes(dbUser.role))) {
-                console.log('[Auth Bridge] Verified admin via database lookup:', dbUser.email);
+            if (dbUser) {
+                console.log(`[Auth Bridge] Verified identity for ${dbUser.email} (Role: ${dbUser.role})`);
                 user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, user_metadata: { institutionId: dbUser.institutionId } };
                 authError = null;
             }
@@ -120,6 +119,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (settingsData) settings = settingsData.data;
 
         if (action === 'sendEmail') {
+            const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
+            // Regular authenticated sendEmail requires admin privileges. 
+            // 'system' user is for unauthenticated bypasses like password reset.
+            if (!adminRoles.includes(user.role) && user.id !== 'system') {
+                return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system emails.' });
+            }
+
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
@@ -152,6 +158,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'sendSms') {
+            const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
+            if (!adminRoles.includes(user.role)) {
+                return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send bulk SMS.' });
+            }
+
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
