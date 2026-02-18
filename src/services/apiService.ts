@@ -399,23 +399,23 @@ export const apiService = {
                 body: JSON.stringify({ action: 'sendSms', recipient, message, config })
             });
 
-            let data: any = {};
+            let resData: any = {};
             let rawText = '';
             try {
                 rawText = await response.text();
-                data = JSON.parse(rawText);
+                resData = JSON.parse(rawText);
             } catch (e) {
-                data = { message: rawText || `HTTP Error ${response.status}` };
+                resData = { message: rawText || `HTTP Error ${response.status}` };
             }
 
             if (!response.ok) {
-                const detail = data.raw ? ` (Gateway Response: ${data.raw})` : '';
-                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
-                const apiDetails = data.error ? `\n\nDetails: ${data.error}` : '';
-                return { success: false, message: (data.error || data.message || `Gateway error (${response.status})`) + detail + hint + apiDetails };
+                const detail = resData.raw ? ` (Gateway Response: ${resData.raw})` : '';
+                const hint = resData.hint ? `\n\nHint: ${resData.hint}` : '';
+                const apiDetails = resData.error ? `\n\nDetails: ${resData.error}` : '';
+                return { success: false, message: (resData.error || resData.message || `Gateway error (${response.status})`) + detail + hint + apiDetails };
             }
 
-            return data;
+            return resData;
         } catch (e: any) {
             console.error("SMS Gateway Request Failed:", e);
             return { success: false, message: e.message || "Gateway connection failure." };
@@ -455,22 +455,22 @@ export const apiService = {
                 body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config })
             });
 
-            let data: any = {};
+            let resData: any = {};
             let rawText = '';
             try {
                 rawText = await response.text();
-                data = JSON.parse(rawText);
+                resData = JSON.parse(rawText);
             } catch (e) {
                 console.warn("Failed to parse API response as JSON:", rawText);
-                data = { message: rawText || `HTTP Error ${response.status}` };
+                resData = { message: rawText || `HTTP Error ${response.status}` };
             }
 
             if (!response.ok) {
-                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
-                const details = data.error || data.details || (rawText.length > 100 ? rawText.substring(0, 500) + '...' : '');
-                return { success: false, message: (data.message || `SMTP Relay Error (${response.status})`) + hint + (details ? `\n\nDetails: ${details}` : '') };
+                const hint = resData.hint ? `\n\nHint: ${resData.hint}` : '';
+                const details = resData.error || resData.details || (rawText.length > 100 ? rawText.substring(0, 500) + '...' : '');
+                return { success: false, message: (resData.message || `SMTP Relay Error (${response.status})`) + hint + (details ? `\n\nDetails: ${details}` : '') };
             }
-            return data;
+            return resData;
         } catch (e: any) {
             console.error("Email Gateway Error:", e);
             return { success: false, message: e.message || "Email gateway connection failed." };
@@ -512,13 +512,13 @@ export const apiService = {
             console.log('[M-Pesa Client] Response :', response);
             console.log('[M-Pesa Client] Response status:', response.status);
 
-            let data: any = {};
+            let resData: any = {};
             let rawText = '';
             try {
                 rawText = await response.text();
-                data = JSON.parse(rawText);
+                resData = JSON.parse(rawText);
             } catch (e) {
-                data = { message: rawText || `HTTP Error ${response.status}` };
+                resData = { message: rawText || `HTTP Error ${response.status}` };
             }
 
             if (!response.ok) {
@@ -526,24 +526,24 @@ export const apiService = {
                 let errorMessage = '';
 
                 if (response.status === 500) {
-                    errorMessage = `Server Error (500): ${data.error || data.message || 'Internal server error'}`;
-                    if (data.error?.includes('Database service unavailable')) {
+                    errorMessage = `Server Error (500): ${resData.error || resData.message || 'Internal server error'}`;
+                    if (resData.error?.includes('Database service unavailable')) {
                         errorMessage += '\n\nPossible causes:\n- SUPABASE_SERVICE_ROLE_KEY not configured\n- Supabase connection failed';
-                    } else if (data.message?.includes('configuration is missing')) {
+                    } else if (resData.message?.includes('configuration is missing')) {
                         errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
                     }
                 } else if (response.status === 401) {
                     errorMessage = 'Authentication failed. Please log in again.';
                 } else if (response.status === 400) {
-                    errorMessage = data.message || data.error || 'Bad request';
+                    errorMessage = resData.message || resData.error || 'Bad request';
                 } else {
-                    errorMessage = data.error || data.message || `HTTP Error: ${response.status}`;
+                    errorMessage = resData.error || resData.message || `HTTP Error: ${response.status}`;
                 }
 
-                const detail = data.errorDetail ? `\n\nDetails: ${JSON.stringify(data.errorDetail, null, 2)}` : '';
+                const detail = resData.errorDetail ? `\n\nDetails: ${JSON.stringify(resData.errorDetail, null, 2)}` : '';
                 throw new Error(`${errorMessage}${detail}`);
             }
-            return data;
+            return resData;
         } catch (e: any) {
             console.error("M-Pesa API Handshake Failed:", e);
             return {
