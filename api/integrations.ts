@@ -32,6 +32,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
 
         const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authorization session missing',
+                hint: 'No security token found. Please log out and log back in to refresh your session.'
+            });
+        }
+
         const supabase = getSupabaseClient(authHeader);
 
         if (!supabase) {

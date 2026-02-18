@@ -484,9 +484,21 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestEmail = async () => {
         setIsSavingConfigs(true);
         try {
-            const { data: { session } } = await (supabase?.auth.getSession() || { data: { session: null } });
-            let token = session?.access_token;
+            // Get session from either the supabase instance or apiService fallback
+            const { data } = await (supabase?.auth.getSession() || { data: { session: null } });
+            let session = data.session;
 
+            // Critical fallback: If session is missing, try to get it from apiService
+            if (!session) {
+                const apiSession = apiService.getSession();
+                if (apiSession) {
+                    // Mock a session structure that has access_token
+                    const stored = localStorage.getItem('sb-' + (import.meta.env.VITE_SUPABASE_URL || '').split('.')[0].replace('https://', '') + '-auth-token');
+                    if (stored) session = JSON.parse(stored);
+                }
+            }
+
+            let token = session?.access_token;
             if (!token) {
                 const sessionStr = Object.entries(localStorage).find(([k]) => k.includes('-auth-token'))?.[1];
                 token = sessionStr ? JSON.parse(sessionStr).access_token : localStorage.getItem('eduai_token');

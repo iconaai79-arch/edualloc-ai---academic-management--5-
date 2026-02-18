@@ -1,5 +1,5 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
     Priority, Department, Subject, Course, CompanyDetails, Room,
@@ -33,6 +33,9 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 
     if (finalUrl && finalKey && finalUrl.startsWith('http')) {
         try {
+            // Sync with lib/supabase.ts
+            initSupabase(finalUrl, finalKey);
+
             _supabase = createClient(finalUrl, finalKey, {
                 auth: { persistSession: true, autoRefreshToken: true },
                 global: { headers: { 'x-application-name': 'eduai-academic' } }
