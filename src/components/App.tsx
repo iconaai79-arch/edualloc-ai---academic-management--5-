@@ -1308,6 +1308,11 @@ export const App: React.FC = () => {
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
                                     onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onSendBulkCredentials={async (users, method) => {
+                                        const res = await apiService.sendBulkCredentials(users, method);
+                                        await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: `Sent bulk credentials to ${res.success_count} users via ${method}`, timestamp: new Date().toISOString() });
+                                        return res;
+                                    }}
                                     smsConfig={companyDetails.smsConfig}
                                     emailConfig={companyDetails.emailConfig}
                                     onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
@@ -1769,6 +1774,11 @@ export const App: React.FC = () => {
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
                                     onDeleteTask={async (id) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.deleteModuleRecord('tasks', id); await handleLogAction(`Deleted task: ${task.title}`); loadData(); } }}
                                     onLogAction={handleLogAction}
+                                    onSendBulkCredentials={async (users, method) => {
+                                        const res = await apiService.sendBulkCredentials(users, method);
+                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
+                                        return res;
+                                    }}
                                     onSendSms={async (r, m) => { const res = await apiService.sendSms(r, m); await handleLogAction(`Sent SMS to ${r}`); return res; }}
                                     onSaveSmsConfig={async (config) => { await onUpdateInstitution(activeInstitution!.id, { smsConfig: config }); await handleLogAction(`Updated SMS configuration`); }}
                                     onUpdateRequest={async (id, data) => { await apiService.saveModuleRecord('allocation_requests', { id, ...data }); await handleLogAction(`Updated allocation request`); loadData(); }}

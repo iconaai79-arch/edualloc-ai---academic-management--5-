@@ -520,6 +520,52 @@ export const apiService = {
             return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
+    async sendSms(recipient: string, message: string, config?: any): Promise<any> {
+        try {
+            const session = this.getSession();
+            const token = session?.id || '';
+            const headers: any = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ action: 'sendSms', recipient, message, config })
+            });
+            const result = await response.json();
+            return { success: response.ok && result.success, message: result.message };
+        } catch (e: any) {
+            console.error("SMS Gateway Error:", e);
+            return { success: false, message: e.message || "SMS gateway connection failed." };
+        }
+    },
+    async sendBulkCredentials(users: User[], method: 'email' | 'sms'): Promise<{ success_count: number; fail_count: number }> {
+        let success_count = 0;
+        let fail_count = 0;
+
+        for (const user of users) {
+            const password = user.password || 'password123';
+            const subject = "Account Credentials - EduAlloc Hub";
+            const body = `Dear ${user.name},\n\nYour account on EduAlloc has been initialized.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${password}\n\nPlease secure your account upon login.\n\nBest Regards,\nSystem Admin`;
+
+            const smsBody = `EduAlloc Hub: Your account for ${user.name} is ready. Email: ${user.email}, Pass: ${password}. Portal: ${window.location.host}`;
+
+            try {
+                let res;
+                if (method === 'email' && user.email) {
+                    res = await this.sendEmail(user.email, subject, body);
+                } else if (method === 'sms' && user.phoneNumber) {
+                    res = await this.sendSms(user.phoneNumber, smsBody);
+                }
+
+                if (res?.success) success_count++;
+                else fail_count++;
+            } catch (e) {
+                fail_count++;
+            }
+        }
+        return { success_count, fail_count };
+    },
     async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };

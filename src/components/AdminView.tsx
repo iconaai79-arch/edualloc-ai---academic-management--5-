@@ -141,6 +141,7 @@ export interface AdminViewProps {
     onUpdateTask?: (id: string, complete: boolean) => void;
     onDeleteTask?: (id: string) => void;
     onLogAction?: (action: string) => Promise<void>;
+    onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     onSendSms?: (r: string, m: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
