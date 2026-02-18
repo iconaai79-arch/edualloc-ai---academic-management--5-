@@ -24,15 +24,17 @@ interface LoginViewProps {
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
     companyDetails: CompanyDetails;
     onForgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+    onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
-    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword
+    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword, onResetPassword
 }) => {
-    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent'>('login');
+    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [generatedCreds, setGeneratedCreds] = useState<{ email: string; password: string } | null>(null);
@@ -59,6 +61,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
         adminName: '',
         adminEmail: ''
     });
+
+    // Check for reset token on mount
+    React.useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('resetToken');
+        if (token) {
+            setView('reset_password');
+        }
+    }, []);
 
     const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -91,6 +102,40 @@ export const LoginView: React.FC<LoginViewProps> = ({
             }
         } catch (err: any) {
             setError(err.message || "Recovery failure.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+        if (password.length < 6) {
+            setError("Password must be at least 6 characters.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const token = new URLSearchParams(window.location.search).get('resetToken');
+            if (!token) throw new Error("Missing reset token.");
+
+            const res = await onResetPassword?.(token, password);
+            if (res?.success) {
+                alert("Password reset successfully! Please log in.");
+                window.history.replaceState({}, document.title, window.location.pathname);
+                setPassword('');
+                setConfirmPassword('');
+                setView('login');
+            } else {
+                setError(res?.message || "Failed to reset password.");
+            }
+        } catch (err: any) {
+            setError(err.message || "Reset failure.");
         } finally {
             setIsSubmitting(false);
         }
@@ -228,6 +273,29 @@ export const LoginView: React.FC<LoginViewProps> = ({
                             <button onClick={() => setView('login')} className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-2xl shadow-xl transition-all">
                                 Return to Login
                             </button>
+                        </div>
+                    )}
+
+                    {view === 'reset_password' && (
+                        <div className="animate-fade-in-up space-y-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tighter">Set New Password</h3>
+                                <p className="text-sm text-slate-500 mt-1">Please enter your new portal access PIN.</p>
+                            </div>
+                            <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                                <div>
+                                    <label className={labelClasses}>New Password</label>
+                                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={inputClasses} placeholder="Min 6 characters" required autoFocus />
+                                </div>
+                                <div>
+                                    <label className={labelClasses}>Confirm Password</label>
+                                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClasses} placeholder="Repeat password" required />
+                                </div>
+                                <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50">
+                                    {isSubmitting ? 'Updating...' : 'Update Password'}
+                                </button>
+                                <button type="button" onClick={() => setView('login')} className="w-full text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2 transition-colors">Cancel Reset</button>
+                            </form>
                         </div>
                     )}
 

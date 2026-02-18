@@ -1177,7 +1177,8 @@ export const App: React.FC = () => {
             } catch (e: any) { return { success: false, message: 'Registration failed: ' + e.message }; }
         },
         onStudentRegister: async () => ({ success: true, message: '' }),
-        onForgotPassword: async (email: string) => apiService.resetPassword(email)
+        onForgotPassword: async (email: string) => apiService.resetPassword(email),
+        onResetPassword: async (token: string, pass: string) => apiService.resetPasswordWithToken(token, pass)
     };
 
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);

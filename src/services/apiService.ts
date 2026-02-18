@@ -177,6 +177,21 @@ export const apiService = {
             return { success: false, message: e.message || "Connection failure during verification." };
         }
     },
+    async resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+        if (!_supabase) return { success: false, message: "Server connection required." };
+        try {
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resetPasswordWithToken', token, newPassword })
+            });
+            const result = await response.json();
+            return { success: response.ok && result.success, message: result.message };
+        } catch (e: any) {
+            console.error("Token reset failed:", e);
+            return { success: false, message: "Connection failure." };
+        }
+    },
     async runMigration(sql: string): Promise<any> {
         try {
             const response = await fetch('/api/execute_sql', {

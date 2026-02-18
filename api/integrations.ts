@@ -164,7 +164,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
             // We use the 'user' object populated during the auth phase
-            if (!user || user.id !== 'system') return res.status(404).json({ success: false, message: 'Account not found.' });
+            if (!user || user.id === 'system' && !user.email) return res.status(404).json({ success: false, message: 'Account not found.' });
+
+            // Generate a secure reset token
+            const { randomBytes } = await import('crypto');
+            const token = randomBytes(32).toString('hex');
+            const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
+
+            // Store the token in the database
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ reset_token: token, reset_token_expires: expires })
+                .eq('email', recipient);
+
+            if (updateError) {
+                console.error('[Forgot Password] Failed to store reset token:', updateError);
+                return res.status(500).json({ success: false, message: 'Failed to initiate recovery. System storage error.' });
+            }
 
             // Handle both snake_case and camelCase keys
             const host = emailConfig.host;
@@ -174,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
             const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi Notification';
 
-            console.log(`[Forgot Password] Dispatching recovery email to: ${recipient} using ${host}:${port} (From: ${fromEmail})`);
+            console.log(`[Forgot Password] Dispatching recovery link to: ${recipient} using ${host}:${port}`);
 
             const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
@@ -185,19 +201,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tls: { rejectUnauthorized: false }
             });
 
-            const recoverySubject = "Account Recovery - EduAlloc Hub";
-            const recoveryBody = `Dear ${user.name},\n\nYou requested a password recovery for your account on the EduAlloc Academic Management System.\n\nYour Current Credentials:\nEmail: ${user.email}\nPassword: ${user.password}\n\nPortal URL: https://${req.headers.host}\n\nIf you did not request this, please secure your account immediately.\n\nBest Regards,\nSystem Admin`;
+            const protocol = req.headers['x-forwarded-proto'] || 'http';
+            const resetLink = `${protocol}://${req.headers.host}/?resetToken=${token}`;
+
+            const recoverySubject = "Password Reset Request - EduAlloc Hub";
+            const recoveryBody = `Dear ${user.name},\n\nYou requested a password reset for your account on the EduAlloc Academic Management System.\n\nPlease click the link below to set a new password. This link is valid for 1 hour:\n\n${resetLink}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n\nBest Regards,\nSystem Admin`;
 
             const info = await transporter.sendMail({
                 from: `"${fromName}" <${fromEmail}>`,
                 to: recipient,
                 subject: recoverySubject,
                 text: recoveryBody,
-                html: recoveryBody.replace(/\n/g, '<br>')
+                html: recoveryBody.replace(/\n/g, '<br>').replace(resetLink, `<a href="${resetLink}">${resetLink}</a>`)
             });
 
-            console.log(`[Forgot Password] Recovery email sent successfully. Message ID: ${info.messageId}`);
-            return res.status(200).json({ success: true, message: 'Recovery email dispatched.', messageId: info.messageId });
+            console.log(`[Forgot Password] Recovery link sent successfully. Message ID: ${info.messageId}`);
+            return res.status(200).json({ success: true, message: 'Recovery link dispatched.', messageId: info.messageId });
+        }
+
+        if (action === 'resetPasswordWithToken') {
+            const { token: resetToken, newPassword } = req.body;
+            if (!resetToken || !newPassword) return res.status(400).json({ success: false, message: 'Missing token or new password.' });
+
+            const { data: targetUser, error: fetchError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('reset_token', resetToken)
+                .gt('reset_token_expires', new Date().toISOString())
+                .maybeSingle();
+
+            if (fetchError || !targetUser) {
+                return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+            }
+
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ password: newPassword, reset_token: null, reset_token_expires: null })
+                .eq('id', targetUser.id);
+
+            if (updateError) {
+                return res.status(500).json({ success: false, message: 'Failed to update password.' });
+            }
+
+            return res.status(200).json({ success: true, message: 'Password updated successfully. You can now log in.' });
         }
 
         if (action === 'initiateStkPush') {
