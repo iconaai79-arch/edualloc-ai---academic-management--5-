@@ -243,7 +243,7 @@ export const INITIAL_USERS: User[] = [
     {
         id: 'u_super_admin',
         name: 'System Super Admin',
-        email: 'superadmin@eduai.com',
+        email: 'super@app.com',
         phoneNumber: '0000000000',
         role: 'super_admin',
         roles: ['super_admin'],
