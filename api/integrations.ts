@@ -1,241 +1,126 @@
 
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createServerClient } from '../lib/supabase';
-import nodemailer from 'nodemailer';
-import { Buffer } from 'node:buffer';
+import { createClient } from '@supabase/supabase-js';
 
+// Vercel config
 export const config = {
     maxDuration: 15,
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // 0. Handle CORS and Options first
+// Helper inside the file to avoid relative import issues during bundling
+const getSupabaseClient = (authHeader?: string) => {
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) return null;
+    return createClient(url, key, {
+        global: {
+            headers: authHeader ? { Authorization: authHeader } : undefined
+        }
+    });
+};
+
+export default async function handler(req, res) {
+    // CORS
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method === 'GET') {
-        return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString() });
-    }
-
-    // 1. Validate Request
-    if (!req.body) {
-        return res.status(400).json({ success: false, message: 'Request body is required.' });
-    }
-
-    const { action, recipient, message, subject, amount, config: bodyConfig, checkoutRequestId } = req.body;
-    console.log(`[Integrations] Action: ${action} to ${recipient}`);
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString() });
 
     try {
-        // 2. Initialize Backend Client
-        const authHeader = req.headers.authorization;
-        const supabase = createServerClient(authHeader);
+        if (!req.body) return res.status(400).json({ success: false, message: 'Missing body' });
 
-        if (!supabase) {
-            console.error('[Integrations] Supabase client initialization failed. Check environment variables.');
-            return res.status(503).json({
-                success: false,
-                message: 'Internal configuration error: Database service unavailable.',
-                hint: 'Check Vercel Environment Variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
-            });
-        }
+        const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
+        console.log(`[Action] ${action} -> ${recipient}`);
 
-        // 3. Authenticate User Session
-        let user: any = null;
-        try {
-            const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-            if (authError || !authUser) {
-                return res.status(401).json({
-                    success: false,
-                    message: authError?.message || 'Access Denied: Invalid Session',
-                    hint: 'Please sign in again.'
-                });
-            }
-            user = authUser;
-        } catch (e: any) {
-            console.error('[Integrations] Auth Error:', e);
-            return res.status(401).json({ success: false, message: 'Authentication Service Error' });
-        }
+        const supabase = getSupabaseClient(req.headers.authorization);
+        if (!supabase) return res.status(503).json({ success: false, message: 'DB Config Missing' });
 
-        // 4. Load System Settings (Fallback)
-        let systemSettings: any = {};
-        try {
-            const { data, error } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-            if (data) systemSettings = data.data;
-        } catch (e) {
-            console.warn('[Integrations] System settings lookup failed:', e);
-        }
+        // Auth
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-        // --- EMAIL ACTION ---
+        // Settings
+        let settings = {};
+        const { data } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+        if (data) settings = data.data;
+
         if (action === 'sendEmail') {
-            const emailConfig = bodyConfig || systemSettings?.email_config;
-            if (!emailConfig) return res.status(400).json({ success: false, message: 'No email configuration provided.' });
+            const emailConfig = bodyConfig || settings.email_config;
+            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email config missing' });
 
-            const provider = emailConfig.provider || 'smtp';
-            const fromName = emailConfig.fromName || emailConfig.from_name || "EduAi Notification";
-            const fromEmail = emailConfig.fromEmail || emailConfig.from_email || "notifications@edualloc.ai";
-
-            // Resend Flow
-            if (provider === 'resend' || emailConfig.resendApiKey) {
-                const apiKey = emailConfig.resendApiKey || emailConfig.apiKey;
-                if (!apiKey) return res.status(400).json({ success: false, message: 'Resend API key missing.' });
-
-                const resendResponse = await fetch('https://api.resend.com/emails', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        from: `${fromName} <${fromEmail}>`,
-                        to: [recipient],
-                        subject: subject || "Notification",
-                        text: message,
-                        html: (message || '').replace(/\n/g, '<br>')
-                    })
-                });
-
-                const resendData = await resendResponse.json() as any;
-                if (!resendResponse.ok) {
-                    return res.status(502).json({ success: false, message: 'Resend delivery failed.', details: resendData });
-                }
-                return res.status(200).json({ success: true, message: 'Email sent via Resend.', messageId: resendData.id });
-            }
-
-            // SMTP Flow
-            const port = Number(emailConfig.port || 587);
-            const encryption = emailConfig.encryption || 'tls';
-
-            if (!emailConfig.host || !emailConfig.username) {
-                return res.status(400).json({ success: false, message: 'SMTP settings incomplete. Host and Username required.' });
-            }
-
+            const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
                 host: emailConfig.host,
-                port: port,
-                secure: port === 465 || encryption === 'ssl',
-                auth: {
-                    user: emailConfig.username,
-                    pass: emailConfig.password
-                },
-                tls: {
-                    rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2'
-                },
-                connectionTimeout: 10000,
-                greetingTimeout: 10000
+                port: Number(emailConfig.port || 587),
+                secure: Number(emailConfig.port) === 465,
+                auth: { user: emailConfig.username, pass: emailConfig.password },
+                tls: { rejectUnauthorized: false }
             });
 
-            try {
-                const info = await transporter.sendMail({
-                    from: `"${fromName}" <${fromEmail}>`,
-                    to: recipient,
-                    subject: subject || "Notification",
-                    text: message,
-                    html: (message || '').replace(/\n/g, '<br>')
-                });
-                return res.status(200).json({ success: true, message: 'SMTP Relay Success', messageId: info.messageId });
-            } catch (err: any) {
-                console.error('[Integrations] SMTP Error:', err);
-                let hint = "Double check your SMTP credentials and port settings.";
-                if (err.code === 'EAUTH') hint = "Invalid SMTP credentials. Check username/password.";
-                if (err.message.includes('Relay')) hint = "Sender email address not authorized for this relay.";
+            const info = await transporter.sendMail({
+                from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || 'notifications@edualloc.ai'}>`,
+                to: recipient,
+                subject: subject || 'Notification',
+                text: message,
+                html: (message || '').replace(/\n/g, '<br>')
+            });
 
-                return res.status(500).json({
-                    success: false,
-                    message: `SMTP Failure: ${err.message}`,
-                    hint,
-                    code: err.code
-                });
-            }
+            return res.status(200).json({ success: true, messageId: info.messageId });
         }
 
-        // --- SMS ACTION ---
         if (action === 'sendSms') {
-            const smsConfig = bodyConfig || systemSettings?.sms_config;
-            if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration not found.' });
-
-            const apiKey = smsConfig.api_key || smsConfig.apiKey;
-            const apiSecret = smsConfig.api_secret || smsConfig.apiSecret;
-            const fromNumber = smsConfig.from_number || smsConfig.fromNumber;
-
-            if (!apiKey || !apiSecret) return res.status(400).json({ success: false, message: 'SMS credentials missing.' });
-
-            let cleanPhone = (recipient || '').replace(/[^\d+]/g, '').trim();
-            if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
-            if (!cleanPhone.startsWith('254') && !cleanPhone.startsWith('+')) cleanPhone = '254' + cleanPhone;
+            const smsConfig = bodyConfig || settings.sms_config;
+            if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS config missing' });
 
             const params = new URLSearchParams({
-                userid: apiKey,
-                password: apiSecret as string,
-                mobile: cleanPhone,
+                userid: smsConfig.apiKey || smsConfig.api_key,
+                password: smsConfig.apiSecret || smsConfig.api_secret,
+                mobile: recipient.replace(/[^\d]/g, ''),
                 msg: message || '',
-                senderid: fromNumber || 'ABMIS',
-                msgType: 'text',
-                output: 'json'
+                senderid: smsConfig.fromNumber || 'ABMIS',
+                msgType: 'text', output: 'json'
             });
 
-            try {
-                const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
-                const smsText = await smsRes.text();
-                return res.status(200).json({ success: true, response: smsText });
-            } catch (e: any) {
-                return res.status(502).json({ success: false, message: 'SMS Gateway unreachable.', error: e.message });
-            }
+            const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
+            return res.status(200).json({ success: true, detail: await smsRes.text() });
         }
 
-        // --- MPESA ACTION ---
         if (action === 'initiateStkPush') {
-            const mpesaConfig = bodyConfig || systemSettings?.mpesa_config;
-            if (!mpesaConfig) return res.status(400).json({ success: false, message: 'M-Pesa configuration not found.' });
+            const mpesa = bodyConfig || settings.mpesa_config;
+            const auth = Buffer.from(`${mpesa.consumerKey}:${mpesa.consumerSecret}`).toString('base64');
+            const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
-            const consumerKey = mpesaConfig.consumer_key || mpesaConfig.consumerKey;
-            const consumerSecret = mpesaConfig.consumer_secret || mpesaConfig.consumerSecret;
-            const paybillNumber = mpesaConfig.paybill_number || mpesaConfig.paybillNumber;
-            const passkey = mpesaConfig.passkey;
-            const isSandbox = mpesaConfig.environment !== 'production';
-
-            if (!consumerKey || !consumerSecret || !paybillNumber || !passkey) {
-                return res.status(400).json({ success: false, message: 'M-Pesa Daraja credentials incomplete.' });
-            }
-
-            const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-            const baseUrl = isSandbox ? 'https://sandbox.safaricom.co.ke' : 'https://api.safaricom.co.ke';
-
-            const oauthRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
                 headers: { 'Authorization': `Basic ${auth}` }
             });
-
-            if (!oauthRes.ok) return res.status(401).json({ success: false, message: 'Daraja Auth failed. Check credentials.' });
-            const { access_token } = (await oauthRes.json()) as any;
+            const { access_token } = await oauth.json();
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
-            const callbackUrl = `https://${req.headers.host}/api/mpesa-callback`;
+            const password = Buffer.from(mpesa.paybillNumber + mpesa.passkey + timestamp).toString('base64');
 
-            const stkPushRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+            const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    BusinessShortCode: paybillNumber,
+                    BusinessShortCode: mpesa.paybillNumber,
                     Password: password,
                     Timestamp: timestamp,
                     TransactionType: "CustomerPayBillOnline",
                     Amount: Math.round(amount),
-                    PartyA: recipient.replace(/[^\d]/g, '').trim(),
-                    PartyB: paybillNumber,
-                    PhoneNumber: recipient.replace(/[^\d]/g, '').trim(),
-                    CallBackURL: callbackUrl,
+                    PartyA: recipient.replace(/[^\d]/g, ''),
+                    PartyB: mpesa.paybillNumber,
+                    PhoneNumber: recipient.replace(/[^\d]/g, ''),
+                    CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
                     AccountReference: "License",
                     TransactionDesc: "Payment"
                 })
             });
 
-            const stkData = await stkPushRes.json() as any;
-            if (stkPushRes.ok && stkData.ResponseCode === '0') {
-                // Record transaction
+            const stkData = await stkRes.json();
+            if (stkRes.ok && stkData.ResponseCode === '0') {
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
@@ -245,20 +130,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     phone_number: recipient,
                     status: 'pending'
                 });
-                return res.status(200).json({ success: true, data: stkData });
             }
-            return res.status(400).json({ success: false, message: stkData.CustomerMessage || 'Gateway rejected request.', details: stkData });
+            return res.status(stkRes.status).json(stkData);
         }
 
-        return res.status(400).json({ success: false, message: 'Action not supported.' });
+        return res.status(400).json({ success: false, message: 'Unknown action' });
 
-    } catch (globalError: any) {
-        console.error('[Integrations] Global Handler Error:', globalError);
-        return res.status(500).json({
-            success: false,
-            message: 'Internal Handler Error',
-            error: globalError.message,
-            stack: globalError.stack
-        });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ success: false, error: e.message });
     }
 }
