@@ -2,6 +2,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServerClient } from '../lib/supabase';
 import nodemailer from 'nodemailer';
+import { Buffer } from 'node:buffer';
 
 export const config = {
     maxDuration: 15,
