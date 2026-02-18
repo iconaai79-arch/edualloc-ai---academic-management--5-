@@ -15,6 +15,7 @@ import { LocationSettings } from './LocationSettings';
 import { BrandedPaper } from './BrandedPaper';
 import { GradingSystemManager } from './GradingSystemManager';
 import { supabase } from '../lib/supabase';
+import { apiService } from '../services/apiService';
 import {
     PrinterIcon,
     MapPinIcon,
@@ -493,7 +494,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 const apiSession = apiService.getSession();
                 if (apiSession) {
                     // Mock a session structure that has access_token
-                    const stored = localStorage.getItem('sb-' + (import.meta.env.VITE_SUPABASE_URL || '').split('.')[0].replace('https://', '') + '-auth-token');
+                    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || localStorage.getItem('db_config_SUPABASE_URL') || '';
+                    const urlPart = supabaseUrl.split('.')[0].replace('https://', '');
+                    const stored = localStorage.getItem('sb-' + urlPart + '-auth-token');
                     if (stored) session = JSON.parse(stored);
                 }
             }
