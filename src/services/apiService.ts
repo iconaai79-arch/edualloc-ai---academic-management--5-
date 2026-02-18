@@ -160,8 +160,23 @@ export const apiService = {
         }
     },
     async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
-        await new Promise(r => setTimeout(r, 800));
-        return { success: true, message: `A secure reset link has been dispatched to ${email}.` };
+        const users = await this.fetchUsers();
+        const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+        if (!user) {
+            return { success: false, message: "No account found with this email address." };
+        }
+
+        const subject = "Account Recovery - EduAlloc Hub";
+        const body = `Dear ${user.name},\n\nYou requested a password recovery for your account on the EduAlloc Academic Management System.\n\nYour Current Credentials:\nEmail: ${user.email}\nPassword: ${user.password}\n\nPortal URL: ${window.location.origin}\n\nIf you did not request this, please secure your account immediately.\n\nBest Regards,\nSystem Admin`;
+
+        try {
+            await this.sendEmail(email, subject, body);
+            return { success: true, message: `Your credentials have been dispatched to ${email}.` };
+        } catch (e: any) {
+            console.error("Reset password email failed", e);
+            throw new Error("Failed to send recovery email. Please contact support.");
+        }
     },
     async runMigration(sql: string): Promise<any> {
         try {
@@ -277,6 +292,21 @@ export const apiService = {
     async saveInstitution(inst: Institution): Promise<void> { await this.saveModuleRecord('institutions', inst); },
     async fetchUsers(institutionId?: string): Promise<User[]> { return this.fetchModuleRecords('users', institutionId); },
     async saveUser(user: Partial<User>): Promise<void> { await this.saveModuleRecord('users', user); },
+    async registerUser(userData: Partial<User>, institutionName?: string): Promise<void> {
+        const password = userData.password || (userData.role === 'student' ? 'student123' : 'password123');
+        const userWithPass = { ...userData, password };
+        await this.saveUser(userWithPass);
+
+        if (userData.email) {
+            const subject = "Welcome to EduAlloc - Account Credentials";
+            const body = `Dear ${userData.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${userData.email}\nPassword: ${password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+
+            // Send email asynchronously so we don't block the UI
+            this.sendEmail(userData.email, subject, body).catch(e => {
+                console.error("Failed to send welcome email:", e);
+            });
+        }
+    },
     async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> { return this.fetchModuleRecords('allocation_requests', institutionId); },
     async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await this.saveModuleRecord('allocation_requests', data); },
     async fetchCompanySettings(): Promise<CompanyDetails | null> {
@@ -636,7 +666,7 @@ export const apiService = {
             await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
         }
     },
-    async onImportUsers(imported: any[], institutionId?: string): Promise<void> {
+    async onImportUsers(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
         if (!_supabase) return;
         const dataWithInst = institutionId
             ? imported.map(u => ({ ...u, institutionId }))
@@ -650,8 +680,17 @@ export const apiService = {
         const snakeData = sanitizedData.map(u => toSnakeCase(u));
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
+
+        // Send welcome emails
+        sanitizedData.forEach(user => {
+            if (user.email) {
+                const subject = "Welcome to EduAlloc - Account Credentials";
+                const body = `Dear ${user.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+            }
+        });
     },
-    async onImportStudents(imported: any[], institutionId?: string): Promise<void> {
+    async onImportStudents(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
         if (!_supabase) return;
         const dataWithInst = institutionId
             ? imported.map(s => ({ ...s, institutionId }))
@@ -665,6 +704,15 @@ export const apiService = {
         const snakeData = sanitizedData.map(s => toSnakeCase(s));
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
+
+        // Send welcome emails
+        sanitizedData.forEach(user => {
+            if (user.email) {
+                const subject = "Welcome to EduAlloc - Account Credentials";
+                const body = `Dear ${user.name},\n\nYour student account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+            }
+        });
     },
     async onImportCourses(courses: any[]): Promise<void> {
         const enrichedCourses = courses.map(c => ({

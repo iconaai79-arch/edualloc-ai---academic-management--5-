@@ -23,11 +23,12 @@ interface LoginViewProps {
     onParentRequestOtp: (phone: string) => { success: boolean; message: string };
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
     companyDetails: CompanyDetails;
+    onForgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
-    onOpenGuestPortal, onOpenGuestFeedback, companyDetails
+    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent'>('login');
     const [email, setEmail] = useState('');
@@ -72,7 +73,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
     };
 
-    const handleForgotPassword = (e: React.FormEvent) => {
+    const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         const cleanEmail = email.trim().toLowerCase();
@@ -81,10 +82,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
             return;
         }
         setIsSubmitting(true);
-        setTimeout(() => {
-            setView('reset_sent');
+        try {
+            const res = await onForgotPassword(cleanEmail);
+            if (res.success) {
+                setView('reset_sent');
+            } else {
+                setError(res.message);
+            }
+        } catch (err: any) {
+            setError(err.message || "Recovery failure.");
+        } finally {
             setIsSubmitting(false);
-        }, 1000);
+        }
     };
 
     const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -203,6 +212,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                 </button>
                                 <button type="button" onClick={() => setView('login')} className="w-full text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2 transition-colors">Return to Login</button>
                             </form>
+                        </div>
+                    )}
+
+                    {view === 'reset_sent' && (
+                        <div className="text-center space-y-6 animate-fade-in-up">
+                            <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <CheckCircleIcon className="w-12 h-12" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Request Received</h2>
+                            <p className="text-sm text-slate-500 leading-relaxed">
+                                If an account exists for <span className="font-bold text-slate-700 dark:text-slate-300">{email}</span>,
+                                you will receive an email with recovery instructions shortly.
+                            </p>
+                            <button onClick={() => setView('login')} className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-2xl shadow-xl transition-all">
+                                Return to Login
+                            </button>
                         </div>
                     )}
 

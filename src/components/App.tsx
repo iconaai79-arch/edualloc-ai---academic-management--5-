@@ -687,12 +687,12 @@ export const App: React.FC = () => {
     // --- User Handlers ---
 
     const onImportUsers = async (data: any[]) => {
-        await apiService.onImportUsers(data, currentUser?.institutionId);
+        await apiService.onImportUsers(data, currentUser?.institutionId, activeInstitution?.name);
         loadData();
     };
 
     const onImportStudents = async (data: any[]) => {
-        await apiService.onImportStudents(data, currentUser?.institutionId);
+        await apiService.onImportStudents(data, currentUser?.institutionId, activeInstitution?.name);
         loadData();
     };
 
@@ -1176,7 +1176,8 @@ export const App: React.FC = () => {
                 return { success: true, message: 'Registration successful.', credentials: { email: newAdmin.email, password: generatedPassword } };
             } catch (e: any) { return { success: false, message: 'Registration failed: ' + e.message }; }
         },
-        onStudentRegister: async () => ({ success: true, message: '' })
+        onStudentRegister: async () => ({ success: true, message: '' }),
+        onForgotPassword: async (email: string) => apiService.resetPassword(email)
     };
 
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -1250,7 +1251,7 @@ export const App: React.FC = () => {
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
                                     onDeleteCounty={handleDeleteCounty}
-                                    rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
+                                    rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }} onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
                                     logoUrl={activeLogoUrl}
                                     leaveOutRequests={leaveOutRequests}
                                     finalTimetableUrl={null}
@@ -1403,7 +1404,7 @@ export const App: React.FC = () => {
                                     onAddInstitution={handleAddCountyInstitution}
                                     onLoginAsAdmin={onLoginAsAdmin}
                                     onImportInstitutions={handleImportCountyInstitutions}
-                                    onAddUser={async (data) => { await apiService.saveUser({ ...data, id: `u_county_${Date.now()}` }); loadData(); }}
+                                    onAddUser={async (data) => { await apiService.registerUser({ ...data, id: `u_county_${Date.now()}` }, 'County Portal'); loadData(); }}
                                     onUpdateUser={onEditUser}
                                     onDeleteUser={onDeleteUser}
                                     inventoryItems={countyInventory}
@@ -1669,7 +1670,7 @@ export const App: React.FC = () => {
                                     courses={courses}
                                     departments={departments}
                                     onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
-                                    onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }}
+                                    onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}
                                     onImportStudents={onImportStudents}
@@ -1720,7 +1721,7 @@ export const App: React.FC = () => {
                                     timetableConflicts={timetableConflicts}
                                     currentInstitution={activeInstitution}
                                     counties={counties}
-                                    onAddUser={async (data) => { await apiService.saveUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }); loadData(); }}
+                                    onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}
                                     onImportUsers={onImportUsers}
