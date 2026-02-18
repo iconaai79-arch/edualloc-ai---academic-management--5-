@@ -2,15 +2,13 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// Vercel config
 export const config = {
     maxDuration: 15,
 };
 
-// Helper inside the file to avoid relative import issues during bundling
 const getSupabaseClient = (authHeader?: string) => {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
     if (!url || !key) return null;
     return createClient(url, key, {
@@ -21,7 +19,6 @@ const getSupabaseClient = (authHeader?: string) => {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // 0. Handle CORS and Options first
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
@@ -32,25 +29,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         if (!req.body) return res.status(400).json({ success: false, message: 'Missing body' });
-
         const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
-        console.log(`[Action] ${action} -> ${recipient}`);
 
-        const supabase = getSupabaseClient(req.headers.authorization);
-        if (!supabase) return res.status(503).json({ success: false, message: 'DB Config Missing' });
+        const authHeader = req.headers.authorization;
+        const supabase = getSupabaseClient(authHeader);
 
-        // Auth
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (!supabase) {
+            return res.status(503).json({
+                success: false,
+                message: 'Server configuration error: Database keys missing.',
+                hint: 'Ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in Vercel settings.'
+            });
+        }
 
-        // Settings - Use any to avoid property access errors
+        // Auth check with detailed error reporting
+        const token = authHeader?.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !user) {
+            console.error('[Auth Failure]', authError);
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized',
+                details: authError?.message || 'No active session found.',
+                hint: 'Please try logging out and logging back in to refresh your security token.'
+            });
+        }
+
+        // Fetch settings (bypass RLS as we are on the server)
         let settings: any = {};
-        const { data } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
-        if (data) settings = data.data;
+        const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+        if (settingsData) settings = settingsData.data;
 
         if (action === 'sendEmail') {
             const emailConfig = bodyConfig || settings.email_config;
-            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email config missing' });
+            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
             const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
@@ -64,17 +77,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const info = await transporter.sendMail({
                 from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || 'notifications@edualloc.ai'}>`,
                 to: recipient,
-                subject: subject || 'Notification',
+                subject: subject || 'EduAi Notification',
                 text: message,
                 html: (message || '').replace(/\n/g, '<br>')
             });
 
-            return res.status(200).json({ success: true, messageId: info.messageId });
+            return res.status(200).json({ success: true, message: 'Email dispatched successfully.', messageId: info.messageId });
         }
 
         if (action === 'sendSms') {
             const smsConfig = bodyConfig || settings.sms_config;
-            if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS config missing' });
+            if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
             const params = new URLSearchParams({
                 userid: smsConfig.apiKey || smsConfig.api_key,
@@ -86,18 +99,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
-            return res.status(200).json({ success: true, detail: await smsRes.text() });
+            const smsDetail = await smsRes.text();
+            return res.status(200).json({ success: true, message: 'SMS request sent.', detail: smsDetail });
         }
 
         if (action === 'initiateStkPush') {
             const mpesa = bodyConfig || settings.mpesa_config;
-            const auth = Buffer.from(`${mpesa.consumerKey}:${mpesa.consumerSecret}`).toString('base64');
+            if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
+
+            const authStr = Buffer.from(`${mpesa.consumerKey}:${mpesa.consumerSecret}`).toString('base64');
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
-            const oauthRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-                headers: { 'Authorization': `Basic ${auth}` }
+            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                headers: { 'Authorization': `Basic ${authStr}` }
             });
-            const { access_token } = (await oauthRes.json()) as any;
+
+            if (!oauth.ok) return res.status(401).json({ success: false, message: 'M-Pesa authentication failed. Check Consumer Key/Secret.' });
+            const { access_token } = (await oauth.json()) as any;
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(mpesa.paybillNumber + mpesa.passkey + timestamp).toString('base64');
@@ -115,8 +133,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     PartyB: mpesa.paybillNumber,
                     PhoneNumber: recipient.replace(/[^\d]/g, ''),
                     CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
-                    AccountReference: "License",
-                    TransactionDesc: "Payment"
+                    AccountReference: "Subscription",
+                    TransactionDesc: "License Payment"
                 })
             });
 
@@ -131,14 +149,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     phone_number: recipient,
                     status: 'pending'
                 });
+                return res.status(200).json({ success: true, message: 'M-Pesa prompt sent.', data: stkData });
             }
-            return res.status(stkRes.status).json(stkData);
+            return res.status(stkRes.status).json({ success: false, message: stkData.CustomerMessage || 'M-Pesa gateway rejected the request.', details: stkData });
         }
 
-        return res.status(400).json({ success: false, message: 'Unknown action' });
+        return res.status(400).json({ success: false, message: 'Action not supported.' });
 
     } catch (e: any) {
-        console.error(e);
-        return res.status(500).json({ success: false, error: e.message });
+        console.error('[Fatal Error]', e);
+        return res.status(500).json({ success: false, message: 'Internal Server Error', details: e.message });
     }
 }
