@@ -160,22 +160,22 @@ export const apiService = {
         }
     },
     async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
-        const users = await this.fetchUsers();
-        const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-
-        if (!user) {
-            return { success: false, message: "No account found with this email address." };
-        }
-
-        const subject = "Account Recovery - EduAlloc Hub";
-        const body = `Dear ${user.name},\n\nYou requested a password recovery for your account on the EduAlloc Academic Management System.\n\nYour Current Credentials:\nEmail: ${user.email}\nPassword: ${user.password}\n\nPortal URL: ${window.location.origin}\n\nIf you did not request this, please secure your account immediately.\n\nBest Regards,\nSystem Admin`;
-
+        if (!_supabase) return { success: false, message: "Server connection required." };
         try {
-            await this.sendEmail(email, subject, body);
-            return { success: true, message: `Your credentials have been dispatched to ${email}.` };
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'forgotPassword', recipient: email })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                // For security, we return a generic message even if the user is not found
+                return { success: true, message: "If an account exists, instructions have been sent." };
+            }
+            return { success: true, message: "Recovery email dispatched." };
         } catch (e: any) {
-            console.error("Reset password email failed", e);
-            throw new Error("Failed to send recovery email. Please contact support.");
+            console.error("Reset password recovery failed", e);
+            return { success: true, message: "If an account exists, a recovery email will be sent shortly." };
         }
     },
     async runMigration(sql: string): Promise<any> {

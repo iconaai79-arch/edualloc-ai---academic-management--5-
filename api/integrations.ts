@@ -30,14 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
 
         const authHeader = req.headers.authorization;
-        if (!authHeader) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authorization session missing',
-                hint: 'No security token found. Please log out and log back in to refresh your session.'
-            });
-        }
-
         const supabase = getSupabaseClient();
 
         if (!supabase) {
@@ -56,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Determine if token is a JWT (contains three parts separated by dots)
         const isJwt = token?.includes('.') && token?.split('.').length === 3;
 
-        if (isJwt) {
+        if (isJwt && token) {
             try {
                 // Priority 1: Check standard Supabase Auth for real JWTs
                 const authResponse = await supabase.auth.getUser(token);
@@ -69,26 +61,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Priority 2: Auth Bridge - Fallback to verifying against custom 'users' table 
         // if JWT check failed or if token is a custom ID.
-        if (!user || authError) {
-            console.log(`[Auth Bridge] Attempting database verification for token: ${token?.substring(0, 8)}...`);
-            const { data: dbUser, error: dbError } = await supabase
+        if ((!user || authError) && token && !isJwt) {
+            console.log(`[Auth Bridge] Attempting database verification for custom ID: ${token?.substring(0, 8)}...`);
+            const { data: dbUser } = await supabase
                 .from('users')
                 .select('*')
                 .eq('id', token)
                 .maybeSingle();
 
             if (dbUser && (['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin'].includes(dbUser.role))) {
-                console.log('[Auth Bridge] Verified user via database lookup:', dbUser.email);
-                user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, institution_id: dbUser.institutionId, user_metadata: { institutionId: dbUser.institutionId } };
+                console.log('[Auth Bridge] Verified admin via database lookup:', dbUser.email);
+                user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, user_metadata: { institutionId: dbUser.institutionId } };
                 authError = null;
-            } else {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Unauthorized access restricted to administrators.',
-                    details: authError?.message || dbError?.message || 'Identity verification failed (User not found or role insufficient).',
-                    hint: 'Please ensure you have run the seeding SQL script for your super admin account and that you are logged in correctly.'
-                });
             }
+        }
+
+        // Priority 3: Special bypass for Password Recovery (Unauthenticated)
+        if (!user && action === 'forgotPassword') {
+            console.log(`[Auth Bridge] Checking unauthenticated bypass for forgotPassword to ${recipient}`);
+            const { data: targetUser } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', recipient)
+                .maybeSingle();
+
+            if (targetUser) {
+                console.log(`[Auth Bridge] Bypass granted: ${recipient} is a registered user.`);
+                // We use 'targetUser' as the context for the forgotPassword action below
+                user = { ...targetUser, id: 'system', role: 'system' };
+                authError = null;
+            }
+        }
+
+        if (!user || authError) {
+            return res.status(401).json({
+                success: false,
+                message: authHeader ? 'Unauthorized: Identity verification failed.' : 'Authorization session missing.',
+                details: authError?.message || 'Access restricted to administrators or verified recovery requests.',
+                hint: authHeader ? 'Ensure your role has administrative privileges.' : 'Please log in or ensure you are requesting recovery for a valid account.'
+            });
         }
 
         // Fetch settings (bypass RLS as we are on the server)
@@ -136,6 +147,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
             const smsDetail = await smsRes.text();
             return res.status(200).json({ success: true, message: 'SMS request sent.', detail: smsDetail });
+        }
+
+        if (action === 'forgotPassword') {
+            const emailConfig = bodyConfig || settings.email_config;
+            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+
+            // We use the 'user' object populated during the auth phase
+            if (!user || user.id !== 'system') return res.status(404).json({ success: false, message: 'Account not found.' });
+
+            const { default: nodemailer } = await import('nodemailer');
+            const transporter = nodemailer.createTransport({
+                host: emailConfig.host,
+                port: Number(emailConfig.port || 587),
+                secure: Number(emailConfig.port) === 465,
+                auth: { user: emailConfig.username, pass: emailConfig.password },
+                tls: { rejectUnauthorized: false }
+            });
+
+            const recoverySubject = "Account Recovery - EduAlloc Hub";
+            const recoveryBody = `Dear ${user.name},\n\nYou requested a password recovery for your account on the EduAlloc Academic Management System.\n\nYour Current Credentials:\nEmail: ${user.email}\nPassword: ${user.password}\n\nPortal URL: https://${req.headers.host}\n\nIf you did not request this, please secure your account immediately.\n\nBest Regards,\nSystem Admin`;
+
+            const info = await transporter.sendMail({
+                from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || 'notifications@edualloc.ai'}>`,
+                to: recipient,
+                subject: recoverySubject,
+                text: recoveryBody,
+                html: recoveryBody.replace(/\n/g, '<br>')
+            });
+
+            return res.status(200).json({ success: true, message: 'Recovery email dispatched.', messageId: info.messageId });
         }
 
         if (action === 'initiateStkPush') {
