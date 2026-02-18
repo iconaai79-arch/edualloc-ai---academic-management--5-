@@ -97,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     })
                 });
 
-                const resendData = await resendResponse.json();
+                const resendData = await resendResponse.json() as any;
                 if (!resendResponse.ok) {
                     return res.status(502).json({ success: false, message: 'Resend delivery failed.', details: resendData });
                 }
@@ -209,7 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!oauthRes.ok) return res.status(401).json({ success: false, message: 'Daraja Auth failed. Check credentials.' });
-            const { access_token } = await oauthRes.json();
+            const { access_token } = (await oauthRes.json()) as any;
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(paybillNumber + passkey + timestamp).toString('base64');
@@ -233,7 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
             });
 
-            const stkData = await stkPushRes.json();
+            const stkData = await stkPushRes.json() as any;
             if (stkPushRes.ok && stkData.ResponseCode === '0') {
                 // Record transaction
                 await supabase.from('mpesa_transactions').insert({
