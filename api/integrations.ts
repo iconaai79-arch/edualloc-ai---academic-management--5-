@@ -90,6 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // We use 'targetUser' as the context for the forgotPassword action below
                 user = { ...targetUser, id: 'system', role: 'system' };
                 authError = null;
+            } else {
+                return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
             }
         }
 

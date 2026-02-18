@@ -169,13 +169,12 @@ export const apiService = {
             });
             const result = await response.json();
             if (!response.ok || !result.success) {
-                // For security, we return a generic message even if the user is not found
-                return { success: true, message: "If an account exists, instructions have been sent." };
+                return { success: false, message: result.message || "Account verification failed." };
             }
             return { success: true, message: "Recovery email dispatched." };
         } catch (e: any) {
             console.error("Reset password recovery failed", e);
-            return { success: true, message: "If an account exists, a recovery email will be sent shortly." };
+            return { success: false, message: e.message || "Connection failure during verification." };
         }
     },
     async runMigration(sql: string): Promise<any> {
