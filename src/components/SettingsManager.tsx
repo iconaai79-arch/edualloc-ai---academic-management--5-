@@ -539,32 +539,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestSms = async () => {
         setIsSavingConfigs(true);
         try {
-            const { data: { session } } = await (supabase?.auth.getSession() || { data: { session: null } });
-            let token = session?.access_token;
-
-            if (!token) {
-                const sessionStr = Object.entries(localStorage).find(([k]) => k.includes('-auth-token'))?.[1];
-                token = sessionStr ? JSON.parse(sessionStr).access_token : localStorage.getItem('eduai_token');
-            }
-
-            const response = await fetch('/api/integrations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': token ? `Bearer ${token}` : ''
-                },
-                body: JSON.stringify({
-                    action: 'sendSms',
-                    recipient: localCompanyInfo.phone,
-                    message: 'This is a test SMS from EduAlloc to verify your SMS gateway configuration.',
-                    config: localSmsConfig
-                })
-            });
-            const resData = await response.json();
-            if (resData.success) {
+            const res = await apiService.sendSms(
+                localCompanyInfo.phone,
+                'This is a test SMS from EduAlloc to verify your SMS gateway configuration.',
+                localSmsConfig
+            );
+            if (res.success) {
                 alert('Test SMS sent successfully to ' + localCompanyInfo.phone);
             } else {
-                alert('Failed to send test SMS: ' + resData.message);
+                alert('Failed to send test SMS: ' + res.message);
             }
         } catch (error: any) {
             alert('Error sending test SMS: ' + error.message);

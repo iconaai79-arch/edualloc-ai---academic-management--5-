@@ -371,9 +371,21 @@ export const apiService = {
         }
 
         try {
-            const { data: { session } } = await _supabase.auth.getSession();
+            const { data } = await _supabase.auth.getSession();
+            let token = data?.session?.access_token;
+
+            if (!token) {
+                const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+                if (storageKey) {
+                    try {
+                        const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                        token = stored.access_token;
+                    } catch (e) { }
+                }
+            }
+
             let headers: any = { 'Content-Type': 'application/json' };
-            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+            if (token) headers['Authorization'] = `Bearer ${token}`;
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -409,9 +421,21 @@ export const apiService = {
         }
 
         try {
-            const { data: { session } } = await _supabase.auth.getSession();
+            const { data } = await _supabase.auth.getSession();
+            let token = data?.session?.access_token;
+
+            if (!token) {
+                const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+                if (storageKey) {
+                    try {
+                        const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                        token = stored.access_token;
+                    } catch (e) { }
+                }
+            }
+
             let headers: any = { 'Content-Type': 'application/json' };
-            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+            if (token) headers['Authorization'] = `Bearer ${token}`;
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -445,11 +469,22 @@ export const apiService = {
             return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
         }
         try {
-            const { data: { session } } = await _supabase.auth.getSession();
-            let headers: any = { 'Content-Type': 'application/json' };
-            if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+            const { data } = await _supabase.auth.getSession();
+            let token = data?.session?.access_token;
+
+            if (!token) {
+                const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+                if (storageKey) {
+                    try {
+                        const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                        token = stored.access_token;
+                    } catch (e) { }
+                }
+            }
 
             console.log('[M-Pesa Client] Initiating payment request...');
+            let headers: any = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
