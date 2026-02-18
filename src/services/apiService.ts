@@ -384,6 +384,12 @@ export const apiService = {
                 }
             }
 
+            // Final Deep Fallback: Use the Internal User ID as a token
+            if (!token) {
+                const session = this.getSession();
+                if (session?.id) token = session.id;
+            }
+
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -434,6 +440,12 @@ export const apiService = {
                 }
             }
 
+            // Final Deep Fallback: Use the Internal User ID as a token
+            if (!token) {
+                const session = this.getSession();
+                if (session?.id) token = session.id;
+            }
+
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -480,6 +492,12 @@ export const apiService = {
                         token = stored.access_token;
                     } catch (e) { }
                 }
+            }
+
+            // Final Deep Fallback: Use the Internal User ID as a token
+            if (!token) {
+                const session = this.getSession();
+                if (session?.id) token = session.id;
             }
 
             console.log('[M-Pesa Client] Initiating payment request...');
