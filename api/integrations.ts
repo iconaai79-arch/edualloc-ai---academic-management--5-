@@ -72,6 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[Auth Bridge] Verified identity for ${dbUser.email} (Role: ${dbUser.role})`);
                 user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, user_metadata: { institutionId: dbUser.institutionId } };
                 authError = null;
+            } else {
+                console.warn(`[Auth Bridge] Database lookup failed. No user found for ID: ${token?.substring(0, 8)}...`);
             }
         }
 
@@ -105,11 +107,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (!user || authError) {
+            console.error('[Auth Bridge] Final verification failed.', { hasToken: !!token, isJwt, authError: authError?.message });
             return res.status(401).json({
                 success: false,
                 message: authHeader ? 'Unauthorized: Identity verification failed.' : 'Authorization session missing.',
-                details: authError?.message || 'Access restricted to administrators or verified recovery requests.',
-                hint: authHeader ? 'Ensure your role has administrative privileges.' : 'Please log in or ensure you are requesting recovery for a valid account.'
+                details: authError?.message || 'Access restricted to registered users or verified recovery requests.',
+                hint: authHeader ? 'Ensure you are logged in or using a valid User ID.' : 'Please log in again.'
             });
         }
 
@@ -268,6 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateStkPush') {
+            console.log(`[M-Pesa] Initiating STK push for ${recipient} (Amount: ${amount})`);
             const mpesa = bodyConfig || settings.mpesa_config;
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 

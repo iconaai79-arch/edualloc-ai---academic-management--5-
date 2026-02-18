@@ -623,7 +623,8 @@ export const apiService = {
                         errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
                     }
                 } else if (response.status === 401) {
-                    errorMessage = 'Authentication failed. Please log in again.';
+                    errorMessage = resData.message || resData.error || 'Authentication failed. Please log in again.';
+                    if (resData.hint) errorMessage += `\n\nHint: ${resData.hint}`;
                 } else if (response.status === 400) {
                     errorMessage = resData.message || resData.error || 'Bad request';
                 } else {
