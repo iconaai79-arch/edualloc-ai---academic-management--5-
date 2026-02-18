@@ -17,12 +17,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method === 'GET') return res.status(200).json({ status: 'Online', nodeVersion: process.version, timestamp: new Date().toISOString() });
 
-    console.log(`[Integration] Processing ${req.method} request...`);
+    console.log(`[Integration] Processing ${req.method} request for action: ${req.body?.action}`);
 
     try {
         // 1. Check Body
         if (!req.body) return res.status(400).json({ success: false, message: 'Missing request body.' });
-        const { action, recipient, message, subject, amount, config: bodyConfig, checkoutRequestId } = req.body;
+        const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
 
         // 2. Initialize Supabase
         const authHeader = req.headers.authorization;
@@ -89,18 +89,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     })
                 });
                 const resData = await fetchRes.json();
-                if (!fetchRes.ok) return res.status(502).json({ success: false, message: 'Resend Error', details: resData });
+                if (!fetchRes.ok) return res.status(502).json({ success: false, message: 'Resend API Error', error: resData });
                 return res.status(200).json({ success: true, id: resData.id });
             }
 
             // SMTP - Dynamic Import to prevent cold start bloat
             const nodemailer = (await import('nodemailer')).default;
+
+            const port = Number(emailConfig.port || 587);
+            const encryption = emailConfig.encryption || 'tls';
+
             const transporter = nodemailer.createTransport({
                 host: emailConfig.host,
-                port: Number(emailConfig.port || 587),
-                secure: Number(emailConfig.port) === 465,
-                auth: { user: emailConfig.username, pass: emailConfig.password },
-                tls: { rejectUnauthorized: false }
+                port: port,
+                secure: port === 465 || encryption === 'ssl',
+                auth: {
+                    user: emailConfig.username,
+                    pass: emailConfig.password
+                },
+                tls: {
+                    rejectUnauthorized: false,
+                    minVersion: 'TLSv1.2'
+                },
+                connectionTimeout: 10000,
+                greetingTimeout: 10000
             });
 
             try {
@@ -111,9 +123,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     text: message,
                     html: (message || '').replace(/\n/g, '<br>')
                 });
+                console.log(`[Email] Success: ${info.messageId}`);
                 return res.status(200).json({ success: true, messageId: info.messageId });
             } catch (err: any) {
-                return res.status(500).json({ success: false, message: `SMTP Failure: ${err.message}`, code: err.code });
+                console.error('[Email] SMTP Detailed Error:', err);
+
+                let friendlyMessage = `SMTP Failure: ${err.message}`;
+                let hint = "Check your SMTP host, port, and credentials.";
+
+                if (err.code === 'EAUTH') {
+                    hint = "Authentication failed. Double check your username and password. If using Gmail, you need an 'App Password'.";
+                } else if (err.code === 'ESOCKET') {
+                    hint = "Network connection failed. Verify the host is reachable and the port is open.";
+                } else if (err.message.includes('Relay')) {
+                    hint = "Relay access denied. This often happens if the 'Sender Email Address' is not authorized by your SMTP provider.";
+                }
+
+                return res.status(500).json({
+                    success: false,
+                    message: friendlyMessage,
+                    hint: hint,
+                    code: err.code,
+                    command: err.command
+                });
             }
         }
 
@@ -125,7 +157,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const apiKey = smsConfig.api_key || smsConfig.apiKey;
             const apiSecret = smsConfig.api_secret || smsConfig.apiSecret;
             const fromNumber = smsConfig.from_number || smsConfig.fromNumber;
-            const provider = smsConfig.provider || 'ABMIS';
 
             let cleanPhone = (recipient || '').replace('+', '').replace(/\s+/g, '').trim();
             if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
@@ -148,7 +179,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // --- MPESA STK PUSH ---
         if (action === 'initiateStkPush') {
-            console.log('[M-Pesa] Processing STK Push...');
             const mpesaConfig = bodyConfig || systemSettings?.mpesa_config;
             if (!mpesaConfig) return res.status(400).json({ success: false, message: 'M-Pesa configuration not found.' });
 
@@ -164,7 +194,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const oauthRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
                 headers: { 'Authorization': `Basic ${auth}` }
             });
-            if (!oauthRes.ok) return res.status(401).json({ success: false, message: 'Daraja Auth failed.' });
+            if (!oauthRes.ok) return res.status(401).json({ success: false, message: 'Daraja Auth failed. Check Consumer Key/Secret.' });
             const { access_token } = await oauthRes.json();
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
@@ -191,7 +221,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const stkData = await stkPushRes.json();
             if (stkPushRes.ok && stkData.ResponseCode === '0') {
-                // Track in DB
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
@@ -203,7 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 return res.status(200).json({ success: true, data: stkData });
             }
-            return res.status(400).json({ success: false, details: stkData });
+            return res.status(400).json({ success: false, details: stkData, message: stkData.CustomerMessage || 'Gateway rejected request.' });
         }
 
         return res.status(400).json({ success: false, message: 'Unsupported action.' });
