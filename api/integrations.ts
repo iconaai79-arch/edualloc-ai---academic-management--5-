@@ -1,4 +1,5 @@
 
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 // Vercel config
@@ -19,8 +20,8 @@ const getSupabaseClient = (authHeader?: string) => {
     });
 };
 
-export default async function handler(req, res) {
-    // CORS
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    // 0. Handle CORS and Options first
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
@@ -42,8 +43,8 @@ export default async function handler(req, res) {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-        // Settings
-        let settings = {};
+        // Settings - Use any to avoid property access errors
+        let settings: any = {};
         const { data } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
         if (data) settings = data.data;
 
@@ -93,10 +94,10 @@ export default async function handler(req, res) {
             const auth = Buffer.from(`${mpesa.consumerKey}:${mpesa.consumerSecret}`).toString('base64');
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
-            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+            const oauthRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
                 headers: { 'Authorization': `Basic ${auth}` }
             });
-            const { access_token } = await oauth.json();
+            const { access_token } = (await oauthRes.json()) as any;
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(mpesa.paybillNumber + mpesa.passkey + timestamp).toString('base64');
@@ -119,7 +120,7 @@ export default async function handler(req, res) {
                 })
             });
 
-            const stkData = await stkRes.json();
+            const stkData = (await stkRes.json()) as any;
             if (stkRes.ok && stkData.ResponseCode === '0') {
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
@@ -136,7 +137,7 @@ export default async function handler(req, res) {
 
         return res.status(400).json({ success: false, message: 'Unknown action' });
 
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
         return res.status(500).json({ success: false, error: e.message });
     }
