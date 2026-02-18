@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .eq('id', token)
                 .maybeSingle();
 
-            if (dbUser && (['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(dbUser.role))) {
+            if (dbUser && (['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin'].includes(dbUser.role))) {
                 console.log('[Auth Bridge] Verified user via database lookup:', dbUser.email);
                 user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, institution_id: dbUser.institutionId };
                 authError = null;

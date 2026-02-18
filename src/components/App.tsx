@@ -1979,9 +1979,11 @@ export const App: React.FC = () => {
                                 const inst = institutions.find(i => i.id === u.institutionId);
                                 if (inst?.status === 'suspended' && u.role !== 'super_admin') {
                                     setCurrentUser(u);
+                                    apiService.storeSession(u);
                                     return 'suspended';
                                 }
                                 setCurrentUser(u);
+                                apiService.storeSession(u);
                                 return 'success';
                             }
                             return 'failed';
