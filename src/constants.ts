@@ -16,6 +16,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     },
     mpesaConfig: { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' },
     emailConfig: {
+        provider: 'smtp',
         host: 'mail.eduai.co.ke',
         port: 587,
         username: 'info@eduai.co.ke',
