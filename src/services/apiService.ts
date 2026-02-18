@@ -378,13 +378,23 @@ export const apiService = {
                 body: JSON.stringify({ action: 'sendSms', recipient, message, config })
             });
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                const detail = errData.raw ? ` (Gateway Response: ${errData.raw})` : '';
-                return { success: false, message: (errData.error || errData.message || `Gateway error (${response.status})`) + detail };
+            let data: any = {};
+            let rawText = '';
+            try {
+                rawText = await response.text();
+                data = JSON.parse(rawText);
+            } catch (e) {
+                data = { message: rawText || `HTTP Error ${response.status}` };
             }
 
-            return await response.json();
+            if (!response.ok) {
+                const detail = data.raw ? ` (Gateway Response: ${data.raw})` : '';
+                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+                const apiDetails = data.error ? `\n\nDetails: ${data.error}` : '';
+                return { success: false, message: (data.error || data.message || `Gateway error (${response.status})`) + detail + hint + apiDetails };
+            }
+
+            return data;
         } catch (e: any) {
             console.error("SMS Gateway Request Failed:", e);
             return { success: false, message: e.message || "Gateway connection failure." };
@@ -406,9 +416,20 @@ export const apiService = {
                 body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config })
             });
 
-            const data = await response.json().catch(() => ({}));
+            let data: any = {};
+            let rawText = '';
+            try {
+                rawText = await response.text();
+                data = JSON.parse(rawText);
+            } catch (e) {
+                console.warn("Failed to parse API response as JSON:", rawText);
+                data = { message: rawText || `HTTP Error ${response.status}` };
+            }
+
             if (!response.ok) {
-                return { success: false, message: data.error || data.message || `SMTP Relay Error (${response.status})` };
+                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+                const details = data.error || data.details || (rawText.length > 100 ? rawText.substring(0, 500) + '...' : '');
+                return { success: false, message: (data.message || `SMTP Relay Error (${response.status})`) + hint + (details ? `\n\nDetails: ${details}` : '') };
             }
             return data;
         } catch (e: any) {
@@ -435,8 +456,14 @@ export const apiService = {
             console.log('[M-Pesa Client] Response :', response);
             console.log('[M-Pesa Client] Response status:', response.status);
 
-            const data = await response.json().catch(() => ({}));
-            console.log('[M-Pesa Client] Response data:', data);
+            let data: any = {};
+            let rawText = '';
+            try {
+                rawText = await response.text();
+                data = JSON.parse(rawText);
+            } catch (e) {
+                data = { message: rawText || `HTTP Error ${response.status}` };
+            }
 
             if (!response.ok) {
                 // Provide detailed error information
