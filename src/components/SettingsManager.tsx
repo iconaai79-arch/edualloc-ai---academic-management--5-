@@ -518,13 +518,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     config: localEmailConfig
                 })
             });
-            const data = await response.json();
-            if (data.success) {
+            const resData = await response.json();
+            if (resData.success) {
                 alert('Test email sent successfully to ' + localCompanyInfo.email);
             } else {
-                const details = data.error ? `\n\nDetails: ${data.error}` : '';
-                const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
-                alert(`Failed to send test email: ${data.message}${details}${hint}`);
+                const details = resData.error ? `\n\nDetails: ${resData.error}` : '';
+                const hint = resData.hint ? `\n\nHint: ${resData.hint}` : '';
+                alert(`Failed to send test email: ${resData.message}${details}${hint}`);
             }
         } catch (error: any) {
             alert('Error sending test email: ' + error.message);
@@ -557,11 +557,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     config: localSmsConfig
                 })
             });
-            const data = await response.json();
-            if (data.success) {
+            const resData = await response.json();
+            if (resData.success) {
                 alert('Test SMS sent successfully to ' + localCompanyInfo.phone);
             } else {
-                alert('Failed to send test SMS: ' + data.message);
+                alert('Failed to send test SMS: ' + resData.message);
             }
         } catch (error: any) {
             alert('Error sending test SMS: ' + error.message);
