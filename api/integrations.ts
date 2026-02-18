@@ -6,16 +6,14 @@ export const config = {
     maxDuration: 15,
 };
 
-const getSupabaseClient = (authHeader?: string) => {
+const getSupabaseClient = () => {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
     if (!url || !key) return null;
-    return createClient(url, key, {
-        global: {
-            headers: authHeader ? { Authorization: authHeader } : undefined
-        }
-    });
+    // We use a clean client without global headers to avoid the "invalid jwt" error 
+    // when the token is a custom User ID instead of a Supabase JWT.
+    return createClient(url, key);
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,34 +38,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        const supabase = getSupabaseClient(authHeader);
+        const supabase = getSupabaseClient();
 
         if (!supabase) {
             return res.status(503).json({
                 success: false,
                 message: 'Server configuration error: Database keys missing.',
-                hint: 'Ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in Vercel settings.'
+                hint: 'Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Vercel settings.'
             });
         }
 
-        // Auth check with advanced bridge for custom user management
+        // Auth check logic
         const token = authHeader?.replace('Bearer ', '');
         let user: any = null;
         let authError: any = null;
 
-        try {
-            // Priority 1: Check standard Supabase Auth
-            const authResponse = await supabase.auth.getUser(token);
-            user = authResponse.data.user;
-            authError = authResponse.error;
-        } catch (e) {
-            authError = e;
+        // Determine if token is a JWT (contains three parts separated by dots)
+        const isJwt = token?.includes('.') && token?.split('.').length === 3;
+
+        if (isJwt) {
+            try {
+                // Priority 1: Check standard Supabase Auth for real JWTs
+                const authResponse = await supabase.auth.getUser(token);
+                user = authResponse.data.user;
+                authError = authResponse.error;
+            } catch (e) {
+                authError = e;
+            }
         }
 
-        // Priority 2: Auth Bridge - Fallback to verifying against custom 'users' table
-        // This is necessary because the app often uses a custom user management system
+        // Priority 2: Auth Bridge - Fallback to verifying against custom 'users' table 
+        // if JWT check failed or if token is a custom ID.
         if (!user || authError) {
-            console.log('[Auth Bridge] standard JWT failed, attempting database verification...');
+            console.log(`[Auth Bridge] Attempting database verification for token: ${token?.substring(0, 8)}...`);
             const { data: dbUser, error: dbError } = await supabase
                 .from('users')
                 .select('*')
@@ -76,14 +79,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (dbUser && (['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin'].includes(dbUser.role))) {
                 console.log('[Auth Bridge] Verified user via database lookup:', dbUser.email);
-                user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, institution_id: dbUser.institutionId };
+                user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, institution_id: dbUser.institutionId, user_metadata: { institutionId: dbUser.institutionId } };
                 authError = null;
             } else {
                 return res.status(401).json({
                     success: false,
                     message: 'Unauthorized access restricted to administrators.',
-                    details: authError?.message || dbError?.message || 'Identity verification failed.',
-                    hint: 'No active Supabase session or valid Administrator ID found. Please log out and back in.'
+                    details: authError?.message || dbError?.message || 'Identity verification failed (User not found or role insufficient).',
+                    hint: 'Please ensure you have run the seeding SQL script for your super admin account and that you are logged in correctly.'
                 });
             }
         }
