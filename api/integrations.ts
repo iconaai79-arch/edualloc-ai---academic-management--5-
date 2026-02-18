@@ -76,22 +76,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Priority 3: Special bypass for Password Recovery (Unauthenticated)
-        if (!user && action === 'forgotPassword') {
-            console.log(`[Auth Bridge] Checking unauthenticated bypass for forgotPassword to ${recipient}`);
-            const { data: targetUser } = await supabase
-                .from('users')
-                .select('*')
-                .eq('email', recipient)
-                .maybeSingle();
+        // Priority 3: Special bypass for Unauthenticated Actions (Password Recovery & Registration)
+        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail')) {
+            console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            if (targetUser) {
-                console.log(`[Auth Bridge] Bypass granted: ${recipient} is a registered user.`);
-                // We use 'targetUser' as the context for the forgotPassword action below
-                user = { ...targetUser, id: 'system', role: 'system' };
+            // For forgotPassword and sendEmail, we verify the recipient is a registered user
+            if (action === 'forgotPassword' || action === 'sendEmail') {
+                const { data: targetUser } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', recipient)
+                    .maybeSingle();
+
+                if (targetUser) {
+                    console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient}`);
+                    user = { ...targetUser, id: 'system', role: 'system' };
+                    authError = null;
+                } else if (action === 'forgotPassword') {
+                    return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
+                }
+            }
+
+            // For resetPasswordWithToken, we verify the token itself later in the action handler
+            // But we need to set a 'system' user context to pass the auth check
+            if (action === 'resetPasswordWithToken') {
+                user = { id: 'system', role: 'system' };
                 authError = null;
-            } else {
-                return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
             }
         }
 
