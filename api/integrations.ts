@@ -110,20 +110,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (settingsData) settings = settingsData.data;
 
         if (action === 'sendEmail') {
-            const emailConfig = bodyConfig || settings.email_config;
+            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+
+            // Handle both snake_case and camelCase keys
+            const host = emailConfig.host;
+            const port = emailConfig.port;
+            const username = emailConfig.username;
+            const password = emailConfig.password;
+            const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
+            const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi';
 
             const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
-                host: emailConfig.host,
-                port: Number(emailConfig.port || 587),
-                secure: Number(emailConfig.port) === 465,
-                auth: { user: emailConfig.username, pass: emailConfig.password },
+                host: host,
+                port: Number(port || 587),
+                secure: Number(port) === 465,
+                auth: { user: username, pass: password },
                 tls: { rejectUnauthorized: false }
             });
 
             const info = await transporter.sendMail({
-                from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || 'notifications@edualloc.ai'}>`,
+                from: `"${fromName}" <${fromEmail}>`,
                 to: recipient,
                 subject: subject || 'EduAi Notification',
                 text: message,
@@ -152,18 +160,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'forgotPassword') {
-            const emailConfig = bodyConfig || settings.email_config;
+            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
             // We use the 'user' object populated during the auth phase
             if (!user || user.id !== 'system') return res.status(404).json({ success: false, message: 'Account not found.' });
 
+            // Handle both snake_case and camelCase keys
+            const host = emailConfig.host;
+            const port = emailConfig.port;
+            const username = emailConfig.username;
+            const password = emailConfig.password;
+            const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
+            const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi Notification';
+
+            console.log(`[Forgot Password] Dispatching recovery email to: ${recipient} using ${host}:${port} (From: ${fromEmail})`);
+
             const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
-                host: emailConfig.host,
-                port: Number(emailConfig.port || 587),
-                secure: Number(emailConfig.port) === 465,
-                auth: { user: emailConfig.username, pass: emailConfig.password },
+                host: host,
+                port: Number(port || 587),
+                secure: Number(port) === 465,
+                auth: { user: username, pass: password },
                 tls: { rejectUnauthorized: false }
             });
 
@@ -171,13 +189,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const recoveryBody = `Dear ${user.name},\n\nYou requested a password recovery for your account on the EduAlloc Academic Management System.\n\nYour Current Credentials:\nEmail: ${user.email}\nPassword: ${user.password}\n\nPortal URL: https://${req.headers.host}\n\nIf you did not request this, please secure your account immediately.\n\nBest Regards,\nSystem Admin`;
 
             const info = await transporter.sendMail({
-                from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || 'notifications@edualloc.ai'}>`,
+                from: `"${fromName}" <${fromEmail}>`,
                 to: recipient,
                 subject: recoverySubject,
                 text: recoveryBody,
                 html: recoveryBody.replace(/\n/g, '<br>')
             });
 
+            console.log(`[Forgot Password] Recovery email sent successfully. Message ID: ${info.messageId}`);
             return res.status(200).json({ success: true, message: 'Recovery email dispatched.', messageId: info.messageId });
         }
 
