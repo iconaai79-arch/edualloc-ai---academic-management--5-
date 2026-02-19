@@ -1211,7 +1211,14 @@ export const App: React.FC = () => {
         const inst = institutions.find(i => i.id === currentUser.institutionId);
         if (inst && inst.status === 'suspended') {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
-                await apiService.saveModuleRecord('extension_requests', { institutionId: inst.id, requesterId: currentUser.id, reason, status: 'pending', requestedAt: new Date().toISOString() });
+                await apiService.saveModuleRecord('institution_extension_requests', {
+                    id: `ext_${Date.now()}`,
+                    institutionId: inst.id,
+                    requesterId: currentUser.id,
+                    reason,
+                    status: 'pending',
+                    requestedAt: new Date().toISOString()
+                });
                 loadData();
             }} />;
         }
@@ -1233,7 +1240,8 @@ export const App: React.FC = () => {
                         return status;
                     }}
                     onRequestExtension={async (reason) => {
-                        await apiService.saveModuleRecord('extension_requests', {
+                        await apiService.saveModuleRecord('institution_extension_requests', {
+                            id: `ext_${Date.now()}`,
                             institutionId: inst.id,
                             requesterId: currentUser.id,
                             reason,

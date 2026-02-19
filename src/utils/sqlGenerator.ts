@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS extension_requests (
+CREATE TABLE IF NOT EXISTS assignment_extension_requests (
     id TEXT PRIMARY KEY,
     assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -678,7 +678,7 @@ CREATE TABLE IF NOT EXISTS time_off_requests (
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS extension_requests (
+CREATE TABLE IF NOT EXISTS institution_extension_requests (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     requester_id TEXT NOT NULL,

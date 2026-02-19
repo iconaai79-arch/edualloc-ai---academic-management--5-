@@ -660,7 +660,7 @@ export const apiService = {
     async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { return this.fetchModuleRecords('mpesa_transactions', instId); },
     async fetchReceipts(instId?: string): Promise<Receipt[]> { return this.fetchModuleRecords('receipts', instId); },
     async fetchInvoices(instId?: string): Promise<Invoice[]> { return this.fetchModuleRecords('invoices', instId); },
-    async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('extension_requests', instId); },
+    async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('institution_extension_requests', instId); },
     async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
     async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
     async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
