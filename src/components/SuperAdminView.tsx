@@ -609,7 +609,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 alert(res.message || "Transaction verified successfully.");
                 window.location.reload();
             } else {
-                alert(`Verification failed: ${res.message}`);
+                alert(`Verification failed: ${res.message}${res.details ? '\n\nDetails: ' + JSON.stringify(res.details) : ''}`);
             }
         } catch (e) {
             alert("An error occurred during verification.");

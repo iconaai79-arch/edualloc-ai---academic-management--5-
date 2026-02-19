@@ -463,16 +463,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true, message: 'Transaction is already completed.' });
             }
 
-            // 2. Update status
+            // 2. Update status (Robust update: status first, then metadata if possible)
             const { error: updateTxnError } = await supabase
                 .from('mpesa_transactions')
-                .update({
-                    status: 'completed',
-                    metadata: { ...transaction.metadata, verified_manually: true, verified_at: new Date().toISOString() }
-                })
+                .update({ status: 'completed' })
                 .eq('id', transactionId);
 
-            if (updateTxnError) return res.status(500).json({ success: false, message: 'Failed to update transaction status.' });
+            if (updateTxnError) {
+                console.error('[Manual Verify] DB Status Update Error:', updateTxnError);
+                return res.status(500).json({ success: false, message: 'Failed to update transaction status.', details: updateTxnError });
+            }
+
+            // Attempt to update metadata (ignore if column doesn't exist)
+            try {
+                await supabase
+                    .from('mpesa_transactions')
+                    .update({
+                        metadata: { ...transaction.metadata, verified_manually: true, verified_at: new Date().toISOString() }
+                    })
+                    .eq('id', transactionId);
+            } catch (e) {
+                console.warn('[Manual Verify] Metadata update failed (likely missing column):', e);
+            }
 
             // 3. Trigger reactivation logic (similar to callback but simplified for manual)
             const metadata = transaction.metadata || {};
