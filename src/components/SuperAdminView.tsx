@@ -600,6 +600,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert("Failed to extend subscription.");
         }
     };
+    const handleVerifyTransaction = async (txn: MpesaTransaction) => {
+        if (!window.confirm(`Are you sure you want to MANUALLY verify transaction ${txn.transactionId}? This will mark it as PAID and reactivate the institution account.`)) return;
+
+        try {
+            const res = await apiService.verifyMpesaTransaction(txn.id);
+            if (res.success) {
+                alert(res.message || "Transaction verified successfully.");
+                window.location.reload();
+            } else {
+                alert(`Verification failed: ${res.message}`);
+            }
+        } catch (e) {
+            alert("An error occurred during verification.");
+        }
+    };
 
     const handleAddInstitutionSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -1081,6 +1096,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     receipts={receipts || []}
                                     companyDetails={companyDetails}
                                     onGenerateReceipt={onGenerateReceipt}
+                                    onVerifyTransaction={handleVerifyTransaction}
                                     logoUrl={logoUrl}
                                 />
                             </div>

@@ -681,6 +681,32 @@ export const apiService = {
             return { status: data?.status || 'pending' };
         }
     },
+    async verifyMpesaTransaction(transactionId: string) {
+        if (!_supabase) return { success: false, message: "Bridge unavailable" };
+        try {
+            const { data } = await _supabase.auth.getSession();
+            let token = data?.session?.access_token;
+            if (!token) {
+                const session = this.getSession();
+                if (session?.id) token = session.id;
+            }
+
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
+                body: JSON.stringify({
+                    action: 'verifyTransactionManually',
+                    transactionId
+                })
+            });
+            return await response.json();
+        } catch (e: any) {
+            return { success: false, message: e.message || "Request failed" };
+        }
+    },
     async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },
     async fetchSubjects(instId?: string): Promise<Subject[]> { return this.fetchModuleRecords('subjects', instId); },
     async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },

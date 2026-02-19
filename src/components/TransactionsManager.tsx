@@ -9,6 +9,7 @@ interface TransactionsManagerProps {
     receipts: Receipt[];
     companyDetails: CompanyDetails;
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
+    onVerifyTransaction?: (transaction: MpesaTransaction) => Promise<void>;
     logoUrl: string | null;
     title?: string;
 }
@@ -27,14 +28,14 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
     }
 };
 
-export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, logoUrl, title = "M-Pesa Transaction Log" }) => {
+export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "M-Pesa Transaction Log" }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);
 
     const sortedTransactions = useMemo(() => {
         return [...transactions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [transactions]);
-    
+
     const filteredTransactions = useMemo(() => {
         if (!searchQuery.trim()) {
             return sortedTransactions;
@@ -52,7 +53,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
             );
         });
     }, [sortedTransactions, searchQuery, institutionMap]);
-    
+
     const totalRevenue = useMemo(() => {
         return transactions
             .filter(t => t.status === 'completed')
@@ -75,7 +76,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     />
                 </div>
             </div>
-            
+
             <div className="mb-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm">
                 <h4 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Revenue (Completed)</h4>
                 <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">
@@ -93,7 +94,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Payer Info</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Date</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
-                             <th scope="col" className="relative px-6 py-3">
+                            <th scope="col" className="relative px-6 py-3">
                                 <span className="sr-only">Actions</span>
                             </th>
                         </tr>
@@ -113,30 +114,39 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                     }
                                 };
                                 return (
-                                <tr key={txn.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                        {/* Fix: change payer_name to payerName */}
-                                        <div>{txn.payerName}</div>
-                                        {/* Fix: change phone_number to phoneNumber */}
-                                        <div className="text-xs">{txn.phoneNumber}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                                        {new Date(txn.timestamp).toLocaleString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <TransactionStatusBadge status={txn.status} />
-                                    </td>
-                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        {txn.status === 'completed' && (
-                                            <button onClick={handleAction} className="text-[var(--color-primary)] hover:brightness-125">
-                                                {receipt ? 'Download Receipt' : 'Generate Receipt'}
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                    <tr key={txn.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                            {/* Fix: change payer_name to payerName */}
+                                            <div>{txn.payerName}</div>
+                                            {/* Fix: change phone_number to phoneNumber */}
+                                            <div className="text-xs">{txn.phoneNumber}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                            {new Date(txn.timestamp).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            <TransactionStatusBadge status={txn.status} />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            {txn.status === 'completed' ? (
+                                                <button onClick={handleAction} className="text-[var(--color-primary)] hover:brightness-125">
+                                                    {receipt ? 'Download Receipt' : 'Generate Receipt'}
+                                                </button>
+                                            ) : (
+                                                onVerifyTransaction && (
+                                                    <button
+                                                        onClick={() => onVerifyTransaction(txn)}
+                                                        className="text-amber-600 hover:text-amber-700 font-bold"
+                                                    >
+                                                        Verify Manually
+                                                    </button>
+                                                )
+                                            )}
+                                        </td>
+                                    </tr>
                                 );
                             })
                         ) : (

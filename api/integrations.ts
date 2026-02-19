@@ -440,6 +440,107 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, status: finalStatus, details: statusData });
         }
 
+        if (action === 'verifyTransactionManually') {
+            if (user.role !== 'super_admin') {
+                return res.status(403).json({ success: false, message: 'Permission denied: Manual verification requires Super Admin privileges.' });
+            }
+
+            const { transactionId } = req.body;
+            if (!transactionId) return res.status(400).json({ success: false, message: 'Missing transactionId' });
+
+            // 1. Fetch transaction
+            const { data: transaction, error: fetchError } = await supabase
+                .from('mpesa_transactions')
+                .select('*')
+                .eq('id', transactionId)
+                .single();
+
+            if (fetchError || !transaction) {
+                return res.status(404).json({ success: false, message: 'Transaction not found for manual verification.' });
+            }
+
+            if (transaction.status === 'completed') {
+                return res.status(200).json({ success: true, message: 'Transaction is already completed.' });
+            }
+
+            // 2. Update status
+            const { error: updateTxnError } = await supabase
+                .from('mpesa_transactions')
+                .update({
+                    status: 'completed',
+                    metadata: { ...transaction.metadata, verified_manually: true, verified_at: new Date().toISOString() }
+                })
+                .eq('id', transactionId);
+
+            if (updateTxnError) return res.status(500).json({ success: false, message: 'Failed to update transaction status.' });
+
+            // 3. Trigger reactivation logic (similar to callback but simplified for manual)
+            const metadata = transaction.metadata || {};
+            if (metadata.type === 'subscription' && metadata.plan) {
+                const days = metadata.plan === 'monthly' ? 30 : 365;
+
+                const { data: institution } = await supabase
+                    .from('institutions')
+                    .select('subscription_ends_at, id')
+                    .eq('id', transaction.institution_id)
+                    .single();
+
+                if (institution) {
+                    const currentEnd = institution.subscription_ends_at ? new Date(institution.subscription_ends_at) : new Date();
+                    const baseDate = Math.max(currentEnd.getTime(), Date.now());
+                    const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
+
+                    await supabase.from('institutions').update({
+                        subscription_ends_at: newEndDate.toISOString(),
+                        status: 'active'
+                    }).eq('id', institution.id);
+
+                    // Create invoice & receipt
+                    const invoiceId = `inv_manual_${Date.now()}`;
+                    await supabase.from('invoices').insert({
+                        id: invoiceId,
+                        invoice_number: `INV-MAN-${Date.now().toString().slice(-6)}`,
+                        institution_id: institution.id,
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: transaction.amount,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `Manual Verification: ${metadata.plan} Subscription`,
+                            quantity: 1,
+                            unitPrice: transaction.amount,
+                            amount: transaction.amount
+                        }])
+                    });
+
+                    await supabase.from('receipts').insert({
+                        id: `rec_manual_${Date.now()}`,
+                        receipt_number: `REC-MAN-${Date.now().toString().slice(-6)}`,
+                        institution_id: institution.id,
+                        invoice_id: invoiceId,
+                        amount_paid: transaction.amount,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_method: 'Manual Verification',
+                        related_transaction_id: transaction.id
+                    });
+                }
+            } else if (metadata.type === 'invoice' && metadata.invoiceId) {
+                await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
+                await supabase.from('receipts').insert({
+                    id: `rec_inv_manual_${Date.now()}`,
+                    receipt_number: `REC-INV-MAN-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    invoice_id: metadata.invoiceId,
+                    amount_paid: transaction.amount,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'Manual Verification',
+                    related_transaction_id: transaction.id
+                });
+            }
+
+            return res.status(200).json({ success: true, message: 'Transaction verified manually and account reactivated.' });
+        }
+
         return res.status(400).json({ success: false, message: 'Action not supported.' });
 
     } catch (e: any) {
