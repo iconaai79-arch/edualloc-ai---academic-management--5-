@@ -405,12 +405,12 @@ CREATE TABLE IF NOT EXISTS mpesa_transactions (
 CREATE TABLE IF NOT EXISTS institution_extension_requests (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    requester_id TEXT NOT NULL REFERENCES users(id),
+    requester_id TEXT NOT NULL,
     reason TEXT NOT NULL,
     status TEXT DEFAULT 'pending',
     requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP WITH TIME ZONE,
-    resolved_by TEXT REFERENCES users(id)
+    resolved_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
@@ -688,15 +688,6 @@ CREATE TABLE IF NOT EXISTS time_off_requests (
     status TEXT DEFAULT 'pending',
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS institution_extension_requests (
-    id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    requester_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
-    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bulletin_items (

@@ -42,8 +42,9 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
             await onRequestExtension(extensionReason);
             setExtensionSuccess(true);
             setTimeout(() => setShowExtensionForm(false), 3000);
-        } catch (e) {
-            alert("Failed to submit extension request. Please contact support.");
+        } catch (err: any) {
+            console.error("Extension Request Error:", err);
+            alert(`Failed to submit: ${err.message || 'Unknown error'}. Please contact support.`);
         } finally {
             setIsExtending(false);
         }
