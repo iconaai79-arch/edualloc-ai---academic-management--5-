@@ -324,8 +324,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     PartyB: paybill,
                     PhoneNumber: recipient.replace(/[^\d]/g, ''),
                     CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
-                    AccountReference: "Subscription",
-                    TransactionDesc: "License Payment"
+                    AccountReference: (req.body.metadata?.institutionCode || "Subscription").substring(0, 12),
+                    TransactionDesc: `License: ${req.body.metadata?.institutionName || "Subscription"}`.substring(0, 20)
                 })
             });
 
@@ -335,10 +335,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
                     checkout_request_id: stkData.CheckoutRequestID,
-                    institution_id: user.user_metadata?.institutionId || 'SYSTEM',
+                    institution_id: req.body.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
                     amount: amount,
                     phone_number: recipient,
-                    status: 'pending'
+                    status: 'pending',
+                    metadata: req.body.metadata || {}
                 });
                 return res.status(200).json({ success: true, message: 'M-Pesa prompt sent.', data: stkData });
             }

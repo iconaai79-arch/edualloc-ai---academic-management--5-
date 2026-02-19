@@ -16,8 +16,10 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
     const isAdmin = ['admin', 'head_teacher', 'hod', 'tto', 'dos'].includes(user.role);
 
-    const monthlyPrice = institution.customSubscriptionPrice?.monthly ?? companyDetails.subscriptionConfig.defaultMonthlyPrice;
-    const yearlyPrice = institution.customSubscriptionPrice?.yearly ?? companyDetails.subscriptionConfig.defaultYearlyPrice;
+    // Support both camelCase (transform) and snake_case (raw) from various backend versions
+    const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;
+    const monthlyPrice = customPrice?.monthly ?? companyDetails.subscriptionConfig.defaultMonthlyPrice;
+    const yearlyPrice = customPrice?.yearly ?? companyDetails.subscriptionConfig.defaultYearlyPrice;
 
     const handlePayNow = (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
         return onAddTransaction({
@@ -117,6 +119,9 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
                     monthlyPrice={monthlyPrice}
                     yearlyPrice={yearlyPrice}
                     mpesaConfig={companyDetails.mpesaConfig}
+                    institutionId={institution.id}
+                    institutionCode={institution.institutionCode}
+                    institutionName={institution.name}
                 />
             )}
         </div>

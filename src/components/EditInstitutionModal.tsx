@@ -32,8 +32,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         institutionType: institution.institutionType,
         countyId: institution.countyId || '',
         customSubscriptionPrice: {
-          monthly: institution.customSubscriptionPrice?.monthly?.toString() || '',
-          yearly: institution.customSubscriptionPrice?.yearly?.toString() || '',
+          monthly: (institution.customSubscriptionPrice?.monthly ?? (institution as any).custom_subscription_price?.monthly)?.toString() || '',
+          yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
         }
       });
     }

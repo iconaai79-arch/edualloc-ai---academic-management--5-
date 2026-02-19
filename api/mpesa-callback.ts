@@ -179,6 +179,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.error('[M-Pesa Callback] Failed to reactivate account:', activationError);
                     } else {
                         console.log('[M-Pesa Callback] ✅ ACCOUNT REACTIVATED');
+
+                        // Create an invoice for the subscription
+                        const invoiceId = `inv_${Date.now()}`;
+                        await supabase.from('invoices').insert({
+                            id: invoiceId,
+                            invoice_number: `INV-SUB-${Date.now().toString().slice(-6)}`,
+                            institution_id: transaction.institution_id,
+                            issue_date: new Date().toISOString().split('T')[0],
+                            due_date: new Date().toISOString().split('T')[0],
+                            total_amount: transaction.amount,
+                            status: 'paid',
+                            items: JSON.stringify([{
+                                description: `${metadata.plan.charAt(0).toUpperCase() + metadata.plan.slice(1)} Subscription renewal`,
+                                quantity: 1,
+                                unitPrice: transaction.amount,
+                                amount: transaction.amount
+                            }])
+                        });
+
+                        // Create a receipt
+                        await supabase.from('receipts').insert({
+                            id: `rec_${Date.now()}`,
+                            receipt_number: mpesaReceiptNumber || `REC-${Date.now().toString().slice(-6)}`,
+                            institution_id: transaction.institution_id,
+                            invoice_id: invoiceId,
+                            amount_paid: transaction.amount,
+                            payment_date: new Date().toISOString().split('T')[0],
+                            payment_method: 'M-Pesa',
+                            related_transaction_id: transaction.id
+                        });
+
                         console.log(`[M-Pesa Callback] ✅ Subscription extended by ${days} days`);
                         console.log(`[M-Pesa Callback] ✅ New expiry: ${newEndDate.toISOString()}`);
                     }

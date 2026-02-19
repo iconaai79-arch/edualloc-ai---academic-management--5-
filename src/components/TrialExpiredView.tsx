@@ -28,8 +28,10 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
 
     const isAdmin = ['admin', 'head_teacher', 'hod', 'tto', 'dos'].includes(user.role);
 
-    const monthlyPrice = institution.customSubscriptionPrice?.monthly ?? companyDetails.subscriptionConfig.defaultMonthlyPrice;
-    const yearlyPrice = institution.customSubscriptionPrice?.yearly ?? companyDetails.subscriptionConfig.defaultYearlyPrice;
+    // Support both camelCase (transform) and snake_case (raw) from various backend versions
+    const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;
+    const monthlyPrice = customPrice?.monthly ?? companyDetails.subscriptionConfig.defaultMonthlyPrice;
+    const yearlyPrice = customPrice?.yearly ?? companyDetails.subscriptionConfig.defaultYearlyPrice;
 
     const handleExtensionSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -184,6 +186,9 @@ export const TrialExpiredView: React.FC<TrialExpiredViewProps> = ({
                     monthlyPrice={monthlyPrice}
                     yearlyPrice={yearlyPrice}
                     mpesaConfig={companyDetails.mpesaConfig}
+                    institutionId={institution.id}
+                    institutionCode={institution.institutionCode}
+                    institutionName={institution.name}
                 />
             )}
         </div>

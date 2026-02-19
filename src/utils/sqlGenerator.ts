@@ -402,6 +402,17 @@ CREATE TABLE IF NOT EXISTS mpesa_transactions (
     metadata JSONB
 );
 
+CREATE TABLE IF NOT EXISTS institution_extension_requests (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    requester_id TEXT NOT NULL REFERENCES users(id),
+    reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    resolved_by TEXT REFERENCES users(id)
+);
+
 CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY,
     invoice_number TEXT NOT NULL,
@@ -423,6 +434,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     paid_for TEXT,
     payment_method TEXT,
     related_transaction_id TEXT,
+    invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
     student_id TEXT REFERENCES users(id) ON DELETE SET NULL
 );
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n

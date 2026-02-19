@@ -90,7 +90,7 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
 
 const InvoiceStatusBadge: React.FC<{ status: Invoice['status'] }> = ({ status }) => {
     const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize";
-     switch (status) {
+    switch (status) {
         case 'paid':
             return <span className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300`}>Paid</span>;
         case 'pending':
@@ -108,11 +108,13 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
     const [extensionReason, setExtensionReason] = useState('');
     const { subscriptionConfig, mpesaConfig } = companyDetails;
 
-    const monthlyPrice = institution.customSubscriptionPrice?.monthly ?? subscriptionConfig.defaultMonthlyPrice;
-    const yearlyPrice = institution.customSubscriptionPrice?.yearly ?? subscriptionConfig.defaultYearlyPrice;
+    // Support both camelCase (transformed) and snake_case (raw) from backend
+    const customPrice = institution.customSubscriptionPrice || (institution as any).custom_subscription_price;
+    const monthlyPrice = customPrice?.monthly ?? subscriptionConfig.defaultMonthlyPrice;
+    const yearlyPrice = customPrice?.yearly ?? subscriptionConfig.defaultYearlyPrice;
 
-    const hasCustomMonthly = institution.customSubscriptionPrice?.monthly !== undefined;
-    const hasCustomYearly = institution.customSubscriptionPrice?.yearly !== undefined;
+    const hasCustomMonthly = customPrice?.monthly !== undefined;
+    const hasCustomYearly = customPrice?.yearly !== undefined;
 
     const isSubscriptionExpired = useMemo(() => {
         if (!institution) return false;
@@ -135,7 +137,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
             institutionId: institution.id,
         }, items);
     };
-    
+
     const handleExtensionRequestSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (extensionReason.trim()) {
@@ -143,12 +145,12 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
             setExtensionReason('');
         }
     };
-    
+
     const allBillingDocs = [
         // FIXED: Reverted back to correct property names as per types.ts
-        ...invoices.map(inv => ({...inv, type: 'Invoice', date: inv.issueDate, number: inv.invoiceNumber, amount: inv.totalAmount })),
+        ...invoices.map(inv => ({ ...inv, type: 'Invoice', date: inv.issueDate, number: inv.invoiceNumber, amount: inv.totalAmount })),
         // FIXED: Reverted back to correct property names as per types.ts
-        ...receipts.map(rec => ({...rec, type: 'Receipt', date: rec.paymentDate, number: rec.receiptNumber, amount: rec.amountPaid }))
+        ...receipts.map(rec => ({ ...rec, type: 'Receipt', date: rec.paymentDate, number: rec.receiptNumber, amount: rec.amountPaid }))
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return (
@@ -156,7 +158,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
             <h2 className="text-3xl font-bold tracking-tight">Subscription Management</h2>
 
             {institution.trialEndsAt && <TrialCountdownBanner trialEndsAt={institution.trialEndsAt} />}
-            
+
             <section>
                 <h3 className="text-xl font-semibold mb-4">Your Current Plan</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -167,43 +169,43 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                             <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
                         </p>
                         {hasCustomMonthly ? (
-                             <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                            <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
                         ) : (
-                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
                         )}
                     </div>
-                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                         <h4 className="text-lg font-medium text-slate-900 dark:text-white">Yearly Plan</h4>
                         <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
                             KES {yearlyPrice.toLocaleString()}
                             <span className="text-base font-normal text-slate-500 dark:text-slate-400">/year</span>
                         </p>
                         {hasCustomYearly ? (
-                             <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                            <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
                         ) : (
-                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
                         )}
-                         <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
+                        <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
                     </div>
                 </div>
             </section>
-            
+
             <section>
                 <h3 className="text-xl font-semibold mb-4">How to Pay</h3>
-                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                     <p className="text-slate-600 dark:text-slate-300 mb-4">To subscribe or renew, please make a payment via M-Pesa using the details below, or use the quick payment button.</p>
-                     <div className="flex flex-col md:flex-row gap-6">
-                         <div className="flex-1">
-                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Paybill Number</p>
-                             <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{mpesaConfig.paybillNumber || 'Not Configured'}</p>
-                         </div>
-                         <div className="flex-1">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                    <p className="text-slate-600 dark:text-slate-300 mb-4">To subscribe or renew, please make a payment via M-Pesa using the details below, or use the quick payment button.</p>
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Paybill Number</p>
+                            <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{mpesaConfig.paybillNumber || 'Not Configured'}</p>
+                        </div>
+                        <div className="flex-1">
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Account Number</p>
                             <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{institution.institutionCode || institution.id}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">(Use your unique alphanumeric institution code)</p>
                         </div>
-                     </div>
-                     <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
+                    </div>
+                    <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
                         <button
                             onClick={() => setIsPayModalOpen(true)}
                             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -212,7 +214,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                             Pay Now with M-Pesa
                         </button>
                     </div>
-                 </div>
+                </div>
             </section>
 
             {isSubscriptionExpired && onAddExtensionRequest && extensionRequests && (
@@ -236,11 +238,10 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                         <li key={req.id} className="py-3">
                                             <div className="flex justify-between items-center">
                                                 <p className="text-sm text-slate-600 dark:text-slate-300">{req.reason}</p>
-                                                <span className={`text-xs font-semibold capitalize px-2 py-1 rounded-full ${
-                                                    req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                <span className={`text-xs font-semibold capitalize px-2 py-1 rounded-full ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                                     req.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                                    'bg-red-100 text-red-800'
-                                                }`}>{req.status}</span>
+                                                        'bg-red-100 text-red-800'
+                                                    }`}>{req.status}</span>
                                             </div>
                                             <p className="text-xs text-slate-400 mt-1">Requested on {new Date(req.requestedAt).toLocaleDateString()}</p>
                                         </li>
@@ -253,10 +254,10 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
             )}
 
             <section>
-                 <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+                <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold">Billing History</h3>
                 </div>
-                 <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
+                <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                         <thead className="bg-slate-50 dark:bg-slate-700">
                             <tr>
@@ -310,9 +311,9 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                             )}
                         </tbody>
                     </table>
-                 </div>
+                </div>
             </section>
-            
+
             {isPayModalOpen && (
                 <PayNowModal
                     isOpen={isPayModalOpen}
@@ -321,6 +322,9 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     monthlyPrice={monthlyPrice}
                     yearlyPrice={yearlyPrice}
                     mpesaConfig={mpesaConfig}
+                    institutionId={institution.id}
+                    institutionCode={institution.institutionCode}
+                    institutionName={institution.name}
                 />
             )}
         </div>

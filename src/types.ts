@@ -657,6 +657,8 @@ export interface MpesaTransaction {
     payerName: string;
     timestamp: string;
     status: TransactionStatus;
+    metadata?: any;
+    checkoutRequestId?: string;
 }
 
 export interface InvoiceItem {
@@ -688,6 +690,7 @@ export interface Receipt {
     paidFor: string;
     paymentMethod: string;
     relatedTransactionId: string;
+    invoiceId?: string;
     studentId?: string;
 }
 

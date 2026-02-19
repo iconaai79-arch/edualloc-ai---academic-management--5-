@@ -11,9 +11,12 @@ interface PayNowModalProps {
     monthlyPrice: number;
     yearlyPrice: number;
     mpesaConfig: MpesaConfig;
+    institutionId?: string;
+    institutionCode?: string;
+    institutionName?: string;
 }
 
-export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay, monthlyPrice, yearlyPrice, mpesaConfig }) => {
+export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay, monthlyPrice, yearlyPrice, mpesaConfig, institutionId, institutionCode, institutionName }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
@@ -33,7 +36,13 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
 
         try {
             // 1. Initiate STK Push via Backend API
-            const metadata = { type: 'subscription', plan: selectedPlan };
+            const metadata = {
+                type: 'subscription',
+                plan: selectedPlan,
+                institutionId: institutionId || 'SYSTEM',
+                institutionCode: institutionCode || 'SYSTEM',
+                institutionName: institutionName || 'EduAlloc Hub'
+            };
             const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
 
             if (mpesaResult.success && mpesaResult.data?.CheckoutRequestID) {

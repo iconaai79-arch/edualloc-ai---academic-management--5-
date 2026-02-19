@@ -404,6 +404,35 @@ export const apiService = {
         await _supabase.from('allocation_requests').update(updates).eq('id', requestId);
     },
     async onAddTransaction(data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]): Promise<TransactionStatus> {
+        if (!_supabase) {
+            const id = `txn_${Date.now()}`;
+            const transaction: MpesaTransaction = { ...data, id, transactionId: `MPESA${id}`, timestamp: new Date().toISOString(), status: 'completed' };
+            await this.saveModuleRecord('mpesa_transactions', transaction);
+            return 'completed';
+        }
+
+        // Check if this transaction already exists (to avoid duplicates from STK push)
+        // If payerName is empty, we might be able to find the existing record by amount and phone
+        try {
+            const { data: existing } = await _supabase
+                .from('mpesa_transactions')
+                .select('id')
+                .eq('institution_id', data.institutionId)
+                .eq('amount', data.amount)
+                .eq('phone_number', data.phoneNumber)
+                .eq('status', 'completed')
+                .order('timestamp', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (existing) {
+                console.log('[apiService] Transaction already exists, skipping duplicate creation');
+                return 'completed';
+            }
+        } catch (e) {
+            console.warn('[apiService] Error checking for existing transaction:', e);
+        }
+
         const id = `txn_${Date.now()}`;
         const transaction: MpesaTransaction = { ...data, id, transactionId: `MPESA${id}`, timestamp: new Date().toISOString(), status: 'completed' };
         await this.saveModuleRecord('mpesa_transactions', transaction);

@@ -23,6 +23,7 @@ import { InteractionsManager } from './InteractionsManager';
 import { CommunicationsManager } from './CommunicationsManager';
 import { ReportsDashboard } from './ReportsDashboard';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+import { SubscriptionManager } from './SubscriptionManager';
 
 import {
     ClipboardListIcon,
@@ -46,7 +47,8 @@ import {
     ExclamationTriangleIcon,
     BeakerIcon,
     PlusIcon,
-    BedIcon
+    BedIcon,
+    CreditCardIcon
 } from './icons/index';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -141,6 +143,8 @@ export interface AdminViewProps {
     onUpdateTask?: (id: string, complete: boolean) => void;
     onDeleteTask?: (id: string) => void;
     onLogAction?: (action: string) => Promise<void>;
+    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    onAddExtensionRequest?: (reason: string) => void;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     onSendSms?: (r: string, m: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
@@ -243,7 +247,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'billing'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -265,7 +269,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-
+            { id: 'billing', label: 'Subscription', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
     }, [props.currentUser?.role, isSchool]);
@@ -663,6 +667,19 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         activityLog={props.activityLog || []}
                         courseSizes={props.courseSizes}
+                    />
+                )}
+                {activeTab === 'billing' && (
+                    <SubscriptionManager
+                        institution={currentInstitution as Institution}
+                        companyDetails={companyDetails}
+                        transactions={props.transactions || []}
+                        onAddTransaction={props.onAddTransaction || (async () => 'failed')}
+                        invoices={props.invoices || []}
+                        receipts={props.receipts || []}
+                        logoUrl={props.logoUrl}
+                        extensionRequests={props.extensionRequests}
+                        onAddExtensionRequest={props.onAddExtensionRequest}
                     />
                 )}
             </main>
