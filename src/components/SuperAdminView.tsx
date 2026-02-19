@@ -363,6 +363,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+    const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
+    const [extensionDays, setExtensionDays] = useState(30);
 
 
     // State for new institution form
@@ -573,6 +575,32 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (tTabSub) setTimetableSubTab(tTabSub);
     };
 
+    const handleExtendSubscription = async () => {
+        if (!extendingInstitution || !props.onUpdateInstitution) return;
+
+        try {
+            const currentEnd = extendingInstitution.subscriptionEndsAt
+                ? new Date(extendingInstitution.subscriptionEndsAt)
+                : new Date();
+
+            const baseDate = Math.max(currentEnd.getTime(), Date.now());
+            const newEndDate = new Date(baseDate + (extensionDays * 24 * 60 * 60 * 1000));
+
+            await props.onUpdateInstitution(extendingInstitution.id, {
+                subscriptionEndsAt: newEndDate.toISOString(),
+                status: 'active'
+            });
+
+            if (props.onLogAction) await props.onLogAction(`Manually extended subscription for ${extendingInstitution.name} by ${extensionDays} days`);
+
+            alert(`Subscription for ${extendingInstitution.name} extended until ${newEndDate.toLocaleDateString()}`);
+            setExtendingInstitution(null);
+            setExtensionDays(30);
+        } catch (e) {
+            alert("Failed to extend subscription.");
+        }
+    };
+
     const handleAddInstitutionSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (newInstData.name && newInstData.email && newInstData.phoneNumber) {
@@ -649,14 +677,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 user={currentUser}
                 users={users}
                 courses={courses}
-                studentAttendances={props.studentAttendances}
-                generatedTimetable={props.generatedTimetable}
+                studentAttendances={studentAttendances}
+                generatedTimetable={generatedTimetable}
                 subjects={subjects}
                 getSubjectById={props.getSubjectById || ((id: string) => undefined)}
                 getLecturerById={props.getLecturerById || ((id: string) => undefined)}
                 getRoomById={props.getRoomById || ((id: string) => undefined)}
-                timetableSettings={props.timetableSettings!}
-                buildings={props.buildings}
+                timetableSettings={timetableSettings!}
+                buildings={buildings}
+                studentCheckIns={studentCheckIns}
                 leaveOutRequests={props.leaveOutRequests || []}
                 onUpdateLeaveOut={async (id, data) => {
                     const req = (props.leaveOutRequests || []).find(r => r.id === id);
@@ -921,11 +950,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex justify-end gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="text-indigo-600 hover:text-indigo-900 font-black text-xs uppercase tracking-tighter">Enter Portal</button>
-                                                            <button onClick={() => setEditingInstitution(inst)} className="text-slate-600 hover:text-slate-900 font-bold text-xs uppercase tracking-tighter">Edit</button>
-                                                            <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-xs uppercase tracking-tighter">{inst.status === 'suspended' ? 'Resume' : 'Suspend'}</button>
-                                                            <button onClick={() => onDeleteInstitution(inst.id)} className="text-red-600 hover:text-red-900 font-black text-xs uppercase tracking-tighter">Purge</button>
+                                                        <div className="flex justify-end gap-3 transition-all">
+                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                <ArrowRightOnRectangleIcon className="w-3 h-3" />
+                                                                Portal
+                                                            </button>
+                                                            <button onClick={() => setExtendingInstitution(inst)} className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg">
+                                                                <ClockIcon className="w-3 h-3" />
+                                                                Extend
+                                                            </button>
+                                                            <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
+                                                                Edit
+                                                            </button>
+                                                            <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
+                                                                {inst.status === 'suspended' ? 'Resume' : 'Suspend'}
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -1610,6 +1649,55 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     defaultPrices={companyDetails.subscriptionConfig}
                     counties={counties}
                 />
+            )}
+
+            {extendingInstitution && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setExtendingInstitution(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight">Manual Extension</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{extendingInstitution.name}</p>
+                            </div>
+                            <button onClick={() => setExtendingInstitution(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Extension Period (Days)</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[30, 90, 365].map(days => (
+                                        <button
+                                            key={days}
+                                            onClick={() => setExtensionDays(days)}
+                                            className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${extensionDays === days ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}
+                                        >
+                                            {days === 365 ? '1 Year' : days === 90 ? 'Quarter' : 'Month'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Days</label>
+                                <input
+                                    type="number"
+                                    value={extensionDays}
+                                    onChange={e => setExtensionDays(Number(e.target.value))}
+                                    className="form-input text-lg font-black"
+                                    min="1"
+                                />
+                            </div>
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800">
+                                <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium leading-relaxed">
+                                    The new expiry date will be set to <strong>{extensionDays} days</strong> after the current expiry or today (whichever is later).
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setExtendingInstitution(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
+                            <button onClick={handleExtendSubscription} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100">Grant Extension</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
