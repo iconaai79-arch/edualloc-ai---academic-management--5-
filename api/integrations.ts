@@ -183,11 +183,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
-            // Normalize Kenyan phone numbers to 254 format
-            let phone = recipient.replace(/[^\d]/g, '');
-            if (phone.startsWith('0')) {
+            // Normalize Kenyan phone numbers to strict 254 format without brackets or spaces
+            let phone = recipient.replace(/[^\d]/g, ''); // Remove all non-digits (+, -, spaces, brackets)
+
+            if (phone.startsWith('254')) {
+                // If it starts with 254, check for common mistake: 25407...
+                const afterPrefix = phone.substring(3);
+                if (afterPrefix.startsWith('0')) {
+                    phone = '254' + afterPrefix.substring(1);
+                }
+            } else if (phone.startsWith('0')) {
+                // Local format: 0722... -> 254722...
                 phone = '254' + phone.substring(1);
-            } else if (phone.length === 9 && (phone.startsWith('7') || phone.startsWith('1'))) {
+            } else if (phone.length >= 9) {
+                // Carrier format: 722... -> 254722...
                 phone = '254' + phone;
             }
 
