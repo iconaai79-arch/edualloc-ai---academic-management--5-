@@ -33,12 +33,12 @@ const calculateTimeLeft = (endDate: string) => {
     return timeLeft;
 };
 
-const TrialCountdownBanner: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
-    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft(trialEndsAt));
+const StatusCountdownBanner: React.FC<{ endDate: string, title: string, expiredMessage: string, activeMessage: string, color: 'sky' | 'emerald' | 'amber' | 'red' }> = ({ endDate, title, expiredMessage, activeMessage, color }) => {
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft(endDate));
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            setTimeLeft(calculateTimeLeft(trialEndsAt));
+            setTimeLeft(calculateTimeLeft(endDate));
         }, 1000);
 
         return () => clearTimeout(timer);
@@ -53,20 +53,27 @@ const TrialCountdownBanner: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }
         );
     }).filter(Boolean);
 
+    const colorClasses = {
+        sky: "bg-sky-100 dark:bg-sky-900/50 border-sky-500 text-sky-700 dark:text-sky-300",
+        emerald: "bg-emerald-100 dark:bg-emerald-900/50 border-emerald-500 text-emerald-700 dark:text-emerald-300",
+        amber: "bg-amber-100 dark:bg-amber-900/50 border-amber-500 text-amber-700 dark:text-amber-300",
+        red: "bg-red-100 dark:bg-red-900/50 border-red-500 text-red-700 dark:text-red-300",
+    };
+
     if (timerComponents.length === 0) {
         return (
-            <div className="bg-red-100 dark:bg-red-900/50 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4" role="alert">
-                <p className="font-bold">Trial Period Expired</p>
-                <p>Your 14-day trial has ended. Please subscribe to continue using the service.</p>
+            <div className={`${colorClasses.red} border-l-4 p-4`} role="alert">
+                <p className="font-bold">Subscription Expired</p>
+                <p>{expiredMessage}</p>
             </div>
         );
     }
 
     return (
-        <div className="bg-sky-100 dark:bg-sky-900/50 border-l-4 border-sky-500 text-sky-700 dark:text-sky-300 p-4" role="alert">
-            <p className="font-bold">You are on a trial period!</p>
+        <div className={`${colorClasses[color]} border-l-4 p-4`} role="alert">
+            <p className="font-bold">{title}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-                <p>Your trial ends in: </p>
+                <p>{activeMessage}</p>
                 <div className="flex flex-wrap gap-2">{timerComponents}</div>
             </div>
         </div>
@@ -155,9 +162,34 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
 
     return (
         <div className="space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight">Subscription Management</h2>
+            <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-bold tracking-tight">Subscription Management</h2>
+                <div className="flex items-center gap-2">
+                    {institution.status === 'active' && <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs font-black uppercase tracking-widest rounded-full border border-emerald-200 dark:border-emerald-800">Account Active</span>}
+                    {institution.status === 'trial' && <span className="px-3 py-1 bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 text-xs font-black uppercase tracking-widest rounded-full border border-sky-200 dark:border-sky-800">Trial Period</span>}
+                    {institution.status === 'suspended' && <span className="px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs font-black uppercase tracking-widest rounded-full border border-amber-200 dark:border-amber-800">Account Suspended</span>}
+                </div>
+            </div>
 
-            {institution.trialEndsAt && <TrialCountdownBanner trialEndsAt={institution.trialEndsAt} />}
+            {institution.status === 'trial' && institution.trialEndsAt && (
+                <StatusCountdownBanner
+                    endDate={institution.trialEndsAt}
+                    title="You are on a trial period!"
+                    activeMessage="Your trial ends in: "
+                    expiredMessage="Your 14-day trial has ended. Please subscribe to continue using the service."
+                    color="sky"
+                />
+            )}
+
+            {institution.status === 'active' && institution.subscriptionEndsAt && (
+                <StatusCountdownBanner
+                    endDate={institution.subscriptionEndsAt}
+                    title="Active Subscription"
+                    activeMessage="Your subscription expires in: "
+                    expiredMessage="Your subscription has expired. Please renew to continue using the service."
+                    color="emerald"
+                />
+            )}
 
             <section>
                 <h3 className="text-xl font-semibold mb-4">Your Current Plan</h3>

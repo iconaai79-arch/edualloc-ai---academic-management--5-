@@ -435,6 +435,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (finalStatus !== 'pending') {
                 console.log(`[queryStkStatus] Transaction ${checkoutRequestId} finished with status: ${finalStatus}`);
                 await supabase.from('mpesa_transactions').update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
+
+                // Reactivation Logic for polled success (similar to callback/manual)
+                if (finalStatus === 'completed') {
+                    const { data: transaction } = await supabase
+                        .from('mpesa_transactions')
+                        .select('*')
+                        .eq('checkout_request_id', checkoutRequestId)
+                        .single();
+
+                    if (transaction) {
+                        const metadata = transaction.metadata || {};
+                        if (metadata.type === 'subscription' && metadata.plan) {
+                            const days = metadata.plan === 'monthly' ? 30 : 365;
+                            const { data: inst } = await supabase
+                                .from('institutions')
+                                .select('subscription_ends_at, id')
+                                .eq('id', transaction.institution_id)
+                                .single();
+
+                            if (inst) {
+                                const currentEnd = inst.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
+                                const baseDate = Math.max(currentEnd.getTime(), Date.now());
+                                const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
+
+                                await supabase.from('institutions').update({
+                                    subscription_ends_at: newEndDate.toISOString(),
+                                    status: 'active'
+                                }).eq('id', inst.id);
+                                console.log(`[queryStkStatus] Reactivated institution ${inst.id} via poll`);
+                            }
+                        }
+                    }
+                }
             }
 
             return res.status(200).json({ success: true, status: finalStatus, details: statusData });
