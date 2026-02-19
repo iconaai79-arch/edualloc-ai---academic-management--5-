@@ -727,6 +727,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         {globalSubTab === 'sms' && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
                                 <h3 className="text-xl font-black uppercase tracking-tight">SMS Gateway Configuration</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Input Format: 254XXXXXXXXX (No brackets or +)</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="md:col-span-2">
                                         <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Service Provider</label>
@@ -735,9 +736,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLocalSmsConfig({ ...localSmsConfig, provider: e.target.value })}
                                             className="form-select h-12 font-bold text-sm"
                                         >
-                                            <option value="ABMIS">ABMIS (Default)</option>
+                                            <option value="ABMIS">ABMIS (Standard)</option>
+                                            <option value="Sematime">Sematime (Modern)</option>
                                             <option value="Zettatel">Zettatel Solutions</option>
-                                            <option value="Sematime">Sematime</option>
                                         </select>
                                     </div>
                                     <div>

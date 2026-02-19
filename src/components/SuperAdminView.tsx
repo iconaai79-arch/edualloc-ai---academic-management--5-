@@ -1449,6 +1449,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             {settingsSubTab === 'sms' && (
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
                                     <h3 className="text-xl font-black uppercase tracking-tight">SMS Gateway Configuration</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Numbers must be in format: 254712345678 (No brackets, spaces or +)</p>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="md:col-span-2">
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Service Provider</label>
@@ -1479,7 +1480,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
                                             <input
                                                 type="text"
-                                                placeholder="Test Phone (254...)"
+                                                placeholder="Test Phone e.g. 2547XXXXXXXX"
                                                 value={testRecipient}
                                                 onChange={e => setTestRecipient(e.target.value)}
                                                 className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
@@ -1579,7 +1580,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
                                             <input
                                                 type="text"
-                                                placeholder="Phone (254...)"
+                                                placeholder="Phone e.g. 2547XXXXXXXX"
                                                 value={testRecipient}
                                                 onChange={e => setTestRecipient(e.target.value)}
                                                 className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
