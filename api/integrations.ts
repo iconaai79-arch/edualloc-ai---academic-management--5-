@@ -538,7 +538,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            return res.status(200).json({ success: true, message: 'Transaction verified manually and account reactivated.' });
+            // 4. Send Notifications
+            try {
+                const { data: inst } = await supabase.from('institutions').select('name, email').eq('id', transaction.institution_id).single();
+                if (inst) {
+                    const notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${inst.name} has been manually verified. Your account is now active and your subscription has been extended. Thank you for choosing EduAi.`;
+
+                    // Send Email
+                    const emailConfig = settings.email_config || settings.emailConfig;
+                    if (emailConfig && inst.email) {
+                        try {
+                            const { default: nodemailer } = await import('nodemailer');
+                            const transporter = nodemailer.createTransport({
+                                host: emailConfig.host,
+                                port: Number(emailConfig.port || 587),
+                                auth: { user: emailConfig.username, pass: emailConfig.password },
+                                tls: { rejectUnauthorized: false }
+                            });
+                            await transporter.sendMail({
+                                from: `"${emailConfig.fromName || 'EduAi Notification'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                                to: inst.email,
+                                subject: 'Payment Verified & Account Reactivated',
+                                text: notifyMessage,
+                                html: `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
+                                    <h2 style="color: #4f46e5;">Payment Verified Successfully</h2>
+                                    <p>${notifyMessage.replace(/\n/g, '<br>')}</p>
+                                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                                    <p style="font-size: 12px; color: #64748b;">This is an automated notification from the EduAi Academic Management Platform.</p>
+                                </div>`
+                            });
+                            console.log(`[Manual Verify] Email sent to ${inst.email}`);
+                        } catch (emailErr) {
+                            console.error('[Manual Verify] Email notification failed:', emailErr);
+                        }
+                    }
+
+                    // Send SMS
+                    const smsConfig = settings.sms_config;
+                    if (smsConfig && transaction.phone_number) {
+                        try {
+                            const params = new URLSearchParams({
+                                userid: smsConfig.apiKey || smsConfig.api_key,
+                                password: smsConfig.apiSecret || smsConfig.api_secret,
+                                mobile: transaction.phone_number.replace(/[^\d]/g, ''),
+                                msg: notifyMessage,
+                                senderid: smsConfig.fromNumber || 'ABMIS',
+                                msgType: 'text', output: 'json'
+                            });
+                            await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
+                            console.log(`[Manual Verify] SMS sent to ${transaction.phone_number}`);
+                        } catch (smsErr) {
+                            console.error('[Manual Verify] SMS notification failed:', smsErr);
+                        }
+                    }
+                }
+            } catch (notifyErr) {
+                console.error('[Manual Verify] Notification process encountered an error:', notifyErr);
+            }
+
+            return res.status(200).json({ success: true, message: 'Transaction verified manually, account reactivated, and notifications sent.' });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });
