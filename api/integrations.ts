@@ -183,18 +183,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
+            // Normalize Kenyan phone numbers to 254 format
+            let phone = recipient.replace(/[^\d]/g, '');
+            if (phone.startsWith('0')) {
+                phone = '254' + phone.substring(1);
+            } else if (phone.length === 9 && (phone.startsWith('7') || phone.startsWith('1'))) {
+                phone = '254' + phone;
+            }
+
             const params = new URLSearchParams({
                 userid: smsConfig.apiKey || smsConfig.api_key,
                 password: smsConfig.apiSecret || smsConfig.api_secret,
-                mobile: recipient.replace(/[^\d]/g, ''),
+                mobile: phone,
                 msg: message || '',
                 senderid: smsConfig.fromNumber || 'ABMIS',
                 msgType: 'text', output: 'json'
             });
 
+            console.log(`[SMS Gateway] Dispatching to ${phone} via ABMIS`);
             const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
-            const smsDetail = await smsRes.text();
-            return res.status(200).json({ success: true, message: 'SMS request sent.', detail: smsDetail });
+            const smsRaw = await smsRes.text();
+
+            let smsDetail;
+            try {
+                smsDetail = JSON.parse(smsRaw);
+            } catch (e) {
+                smsDetail = smsRaw;
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'SMS request processed by gateway.',
+                detail: smsDetail,
+                recipient: phone
+            });
         }
 
         if (action === 'forgotPassword') {

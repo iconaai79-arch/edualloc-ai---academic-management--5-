@@ -549,10 +549,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 'This is a test SMS from EduAlloc to verify your SMS gateway configuration.',
                 localSmsConfig
             );
+
+            const detailStr = res.detail ? `\n\nGateway Details: ${typeof res.detail === 'object' ? JSON.stringify(res.detail) : res.detail}` : '';
+
             if (res.success) {
-                alert('Test SMS sent successfully to ' + localCompanyInfo.phone);
+                alert('Test SMS request initiated for ' + localCompanyInfo.phone + detailStr);
             } else {
-                alert('Failed to send test SMS: ' + res.message);
+                alert('Failed to send test SMS: ' + res.message + detailStr);
             }
         } catch (error: any) {
             alert('Error sending test SMS: ' + error.message);
