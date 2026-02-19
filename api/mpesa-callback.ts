@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 export const config = {
-    maxDuration: 15,
+    maxDuration: 60,
 };
 
 /**

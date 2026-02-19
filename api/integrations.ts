@@ -3,7 +3,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 export const config = {
-    maxDuration: 15,
+    maxDuration: 60,
 };
 
 const getSupabaseClient = () => {
@@ -31,6 +31,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const authHeader = req.headers.authorization;
         const supabase = getSupabaseClient();
+
+        // Helper for fetch with timeout
+        const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (e) {
+                clearTimeout(id);
+                throw e;
+            }
+        };
 
         if (!supabase) {
             return res.status(503).json({
@@ -286,15 +300,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
             console.log(`[M-Pesa] Initiating STK push for ${recipient} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
-            console.log(`[M-Pesa] Target URL: ${baseUrl}`);
-            console.log(`[M-Pesa] Using Key: ${consumerKey.substring(0, 4)}... (Length: ${consumerKey.length})`);
-            console.log(`[M-Pesa] Metadata received:`, JSON.stringify(req.body.metadata || {}));
 
             const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
-            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-                headers: { 'Authorization': `Basic ${authStr}` }
-            });
+            let oauth;
+            try {
+                oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                    headers: { 'Authorization': `Basic ${authStr}` }
+                }, 10000);
+            } catch (e: any) {
+                console.error('[M-Pesa OAuth] Request failed:', e.message);
+                return res.status(504).json({ success: false, message: 'M-Pesa gateway timed out during authentication.' });
+            }
 
             if (!oauth.ok) {
                 const errorBody = await oauth.text();
@@ -302,8 +319,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(401).json({
                     success: false,
                     message: 'M-Pesa authentication failed. Check Consumer Key/Secret.',
-                    details: errorBody,
-                    hint: 'Ensure your keys match the selected environment (Sandbox vs Production).'
+                    details: errorBody
                 });
             }
             const { access_token } = (await oauth.json()) as any;
@@ -311,23 +327,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
 
-            const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    BusinessShortCode: paybill,
-                    Password: password,
-                    Timestamp: timestamp,
-                    TransactionType: "CustomerPayBillOnline",
-                    Amount: Math.round(amount),
-                    PartyA: recipient.replace(/[^\d]/g, ''),
-                    PartyB: paybill,
-                    PhoneNumber: recipient.replace(/[^\d]/g, ''),
-                    CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
-                    AccountReference: (req.body.metadata?.institutionCode || "Subscription").substring(0, 12),
-                    TransactionDesc: `License: ${req.body.metadata?.institutionName || "Subscription"}`.substring(0, 20)
-                })
-            });
+            let stkRes;
+            try {
+                stkRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        BusinessShortCode: paybill,
+                        Password: password,
+                        Timestamp: timestamp,
+                        TransactionType: "CustomerPayBillOnline",
+                        Amount: Math.round(amount),
+                        PartyA: recipient.replace(/[^\d]/g, ''),
+                        PartyB: paybill,
+                        PhoneNumber: recipient.replace(/[^\d]/g, ''),
+                        CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
+                        AccountReference: (req.body.metadata?.institutionCode || "Subscription").substring(0, 12),
+                        TransactionDesc: `License: ${req.body.metadata?.institutionName || "Subscription"}`.substring(0, 20)
+                    })
+                }, 15000); // 15s timeout for the actual prompt
+            } catch (e: any) {
+                console.error('[M-Pesa STK] Request failed:', e.message);
+                return res.status(504).json({ success: false, message: 'M-Pesa gateway timed out sending the prompt.' });
+            }
 
             const stkData = (await stkRes.json()) as any;
             if (stkRes.ok && stkData.ResponseCode === '0') {
@@ -359,9 +381,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
 
-            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+            const oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
                 headers: { 'Authorization': `Basic ${authStr}` }
-            });
+            }, 10000);
 
             if (!oauth.ok) return res.status(401).json({ success: false, message: 'M-Pesa Auth failed during status query.' });
             const { access_token } = (await oauth.json()) as any;
@@ -369,7 +391,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
             const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
 
-            const statusRes = await fetch(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
+            const statusRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -378,7 +400,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     Timestamp: timestamp,
                     CheckoutRequestID: checkoutRequestId
                 })
-            });
+            }, 10000);
 
             const statusData = (await statusRes.json()) as any;
             let finalStatus = 'pending';
