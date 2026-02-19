@@ -51,7 +51,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
 
                 // 2. Poll for Status Updates
                 let attempts = 0;
-                const maxAttempts = 20; // ~1 minute of polling (3s intervals)
+                const maxAttempts = 40; // ~2 minutes of polling (3s intervals)
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
@@ -100,18 +100,35 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
             return (
                 <div className="p-10 text-center">
                     <div className="w-12 h-12 border-4 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Processing Payment...</h4>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Communicating with M-Pesa...</p>
+                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                        {statusMessage.includes('Sent') ? 'Waiting for Confirmation...' : 'Processing Payment...'}
+                    </h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {statusMessage || 'Communicating with M-Pesa...'}
+                    </p>
+                    {statusMessage.includes('Sent') && (
+                        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl animate-pulse">
+                            <p className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-widest">Action Required</p>
+                            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">Please check your phone for the M-Pesa PIN prompt.</p>
+                        </div>
+                    )}
                 </div>
             );
         }
         if (finalStatus === 'completed') {
             return (
                 <div className="p-10 text-center">
-                    <svg className="w-16 h-16 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Request Sent!</h4>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{statusMessage}</p>
-                    <p className="text-xs text-slate-400 mt-2">Please complete the PIN prompt on your phone.</p>
+                    <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-200/50">
+                        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Payment Successful!</h4>
+                    <p className="text-slate-500 dark:text-slate-400 mt-2">{statusMessage}</p>
+                    <button
+                        onClick={handleClose}
+                        className="mt-8 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-4 rounded-2xl transition-all active:scale-[0.98]"
+                    >
+                        Complete Setup
+                    </button>
                 </div>
             );
         }

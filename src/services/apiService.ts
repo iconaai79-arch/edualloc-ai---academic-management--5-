@@ -666,6 +666,12 @@ export const apiService = {
                 })
             });
             const result = await response.json();
+            if (!response.ok || result.success === false) {
+                console.error("M-Pesa status query rejected by backend:", result);
+                // If it's a transient error, we can return pending, but if it's a configuration error, we should know.
+                // For now, let's fallback to DB check for safety.
+                throw new Error(result.message || "Backend error during status check");
+            }
             return { status: result.status || 'pending' };
         } catch (e) {
             console.error("Status Check Query Error:", e);

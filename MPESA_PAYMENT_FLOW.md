@@ -121,7 +121,7 @@ WHERE checkout_request_id = 'ws_CO_...'
 
 While waiting for callback, frontend can poll transaction status:
 ```typescript
-// Poll every 3 seconds, max 20 attempts
+// Poll every 3 seconds, max 40 attempts (~2 minutes)
 const { status } = await apiService.checkMpesaStatus(checkoutRequestId);
 
 if (status === 'completed') {

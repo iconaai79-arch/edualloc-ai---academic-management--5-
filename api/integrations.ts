@@ -372,11 +372,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 
+            const { checkoutRequestId } = req.body;
+            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'Missing checkoutRequestId' });
+
+            // 1. Check DB first (in case callback arrived already)
+            const { data: existingTxn } = await supabase
+                .from('mpesa_transactions')
+                .select('status')
+                .eq('checkout_request_id', checkoutRequestId)
+                .maybeSingle();
+
+            if (existingTxn && existingTxn.status && existingTxn.status !== 'pending') {
+                console.log(`[queryStkStatus] Returning status from DB: ${existingTxn.status}`);
+                return res.status(200).json({ success: true, status: existingTxn.status, source: 'database' });
+            }
+
             const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
             const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
             const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
             const passkey = (mpesa.passkey || '').trim();
-            const { checkoutRequestId } = req.body;
 
             const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
@@ -404,11 +418,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const statusData = (await statusRes.json()) as any;
             let finalStatus = 'pending';
-            if (statusRes.ok && statusData.ResultCode === '0') finalStatus = 'completed';
-            else if (statusRes.ok && statusData.ResultCode) finalStatus = 'failed';
+
+            // ResultCode 0 is success. 
+            // We use loose comparison or String() to handle both string and number types from Daraja API
+            if (statusRes.ok && String(statusData.ResultCode) === '0') {
+                finalStatus = 'completed';
+            }
+            // If we have a ResultCode that is NOT 0, it's generally a failure (cancelled, invalid PIN, etc.)
+            else if (statusRes.ok && statusData.ResultCode && String(statusData.ResultCode) !== '0') {
+                finalStatus = 'failed';
+            }
+            // Note: If statusRes.ok is false, it often means Safaricom returned 400 or 404 
+            // because the transaction is still "In Process". In these cases, we keep status as 'pending'.
 
             // Sync with DB
             if (finalStatus !== 'pending') {
+                console.log(`[queryStkStatus] Transaction ${checkoutRequestId} finished with status: ${finalStatus}`);
                 await supabase.from('mpesa_transactions').update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
             }
 
