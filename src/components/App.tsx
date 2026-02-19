@@ -10,6 +10,7 @@ import { Header } from './Header';
 import { ChatBot } from './ChatBot';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { SuspendedAccountView } from './SuspendedAccountView';
+import { TrialExpiredView } from './TrialExpiredView';
 import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
@@ -1213,6 +1214,36 @@ export const App: React.FC = () => {
                 await apiService.saveModuleRecord('extension_requests', { institutionId: inst.id, requesterId: currentUser.id, reason, status: 'pending', requestedAt: new Date().toISOString() });
                 loadData();
             }} />;
+        }
+
+        const trialEnded = inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
+        if (trialEnded) {
+            return (
+                <TrialExpiredView
+                    user={currentUser}
+                    institution={inst}
+                    companyDetails={companyDetails}
+                    onLogout={handleLogout}
+                    onPay={async (paymentData, items) => {
+                        const status = await apiService.onAddTransaction({
+                            ...paymentData,
+                            institutionId: inst.id,
+                        }, items);
+                        if (status === 'completed') loadData();
+                        return status;
+                    }}
+                    onRequestExtension={async (reason) => {
+                        await apiService.saveModuleRecord('extension_requests', {
+                            institutionId: inst.id,
+                            requesterId: currentUser.id,
+                            reason,
+                            status: 'pending',
+                            requestedAt: new Date().toISOString()
+                        });
+                        loadData();
+                    }}
+                />
+            );
         }
     }
 
