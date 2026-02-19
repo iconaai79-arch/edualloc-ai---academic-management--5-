@@ -520,25 +520,7 @@ export const apiService = {
             return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
-    async sendSms(recipient: string, message: string, config?: any): Promise<any> {
-        try {
-            const session = this.getSession();
-            const token = session?.id || '';
-            const headers: any = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const response = await fetch('/api/integrations', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ action: 'sendSms', recipient, message, config })
-            });
-            const result = await response.json();
-            return { success: response.ok && result.success, message: result.message };
-        } catch (e: any) {
-            console.error("SMS Gateway Error:", e);
-            return { success: false, message: e.message || "SMS gateway connection failed." };
-        }
-    },
+},
     async sendBulkCredentials(users: User[], method: 'email' | 'sms'): Promise<{ success_count: number; fail_count: number }> {
         let success_count = 0;
         let fail_count = 0;
@@ -566,193 +548,193 @@ export const apiService = {
         }
         return { success_count, fail_count };
     },
-    async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
-        if (!_supabase) {
-            return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
+        async initiateMpesaPayment(amount: number, phoneNumber: string, metadata ?: any, config ?: MpesaConfig) {
+    if (!_supabase) {
+        return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
+    }
+    try {
+        const { data } = await _supabase.auth.getSession();
+        let token = data?.session?.access_token;
+
+        if (!token) {
+            const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+            if (storageKey) {
+                try {
+                    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                    token = stored.access_token;
+                } catch (e) { }
+            }
         }
-        try {
-            const { data } = await _supabase.auth.getSession();
-            let token = data?.session?.access_token;
 
-            if (!token) {
-                const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
-                if (storageKey) {
-                    try {
-                        const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                        token = stored.access_token;
-                    } catch (e) { }
-                }
-            }
-
-            // Final Deep Fallback: Use the Internal User ID as a token
-            if (!token) {
-                const session = this.getSession();
-                if (session?.id) token = session.id;
-            }
-
-            console.log('[M-Pesa Client] Initiating payment request...');
-            let headers: any = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-            const response = await fetch('/api/integrations', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
-            });
-
-            console.log('[M-Pesa Client] Response :', response);
-            console.log('[M-Pesa Client] Response status:', response.status);
-
-            let resData: any = {};
-            let rawText = '';
-            try {
-                rawText = await response.text();
-                resData = JSON.parse(rawText);
-            } catch (e) {
-                resData = { message: rawText || `HTTP Error ${response.status}` };
-            }
-
-            if (!response.ok) {
-                // Provide detailed error information
-                let errorMessage = '';
-
-                if (response.status === 500) {
-                    errorMessage = `Server Error (500): ${resData.error || resData.message || 'Internal server error'}`;
-                    if (resData.error?.includes('Database service unavailable')) {
-                        errorMessage += '\n\nPossible causes:\n- SUPABASE_SERVICE_ROLE_KEY not configured\n- Supabase connection failed';
-                    } else if (resData.message?.includes('configuration is missing')) {
-                        errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
-                    }
-                } else if (response.status === 401) {
-                    errorMessage = resData.message || resData.error || 'Authentication failed. Please log in again.';
-                    if (resData.hint) errorMessage += `\n\nHint: ${resData.hint}`;
-                } else if (response.status === 400) {
-                    errorMessage = resData.message || resData.error || 'Bad request';
-                } else {
-                    errorMessage = resData.error || resData.message || `HTTP Error: ${response.status}`;
-                }
-
-                const detail = resData.errorDetail ? `\n\nDetails: ${JSON.stringify(resData.errorDetail, null, 2)}` : '';
-                throw new Error(`${errorMessage}${detail}`);
-            }
-            return resData;
-        } catch (e: any) {
-            console.error("M-Pesa API Handshake Failed:", e);
-            return {
-                success: false,
-                message: e.message || "M-Pesa gateway connection failed.",
-                error: e
-            };
+        // Final Deep Fallback: Use the Internal User ID as a token
+        if (!token) {
+            const session = this.getSession();
+            if (session?.id) token = session.id;
         }
-    },
-    async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
+
+        console.log('[M-Pesa Client] Initiating payment request...');
+        let headers: any = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const response = await fetch('/api/integrations', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
+        });
+
+        console.log('[M-Pesa Client] Response :', response);
+        console.log('[M-Pesa Client] Response status:', response.status);
+
+        let resData: any = {};
+        let rawText = '';
         try {
-            const response = await fetch('/api/integrations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'queryStkStatus',
-                    checkoutRequestId,
-                    config
-                })
-            });
-            const result = await response.json();
-            return { status: result.status || 'pending' };
+            rawText = await response.text();
+            resData = JSON.parse(rawText);
         } catch (e) {
-            console.error("Status Check Query Error:", e);
-            // Fallback to database check in case API fails
-            if (!_supabase) return { status: 'pending' };
-            const { data } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
-            return { status: data?.status || 'pending' };
+            resData = { message: rawText || `HTTP Error ${response.status}` };
         }
-    },
-    async fetchDepartments(instId?: string): Promise<Department[]> { return this.fetchModuleRecords('departments', instId); },
-    async fetchSubjects(instId?: string): Promise<Subject[]> { return this.fetchModuleRecords('subjects', instId); },
-    async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },
-    async fetchCourses(instId?: string): Promise<Course[]> { return this.fetchModuleRecords('courses', instId); },
-    async fetchAcademicYears(instId?: string): Promise<AcademicYear[]> { return this.fetchModuleRecords('academic_years', instId); },
-    async fetchSemesters(instId?: string): Promise<Semester[]> { return this.fetchModuleRecords('semesters', instId); },
-    async fetchRooms(instId?: string): Promise<Room[]> { return this.fetchModuleRecords('rooms', instId); },
-    async fetchAcademicLevels(instId?: string): Promise<AcademicLevel[]> { return this.fetchModuleRecords('academic_levels', instId); },
-    async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return this.fetchModuleRecords('vote_heads', instId); },
-    async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return this.fetchModuleRecords('fee_structures', instId); },
-    async fetchFinancialPeriods(instId?: string): Promise<FinancialPeriod[]> { return this.fetchModuleRecords('financial_periods', instId); },
-    async fetchTransactions(instId?: string): Promise<MpesaTransaction[]> { return this.fetchModuleRecords('mpesa_transactions', instId); },
-    async fetchReceipts(instId?: string): Promise<Receipt[]> { return this.fetchModuleRecords('receipts', instId); },
-    async fetchInvoices(instId?: string): Promise<Invoice[]> { return this.fetchModuleRecords('invoices', instId); },
-    async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('extension_requests', instId); },
-    async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
-    async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
-    async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
-    async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
-        if (!_supabase) return;
-        try {
-            await _supabase.from('exam_timetable_entries').delete().eq('institution_id', institutionId).eq('semester_id', semId);
-            if (entries.length > 0) {
-                const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
-                const { error } = await _supabase.from('exam_timetable_entries').insert(snakeEntries);
-                if (error) throw error;
+
+        if (!response.ok) {
+            // Provide detailed error information
+            let errorMessage = '';
+
+            if (response.status === 500) {
+                errorMessage = `Server Error (500): ${resData.error || resData.message || 'Internal server error'}`;
+                if (resData.error?.includes('Database service unavailable')) {
+                    errorMessage += '\n\nPossible causes:\n- SUPABASE_SERVICE_ROLE_KEY not configured\n- Supabase connection failed';
+                } else if (resData.message?.includes('configuration is missing')) {
+                    errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
+                }
+            } else if (response.status === 401) {
+                errorMessage = resData.message || resData.error || 'Authentication failed. Please log in again.';
+                if (resData.hint) errorMessage += `\n\nHint: ${resData.hint}`;
+            } else if (response.status === 400) {
+                errorMessage = resData.message || resData.error || 'Bad request';
+            } else {
+                errorMessage = resData.error || resData.message || `HTTP Error: ${response.status}`;
             }
+
+            const detail = resData.errorDetail ? `\n\nDetails: ${JSON.stringify(resData.errorDetail, null, 2)}` : '';
+            throw new Error(`${errorMessage}${detail}`);
+        }
+        return resData;
+    } catch (e: any) {
+        console.error("M-Pesa API Handshake Failed:", e);
+        return {
+            success: false,
+            message: e.message || "M-Pesa gateway connection failed.",
+            error: e
+        };
+    }
+},
+    async checkMpesaStatus(checkoutRequestId: string, config ?: MpesaConfig) {
+    try {
+        const response = await fetch('/api/integrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'queryStkStatus',
+                checkoutRequestId,
+                config
+            })
+        });
+        const result = await response.json();
+        return { status: result.status || 'pending' };
+    } catch (e) {
+        console.error("Status Check Query Error:", e);
+        // Fallback to database check in case API fails
+        if (!_supabase) return { status: 'pending' };
+        const { data } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
+        return { status: data?.status || 'pending' };
+    }
+},
+    async fetchDepartments(instId ?: string): Promise < Department[] > { return this.fetchModuleRecords('departments', instId); },
+    async fetchSubjects(instId ?: string): Promise < Subject[] > { return this.fetchModuleRecords('subjects', instId); },
+        async saveSubject(data: any) { return this.saveModuleRecord('subjects', data); },
+    async fetchCourses(instId ?: string): Promise < Course[] > { return this.fetchModuleRecords('courses', instId); },
+    async fetchAcademicYears(instId ?: string): Promise < AcademicYear[] > { return this.fetchModuleRecords('academic_years', instId); },
+        async fetchSemesters(instId ?: string): Promise < Semester[] > { return this.fetchModuleRecords('semesters', instId); },
+            async fetchRooms(instId ?: string): Promise < Room[] > { return this.fetchModuleRecords('rooms', instId); },
+                async fetchAcademicLevels(instId ?: string): Promise < AcademicLevel[] > { return this.fetchModuleRecords('academic_levels', instId); },
+                    async fetchVoteHeads(instId ?: string): Promise < VoteHead[] > { return this.fetchModuleRecords('vote_heads', instId); },
+                        async fetchFeeStructures(instId ?: string): Promise < FeeStructure[] > { return this.fetchModuleRecords('fee_structures', instId); },
+                            async fetchFinancialPeriods(instId ?: string): Promise < FinancialPeriod[] > { return this.fetchModuleRecords('financial_periods', instId); },
+                                async fetchTransactions(instId ?: string): Promise < MpesaTransaction[] > { return this.fetchModuleRecords('mpesa_transactions', instId); },
+                                    async fetchReceipts(instId ?: string): Promise < Receipt[] > { return this.fetchModuleRecords('receipts', instId); },
+                                        async fetchInvoices(instId ?: string): Promise < Invoice[] > { return this.fetchModuleRecords('invoices', instId); },
+                                            async fetchExtensionRequests(instId ?: string): Promise < ExtensionRequest[] > { return this.fetchModuleRecords('extension_requests', instId); },
+                                                async fetchAbsenceRequests(instId ?: string): Promise < AbsenceRequest[] > { return this.fetchModuleRecords('absence_requests', instId); },
+                                                    async fetchAssessmentMarks(instId ?: string): Promise < AssessmentMark[] > { return this.fetchModuleRecords('assessment_marks', instId); },
+                                                        async fetchExamTimetable(institutionId: string): Promise < ExamTimetableEntry[] > { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
+                                                            async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise < void> {
+                                                                if(!_supabase) return;
+                                                                try {
+                                                                    await _supabase.from('exam_timetable_entries').delete().eq('institution_id', institutionId).eq('semester_id', semId);
+                                                                    if(entries.length > 0) {
+    const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
+    const { error } = await _supabase.from('exam_timetable_entries').insert(snakeEntries);
+    if (error) throw error;
+}
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
     async onAssociateSubjectToCourseLevel(subjectId: string | string[], levelId: string) {
-        const courses = await this.fetchCourses();
-        const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
-        const subjectIds = Array.isArray(subjectId) ? subjectId : [subjectId];
+    const courses = await this.fetchCourses();
+    const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
+    const subjectIds = Array.isArray(subjectId) ? subjectId : [subjectId];
 
-        if (course) {
-            const updatedLevels = course.levels.map(l => {
-                if (l.id === levelId) {
-                    const ids = new Set(l.subjectIds || []);
-                    subjectIds.forEach(id => ids.add(id));
-                    return { ...l, subjectIds: Array.from(ids) };
-                }
-                return l;
-            });
-            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
-        }
-    },
-    async onDisassociateSubjectFromCourseLevel(subjectId: string, levelId: string) {
-        const courses = await this.fetchCourses();
-        const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
-
-        if (course) {
-            const updatedLevels = course.levels.map(l => {
-                if (l.id === levelId) {
-                    const ids = (l.subjectIds || []).filter(id => id !== subjectId);
-                    const metadata = (l.subjectMetadata || []).filter(m => m.subjectId !== subjectId);
-                    return { ...l, subjectIds: ids, subjectMetadata: metadata };
-                }
-                return l;
-            });
-            await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
-        }
-    },
-    async onImportUsers(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
-        if (!_supabase) return;
-        const dataWithInst = institutionId
-            ? imported.map(u => ({ ...u, institutionId }))
-            : imported;
-        const sanitizedData = dataWithInst.map(u => ({
-            ...u,
-            role: u.role || 'lecturer',
-            id: u.id || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
-            password: u.password || 'password123' // Default password if missing
-        }));
-        const snakeData = sanitizedData.map(u => toSnakeCase(u));
-        const { error } = await _supabase.from('users').insert(snakeData);
-        if (error) throw error;
-
-        // Send welcome emails
-        sanitizedData.forEach(user => {
-            if (user.email) {
-                const subject = "Welcome to EduAlloc - Account Credentials";
-                const body = `Dear ${user.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+    if (course) {
+        const updatedLevels = course.levels.map(l => {
+            if (l.id === levelId) {
+                const ids = new Set(l.subjectIds || []);
+                subjectIds.forEach(id => ids.add(id));
+                return { ...l, subjectIds: Array.from(ids) };
             }
+            return l;
         });
-    },
-    async onImportStudents(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
-        if (!_supabase) return;
+        await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+    }
+},
+    async onDisassociateSubjectFromCourseLevel(subjectId: string, levelId: string) {
+    const courses = await this.fetchCourses();
+    const course = courses.find(c => c.levels && c.levels.some(l => l.id === levelId));
+
+    if (course) {
+        const updatedLevels = course.levels.map(l => {
+            if (l.id === levelId) {
+                const ids = (l.subjectIds || []).filter(id => id !== subjectId);
+                const metadata = (l.subjectMetadata || []).filter(m => m.subjectId !== subjectId);
+                return { ...l, subjectIds: ids, subjectMetadata: metadata };
+            }
+            return l;
+        });
+        await this.saveModuleRecord('courses', { ...course, levels: updatedLevels });
+    }
+},
+    async onImportUsers(imported: any[], institutionId ?: string, institutionName ?: string): Promise < void> {
+    if(!_supabase) return;
+    const dataWithInst = institutionId
+        ? imported.map(u => ({ ...u, institutionId }))
+        : imported;
+    const sanitizedData = dataWithInst.map(u => ({
+        ...u,
+        role: u.role || 'lecturer',
+        id: u.id || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
+        password: u.password || 'password123' // Default password if missing
+    }));
+    const snakeData = sanitizedData.map(u => toSnakeCase(u));
+    const { error } = await _supabase.from('users').insert(snakeData);
+    if(error) throw error;
+
+    // Send welcome emails
+    sanitizedData.forEach(user => {
+        if (user.email) {
+            const subject = "Welcome to EduAlloc - Account Credentials";
+            const body = `Dear ${user.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+            this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+        }
+    });
+},
+    async onImportStudents(imported: any[], institutionId ?: string, institutionName ?: string): Promise < void> {
+        if(!_supabase) return;
         const dataWithInst = institutionId
             ? imported.map(s => ({ ...s, institutionId }))
             : imported;
@@ -764,7 +746,7 @@ export const apiService = {
         }));
         const snakeData = sanitizedData.map(s => toSnakeCase(s));
         const { error } = await _supabase.from('users').insert(snakeData);
-        if (error) throw error;
+        if(error) throw error;
 
         // Send welcome emails
         sanitizedData.forEach(user => {
@@ -775,118 +757,118 @@ export const apiService = {
             }
         });
     },
-    async onImportCourses(courses: any[]): Promise<void> {
-        const enrichedCourses = courses.map(c => ({
-            ...c,
-            id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            levels: [], // Initialize empty levels array as per Course interface
-            curriculumType: c.curriculumType || '8-4-4'
-        }));
+        async onImportCourses(courses: any[]): Promise < void> {
+            const enrichedCourses = courses.map(c => ({
+                ...c,
+                id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                levels: [], // Initialize empty levels array as per Course interface
+                curriculumType: c.curriculumType || '8-4-4'
+            }));
 
-        const snakeData = enrichedCourses.map(c => toSnakeCase(c));
+            const snakeData = enrichedCourses.map(c => toSnakeCase(c));
 
-        if (!_supabase) {
-            const existing = ls.get('courses');
-            ls.set('courses', [...existing, ...snakeData]);
-            return;
-        }
+            if(!_supabase) {
+                const existing = ls.get('courses');
+                ls.set('courses', [...existing, ...snakeData]);
+                return;
+            }
 
         const { error } = await _supabase.from('courses').insert(snakeData);
-        if (error) throw error;
-    },
-    async onImportDepartments(departments: any[]): Promise<void> {
-        const enriched = departments.map((d, i) => ({
-            ...d,
-            id: d.id || `dept_${Date.now()}_${i}`
-        }));
-        const snakeData = enriched.map(d => toSnakeCase(d));
-        if (!_supabase) {
-            const existing = ls.get('departments');
-            ls.set('departments', [...existing, ...snakeData]);
-            return;
-        }
+            if(error) throw error;
+        },
+            async onImportDepartments(departments: any[]): Promise < void> {
+                const enriched = departments.map((d, i) => ({
+                    ...d,
+                    id: d.id || `dept_${Date.now()}_${i}`
+                }));
+                const snakeData = enriched.map(d => toSnakeCase(d));
+                if(!_supabase) {
+                    const existing = ls.get('departments');
+                    ls.set('departments', [...existing, ...snakeData]);
+                    return;
+                }
         const { error } = await _supabase.from('departments').insert(snakeData);
-        if (error) throw error;
-    },
-    async onImportRooms(rooms: any[]): Promise<void> {
-        const enriched = rooms.map((r, i) => ({
-            ...r,
-            id: r.id || `room_${Date.now()}_${i}`
-        }));
-        const snakeData = enriched.map(r => toSnakeCase(r));
-        if (!_supabase) {
-            const existing = ls.get('rooms');
-            ls.set('rooms', [...existing, ...snakeData]);
-            return;
-        }
+                if(error) throw error;
+            },
+                async onImportRooms(rooms: any[]): Promise < void> {
+                    const enriched = rooms.map((r, i) => ({
+                        ...r,
+                        id: r.id || `room_${Date.now()}_${i}`
+                    }));
+                    const snakeData = enriched.map(r => toSnakeCase(r));
+                    if(!_supabase) {
+                        const existing = ls.get('rooms');
+                        ls.set('rooms', [...existing, ...snakeData]);
+                        return;
+                    }
         const { error } = await _supabase.from('rooms').insert(snakeData);
-        if (error) throw error;
-    },
-    async onImportBuildings(buildings: any[]): Promise<void> {
-        const enriched = buildings.map((b, i) => ({
-            ...b,
-            id: b.id || `bldg_${Date.now()}_${i}`
-        }));
-        const snakeData = enriched.map(b => toSnakeCase(b));
-        if (!_supabase) {
-            const existing = ls.get('buildings');
-            ls.set('buildings', [...existing, ...snakeData]);
-            return;
-        }
+                    if(error) throw error;
+                },
+                    async onImportBuildings(buildings: any[]): Promise < void> {
+                        const enriched = buildings.map((b, i) => ({
+                            ...b,
+                            id: b.id || `bldg_${Date.now()}_${i}`
+                        }));
+                        const snakeData = enriched.map(b => toSnakeCase(b));
+                        if(!_supabase) {
+                            const existing = ls.get('buildings');
+                            ls.set('buildings', [...existing, ...snakeData]);
+                            return;
+                        }
         const { error } = await _supabase.from('buildings').insert(snakeData);
-        if (error) throw error;
-    },
-    async onImportSubjectsAndAssociate(subjects: any[], institutionId?: string): Promise<void> {
-        const currentUser = this.getSession();
-        const effectiveInstitutionId = institutionId || currentUser?.institutionId;
+                        if(error) throw error;
+                    },
+                        async onImportSubjectsAndAssociate(subjects: any[], institutionId ?: string): Promise < void> {
+                            const currentUser = this.getSession();
+                            const effectiveInstitutionId = institutionId || currentUser?.institutionId;
 
-        const subjectsToInsert = subjects.map(s => ({
-            id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            institutionId: s.institutionId || effectiveInstitutionId,
-            name: s.name,
-            code: s.code,
-            departmentId: s.departmentId,
-            lessonStructure: s.lessonStructure || [{ count: 1, periods: 1 }],
-            description: s.description || '',
-            isComplete: false,
-            hasExam: true
-        }));
+                            const subjectsToInsert = subjects.map(s => ({
+                                id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                institutionId: s.institutionId || effectiveInstitutionId,
+                                name: s.name,
+                                code: s.code,
+                                departmentId: s.departmentId,
+                                lessonStructure: s.lessonStructure || [{ count: 1, periods: 1 }],
+                                description: s.description || '',
+                                isComplete: false,
+                                hasExam: true
+                            }));
 
-        if (!_supabase) {
-            const existing = ls.get('subjects');
-            ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
-            return;
-        }
+                            if(!_supabase) {
+                                const existing = ls.get('subjects');
+                                ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
+                                return;
+                            }
 
         const { error } = await _supabase.from('subjects').insert(toSnakeCase(subjectsToInsert));
-        if (error) throw error;
-    },
-    migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
-        onProgress('Analyzing local registry...');
-        return { success: true, message: "Registry migration successful." };
-    },
-    async fetchBoardingRooms(houseId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_rooms')
-                .select(`
+                            if(error) throw error;
+                        },
+                            migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
+                                onProgress('Analyzing local registry...');
+                                return { success: true, message: "Registry migration successful." };
+                            },
+                                async fetchBoardingRooms(houseId: string): Promise < any[] > {
+                                    if(!_supabase) return [];
+                                    try {
+                                        const { data, error } = await _supabase
+                                            .from('boarding_rooms')
+                                            .select(`
                     *,
                     boarding_houses!inner(name),
                     boarding_beds(*)
                 `)
-                .eq('house_id', houseId)
-                .order('room_number');
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    },
-    async fetchAvailableBeds(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_beds')
-                .select(`
+                                            .eq('house_id', houseId)
+                                            .order('room_number');
+                                        if(error) throw error;
+                                        return toCamelCase(data) || [];
+                                    } catch(e) { return []; }
+                                },
+                                    async fetchAvailableBeds(institutionId: string): Promise < any[] > {
+                                        if(!_supabase) return [];
+                                        try {
+                                            const { data, error } = await _supabase
+                                                .from('boarding_beds')
+                                                .select(`
                     *,
                     boarding_rooms!inner(
                         id,
@@ -899,18 +881,18 @@ export const apiService = {
                         )
                     )
                 `)
-                .eq('status', 'Available')
-                .eq('boarding_rooms.boarding_houses.institution_id', institutionId);
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    },
-    async fetchBedAllocations(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('bed_allocations')
-                .select(`
+                                                .eq('status', 'Available')
+                                                .eq('boarding_rooms.boarding_houses.institution_id', institutionId);
+                                            if(error) throw error;
+                                            return toCamelCase(data) || [];
+                                        } catch(e) { return []; }
+                                    },
+                                        async fetchBedAllocations(institutionId: string): Promise < any[] > {
+                                            if(!_supabase) return [];
+                                            try {
+                                                const { data, error } = await _supabase
+                                                    .from('bed_allocations')
+                                                    .select(`
                     *,
                     users!bed_allocations_student_id_fkey(name, email, gender),
                     users!bed_allocations_allocated_by_fkey(name),
@@ -924,18 +906,18 @@ export const apiService = {
                     boarding_checkins(id),
                     boarding_checkouts(id)
                 `)
-                .eq('boarding_beds.boarding_rooms.boarding_houses.institution_id', institutionId)
-                .order('allocation_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    },
-    async fetchMaintenanceLogs(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_maintenance_logs')
-                .select(`
+                                                    .eq('boarding_beds.boarding_rooms.boarding_houses.institution_id', institutionId)
+                                                    .order('allocation_date', { ascending: false });
+                                                if(error) throw error;
+                                                return toCamelCase(data) || [];
+                                            } catch(e) { return []; }
+                                        },
+                                            async fetchMaintenanceLogs(institutionId: string): Promise < any[] > {
+                                                if(!_supabase) return [];
+                                                try {
+                                                    const { data, error } = await _supabase
+                                                        .from('boarding_maintenance_logs')
+                                                        .select(`
                     *,
                     boarding_houses(name),
                     boarding_rooms(room_number),
@@ -943,32 +925,32 @@ export const apiService = {
                     users!boarding_maintenance_logs_reported_by_fkey(name),
                     users!boarding_maintenance_logs_resolved_by_fkey(name)
                 `)
-                .order('reported_date', { ascending: false });
+                                                        .order('reported_date', { ascending: false });
 
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    },
-    async fetchBoardingCheckIns(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_checkins')
-                .select('*')
-                .order('check_in_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    },
-    async fetchBoardingCheckOuts(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_checkouts')
-                .select('*')
-                .order('check_out_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
-    }
+                                                    if(error) throw error;
+                                                    return toCamelCase(data) || [];
+                                                } catch(e) { return []; }
+                                            },
+                                                async fetchBoardingCheckIns(institutionId: string): Promise < any[] > {
+                                                    if(!_supabase) return [];
+                                                    try {
+                                                        const { data, error } = await _supabase
+                                                            .from('boarding_checkins')
+                                                            .select('*')
+                                                            .order('check_in_date', { ascending: false });
+                                                        if(error) throw error;
+                                                        return toCamelCase(data) || [];
+                                                    } catch(e) { return []; }
+                                                },
+                                                    async fetchBoardingCheckOuts(institutionId: string): Promise < any[] > {
+                                                        if(!_supabase) return [];
+                                                        try {
+                                                            const { data, error } = await _supabase
+                                                                .from('boarding_checkouts')
+                                                                .select('*')
+                                                                .order('check_out_date', { ascending: false });
+                                                            if(error) throw error;
+                                                            return toCamelCase(data) || [];
+                                                        } catch(e) { return []; }
+                                                    }
 };

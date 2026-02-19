@@ -271,34 +271,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'initiateStkPush') {
-            console.log(`[M-Pesa] Initiating STK push for ${recipient} (Amount: ${amount})`);
-            const mpesa = bodyConfig || settings.mpesa_config;
+            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 
-            const authStr = Buffer.from(`${mpesa.consumerKey}:${mpesa.consumerSecret}`).toString('base64');
+            const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
+            const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
+            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
+            const passkey = (mpesa.passkey || '').trim();
+
+            if (!consumerKey || !consumerSecret) {
+                return res.status(400).json({ success: false, message: 'M-Pesa Consumer Key or Secret is missing in config.' });
+            }
+
             const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+
+            console.log(`[M-Pesa] Initiating STK push for ${recipient} (Amount: ${amount}) using ${mpesa.environment || 'sandbox'}`);
+            console.log(`[M-Pesa] Target URL: ${baseUrl}`);
+            console.log(`[M-Pesa] Using Key: ${consumerKey.substring(0, 4)}... (Length: ${consumerKey.length})`);
+            console.log(`[M-Pesa] Metadata received:`, JSON.stringify(req.body.metadata || {}));
+
+            const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
             const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
                 headers: { 'Authorization': `Basic ${authStr}` }
             });
 
-            if (!oauth.ok) return res.status(401).json({ success: false, message: 'M-Pesa authentication failed. Check Consumer Key/Secret.' });
+            if (!oauth.ok) {
+                const errorBody = await oauth.text();
+                console.error('[M-Pesa OAuth] Failed:', errorBody);
+                return res.status(401).json({
+                    success: false,
+                    message: 'M-Pesa authentication failed. Check Consumer Key/Secret.',
+                    details: errorBody,
+                    hint: 'Ensure your keys match the selected environment (Sandbox vs Production).'
+                });
+            }
             const { access_token } = (await oauth.json()) as any;
 
             const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from(mpesa.paybillNumber + mpesa.passkey + timestamp).toString('base64');
+            const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
 
             const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    BusinessShortCode: mpesa.paybillNumber,
+                    BusinessShortCode: paybill,
                     Password: password,
                     Timestamp: timestamp,
                     TransactionType: "CustomerPayBillOnline",
                     Amount: Math.round(amount),
                     PartyA: recipient.replace(/[^\d]/g, ''),
-                    PartyB: mpesa.paybillNumber,
+                    PartyB: paybill,
                     PhoneNumber: recipient.replace(/[^\d]/g, ''),
                     CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
                     AccountReference: "Subscription",
@@ -320,6 +343,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true, message: 'M-Pesa prompt sent.', data: stkData });
             }
             return res.status(stkRes.status).json({ success: false, message: stkData.CustomerMessage || 'M-Pesa gateway rejected the request.', details: stkData });
+        }
+
+        if (action === 'queryStkStatus') {
+            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
+            if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
+
+            const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
+            const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
+            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
+            const passkey = (mpesa.passkey || '').trim();
+            const { checkoutRequestId } = req.body;
+
+            const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+            const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+
+            const oauth = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                headers: { 'Authorization': `Basic ${authStr}` }
+            });
+
+            if (!oauth.ok) return res.status(401).json({ success: false, message: 'M-Pesa Auth failed during status query.' });
+            const { access_token } = (await oauth.json()) as any;
+
+            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+            const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
+
+            const statusRes = await fetch(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    BusinessShortCode: paybill,
+                    Password: password,
+                    Timestamp: timestamp,
+                    CheckoutRequestID: checkoutRequestId
+                })
+            });
+
+            const statusData = (await statusRes.json()) as any;
+            let finalStatus = 'pending';
+            if (statusRes.ok && statusData.ResultCode === '0') finalStatus = 'completed';
+            else if (statusRes.ok && statusData.ResultCode) finalStatus = 'failed';
+
+            // Sync with DB
+            if (finalStatus !== 'pending') {
+                await supabase.from('mpesa_transactions').update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
+            }
+
+            return res.status(200).json({ success: true, status: finalStatus, details: statusData });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });

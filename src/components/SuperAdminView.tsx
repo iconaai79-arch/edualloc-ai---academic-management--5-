@@ -528,7 +528,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (!testRecipient) return alert("Enter a phone number for STK Push test.");
         setIsTesting(true);
         try {
-            const res = await apiService.initiateMpesaPayment(1, testRecipient, localMpesaConfig);
+            const res = await apiService.initiateMpesaPayment(1, testRecipient, undefined, localMpesaConfig);
             if (res.success) alert(res.message || "STK Push sent to phone.");
             else alert(`M-Pesa Failed: ${res.message || 'Check Daraja credentials'}`);
         } catch (e) {
