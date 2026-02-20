@@ -240,7 +240,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
             }
 
-            const smsConfig = bodyConfig || settings.sms_config;
+            // Security: System messages (OTPs, Recovery links) MUST stick to the default system configuration
+            const smsConfig = isSystemMessage ? settings.sms_config : (bodyConfig || settings.sms_config);
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
