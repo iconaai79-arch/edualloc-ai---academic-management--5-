@@ -1446,9 +1446,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             )}
 
                             {settingsSubTab === 'sms' && (
-                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in shadow-xl shadow-indigo-50/20">
                                     <h3 className="text-xl font-black uppercase tracking-tight">SMS Gateway Configuration</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Numbers must be in format: 254712345678 (No brackets, spaces or +)</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Input Format: 254XXXXXXXXX (No brackets or +)</p>
+
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="md:col-span-2">
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Service Provider</label>
@@ -1457,24 +1458,160 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                 onChange={e => setLocalSmsConfig({ ...localSmsConfig, provider: e.target.value })}
                                                 className="form-select h-12 font-bold text-sm"
                                             >
-                                                <option value="ABMIS">ABMIS (Default)</option>
+                                                <option value="ABMIS">ABMIS (Standard)</option>
+                                                <option value="Sematime">Sematime (Modern)</option>
                                                 <option value="Zettatel">Zettatel Solutions</option>
                                             </select>
                                         </div>
+
+                                        <div className="md:col-span-2 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 space-y-6">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4">Connection Settings</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway API URL</label>
+                                                    <input
+                                                        type="text"
+                                                        value={localSmsConfig.baseUrl || ''}
+                                                        placeholder="e.g. https://sms.abmis.co.ke/smsapi/send"
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })}
+                                                        className="form-input font-mono text-xs h-10"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">HTTP Method</label>
+                                                    <select
+                                                        value={localSmsConfig.method || 'GET'}
+                                                        onChange={(e) => setLocalSmsConfig({ ...localSmsConfig, method: e.target.value as any })}
+                                                        className="form-select h-10 text-xs font-bold"
+                                                    >
+                                                        <option value="GET">GET</option>
+                                                        <option value="POST">POST</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-2"><hr className="border-slate-50 dark:border-slate-700" /></div>
+
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                                {localSmsConfig.provider === 'Zettatel' ? 'Bearer Token / API Key' : 'User ID'}
+                                                {localSmsConfig.provider === 'Zettatel' ? 'User ID' : localSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID / API Key'}
                                             </label>
-                                            <input type="text" value={localSmsConfig.apiKey} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input" />
+                                            <input type="text" value={localSmsConfig.apiKey} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input h-10" />
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                                {localSmsConfig.provider === 'Zettatel' ? 'Partner ID' : 'API Password'}
+                                                {localSmsConfig.provider === 'Zettatel' ? 'Password' : localSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password / Secret'}
                                             </label>
-                                            <input type="password" value={localSmsConfig.apiSecret} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
+                                            <input type="password" value={localSmsConfig.apiSecret} onChange={e => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input h-10" />
                                         </div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={e => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
+                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={e => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input h-10" /></div>
+
+                                        <div className="md:col-span-2 pt-4">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom HTTP Headers</label>
+                                                <button
+                                                    onClick={() => setLocalSmsConfig(prev => ({ ...prev, headers: [...(prev.headers || []), { name: '', value: '' }] }))}
+                                                    className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                                >
+                                                    <PlusIcon className="w-3 h-3" /> Add Header
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(localSmsConfig.headers || []).map((header, idx) => (
+                                                    <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                        <input
+                                                            type="text"
+                                                            value={header.name}
+                                                            placeholder="Name (e.g. Accept)"
+                                                            onChange={(e) => {
+                                                                const newHeaders = [...(localSmsConfig.headers || [])];
+                                                                newHeaders[idx].name = e.target.value;
+                                                                setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={header.value}
+                                                            placeholder="Value (e.g. application/json)"
+                                                            onChange={(e) => {
+                                                                const newHeaders = [...(localSmsConfig.headers || [])];
+                                                                newHeaders[idx].value = e.target.value;
+                                                                setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const newHeaders = (localSmsConfig.headers || []).filter((_, i) => i !== idx);
+                                                                setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                            }}
+                                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(localSmsConfig.headers || []).length === 0 && (
+                                                    <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom headers defined.</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-2 pt-4">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom Parameters / Body</label>
+                                                <button
+                                                    onClick={() => setLocalSmsConfig(prev => ({ ...prev, params: [...(prev.params || []), { name: '', value: '' }] }))}
+                                                    className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                                >
+                                                    <PlusIcon className="w-3 h-3" /> Add Parameter
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(localSmsConfig.params || []).map((param, idx) => (
+                                                    <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                        <input
+                                                            type="text"
+                                                            value={param.name}
+                                                            placeholder="Parameter Name"
+                                                            onChange={(e) => {
+                                                                const newParams = [...(localSmsConfig.params || [])];
+                                                                newParams[idx].name = e.target.value;
+                                                                setLocalSmsConfig({ ...localSmsConfig, params: newParams });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={param.value}
+                                                            placeholder="Value"
+                                                            onChange={(e) => {
+                                                                const newParams = [...(localSmsConfig.params || [])];
+                                                                newParams[idx].value = e.target.value;
+                                                                setLocalSmsConfig({ ...localSmsConfig, params: newParams });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const newParams = (localSmsConfig.params || []).filter((_, i) => i !== idx);
+                                                                setLocalSmsConfig({ ...localSmsConfig, params: newParams });
+                                                            }}
+                                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(localSmsConfig.params || []).length === 0 && (
+                                                    <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom parameters defined.</p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
+
                                     <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
                                         <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
                                             <input
@@ -1492,10 +1629,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                 {isTesting ? 'Sending...' : 'Send Test SMS'}
                                             </button>
                                         </div>
-                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Sync Gateway</button>
+                                        <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Sync Gateway</button>
                                     </div>
                                 </div>
                             )}
+
 
                             {settingsSubTab === 'email' && (
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
