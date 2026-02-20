@@ -1321,7 +1321,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     onClick={() => setSettingsSubTab('sms_pricing')}
                                     className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'sms_pricing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                                 >
-                                    <CurrencyDollarIcon className="w-4 h-4" /> SMS Pricing
+                                    <CurrencyIcon className="w-4 h-4" /> SMS Pricing
                                 </button>
                             </nav>
                         </div>
