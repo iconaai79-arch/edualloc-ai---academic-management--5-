@@ -119,19 +119,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let query = supabase.from('users').select('*');
 
                 if (action === 'sendSms' && recipient) {
-                    // Normalize Kenyan phone numbers to strict 254 format for database search
-                    let searchPhone = recipient.replace(/[^\d]/g, '');
-                    if (searchPhone.startsWith('254')) {
-                        const afterPrefix = searchPhone.substring(3);
-                        if (afterPrefix.startsWith('0')) searchPhone = '254' + afterPrefix.substring(1);
-                    } else if (searchPhone.startsWith('0')) {
-                        searchPhone = '254' + searchPhone.substring(1);
-                    } else if (searchPhone.length === 9) {
-                        searchPhone = '254' + searchPhone;
+                    // Normalize Kenyan phone numbers for robust database search
+                    const rawDigits = recipient.replace(/[^\d]/g, '');
+                    let searchNumbers: string[] = [recipient, rawDigits];
+
+                    // Generate common variants
+                    if (rawDigits.length === 9) {
+                        searchNumbers.push('0' + rawDigits);
+                        searchNumbers.push('254' + rawDigits);
+                    } else if (rawDigits.startsWith('0') && rawDigits.length === 10) {
+                        const base = rawDigits.substring(1);
+                        searchNumbers.push('254' + base);
+                        searchNumbers.push(base);
+                    } else if (rawDigits.startsWith('254') && rawDigits.length === 12) {
+                        const base = rawDigits.substring(3);
+                        searchNumbers.push('0' + base);
+                        searchNumbers.push(base);
                     }
 
-                    // We check both the normalized and the raw recipient to be safe
-                    query = query.or(`phone_number.eq.${searchPhone},phone_number.eq.${recipient}`);
+                    // Remove duplicates
+                    const uniqueSearch = Array.from(new Set(searchNumbers.filter(n => n.length > 0)));
+                    const orClauses = uniqueSearch.map(n => `phone_number.eq.${n}`).join(',');
+
+                    query = query.or(orClauses);
                 } else if (recipient) {
                     query = query.eq('email', recipient);
                 }
@@ -139,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: targetUser } = await query.maybeSingle();
 
                 if (targetUser) {
-                    console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient}`);
+                    console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient} (Match: ${targetUser.id})`);
                     user = { ...targetUser, id: 'system', role: 'system' };
                     authError = null;
                 } else if (action === 'forgotPassword') {

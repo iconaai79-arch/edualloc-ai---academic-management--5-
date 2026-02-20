@@ -2077,9 +2077,19 @@ export const App: React.FC = () => {
 
                                         const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
 
-                                        // Dispatch to both channels
-                                        if (u.email) apiService.sendEmail(u.email, 'Verification Code', otpMessage);
-                                        if (u.phoneNumber) apiService.sendSms(u.phoneNumber, otpMessage);
+                                        // Dispatch to both channels with improved error reporting
+                                        Promise.all([
+                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage) : Promise.resolve({ success: true }),
+                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage) : Promise.resolve({ success: true })
+                                        ]).then(results => {
+                                            const smsResult = results[1] as any;
+                                            if (smsResult && smsResult.success === false) {
+                                                console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
+                                                alert(`SMS Delivery Issue: ${smsResult.message || 'The gateway failed to send the code.'} We have also sent the code to your email if available.`);
+                                            }
+                                        }).catch(err => {
+                                            console.error("[OTP] Dispatch Exception:", err);
+                                        });
 
                                         return 'otp_required';
                                     }
@@ -2105,8 +2115,19 @@ export const App: React.FC = () => {
                                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                 setCurrentOtp(otp);
                                 const otpMessage = `Your New EduAi Verification Code is: ${otp}.`;
-                                if (otpPendingUser.email) apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage);
-                                if (otpPendingUser.phoneNumber) apiService.sendSms(otpPendingUser.phoneNumber, otpMessage);
+
+                                // Dispatch with reporting
+                                Promise.all([
+                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage) : Promise.resolve({ success: true }),
+                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage) : Promise.resolve({ success: true })
+                                ]).then(results => {
+                                    const smsResult = results[1] as any;
+                                    if (smsResult && smsResult.success === false) {
+                                        alert(`SMS Delivery Issue: ${smsResult.message || 'Gateway failure.'}`);
+                                    }
+                                }).catch(err => {
+                                    console.error("[OTP Resend] Dispatch Exception:", err);
+                                });
                             }}
                             {...commonLoginProps}
                         />
