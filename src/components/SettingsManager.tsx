@@ -754,7 +754,59 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <input type="password" value={localSmsConfig.apiSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
                                     </div>
                                     <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
-                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway URL (Optional)</label><input type="text" value={localSmsConfig.baseUrl || ''} placeholder="e.g. https://sms.abmis.co.ke/smsapi/send" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" /></div>
+                                    <div className="md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway URL (Optional)</label><input type="text" value={localSmsConfig.baseUrl || ''} placeholder="e.g. https://sms.abmis.co.ke/smsapi/send" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" /></div>
+
+                                    <div className="md:col-span-2 pt-4">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom HTTP Headers</label>
+                                            <button
+                                                onClick={() => setLocalSmsConfig(prev => ({ ...prev, headers: [...(prev.headers || []), { name: '', value: '' }] }))}
+                                                className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                            >
+                                                <PlusIcon className="w-3 h-3" /> Add Header
+                                            </button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(localSmsConfig.headers || []).map((header, idx) => (
+                                                <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                    <input
+                                                        type="text"
+                                                        value={header.name}
+                                                        placeholder="Name (e.g. Accept)"
+                                                        onChange={(e) => {
+                                                            const newHeaders = [...(localSmsConfig.headers || [])];
+                                                            newHeaders[idx].name = e.target.value;
+                                                            setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                        }}
+                                                        className="form-input text-xs font-mono h-10"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={header.value}
+                                                        placeholder="Value (e.g. application/json)"
+                                                        onChange={(e) => {
+                                                            const newHeaders = [...(localSmsConfig.headers || [])];
+                                                            newHeaders[idx].value = e.target.value;
+                                                            setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                        }}
+                                                        className="form-input text-xs font-mono h-10"
+                                                    />
+                                                    <button
+                                                        onClick={() => {
+                                                            const newHeaders = (localSmsConfig.headers || []).filter((_, i) => i !== idx);
+                                                            setLocalSmsConfig({ ...localSmsConfig, headers: newHeaders });
+                                                        }}
+                                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    >
+                                                        <XIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {(localSmsConfig.headers || []).length === 0 && (
+                                                <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2">No custom headers defined.</p>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="pt-6 border-t flex justify-end gap-4">
                                     <button onClick={handleSendTestSms} disabled={isSavingConfigs} className="btn-secondary px-6 h-12 border-slate-200 uppercase tracking-widest text-xs">Send Test SMS</button>

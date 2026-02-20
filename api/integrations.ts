@@ -245,7 +245,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}. URL: ${maskedUrl}`);
                 try {
-                    const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, { method: 'GET' });
+                    const customHeaders: Record<string, string> = {};
+                    if (Array.isArray(smsConfig.headers)) {
+                        smsConfig.headers.forEach((h: { name: string; value: string }) => {
+                            if (h.name && h.value) customHeaders[h.name] = h.value;
+                        });
+                    }
+
+                    const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            ...customHeaders
+                        }
+                    });
                     const smsRaw = await smsRes.text();
 
                     const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));
