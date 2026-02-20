@@ -26,7 +26,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Support parameters from both body (POST) and query (GET)
     const paramsMap = req.method === 'GET' ? req.query : req.body;
-    const { action, recipient, message, subject, amount, config: bodyConfig } = paramsMap;
+
+    // Safely extract and normalize parameters (handling possible arrays from req.query)
+    const getParam = (key: string): string => {
+        const val = paramsMap[key];
+        if (Array.isArray(val)) return val[0] || '';
+        return (val as string) || '';
+    };
+
+    const action = getParam('action');
+    const recipient = getParam('recipient');
+    const message = getParam('message');
+    const subject = getParam('subject');
+    const amountStr = getParam('amount');
+    const amount = amountStr ? parseFloat(amountStr) : 0;
+    const bodyConfig = paramsMap.config;
 
     try {
         if (!action) {
@@ -243,11 +257,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
 
                     if (isError) {
+                        let cleanMessage = `Gateway ${provider} reported an error.`;
+                        if (smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html')) {
+                            cleanMessage += " (Gateway returned an HTML error page instead of JSON)";
+                        }
+
                         return res.status(502).json({
                             success: false,
-                            message: `Gateway ${provider} reported an error.`,
+                            message: cleanMessage,
                             detail: smsDetail,
-                            raw: smsRaw,
+                            raw: smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw,
                             recipient: phone
                         });
                     }

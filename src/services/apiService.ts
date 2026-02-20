@@ -61,7 +61,7 @@ const toSnakeCase = (obj: any): any => {
     if (Array.isArray(obj)) return obj.map(toSnakeCase);
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
-        if (key === 'isImpersonated') return; // Skip internal session-only flags
+        if (key === 'isImpersonated' || key === 'roles') return; // Skip internal session-only flags and non-existent DB columns
         let val = obj[key];
 
         // Convert empty strings to null to avoid DB errors when an empty string is passed to an integer or UUID column
