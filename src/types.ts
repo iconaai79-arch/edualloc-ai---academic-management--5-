@@ -364,6 +364,7 @@ export interface SmsConfig {
     apiSecret: string;
     fromNumber: string;
     baseUrl?: string;
+    api_url?: string;
 }
 
 export interface EmailConfig {

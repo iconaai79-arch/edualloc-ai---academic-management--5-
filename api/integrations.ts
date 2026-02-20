@@ -222,19 +222,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Provider-specific logic
             if (provider === 'ABMIS' || provider === 'Zettatel') {
-                const baseUrl = provider === 'ABMIS' ? 'https://sms.abmis.co.ke/smsapi/send' : 'https://portal.zettatel.com/smsapi/send';
+                const defaultUrls: Record<string, string> = {
+                    'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
+                    'Zettatel': 'https://portal.zettatel.com/smsapi/send'
+                };
+
+                // Allow override from config
+                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['ABMIS'];
 
                 const params = new URLSearchParams({
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
                     password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
                     mobile: phone,
                     msg: message || '',
-                    senderid: smsConfig.fromNumber || 'ABMIS',
+                    senderid: smsConfig.fromNumber || provider,
                     msgType: 'text',
                     output: 'json'
                 });
 
-                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}`);
+                const fullUrl = `${baseUrl}?${params.toString()}`;
+                const maskedUrl = fullUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
+
+                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}. URL: ${maskedUrl}`);
                 try {
                     const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, { method: 'GET' });
                     const smsRaw = await smsRes.text();
@@ -273,6 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return res.status(502).json({
                             success: false,
                             message: cleanMessage,
+                            hint: `Attempted Gateway URL: ${maskedUrl}`,
                             detail: smsDetail,
                             raw: isHtml ? "[HTML Content Truncated]" : (smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw),
                             recipient: phone

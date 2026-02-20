@@ -754,6 +754,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <input type="password" value={localSmsConfig.apiSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
                                     </div>
                                     <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
+                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway URL (Optional)</label><input type="text" value={localSmsConfig.baseUrl || ''} placeholder="e.g. https://sms.abmis.co.ke/smsapi/send" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" /></div>
                                 </div>
                                 <div className="pt-6 border-t flex justify-end gap-4">
                                     <button onClick={handleSendTestSms} disabled={isSavingConfigs} className="btn-secondary px-6 h-12 border-slate-200 uppercase tracking-widest text-xs">Send Test SMS</button>
