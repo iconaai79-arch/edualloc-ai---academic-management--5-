@@ -214,40 +214,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.log(`[M-Pesa Callback] ✅ New expiry: ${newEndDate.toISOString()}`);
                     }
                 }
-            } else if (metadata.type === 'invoice' && metadata.invoiceId) {
-                console.log(`[M-Pesa Callback] Processing invoice payment: ${metadata.invoiceId}`);
+            } else if (metadata.type === 'sms' && metadata.units) {
+                console.log(`[M-Pesa Callback] Crediting SMS units: ${metadata.units} for ${transaction.institution_id}`);
 
-                // Mark invoice as paid
-                const { error: invoiceError } = await supabase
-                    .from('invoices')
-                    .update({ status: 'paid' })
-                    .eq('id', metadata.invoiceId);
+                const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
+                    inst_id: transaction.institution_id,
+                    amount: parseInt(metadata.units)
+                });
 
-                if (invoiceError) {
-                    console.error('[M-Pesa Callback] Failed to update invoice:', invoiceError);
-                } else {
-                    console.log('[M-Pesa Callback] ✅ Invoice marked as PAID');
+                if (smsCreditError) {
+                    console.error('[M-Pesa Callback] RPC Error crediting SMS:', smsCreditError);
+                    // Fallback to direct update if RPC fails
+                    await supabase.from('institutions')
+                        .update({ sms_balance: supabase.rpc('increment', { amount: parseInt(metadata.units) }) })
+                        .eq('id', transaction.institution_id);
                 }
 
-                // Create receipt
-                const { error: receiptError } = await supabase
-                    .from('receipts')
-                    .insert({
-                        id: `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        receipt_number: mpesaReceiptNumber || `REC-${Date.now().toString().slice(-6)}`,
-                        institution_id: transaction.institution_id,
-                        invoice_id: metadata.invoiceId,
-                        amount_paid: transaction.amount,
-                        payment_date: new Date().toISOString().split('T')[0],
-                        payment_method: 'M-Pesa',
-                        related_transaction_id: transaction.id
-                    });
+                // Create invoice & receipt for SMS
+                const invoiceId = `inv_sms_${Date.now()}`;
+                await supabase.from('invoices').insert({
+                    id: invoiceId,
+                    invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    issue_date: new Date().toISOString().split('T')[0],
+                    due_date: new Date().toISOString().split('T')[0],
+                    total_amount: transaction.amount,
+                    status: 'paid',
+                    items: JSON.stringify([{
+                        description: `SMS Units Purchase - ${metadata.units} units`,
+                        quantity: 1,
+                        unitPrice: transaction.amount,
+                        amount: transaction.amount
+                    }])
+                });
 
-                if (receiptError) {
-                    console.error('[M-Pesa Callback] Failed to create receipt:', receiptError);
-                } else {
-                    console.log('[M-Pesa Callback] ✅ Receipt created');
-                }
+                await supabase.from('receipts').insert({
+                    id: `rec_sms_${Date.now()}`,
+                    receipt_number: mpesaReceiptNumber || `REC-SMS-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    invoice_id: invoiceId,
+                    amount_paid: transaction.amount,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'M-Pesa',
+                    related_transaction_id: transaction.id
+                });
+
+                console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${metadata.units}`);
             }
 
             console.log('[M-Pesa Callback] ========================================');

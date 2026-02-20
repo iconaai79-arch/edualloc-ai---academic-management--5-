@@ -19,3 +19,24 @@ export const generateAlphanumericCode = (length: number = 6): string => {
     }
     return result;
 };
+
+/**
+ * Formats Kenyan phone numbers by replacing '0' with '254' 
+ * if they start with '07' or '011'.
+ */
+export const formatPhoneNumber = (phone: string): string => {
+    if (!phone) return phone;
+
+    // Remove any spaces or non-numeric characters for check (except +)
+    const sanitized = phone.replace(/\s/g, '');
+
+    if (sanitized.startsWith('07')) {
+        return '254' + sanitized.substring(1);
+    }
+
+    if (sanitized.startsWith('011')) {
+        return '254' + sanitized.substring(1);
+    }
+
+    return phone;
+};

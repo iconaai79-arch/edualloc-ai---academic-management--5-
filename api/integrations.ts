@@ -118,9 +118,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
                 let query = supabase.from('users').select('*');
 
-                if (action === 'sendSms') {
-                    query = query.eq('phone_number', recipient);
-                } else {
+                if (action === 'sendSms' && recipient) {
+                    // Normalize Kenyan phone numbers to strict 254 format for database search
+                    let searchPhone = recipient.replace(/[^\d]/g, '');
+                    if (searchPhone.startsWith('254')) {
+                        const afterPrefix = searchPhone.substring(3);
+                        if (afterPrefix.startsWith('0')) searchPhone = '254' + afterPrefix.substring(1);
+                    } else if (searchPhone.startsWith('0')) {
+                        searchPhone = '254' + searchPhone.substring(1);
+                    } else if (searchPhone.length === 9) {
+                        searchPhone = '254' + searchPhone;
+                    }
+
+                    // We check both the normalized and the raw recipient to be safe
+                    query = query.or(`phone_number.eq.${searchPhone},phone_number.eq.${recipient}`);
+                } else if (recipient) {
                     query = query.eq('email', recipient);
                 }
 
@@ -199,12 +211,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'sendSms') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
-            if (!adminRoles.includes(user.role) && user.id !== 'system') {
+
+            // System Message Detection (OTPs should always go through)
+            const isSystemMessage = (message || '').toLowerCase().includes('verification code') ||
+                (message || '').toLowerCase().includes('otp') ||
+                (message || '').toLowerCase().includes('your eduai code');
+
+            if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
             }
 
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
+
+            // SMS Balance Check Logic
+            const institutionId = user.user_metadata?.institutionId || user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id;
+
+            if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                const { data: institution, error: balanceError } = await supabase
+                    .from('institutions')
+                    .select('sms_balance')
+                    .eq('id', institutionId)
+                    .maybeSingle();
+
+                if (balanceError) {
+                    return res.status(500).json({ success: false, message: 'Database error checking SMS balance.' });
+                }
+
+                if (!institution || (institution.sms_balance || 0) < 1) {
+                    return res.status(402).json({
+                        success: false,
+                        message: 'Insufficient SMS balance. Please purchase more units.',
+                        balance: institution?.sms_balance || 0,
+                        buy_url: '/settings?tab=billing'
+                    });
+                }
+            }
 
             const provider = smsConfig.provider || 'ABMIS';
 
@@ -347,12 +389,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                     }
 
-                    return res.status(200).json({
-                        success: true,
-                        message: 'SMS dispatched successfully.',
-                        detail: smsDetail,
-                        recipient: phone
-                    });
+                    if (isExplicitSuccess) {
+                        // Success! Decrement balance
+                        if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: 1 });
+                        }
+                        return res.status(200).json({
+                            success: true,
+                            message: 'SMS dispatched successfully.',
+                            detail: smsDetail,
+                            recipient: phone
+                        });
+                    }
 
                 } catch (e: any) {
                     return res.status(504).json({ success: false, message: `Gateway ${provider} connection timeout or failure.`, error: e.message });
@@ -510,8 +558,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         PartyB: paybill,
                         PhoneNumber: recipient.replace(/[^\d]/g, ''),
                         CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
-                        AccountReference: (paramsMap.metadata?.institutionCode || "Subscription").substring(0, 12),
-                        TransactionDesc: `License: ${paramsMap.metadata?.institutionName || "Subscription"}`.substring(0, 20)
+                        AccountReference: (paramsMap.metadata?.institutionCode || "Sub/SMS").substring(0, 12),
+                        TransactionDesc: `${paramsMap.metadata?.type === 'sms' ? 'SMS Units' : 'License'}: ${paramsMap.metadata?.institutionName || "Acct"}`.substring(0, 20)
                     })
                 }, 15000); // 15s timeout for the actual prompt
             } catch (e: any) {

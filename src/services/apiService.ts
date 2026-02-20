@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
+import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
     Priority, Department, Subject, Course, CompanyDetails, Room,
@@ -436,6 +437,7 @@ export const apiService = {
         return 'completed';
     },
     async sendSms(recipient: string, message: string, config?: SmsConfig): Promise<any> {
+        const formattedRecipient = formatPhoneNumber(recipient);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
         }
@@ -466,7 +468,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'sendSms', recipient, message, config })
+                body: JSON.stringify({ action: 'sendSms', recipient: formattedRecipient, message, config })
             });
 
             let resData: any = {};
@@ -583,6 +585,7 @@ export const apiService = {
         return { success_count, fail_count };
     },
     async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
+        const formattedPhone = formatPhoneNumber(phoneNumber);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
         }
@@ -612,7 +615,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'initiateStkPush', recipient: phoneNumber, amount, config, metadata })
+                body: JSON.stringify({ action: 'initiateStkPush', recipient: formattedPhone, amount, config, metadata })
             });
 
             console.log('[M-Pesa Client] Response :', response);

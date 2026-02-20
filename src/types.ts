@@ -118,6 +118,8 @@ export interface Institution {
     subCounty?: string;
     constituency?: string;
     ward?: string;
+    isOtpEnabled?: boolean;
+    smsBalance?: number;
 }
 
 
@@ -368,6 +370,7 @@ export interface SmsConfig {
     method?: 'GET' | 'POST';
     headers?: { name: string; value: string }[];
     params?: { name: string; value: string }[];
+    smsUnitPrice?: number;
 }
 
 export interface EmailConfig {

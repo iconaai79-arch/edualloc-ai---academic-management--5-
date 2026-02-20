@@ -195,7 +195,8 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
         themeColor: '#1e293b',
         timetableSettings: INITIAL_TIMETABLE_SETTINGS,
         examTimetableSettings: INITIAL_EXAM_TIMETABLE_SETTINGS,
-        useAllocationRequests: false
+        useAllocationRequests: false,
+        isOtpEnabled: false
     },
     {
         id: INST_DEMO,
@@ -209,7 +210,8 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
         scheduleProfiles: DEFAULT_SECONDARY_PROFILES,
         timetableSettings: INITIAL_TIMETABLE_SETTINGS,
         examTimetableSettings: INITIAL_EXAM_TIMETABLE_SETTINGS,
-        useAllocationRequests: true
+        useAllocationRequests: true,
+        isOtpEnabled: false
     }
 ];
 

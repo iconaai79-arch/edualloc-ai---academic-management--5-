@@ -8,6 +8,7 @@ interface CommunicationsManagerProps {
     institutions?: Institution[]; // Optional for super admin view
     onSendSms: (recipient: string, message: string) => Promise<{ success: boolean; message: string }>;
     currentUser?: User;
+    smsBalance?: number;
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -36,7 +37,7 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance }) => {
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
     const [selectedInstitutionRoleFilter, setSelectedInstitutionRoleFilter] = useState<'all' | 'admins'>('all');
@@ -45,7 +46,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [searchTerm, setSearchTerm] = useState('');
 
     const [smsInfo, setSmsInfo] = useState({ count: 0, characters: 0, limit: 160, isUnicode: false });
-    
+
     const isSuperAdminView = !!institutions;
     const institutionMap = useMemo(() => institutions ? new Map(institutions.map(i => [i.id, i.name])) : null, [institutions]);
 
@@ -56,14 +57,14 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const filteredUsersForIndividualSelection = useMemo(() => {
         if (!searchTerm) return [];
         let availableUsers = users;
-        
+
         // Filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
             availableUsers = users.filter(u => u.departmentId === currentUser.departmentId || (u.role === 'student' && courses.some(c => c.id === u.courseId && c.departmentId === currentUser.departmentId)));
         }
-        
-        return availableUsers.filter(u => 
-            u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+
+        return availableUsers.filter(u =>
+            u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             u.staffId?.toLowerCase().includes(searchTerm.toLowerCase())
         ).slice(0, 100); // Limit to 100 results for performance
     }, [users, searchTerm, currentUser, courses]);
@@ -75,7 +76,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 name: `${institutionMap.get(d.institutionId) || 'Unknown Inst.'} - ${d.name}`
             }));
         }
-        
+
         // Filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
             return departments.filter(d => d.id === currentUser.departmentId).map(d => ({ id: d.id, name: d.name }));
@@ -83,7 +84,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
         return departments.map(d => ({ id: d.id, name: d.name }));
     }, [departments, isSuperAdminView, institutionMap, currentUser]);
-    
+
     const courseOptions = useMemo(() => {
         if (isSuperAdminView && institutionMap) {
             const departmentMap = new Map(departments.map(d => [d.id, d.institutionId]));
@@ -92,8 +93,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 name: `${institutionMap.get(departmentMap.get(c.departmentId) || '') || '...'} - ${c.name}`
             }));
         }
-        
-         // Filter for HOD
+
+        // Filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
             return courses.filter(c => c.departmentId === currentUser.departmentId).map(c => ({ id: c.id, name: c.name }));
         }
@@ -104,16 +105,16 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
     const recipientList = useMemo(() => {
         let baseUsers = users;
-        
+
         // Apply base filter for HOD
-         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
-             // HODs can message: staff in dept, students in dept courses
-             const allowedCourseIds = new Set(courses.filter(c => c.departmentId === currentUser.departmentId).map(c => c.id));
-             baseUsers = users.filter(u => 
-                 u.departmentId === currentUser.departmentId || 
-                 (u.role === 'student' && u.courseId && allowedCourseIds.has(u.courseId))
-             );
-         }
+        if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
+            // HODs can message: staff in dept, students in dept courses
+            const allowedCourseIds = new Set(courses.filter(c => c.departmentId === currentUser.departmentId).map(c => c.id));
+            baseUsers = users.filter(u =>
+                u.departmentId === currentUser.departmentId ||
+                (u.role === 'student' && u.courseId && allowedCourseIds.has(u.courseId))
+            );
+        }
 
         switch (recipientTarget) {
             case 'individual': {
@@ -132,7 +133,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 // For students, find courses in that dept
                 const coursesInDept = new Set(courses.filter(c => c.departmentId === selectedId).map(c => c.id));
                 const studentsInDept = baseUsers.filter(u => u.role === 'student' && u.courseId && coursesInDept.has(u.courseId));
-                
+
                 const allInDept = new Map();
                 staffInDept.forEach(u => allInDept.set(u.id, u));
                 studentsInDept.forEach(u => allInDept.set(u.id, u));
@@ -208,7 +209,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         setSelectedId('');
         setSearchTerm('');
     };
-    
+
     const renderSecondarySelector = () => {
         switch (recipientTarget) {
             case 'individual':
@@ -253,7 +254,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 );
             case 'institution':
                 return institutions ? (
-                     <div className="grid grid-cols-2 gap-2 mt-1">
+                    <div className="grid grid-cols-2 gap-2 mt-1">
                         <select value={selectedId} onChange={e => setSelectedId(e.target.value)} required className="form-select" aria-label="Select institution">
                             <option value="" disabled>Select an institution</option>
                             {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
@@ -268,10 +269,23 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return null;
         }
     };
-    
+
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-            <h3 className="text-xl font-semibold mb-4">Send SMS Communication</h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">Send SMS Communication</h3>
+                {smsBalance !== undefined && (
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</span>
+                        <span className={`text-sm font-black ${smsBalance < 50 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
+                            {smsBalance.toLocaleString()} Units
+                        </span>
+                        {smsBalance < 10 && (
+                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-1" />
+                        )}
+                    </div>
+                )}
+            </div>
             <div className="flex flex-col lg:flex-row gap-8">
                 <div className="flex-1 space-y-4">
                     <div>
@@ -287,7 +301,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     </div>
 
                     {renderSecondarySelector()}
-                    
+
                     <div className="pt-2">
                         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
                             This message will be sent to <span className="font-bold text-[var(--color-primary)]">{validRecipients.length}</span> recipient(s).
@@ -313,11 +327,10 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     </div>
                     <div className="flex justify-end items-center gap-4">
                         {status.type !== 'idle' && (
-                            <p className={`text-sm font-medium ${
-                                status.type === 'error' ? 'text-red-500' : 
-                                status.type === 'success' ? 'text-green-600' :
-                                'text-slate-500'
-                            }`}>{status.message}</p>
+                            <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
+                                    status.type === 'success' ? 'text-green-600' :
+                                        'text-slate-500'
+                                }`}>{status.message}</p>
                         )}
                         <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
                             {status.type === 'sending' ? 'Sending...' : 'Send SMS'}
@@ -332,13 +345,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -left-[13px] top-[60px] rounded-l-lg"></div>
                         <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -right-[13px] top-[120px] rounded-r-lg"></div>
                         <div className="rounded-[2rem] overflow-hidden w-full h-full bg-slate-50 dark:bg-slate-800">
-                           <div className="p-4 space-y-2">
-                               <div className="flex justify-end">
-                                   <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[80%]">
-                                       <p className="text-sm break-words">{message || "Your message will appear here..."}</p>
-                                   </div>
-                               </div>
-                           </div>
+                            <div className="p-4 space-y-2">
+                                <div className="flex justify-end">
+                                    <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[80%]">
+                                        <p className="text-sm break-words">{message || "Your message will appear here..."}</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

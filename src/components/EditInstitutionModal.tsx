@@ -20,7 +20,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     customSubscriptionPrice: {
       monthly: '',
       yearly: '',
-    }
+    },
+    isOtpEnabled: false
   });
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         customSubscriptionPrice: {
           monthly: (institution.customSubscriptionPrice?.monthly ?? (institution as any).custom_subscription_price?.monthly)?.toString() || '',
           yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
-        }
+        },
+        isOtpEnabled: institution.isOtpEnabled ?? false
       });
     }
   }, [institution]);
@@ -66,7 +68,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       customSubscriptionPrice: {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
-      }
+      },
+      isOtpEnabled: formData.isOtpEnabled
     };
     onSave(institution.id, saveData);
   };
@@ -143,6 +146,22 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <input
+                        type="checkbox"
+                        id="modal-enable-2fa"
+                        name="isOtpEnabled"
+                        checked={formData.isOtpEnabled}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isOtpEnabled: e.target.checked }))}
+                        className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <label htmlFor="modal-enable-2fa" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enforce Two-Factor Authentication (2FA)</label>
+                        <p className="text-xs text-slate-400 uppercase tracking-tight">Requirement for all users in this institution to verify identity via SMS/Email OTP.</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

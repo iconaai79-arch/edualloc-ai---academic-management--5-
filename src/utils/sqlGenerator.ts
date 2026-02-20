@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS institutions (
     exam_timetable_settings JSONB,
     use_allocation_requests BOOLEAN DEFAULT TRUE,
     schedule_profiles JSONB DEFAULT '[]'::jsonb,
-    county_id TEXT REFERENCES counties(id) ON DELETE SET NULL
+    county_id TEXT REFERENCES counties(id) ON DELETE SET NULL,
+    is_otp_enabled BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS counties (
@@ -766,7 +767,7 @@ CREATE TABLE IF NOT EXISTS teacher_check_ins (
 
     INITIAL_INSTITUTIONS.forEach(i => {
         if (i.id === 'SYSTEM') return; // Skip SYSTEM as it's already handled above
-        sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES (${escapeSql(i.id)}, ${escapeSql(i.name)}, ${escapeSql(i.email)}, ${escapeSql(i.phoneNumber)}, ${escapeSql(i.institutionType)}, ${escapeSql(i.status)}, ${escapeSql(i.institutionCode)}, TRUE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status;\n`;
+        sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests, is_otp_enabled) VALUES (${escapeSql(i.id)}, ${escapeSql(i.name)}, ${escapeSql(i.email)}, ${escapeSql(i.phoneNumber)}, ${escapeSql(i.institutionType)}, ${escapeSql(i.status)}, ${escapeSql(i.institutionCode)}, TRUE, ${i.isOtpEnabled ? 'TRUE' : 'FALSE'}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, is_otp_enabled = EXCLUDED.is_otp_enabled;\n`;
     });
 
     INITIAL_ACADEMIC_LEVELS.forEach(al => {

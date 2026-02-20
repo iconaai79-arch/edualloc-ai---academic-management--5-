@@ -2067,18 +2067,24 @@ export const App: React.FC = () => {
                                         return 'suspended';
                                     }
 
-                                    // Generate and Send OTP
-                                    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                                    setCurrentOtp(otp);
-                                    setOtpPendingUser(u);
+                                    if (inst?.isOtpEnabled) {
+                                        // Generate and Send OTP
+                                        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                                        setCurrentOtp(otp);
+                                        setOtpPendingUser(u);
 
-                                    const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
+                                        const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
 
-                                    // Dispatch to both channels
-                                    if (u.email) apiService.sendEmail(u.email, 'Verification Code', otpMessage);
-                                    if (u.phoneNumber) apiService.sendSms(u.phoneNumber, otpMessage);
+                                        // Dispatch to both channels
+                                        if (u.email) apiService.sendEmail(u.email, 'Verification Code', otpMessage);
+                                        if (u.phoneNumber) apiService.sendSms(u.phoneNumber, otpMessage);
 
-                                    return 'otp_required';
+                                        return 'otp_required';
+                                    }
+
+                                    setCurrentUser(u);
+                                    apiService.storeSession(u);
+                                    return 'success';
                                 }
                                 return 'failed';
                             }}

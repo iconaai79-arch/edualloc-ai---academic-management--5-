@@ -169,8 +169,6 @@ export interface AdminViewProps {
     onImportSubjectsAndAssociate?: (subjects: (Omit<Subject, 'id' | 'institutionId'> & { targetCourseLevelId?: string })[]) => Promise<void>;
     onAssociateSubjectToCourseLevel?: (subjectId: string, courseLevelId: string) => void;
     onDisassociateSubjectFromCourseLevel?: (subjectId: string, courseLevelId: string) => void;
-    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
-    onAddExtensionRequest?: (reason: string) => void;
     onUpdateExtensionRequestStatus?: (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => void;
     onSaveBiometricConfig?: (config: BiometricConfig) => void;
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
@@ -612,6 +610,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         {...props}
                         onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
+                        smsBalance={props.currentInstitution?.smsBalance}
                     />
                 )}
 
