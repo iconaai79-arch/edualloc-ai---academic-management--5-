@@ -21,7 +21,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       monthly: '',
       yearly: '',
     },
-    isOtpEnabled: false
+    isOtpEnabled: false,
+    customSmsPrice: ''
   });
 
   useEffect(() => {
@@ -36,7 +37,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           monthly: (institution.customSubscriptionPrice?.monthly ?? (institution as any).custom_subscription_price?.monthly)?.toString() || '',
           yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
         },
-        isOtpEnabled: institution.isOtpEnabled ?? false
+        isOtpEnabled: institution.isOtpEnabled ?? false,
+        customSmsPrice: institution.customSmsPrice?.toString() || ''
       });
     }
   }, [institution]);
@@ -69,7 +71,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
       },
-      isOtpEnabled: formData.isOtpEnabled
+      isOtpEnabled: formData.isOtpEnabled,
+      customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined
     };
     onSave(institution.id, saveData);
   };
@@ -204,6 +207,29 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     </div>
                   </div>
                   <p className="mt-4 text-[10px] text-slate-400 italic">Leave these fields empty to maintain standard system pricing for this institution.</p>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-xl flex items-center justify-center">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">SMS Pricing Override</h4>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Unit Price (KES)</label>
+                    <input
+                      type="number"
+                      name="customSmsPrice"
+                      step="0.01"
+                      value={formData.customSmsPrice}
+                      onChange={handleChange}
+                      className="form-input font-bold text-indigo-600 dark:text-indigo-400"
+                      placeholder="e.g. 0.80"
+                      min="0"
+                    />
+                  </div>
+                  <p className="mt-4 text-[10px] text-slate-400 italic">Set a custom cost per SMS unit for this institution. Leave empty to use system default.</p>
                 </div>
               </div>
             )}

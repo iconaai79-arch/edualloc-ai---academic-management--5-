@@ -13,6 +13,7 @@ interface BuySMSModalProps {
     institutionCode: string;
     institutionName: string;
     smsUnitPrice: number;
+    minSmsUnits?: number;
 }
 
 const SMS_PACKAGES = [
@@ -30,7 +31,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     institutionId,
     institutionCode,
     institutionName,
-    smsUnitPrice = 2 // Default if not provided
+    smsUnitPrice = 2, // Default if not provided
+    minSmsUnits = 0
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [selectedPackage, setSelectedPackage] = useState(SMS_PACKAGES[0]);
@@ -155,9 +157,12 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                         <button
                                             key={pkg.units}
                                             type="button"
+                                            disabled={pkg.units < minSmsUnits}
                                             onClick={() => setSelectedPackage(pkg)}
                                             className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all group ${selectedPackage.units === pkg.units
-                                                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-none'
+                                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-none'
+                                                : pkg.units < minSmsUnits
+                                                    ? 'opacity-50 grayscale cursor-not-allowed bg-slate-50 border-slate-200'
                                                     : 'border-slate-100 dark:border-slate-700 hover:border-indigo-300'
                                                 }`}
                                         >
@@ -165,7 +170,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                                 {pkg.units.toLocaleString()}
                                             </span>
                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-400">
-                                                KES {(pkg.units * smsUnitPrice).toLocaleString()}
+                                                {pkg.units < minSmsUnits ? 'Below Minimum' : `KES ${(pkg.units * smsUnitPrice).toLocaleString()}`}
                                             </span>
                                         </button>
                                     ))}

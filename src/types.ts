@@ -120,6 +120,7 @@ export interface Institution {
     ward?: string;
     isOtpEnabled?: boolean;
     smsBalance?: number;
+    customSmsPrice?: number;
 }
 
 
@@ -371,6 +372,7 @@ export interface SmsConfig {
     headers?: { name: string; value: string }[];
     params?: { name: string; value: string }[];
     smsUnitPrice?: number;
+    minSmsUnits?: number;
 }
 
 export interface EmailConfig {

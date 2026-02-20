@@ -222,10 +222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'sendSms') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
 
-            // System Message Detection (OTPs should always go through)
+            // System Message Detection (OTPs are strictly free and always allowed)
             const isSystemMessage = (message || '').toLowerCase().includes('verification code') ||
                 (message || '').toLowerCase().includes('otp') ||
-                (message || '').toLowerCase().includes('your eduai code');
+                (message || '').toLowerCase().includes('your eduai code') ||
+                (message || '').toLowerCase().includes('your verification code') ||
+                (message || '').toLowerCase().includes('password reset request') ||
+                (message || '').toLowerCase().includes('resettoken=');
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
@@ -234,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
-            // SMS Balance Check Logic
+            // SMS Balance Check Logic (OTPs bypass this check and are free)
             const institutionId = user.user_metadata?.institutionId || user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id;
 
             if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
@@ -400,7 +403,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (isExplicitSuccess) {
-                        // Success! Decrement balance
+                        // Success! Decrement balance (except for free system messages)
                         if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                             await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: 1 });
                         }
@@ -479,7 +482,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 html: recoveryBody.replace(/\n/g, '<br>').replace(resetLink, `<a href="${resetLink}">${resetLink}</a>`)
             });
 
-            console.log(`[Forgot Password] Recovery link sent successfully. Message ID: ${info.messageId}`);
+
+            console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);
+
+            // NEW: Dispatch recovery link via SMS if phone number is available
+            if (user.phone_number) {
+                console.log(`[Forgot Password] Dispatching recovery link via SMS to: ${user.phone_number}`);
+                const smsMessage = `EduAlloc Password Reset: Click the link below to set a new password. Link valid for 1 hour: ${resetLink}`;
+
+                // We use the already initialized supabase client and settings
+                // But we'll call the internal sendSms logic or better, just reuse the logic if it was a function.
+                // Since it's all in one huge handler, I'll have to trigger a "nested" or just reuse the code.
+                // However, the cleanest way is to just let the client handle it via a separate call if needed, 
+                // but here we are in the backend. I will manually trigger the SMS dispatch logic here.
+
+                const smsConfig = settings.sms_config;
+                if (smsConfig) {
+                    // Normalize phone (reusing logic from line 264)
+                    let phone = user.phone_number.replace(/[^\d]/g, '');
+                    if (phone.startsWith('254')) {
+                        const afterPrefix = phone.substring(3);
+                        if (afterPrefix.startsWith('0')) phone = '254' + afterPrefix.substring(1);
+                    } else if (phone.startsWith('0')) {
+                        phone = '254' + phone.substring(1);
+                    } else if (phone.length === 9) {
+                        phone = '254' + phone;
+                    }
+
+                    const provider = smsConfig.provider || 'ABMIS';
+                    const defaultUrls: Record<string, string> = {
+                        'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
+                        'Zettatel': 'https://portal.zettatel.com/smsapi/send'
+                    };
+                    const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['ABMIS'];
+
+                    const finalParams: Record<string, string> = {
+                        userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                        password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                        mobile: phone,
+                        msg: smsMessage,
+                        senderid: smsConfig.fromNumber || provider,
+                        msgType: 'text',
+                        output: 'json'
+                    };
+
+                    const urlParams = new URLSearchParams(finalParams);
+                    const method = smsConfig.method || 'GET';
+                    const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
+
+                    try {
+                        const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
+                        if (method === 'POST') fetchOptions.body = urlParams.toString();
+
+                        // Async dispatch - don't block the email response
+                        fetch(dispatchUrl, fetchOptions).then(r => r.text()).then(t => {
+                            console.log(`[Forgot Password] SMS Gateway Response: ${t.substring(0, 100)}`);
+                        }).catch(e => {
+                            console.error(`[Forgot Password] SMS Dispatch Exception: ${e.message}`);
+                        });
+                    } catch (e: any) {
+                        console.error(`[Forgot Password] SMS Fetch Setup Failed: ${e.message}`);
+                    }
+                }
+            }
+
             return res.status(200).json({ success: true, message: 'Recovery link dispatched.', messageId: info.messageId });
         }
 

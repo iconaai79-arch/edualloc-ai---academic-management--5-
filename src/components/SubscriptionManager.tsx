@@ -401,7 +401,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     institutionId={institution.id}
                     institutionCode={institution.institutionCode || 'SYSTEM'}
                     institutionName={institution.name}
-                    smsUnitPrice={smsConfig.smsUnitPrice || 2}
+                    smsUnitPrice={institution.customSmsPrice || (smsConfig as any).smsUnitPrice || 2}
+                    minSmsUnits={(smsConfig as any).minSmsUnits || 0}
                 />
             )}
         </div>

@@ -361,7 +361,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing'>('profile');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -445,7 +445,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false
             });
-            setLocalSmsConfig(companyDetails.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
+            setLocalSmsConfig(companyDetails.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '' });
             setLocalSubConfig(companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
@@ -1317,6 +1317,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 >
                                     <CreditCardIcon className="w-4 h-4" /> Billing Map
                                 </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('sms_pricing')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'sms_pricing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <CurrencyDollarIcon className="w-4 h-4" /> SMS Pricing
+                                </button>
                             </nav>
                         </div>
 
@@ -1768,6 +1774,104 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                             </button>
                                         </div>
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save Billing Map</button>
+                                    </div>
+                                </div>
+                            )}
+                            {settingsSubTab === 'sms_pricing' && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in shadow-xl shadow-indigo-50/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                            <CurrencyIcon className="w-6 h-6 text-indigo-600" />
+                                        </div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Global SMS Pricing Rules</h3>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Default Unit Price (KES)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={localSmsConfig.smsUnitPrice || ''}
+                                                onChange={e => setLocalSmsConfig({ ...localSmsConfig, smsUnitPrice: parseFloat(e.target.value) })}
+                                                className="form-input font-bold text-lg"
+                                                placeholder="e.g. 1.00"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">The standard cost per single SMS message (160 characters).</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Min Purchase Quantity</label>
+                                            <input
+                                                type="number"
+                                                value={localSmsConfig.minSmsUnits || ''}
+                                                onChange={e => setLocalSmsConfig({ ...localSmsConfig, minSmsUnits: parseInt(e.target.value) })}
+                                                className="form-input font-bold text-lg"
+                                                placeholder="e.g. 500"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">Minimum number of units a tenant must buy at once.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-end">
+                                            <div>
+                                                <h4 className="text-sm font-black uppercase tracking-tight">Institutional Overrides</h4>
+                                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">Tenant-Specific Pricing Exceptions</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800">
+                                                <thead className="bg-slate-50 dark:bg-slate-950">
+                                                    <tr>
+                                                        <th className="px-6 py-3 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Institution</th>
+                                                        <th className="px-6 py-3 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Standard Price</th>
+                                                        <th className="px-6 py-3 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Custom Price</th>
+                                                        <th className="px-6 py-3 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                                    {institutions.map(inst => (
+                                                        <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="text-sm font-bold text-slate-900 dark:text-white">{inst.name}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono">{inst.institutionCode}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-mono">
+                                                                KES {localSmsConfig.smsUnitPrice?.toFixed(2) || '1.00'}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                {inst.customSmsPrice ? (
+                                                                    <span className="px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-black uppercase tracking-tighter">
+                                                                        KES {inst.customSmsPrice.toFixed(2)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-slate-300 uppercase font-bold tracking-widest italic">No Override</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                                <button
+                                                                    onClick={() => setEditingInstitution(inst)}
+                                                                    className="text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-3 py-1.5 rounded-xl transition-colors"
+                                                                >
+                                                                    Manage Price
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t flex justify-end">
+                                        <button
+                                            onClick={handleSaveGlobalConfigs}
+                                            disabled={isSavingConfigs}
+                                            className="btn-primary px-12 h-14 shadow-indigo-100 uppercase tracking-widest text-xs"
+                                        >
+                                            {isSavingConfigs ? 'Synchronizing...' : 'Sync Pricing Map'}
+                                        </button>
                                     </div>
                                 </div>
                             )}
