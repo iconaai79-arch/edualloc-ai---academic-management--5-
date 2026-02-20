@@ -28,7 +28,7 @@ interface BoardingMasterViewProps {
     departments: Department[];
     onLogAction: (action: string) => Promise<void>;
     // New Props for Student Management
-    onAddUser?: (userData: any) => void;
+    onAddUser?: (userData: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     onImportStudents?: (imported: any[]) => Promise<void>;

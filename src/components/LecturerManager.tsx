@@ -440,7 +440,7 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
 interface LecturerManagerProps {
     user: User;
     users: User[];
-    onAddUser: (userData: any) => void;
+    onAddUser: (userData: any) => Promise<void>;
     onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
     onEditUser: (userId: string, data: any) => void;
     onDeleteUser: (userId: string) => void;
@@ -486,6 +486,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
     const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
     const [role, setRole] = useState<Role>('lecturer');
     const [departmentId, setDepartmentId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
@@ -505,11 +506,25 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
         return list;
     }, [users, searchQuery]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (isSaving) return;
+
+        let finalEmail = email.trim();
+        if (!finalEmail) {
+            const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
+            finalEmail = `${safeName}@${institutionDomain}`;
+        }
+
         const userData: any = {
-            name, email, phoneNumber: phone, staffId, gender,
+            name,
+            email: finalEmail,
+            phoneNumber: phone,
+            staffId,
+            gender,
             role,
             institutionId: currentUser.institutionId,
             expertise: []
@@ -517,9 +532,17 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
 
         userData.departmentId = (currentUser.role === 'hod' || currentUser.role === 'dos') ? currentUser.departmentId : departmentId;
 
-        onAddUser(userData);
-        setIsAdding(false);
-        resetForm();
+        try {
+            setIsSaving(true);
+            await onAddUser(userData);
+            setIsAdding(false);
+            resetForm();
+        } catch (error: any) {
+            console.error("Staff registration error:", error);
+            alert(`Failed to register staff: ${error.message || 'Unknown database error'}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -588,7 +611,13 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                             </div>
                         </div>
                         <div className="flex justify-end pt-4">
-                            <button type="submit" className="btn-primary px-8">Save Staff Member</button>
+                            <button
+                                type="submit"
+                                disabled={isSaving}
+                                className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isSaving ? 'Processing...' : 'Save Staff Member'}
+                            </button>
                         </div>
                     </form>
                 </div>

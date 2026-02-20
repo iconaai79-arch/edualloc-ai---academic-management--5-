@@ -466,7 +466,7 @@ interface UserManagerProps {
     users: User[];
     user?: User;
     institutions?: Institution[];
-    onAddUser?: (userData: any) => void;
+    onAddUser?: (userData: any) => Promise<void>;
     onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
     onImportStudents: (students: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
     smsConfig: SmsConfig;
@@ -513,7 +513,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [requestingTimeOffFor, setRequestingTimeOffFor] = useState<User | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [institutionFilter, setInstitutionFilter] = useState('all');
+    const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
     // Form State
     const [name, setName] = useState('');
@@ -602,11 +605,23 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         reader.readAsArrayBuffer(file);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (isSaving) return;
+
+        let finalEmail = email.trim();
+        if (!finalEmail) {
+            const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.');
+            finalEmail = `${safeName}@${institutionDomain}`;
+        }
+
         const userData: any = {
-            name, email, phoneNumber: phone, staffId, gender,
+            name,
+            email: finalEmail,
+            phoneNumber: phone,
+            staffId,
+            gender,
             role: activeTab === 'staff' ? roles[0] : 'student',
             roles: activeTab === 'staff' ? roles : ['student'],
             institutionId: currentUser?.institutionId || '',
@@ -620,10 +635,20 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             userData.courseLevelId = courseLevelId;
         }
 
-        onAddUser?.(userData);
-        props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${name}`);
-        setIsAdding(false);
-        resetForm();
+        try {
+            setIsSaving(true);
+            if (onAddUser) {
+                await onAddUser(userData);
+            }
+            props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${name}`);
+            setIsAdding(false);
+            resetForm();
+        } catch (error: any) {
+            console.error("Manual registration error:", error);
+            alert(`Failed to register user: ${error.message || 'Unknown database error'}`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const courseLevels = useMemo(() => {
@@ -758,7 +783,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             )}
                         </div>
                         <div className="flex justify-end pt-4">
-                            <button type="submit" className="btn-primary px-8">Save {activeTab === 'staff' ? 'Staff' : 'Student'}</button>
+                            <button
+                                type="submit"
+                                disabled={isSaving}
+                                className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isSaving && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
+                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? 'Staff' : 'Student'}`}
+                            </button>
                         </div>
                     </form>
                 </div>

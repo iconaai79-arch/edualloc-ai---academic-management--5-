@@ -1113,7 +1113,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             courses={courses || []}
                             subjects={subjects || []}
                             currentUser={currentUser}
-                            onAddUser={() => { }}
                             onImportUsers={onImportUsers}
                             onImportStudents={onImportStudents}
                             onDeleteUser={props.onDeleteUser}

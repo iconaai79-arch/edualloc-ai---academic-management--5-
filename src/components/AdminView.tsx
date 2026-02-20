@@ -99,7 +99,7 @@ export interface AdminViewProps {
     currentInstitution?: Institution | null;
     counties: County[];
 
-    onAddUser?: (userData: any) => void;
+    onAddUser: (userData: any) => Promise<void>;
     onEditUser: (id: string, data: any) => Promise<void>;
     onDeleteUser: (id: string) => Promise<void>;
     onImportUsers: (imported: any[]) => Promise<void>;

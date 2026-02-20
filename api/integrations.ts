@@ -183,49 +183,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const smsConfig = bodyConfig || settings.sms_config;
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
-            // Normalize Kenyan phone numbers to strict 254 format without brackets or spaces
-            let phone = recipient.replace(/[^\d]/g, ''); // Remove all non-digits (+, -, spaces, brackets)
+            const provider = smsConfig.provider || 'ABMIS';
+
+            // Normalize Kenyan phone numbers to strict 254 format
+            let phone = recipient.replace(/[^\d]/g, '');
 
             if (phone.startsWith('254')) {
-                // If it starts with 254, check for common mistake: 25407...
                 const afterPrefix = phone.substring(3);
                 if (afterPrefix.startsWith('0')) {
                     phone = '254' + afterPrefix.substring(1);
                 }
             } else if (phone.startsWith('0')) {
-                // Local format: 0722... -> 254722...
                 phone = '254' + phone.substring(1);
-            } else if (phone.length >= 9) {
-                // Carrier format: 722... -> 254722...
+            } else if (phone.length === 9) {
                 phone = '254' + phone;
+            } else if (phone.length === 12 && phone.startsWith('254')) {
+                // Already correct
             }
 
-            const params = new URLSearchParams({
-                userid: smsConfig.apiKey || smsConfig.api_key,
-                password: smsConfig.apiSecret || smsConfig.api_secret,
-                mobile: phone,
-                msg: message || '',
-                senderid: smsConfig.fromNumber || 'ABMIS',
-                msgType: 'text', output: 'json'
-            });
+            // Provider-specific logic
+            if (provider === 'ABMIS' || provider === 'Zettatel') {
+                const baseUrl = provider === 'ABMIS' ? 'https://sms.abmis.co.ke/smsapi/send' : 'https://portal.zettatel.com/smsapi/send';
 
-            console.log(`[SMS Gateway] Dispatching to ${phone} via ABMIS`);
-            const smsRes = await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
-            const smsRaw = await smsRes.text();
+                const params = new URLSearchParams({
+                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                    mobile: phone,
+                    msg: message || '',
+                    senderid: smsConfig.fromNumber || 'ABMIS',
+                    msgType: 'text',
+                    output: 'json'
+                });
 
-            let smsDetail;
-            try {
-                smsDetail = JSON.parse(smsRaw);
-            } catch (e) {
-                smsDetail = smsRaw;
+                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}`);
+                try {
+                    const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, { method: 'GET' });
+                    const smsRaw = await smsRes.text();
+
+                    let smsDetail: any;
+                    try {
+                        smsDetail = JSON.parse(smsRaw);
+                    } catch (e) {
+                        smsDetail = { raw: smsRaw };
+                    }
+
+                    // Zettatel/ABMIS usually return a JSON with status or status code
+                    // Error formats can vary, but usually they have a 'message' or 'error' field if failed
+                    const isError = smsRaw.toLowerCase().includes('error') ||
+                        smsRaw.toLowerCase().includes('failed') ||
+                        (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
+
+                    if (isError) {
+                        return res.status(502).json({
+                            success: false,
+                            message: `Gateway ${provider} reported an error.`,
+                            detail: smsDetail,
+                            recipient: phone
+                        });
+                    }
+
+                    return res.status(200).json({
+                        success: true,
+                        message: 'SMS dispatched successfully.',
+                        detail: smsDetail,
+                        recipient: phone
+                    });
+
+                } catch (e: any) {
+                    return res.status(504).json({ success: false, message: `Gateway ${provider} connection timeout or failure.`, error: e.message });
+                }
+            } else if (provider === 'Sematime') {
+                // Placeholder for Sematime implementation
+                return res.status(501).json({ success: false, message: 'Sematime integration is currently under maintenance. Please use ABMIS or Zettatel.' });
             }
 
-            return res.status(200).json({
-                success: true,
-                message: 'SMS request processed by gateway.',
-                detail: smsDetail,
-                recipient: phone
-            });
+            return res.status(400).json({ success: false, message: `Unsupported SMS provider: ${provider}` });
         }
 
         if (action === 'forgotPassword') {
