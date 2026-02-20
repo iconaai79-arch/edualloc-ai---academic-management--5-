@@ -741,36 +741,48 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <option value="Zettatel">Zettatel Solutions</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localSmsConfig.provider === 'Zettatel' ? 'User ID' : localSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID'}
-                                        </label>
-                                        <input type="text" value={localSmsConfig.apiKey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
-                                            {localSmsConfig.provider === 'Zettatel' ? 'Password' : localSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password'}
-                                        </label>
-                                        <input type="password" value={localSmsConfig.apiSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input" />
-                                    </div>
-                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input" /></div>
-                                    <div className="md:col-span-2"><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway URL (Optional)</label><input type="text" value={localSmsConfig.baseUrl || ''} placeholder="e.g. https://sms.abmis.co.ke/smsapi/send" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" /></div>
-
-                                    <div className="md:col-span-2 pt-4 border-t border-slate-50 dark:border-slate-700">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 space-y-6">
+                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4">Connection Settings</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="md:col-span-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway API URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={localSmsConfig.baseUrl || ''}
+                                                    placeholder="e.g. https://sms.abmis.co.ke/smsapi/send"
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })}
+                                                    className="form-input font-mono text-xs h-10"
+                                                />
+                                            </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Request Method</label>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">HTTP Method</label>
                                                 <select
                                                     value={localSmsConfig.method || 'GET'}
                                                     onChange={(e) => setLocalSmsConfig({ ...localSmsConfig, method: e.target.value as any })}
                                                     className="form-select h-10 text-xs font-bold"
                                                 >
-                                                    <option value="GET">GET (Query Params)</option>
-                                                    <option value="POST">POST (Request Body)</option>
+                                                    <option value="GET">GET</option>
+                                                    <option value="POST">POST</option>
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
+
+                                    <div className="md:col-span-2"><hr className="border-slate-50 dark:border-slate-700" /></div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
+                                            {localSmsConfig.provider === 'Zettatel' ? 'User ID' : localSmsConfig.provider === 'Sematime' ? 'API Key' : 'User ID / API Key'}
+                                        </label>
+                                        <input type="text" value={localSmsConfig.apiKey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiKey: e.target.value })} className="form-input h-10" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">
+                                            {localSmsConfig.provider === 'Zettatel' ? 'Password' : localSmsConfig.provider === 'Sematime' ? 'Client ID' : 'API Password / Secret'}
+                                        </label>
+                                        <input type="password" value={localSmsConfig.apiSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, apiSecret: e.target.value })} className="form-input h-10" />
+                                    </div>
+                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Sender ID / Shortcode</label><input type="text" value={localSmsConfig.fromNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, fromNumber: e.target.value })} className="form-input h-10" /></div>
 
                                     <div className="md:col-span-2 pt-4">
                                         <div className="flex justify-between items-center mb-3">
