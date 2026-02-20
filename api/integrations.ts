@@ -318,7 +318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
                 const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
 
-                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}. Method: ${method}. URL: ${maskedUrl}`);
+                console.log(`[SMS Gateway] Attempted Gateway: ${provider}. Dispatching to ${phone}. Method: ${method}. URL: ${maskedUrl}`);
                 try {
                     const customHeaders: Record<string, string> = {};
                     if (Array.isArray(smsConfig.headers)) {
@@ -531,9 +531,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const urlParams = new URLSearchParams(finalParams);
                         const method = smsConfig.method || 'GET';
                         const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
+                        const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
 
                         const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
                         if (method === 'POST') fetchOptions.body = urlParams.toString();
+
+                        console.log(`[Forgot Password] Attempted Gateway: ${provider}. Dispatching to ${phone}. URL: ${maskedUrl}`);
 
                         // We MUST await here in a serverless environment to ensure dispatch completes
                         const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
