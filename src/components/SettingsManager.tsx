@@ -428,7 +428,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         footerImageUrl: props.companyDetails?.footerImageUrl || '',
         letterheadConfig: props.companyDetails?.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
         welcomeMessage: props.companyDetails?.chatAssistantConfig?.welcomeMessage || '',
-        chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true
+        chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
+        enforceGlobalOtp: props.companyDetails?.enforceGlobalOtp ?? false
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -454,7 +455,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 footerImageUrl: props.companyDetails.footerImageUrl || '',
                 letterheadConfig: props.companyDetails.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
                 welcomeMessage: props.companyDetails.chatAssistantConfig?.welcomeMessage || '',
-                chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true
+                chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
+                enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -475,6 +477,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 emailConfig: localEmailConfig,
                 mpesaConfig: localMpesaConfig,
                 subscriptionConfig: localSubConfig,
+                enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp,
                 chatAssistantConfig: {
                     ...props.companyDetails.chatAssistantConfig,
                     welcomeMessage: localCompanyInfo.welcomeMessage,
@@ -663,7 +666,34 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         )}
 
                         {globalSubTab === 'infrastructure' && (
-                            <div className="animate-fade-in">
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
+                                    <h3 className="text-lg font-black uppercase mb-6 tracking-tighter">Security & Access</h3>
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                                <ShieldIcon className="w-5 h-5 text-indigo-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Global 2FA Enforcement</h4>
+                                                <p className="text-xs text-slate-500">Enable Two-Factor Authentication for ALL institutions on the platform.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const nextValue = !localCompanyInfo.enforceGlobalOtp;
+                                                setLocalCompanyInfo({ ...localCompanyInfo, enforceGlobalOtp: nextValue });
+                                            }}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.enforceGlobalOtp ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.enforceGlobalOtp ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+                                    <div className="mt-6 flex justify-end">
+                                        <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-8 h-10 shadow-indigo-100 uppercase tracking-widest text-[10px]">{isSavingConfigs ? 'Saving...' : 'Save Security Settings'}</button>
+                                    </div>
+                                </div>
+
                                 <DatabaseSettings
                                     dbConfig={props.companyDetails!.databaseConfig}
                                     onSave={async (newDbConfig: any) => {

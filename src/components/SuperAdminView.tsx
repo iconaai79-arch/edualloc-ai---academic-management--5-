@@ -126,7 +126,7 @@ export interface SuperAdminViewProps {
     currentInstitution?: Institution | null;
     currentUser: User;
 
-    onAddUser?: (userData: any) => void;
+    onAddUser?: (userData: any) => Promise<void>;
     onEditUser: (id: string, data: any) => Promise<void>;
     onDeleteUser: (id: string) => Promise<void>;
     onImportUsers: (imported: any[]) => Promise<void>;
@@ -417,7 +417,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         footerImageUrl: companyDetails?.footerImageUrl || '',
         letterheadConfig: companyDetails?.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
         welcomeMessage: companyDetails?.chatAssistantConfig?.welcomeMessage || '',
-        chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true
+        chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
+        enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -441,7 +442,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 footerImageUrl: companyDetails.footerImageUrl || '',
                 letterheadConfig: companyDetails.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
                 welcomeMessage: companyDetails.chatAssistantConfig?.welcomeMessage || '',
-                chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true
+                chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
+                enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -484,7 +486,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         ...companyDetails?.chatAssistantConfig,
                         welcomeMessage: localCompanyInfo.welcomeMessage,
                         enabled: localCompanyInfo.chatEnabled
-                    }
+                    },
+                    enforceGlobalOtp: localCompanyInfo.enforceGlobalOtp
                 });
             }
             alert("Platform configurations updated successfully.");
@@ -679,7 +682,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
     if (activeRole === 'student') {
-        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} />;
+        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />;
     }
 
     if (activeRole === 'academics_officer') {
@@ -720,6 +723,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             enrollmentRequests={enrollmentRequests}
             onUpdateRequest={props.onUpdateRequest}
             onWithdrawRequest={props.onWithdrawRequest}
+            onAddUser={props.onAddUser || (async () => { })}
+            onEditUser={props.onEditUser || (async () => { })}
+            onDeleteUser={props.onDeleteUser || (async () => { })}
+            onImportUsers={props.onImportUsers || (async () => { })}
+            onImportStudents={props.onImportStudents || (async () => { })}
+            onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
+            onExamTimetableGenerated={props.onExamTimetableGenerated || (async () => { })}
         />;
     }
 
@@ -1336,7 +1346,34 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             )}
 
                             {settingsSubTab === 'infrastructure' && (
-                                <div className="animate-fade-in">
+                                <div className="space-y-6 animate-fade-in">
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
+                                        <h3 className="text-lg font-black uppercase mb-6 tracking-tighter">Security & Access</h3>
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                                    <ShieldIcon className="w-5 h-5 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Global 2FA Enforcement</h4>
+                                                    <p className="text-xs text-slate-500">Enable Two-Factor Authentication for ALL institutions on the platform.</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const nextValue = !localCompanyInfo.enforceGlobalOtp;
+                                                    setLocalCompanyInfo({ ...localCompanyInfo, enforceGlobalOtp: nextValue });
+                                                }}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.enforceGlobalOtp ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.enforceGlobalOtp ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+                                        <div className="mt-6 flex justify-end">
+                                            <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-8 h-10 shadow-indigo-100 uppercase tracking-widest text-[10px]">{isSavingConfigs ? 'Saving...' : 'Save Security Settings'}</button>
+                                        </div>
+                                    </div>
+
                                     <DatabaseSettings
                                         dbConfig={companyDetails.databaseConfig}
                                         onSave={async (newDbConfig) => {

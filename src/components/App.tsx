@@ -2067,7 +2067,9 @@ export const App: React.FC = () => {
                                         return 'suspended';
                                     }
 
-                                    if (inst?.isOtpEnabled) {
+                                    const isOtpRequired = inst?.isOtpEnabled || companyDetails.enforceGlobalOtp;
+
+                                    if (isOtpRequired) {
                                         // Generate and Send OTP
                                         const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                         setCurrentOtp(otp);

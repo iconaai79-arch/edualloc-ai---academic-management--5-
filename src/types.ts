@@ -430,6 +430,7 @@ export interface CompanyDetails {
         enabled: boolean;
         welcomeMessage?: string;
     };
+    enforceGlobalOtp?: boolean;
 }
 
 export interface UserTask {
