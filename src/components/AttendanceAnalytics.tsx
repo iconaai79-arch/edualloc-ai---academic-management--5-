@@ -83,11 +83,21 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
         });
 
         // Find trends
-        const lowestDay = [...dayStats].sort((a, b) => a.rate - b.rate)[0];
-        const lowestPeriod = [...periodStats].sort((a, b) => a.rate - b.rate)[0];
+        const lowestDay = [...dayStats].sort((a, b) => a.rate - b.rate)[0] || { label: 'N/A', rate: 0 };
+        const lowestPeriod = [...periodStats].sort((a, b) => a.rate - b.rate)[0] || { label: 'N/A', rate: 0 };
 
         return { dayStats, periodStats, lowestDay, lowestPeriod };
     }, [timetable, studentCheckIns, studentId, users]);
+
+    if (timetable.length === 0) {
+        return (
+            <div className="p-12 text-center bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
+                <CalendarDaysIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-400 uppercase tracking-tighter">No Attendance Data</h3>
+                <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">Analytics will appear here once your timetable is active.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -111,8 +121,8 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                     <div>
                         <h4 className="font-black text-amber-900 dark:text-amber-200 uppercase text-xs tracking-tight">Critical Drop Detected</h4>
                         <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium mt-1 leading-relaxed">
-                            {studentId ? "Your" : "Overall"} attendance significantly drops on <span className="font-bold underline">{analyticsData.lowestDay.label}s</span>.
-                            Consider reviewing {analyticsData.lowestDay.label} schedules for congestion.
+                            {studentId ? "Your" : "Overall"} attendance significantly drops on <span className="font-bold underline">{analyticsData.lowestDay?.label || 'N/A'}s</span>.
+                            Consider reviewing {analyticsData.lowestDay?.label || 'N/A'} schedules for congestion.
                         </p>
                     </div>
                 </div>
@@ -123,7 +133,7 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
                     <div>
                         <h4 className="font-black text-indigo-900 dark:text-indigo-200 uppercase text-xs tracking-tight">Period Analysis</h4>
                         <p className="text-[11px] text-indigo-800 dark:text-indigo-300 font-medium mt-1 leading-relaxed">
-                            Lowest engagement recorded at <span className="font-bold underline">{analyticsData.lowestPeriod.label}</span>.
+                            Lowest engagement recorded at <span className="font-bold underline">{analyticsData.lowestPeriod?.label || 'N/A'}</span>.
                             Early morning or late afternoon transitions may require intervention.
                         </p>
                     </div>

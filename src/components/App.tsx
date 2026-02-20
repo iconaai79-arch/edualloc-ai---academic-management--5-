@@ -1447,6 +1447,7 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution}
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
+                                    studentAttendances={studentAttendances}
                                 />
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                 <CountyAdminView
