@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Allow override from config
                 const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['ABMIS'];
 
-                const params = new URLSearchParams({
+                const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
                     password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
                     mobile: phone,
@@ -238,12 +238,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     senderid: smsConfig.fromNumber || provider,
                     msgType: 'text',
                     output: 'json'
-                });
+                };
 
-                const fullUrl = `${baseUrl}?${params.toString()}`;
-                const maskedUrl = fullUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
+                // Add custom parameters from config
+                if (Array.isArray(smsConfig.params)) {
+                    smsConfig.params.forEach((p: { name: string; value: string }) => {
+                        if (p.name) finalParams[p.name] = p.value;
+                    });
+                }
 
-                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}. URL: ${maskedUrl}`);
+                const urlParams = new URLSearchParams(finalParams);
+                const method = smsConfig.method || 'GET';
+                const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
+                const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
+
+                console.log(`[SMS Gateway] Dispatching to ${phone} via ${provider}. Method: ${method}. URL: ${maskedUrl}`);
                 try {
                     const customHeaders: Record<string, string> = {};
                     if (Array.isArray(smsConfig.headers)) {
@@ -252,13 +261,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                     }
 
-                    const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, {
-                        method: 'GET',
+                    const fetchOptions: any = {
+                        method,
                         headers: {
                             'Accept': 'application/json',
                             ...customHeaders
                         }
-                    });
+                    };
+
+                    if (method === 'POST') {
+                        // Use JSON if Content-Type is application/json, otherwise URL-encode
+                        if (customHeaders['Content-Type'] === 'application/json') {
+                            fetchOptions.body = JSON.stringify(finalParams);
+                        } else {
+                            fetchOptions.body = urlParams.toString();
+                            if (!customHeaders['Content-Type']) {
+                                fetchOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                            }
+                        }
+                    }
+
+                    const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions);
                     const smsRaw = await smsRes.text();
 
                     const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));

@@ -365,7 +365,9 @@ export interface SmsConfig {
     fromNumber: string;
     baseUrl?: string;
     api_url?: string;
+    method?: 'GET' | 'POST';
     headers?: { name: string; value: string }[];
+    params?: { name: string; value: string }[];
 }
 
 export interface EmailConfig {
