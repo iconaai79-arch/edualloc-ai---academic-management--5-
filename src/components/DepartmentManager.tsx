@@ -4,7 +4,7 @@ import type { Department, Institution } from '../types';
 import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index';
 import { analyzeDepartmentSpreadsheet } from '../services/geminiService';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 interface DepartmentManagerProps {
     departments: Department[];

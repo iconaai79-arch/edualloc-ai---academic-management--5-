@@ -326,7 +326,7 @@ export const generateExamTimetable = async (
     }
 };
 
-export const analyzeUserSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+export const analyzeUserSpreadsheet = async (headers: string[], aiModelTier?: string): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
         const prompt = `Map headers to user fields: name, email, phoneNumber, staffId, role, departmentName, expertise, gender. Headers: ${JSON.stringify(headers)}. Return JSON.`;

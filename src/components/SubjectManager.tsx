@@ -9,7 +9,7 @@ import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 const highlightMatch = (text: string, query: string) => {
     if (!query.trim()) {

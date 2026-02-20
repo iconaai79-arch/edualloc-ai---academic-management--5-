@@ -5,7 +5,7 @@ import { analyzeTimetableSpreadsheet } from '../services/geminiService';
 import { SparklesIcon, XIcon } from './icons';
 import { minutesToTime, timeToMinutes } from '../utils/timeUtils';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 interface TimetableImporterProps {
     isOpen: boolean;

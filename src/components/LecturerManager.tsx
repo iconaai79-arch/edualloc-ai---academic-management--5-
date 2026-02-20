@@ -14,7 +14,7 @@ import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 const parseExpertise = (expertiseString: string): string[] => {
     if (!expertiseString || typeof expertiseString !== 'string') return [];

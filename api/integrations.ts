@@ -23,13 +23,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString() });
+
+    // Support parameters from both body (POST) and query (GET)
+    const paramsMap = req.method === 'GET' ? req.query : req.body;
+    const { action, recipient, message, subject, amount, config: bodyConfig } = paramsMap;
 
     try {
-        if (!req.body) return res.status(400).json({ success: false, message: 'Missing body' });
-        const { action, recipient, message, subject, amount, config: bodyConfig } = req.body;
+        if (!action) {
+            if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
+            return res.status(400).json({ success: false, message: 'Missing action' });
+        }
 
-        const authHeader = req.headers.authorization;
+        const authHeader = req.headers.authorization || (req.query.token as string ? `Bearer ${req.query.token}` : undefined);
         const supabase = getSupabaseClient();
 
         // Helper for fetch with timeout
@@ -227,10 +232,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         smsDetail = { raw: smsRaw };
                     }
 
-                    // Zettatel/ABMIS usually return a JSON with status or status code
-                    // Error formats can vary, but usually they have a 'message' or 'error' field if failed
+                    // Zettatel/ABMIS usually return a JSON with status or response field
+                    // Example success: {"response":"Success","msgid":"123"}
+                    // Example error: {"response":"Error","error":"Invalid Login"}
                     const isError = smsRaw.toLowerCase().includes('error') ||
                         smsRaw.toLowerCase().includes('failed') ||
+                        smsRaw.toLowerCase().includes('invalid') ||
+                        smsRaw.toLowerCase().includes('denied') ||
+                        (smsDetail.response && smsDetail.response.toLowerCase() === 'error') ||
                         (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
 
                     if (isError) {
@@ -238,8 +247,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             success: false,
                             message: `Gateway ${provider} reported an error.`,
                             detail: smsDetail,
+                            raw: smsRaw,
                             recipient: phone
                         });
+                    }
+
+                    // Check if it's explicitly success or at least doesn't look like an error
+                    const isExplicitSuccess = smsRaw.toLowerCase().includes('success') ||
+                        smsRaw.toLowerCase().includes('ok') ||
+                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success');
+
+                    if (!isExplicitSuccess && smsRaw.length > 0) {
+                        console.warn(`[SMS Gateway] Ambiguous response from ${provider}:`, smsRaw);
                     }
 
                     return res.status(200).json({
@@ -321,7 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'resetPasswordWithToken') {
-            const { token: resetToken, newPassword } = req.body;
+            const { token: resetToken, newPassword } = paramsMap;
             if (!resetToken || !newPassword) return res.status(400).json({ success: false, message: 'Missing token or new password.' });
 
             const { data: targetUser, error: fetchError } = await supabase
@@ -405,8 +424,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         PartyB: paybill,
                         PhoneNumber: recipient.replace(/[^\d]/g, ''),
                         CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
-                        AccountReference: (req.body.metadata?.institutionCode || "Subscription").substring(0, 12),
-                        TransactionDesc: `License: ${req.body.metadata?.institutionName || "Subscription"}`.substring(0, 20)
+                        AccountReference: (paramsMap.metadata?.institutionCode || "Subscription").substring(0, 12),
+                        TransactionDesc: `License: ${paramsMap.metadata?.institutionName || "Subscription"}`.substring(0, 20)
                     })
                 }, 15000); // 15s timeout for the actual prompt
             } catch (e: any) {
@@ -420,11 +439,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
                     checkout_request_id: stkData.CheckoutRequestID,
-                    institution_id: req.body.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                    institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
                     amount: amount,
                     phone_number: recipient,
                     status: 'pending',
-                    metadata: req.body.metadata || {}
+                    metadata: paramsMap.metadata || {}
                 });
                 return res.status(200).json({ success: true, message: 'M-Pesa prompt sent.', data: stkData });
             }
@@ -435,7 +454,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
             if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
 
-            const { checkoutRequestId } = req.body;
+            const { checkoutRequestId } = paramsMap;
             if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'Missing checkoutRequestId' });
 
             // 1. Check DB first (in case callback arrived already)
@@ -541,7 +560,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Manual verification requires Super Admin privileges.' });
             }
 
-            const { transactionId } = req.body;
+            const { transactionId } = paramsMap;
             if (!transactionId) return res.status(400).json({ success: false, message: 'Missing transactionId' });
 
             // 1. Fetch transaction

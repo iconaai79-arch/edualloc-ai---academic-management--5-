@@ -21,7 +21,7 @@ import { ManageLessonsModal } from './ManageLessonsModal';
 import { TimeOffRequestModal } from './TimeOffRequestModal';
 import { ClockIcon } from './icons/index';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 const parseExpertise = (expertiseString: string): string[] => {
     if (!expertiseString || typeof expertiseString !== 'string') return [];

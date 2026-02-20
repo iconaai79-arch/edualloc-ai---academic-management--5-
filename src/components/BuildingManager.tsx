@@ -23,7 +23,7 @@ import {
 import { findLocationCoordinates } from '../services/geminiService';
 import { SmartRoomImporterModal } from './SmartRoomImporterModal';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 interface BuildingManagerProps {
     buildings: Building[];

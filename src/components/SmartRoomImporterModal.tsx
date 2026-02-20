@@ -4,7 +4,7 @@ import type { Room, Building, Course, Institution } from '../types';
 import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
 import { analyzeRoomSpreadsheet } from '../services/geminiService';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 type RoomMappingField = 'name' | 'shortName' | 'capacity' | 'buildingName' | 'equipment';
 const ALL_ROOM_MAPPING_FIELDS: RoomMappingField[] = ['name', 'shortName', 'capacity', 'buildingName', 'equipment'];

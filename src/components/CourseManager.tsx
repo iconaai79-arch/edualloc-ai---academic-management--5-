@@ -7,7 +7,7 @@ import { ManageLessonsModal } from './ManageLessonsModal';
 import { CourseProgressReport } from './CourseProgressReport';
 import { PdfPreviewModal } from './PdfPreviewModal';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 type CourseMappingField = 'name' | 'code' | 'departmentName' | 'academicLevelName';
 const ALL_COURSE_MAPPING_FIELDS: CourseMappingField[] = ['name', 'code', 'departmentName', 'academicLevelName'];

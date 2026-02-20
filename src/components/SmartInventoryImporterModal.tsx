@@ -4,7 +4,7 @@ import type { CountyInventoryItem, Institution } from '../types';
 import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
 import { analyzeCountyInventorySpreadsheet } from '../services/geminiService';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 type InventoryMappingField = 'name' | 'category' | 'quantity' | 'unit' | 'supplierName' | 'targetInstitutionId' | 'deliveryMethod';
 const ALL_INVENTORY_MAPPING_FIELDS: InventoryMappingField[] = ['name', 'category', 'quantity', 'unit', 'supplierName', 'targetInstitutionId', 'deliveryMethod'];

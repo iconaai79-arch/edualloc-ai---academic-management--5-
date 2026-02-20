@@ -9,7 +9,7 @@ import { TimetableImporter } from './TimetableImporter';
 import { Tooltip } from './Tooltip';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 interface TimetableGeneratorProps {
     allocations: AllocationRequest[];

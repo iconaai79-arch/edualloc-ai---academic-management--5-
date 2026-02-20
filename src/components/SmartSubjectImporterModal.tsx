@@ -4,7 +4,7 @@ import type { Subject, Department, Course, AcademicLevel } from '../types';
 import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
 import { analyzeSubjectSpreadsheet } from '../services/geminiService';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 type SubjectMappingField = 'name' | 'code' | 'departmentName' | 'targetCourseLevel' | 'description' | 'shortName';
 const ALL_SUBJECT_MAPPING_FIELDS: SubjectMappingField[] = ['name', 'code', 'departmentName', 'targetCourseLevel', 'description', 'shortName'];

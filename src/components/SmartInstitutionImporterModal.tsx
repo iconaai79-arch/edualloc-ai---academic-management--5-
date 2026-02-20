@@ -4,7 +4,7 @@ import type { Institution, InstitutionRegistrationData } from '../types';
 import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
 import { analyzeInstitutionSpreadsheet } from '../services/geminiService';
 
-declare var XLSX: any;
+import * as XLSX from 'xlsx';
 
 type InstitutionMappingField = 'name' | 'email' | 'phoneNumber' | 'institutionType' | 'adminName' | 'adminEmail' | 'subCounty' | 'constituency' | 'ward';
 const ALL_INSTITUTION_MAPPING_FIELDS: InstitutionMappingField[] = ['name', 'email', 'phoneNumber', 'institutionType', 'adminName', 'adminEmail', 'subCounty', 'constituency', 'ward'];
