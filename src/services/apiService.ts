@@ -475,14 +475,23 @@ export const apiService = {
                 rawText = await response.text();
                 resData = JSON.parse(rawText);
             } catch (e) {
-                resData = { message: rawText || `HTTP Error ${response.status}` };
+                const isHtml = rawText.includes('<!DOCTYPE') || rawText.includes('<html');
+                resData = {
+                    message: isHtml ? `Internal Server Error (HTML returned). Status: ${response.status}` : (rawText || `HTTP Error ${response.status}`),
+                    isHtmlResponse: isHtml
+                };
             }
 
             if (!response.ok) {
                 const detail = resData.raw ? ` (Gateway Response: ${resData.raw})` : '';
                 const hint = resData.hint ? `\n\nHint: ${resData.hint}` : '';
                 const apiDetails = resData.error ? `\n\nDetails: ${resData.error}` : '';
-                return { success: false, message: (resData.error || resData.message || `Gateway error (${response.status})`) + detail + hint + apiDetails };
+                const baseMessage = resData.message || `Gateway error (${response.status})`;
+
+                return {
+                    success: false,
+                    message: (typeof baseMessage === 'string' ? baseMessage : 'Unknown Error') + detail + hint + apiDetails
+                };
             }
 
             return resData;

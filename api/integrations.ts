@@ -239,17 +239,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const smsRes = await fetchWithTimeout(`${baseUrl}?${params.toString()}`, { method: 'GET' });
                     const smsRaw = await smsRes.text();
 
+                    const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));
+
                     let smsDetail: any;
+                    let parseError = false;
                     try {
                         smsDetail = JSON.parse(smsRaw);
                     } catch (e) {
-                        smsDetail = { raw: smsRaw };
+                        smsDetail = { raw: smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw };
+                        parseError = true;
                     }
 
                     // Zettatel/ABMIS usually return a JSON with status or response field
                     // Example success: {"response":"Success","msgid":"123"}
                     // Example error: {"response":"Error","error":"Invalid Login"}
-                    const isError = smsRaw.toLowerCase().includes('error') ||
+                    const isError = !smsRes.ok ||
+                        isHtml ||
+                        smsRaw.toLowerCase().includes('error') ||
                         smsRaw.toLowerCase().includes('failed') ||
                         smsRaw.toLowerCase().includes('invalid') ||
                         smsRaw.toLowerCase().includes('denied') ||
@@ -257,27 +263,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
 
                     if (isError) {
-                        let cleanMessage = `Gateway ${provider} reported an error.`;
-                        if (smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html')) {
-                            cleanMessage += " (Gateway returned an HTML error page instead of JSON)";
+                        let cleanMessage = `Gateway ${provider} reported an error (Status: ${smsRes.status}).`;
+                        if (isHtml) {
+                            cleanMessage += " The gateway returned an HTML error page instead of JSON. This often means the API endpoint is incorrect, or your IP/Account is blocked by a firewall.";
+                        } else if (parseError) {
+                            cleanMessage += " The gateway returned an invalid non-JSON response.";
                         }
 
                         return res.status(502).json({
                             success: false,
                             message: cleanMessage,
                             detail: smsDetail,
-                            raw: smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw,
+                            raw: isHtml ? "[HTML Content Truncated]" : (smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw),
                             recipient: phone
                         });
                     }
 
                     // Check if it's explicitly success or at least doesn't look like an error
-                    const isExplicitSuccess = smsRaw.toLowerCase().includes('success') ||
+                    const isExplicitSuccess = (smsRes.ok && !parseError) && (
+                        smsRaw.toLowerCase().includes('success') ||
                         smsRaw.toLowerCase().includes('ok') ||
-                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success');
+                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success')
+                    );
 
                     if (!isExplicitSuccess && smsRaw.length > 0) {
                         console.warn(`[SMS Gateway] Ambiguous response from ${provider}:`, smsRaw);
+                        // If it's not explicitly success but we are here, it's still probably an error or at least untrusted
+                        return res.status(502).json({
+                            success: false,
+                            message: `Gateway ${provider} returned an ambiguous response.`,
+                            detail: smsDetail,
+                            recipient: phone
+                        });
                     }
 
                     return res.status(200).json({
