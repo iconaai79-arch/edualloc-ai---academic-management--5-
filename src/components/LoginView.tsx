@@ -1,11 +1,13 @@
 
 import React, { useState } from 'react';
 import type { User, Institution, InstitutionRegistrationData, CountyRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
-import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon } from './icons/index';
+import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon, ShieldExclamationIcon } from './icons/index';
 
 interface LoginViewProps {
     // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx
-    onLogin: (email: string, password: string) => 'success' | 'expired' | 'failed' | 'suspended';
+    onLogin: (email: string, password: string) => 'success' | 'expired' | 'failed' | 'suspended' | 'otp_required';
+    onVerifyOtp: (code: string) => boolean;
+    onResendOtp: () => void;
     onInstitutionRegister: (data: InstitutionRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
     onCountyRegister: (data: CountyRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
     onStudentRegister: (data: StudentRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
@@ -29,9 +31,10 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
-    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword, onResetPassword
+    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword, onResetPassword,
+    onVerifyOtp, onResendOtp
 }) => {
-    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password'>('login');
+    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -39,6 +42,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [generatedCreds, setGeneratedCreds] = useState<{ email: string; password: string } | null>(null);
     const [isRegistering, setIsRegistering] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
 
     // New State for County Registration Toggle
     const [regType, setRegType] = useState<'institution' | 'county'>('institution');
@@ -81,6 +85,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
             setError('This institution account is suspended. Redirecting to billing...');
         } else if (result === 'expired') {
             setError('Your session or access has expired.');
+        } else if (result === 'otp_required') {
+            setView('otp');
+        }
+    };
+
+    const handleOtpSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        const success = onVerifyOtp(otpCode);
+        if (!success) {
+            setError('Invalid verification code. Please try again.');
         }
     };
 
@@ -235,6 +250,56 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     New institution? <button onClick={() => setView('register')} className="text-blue-600 font-bold hover:underline">Register Platform</button>
                                 </p>
                             </div>
+                        </div>
+                    )}
+
+                    {view === 'otp' && (
+                        <div className="animate-fade-in-up space-y-6">
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                    <ShieldExclamationIcon className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tighter">Two-Factor Security</h3>
+                                <p className="text-sm text-slate-500 mt-1">Check your registered Email and Phone for a verification code.</p>
+                            </div>
+                            <form onSubmit={handleOtpSubmit} className="space-y-6">
+                                <div>
+                                    <label className={labelClasses}>Verification Code</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={otpCode}
+                                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').substring(0, 6))}
+                                            className={`${inputClasses} text-center text-3xl font-black tracking-[0.5em] caret-blue-600`}
+                                            placeholder="······"
+                                            required
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all">
+                                    Verify 2FA Identity
+                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onResendOtp();
+                                            alert("New OTP dispatched.");
+                                        }}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700"
+                                    >
+                                        Resend Verification Code
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setView('login')}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2"
+                                    >
+                                        Back to Sign In
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     )}
 

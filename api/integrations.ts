@@ -111,16 +111,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Password Recovery & Registration)
-        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail')) {
+        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms')) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            // For forgotPassword and sendEmail, we verify the recipient is a registered user
-            if (action === 'forgotPassword' || action === 'sendEmail') {
-                const { data: targetUser } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('email', recipient)
-                    .maybeSingle();
+            // For forgotPassword, sendEmail, and sendSms, we verify the recipient is a registered user
+            if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
+                let query = supabase.from('users').select('*');
+
+                if (action === 'sendSms') {
+                    query = query.eq('phone_number', recipient);
+                } else {
+                    query = query.eq('email', recipient);
+                }
+
+                const { data: targetUser } = await query.maybeSingle();
 
                 if (targetUser) {
                     console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient}`);
@@ -195,8 +199,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'sendSms') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
-            if (!adminRoles.includes(user.role)) {
-                return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send bulk SMS.' });
+            if (!adminRoles.includes(user.role) && user.id !== 'system') {
+                return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
             }
 
             const smsConfig = bodyConfig || settings.sms_config;

@@ -255,6 +255,10 @@ export const App: React.FC = () => {
     const [showGuestFeedback, setShowGuestFeedback] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
+    // 2FA State
+    const [otpPendingUser, setOtpPendingUser] = useState<User | null>(null);
+    const [currentOtp, setCurrentOtp] = useState<string | null>(null);
+
     const initialLoadDone = useRef(false);
 
     // Debugging hooks to track initialization
@@ -2052,21 +2056,52 @@ export const App: React.FC = () => {
                     </>
                 ) : (
                     <>
-                        <LoginView onLogin={(e, p) => {
-                            const u = (users || []).find(user => user && user.email?.toLowerCase() === e.toLowerCase() && (user.password === p || (!user.password && p === 'password123')));
-                            if (u) {
-                                const inst = institutions.find(i => i.id === u.institutionId);
-                                if (inst?.status === 'suspended' && u.role !== 'super_admin') {
-                                    setCurrentUser(u);
-                                    apiService.storeSession(u);
-                                    return 'suspended';
+                        <LoginView
+                            onLogin={(e, p) => {
+                                const u = (users || []).find(user => user && user.email?.toLowerCase() === e.toLowerCase() && (user.password === p || (!user.password && p === 'password123')));
+                                if (u) {
+                                    const inst = institutions.find(i => i.id === u.institutionId);
+                                    if (inst?.status === 'suspended' && u.role !== 'super_admin') {
+                                        setCurrentUser(u);
+                                        apiService.storeSession(u);
+                                        return 'suspended';
+                                    }
+
+                                    // Generate and Send OTP
+                                    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                                    setCurrentOtp(otp);
+                                    setOtpPendingUser(u);
+
+                                    const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
+
+                                    // Dispatch to both channels
+                                    if (u.email) apiService.sendEmail(u.email, 'Verification Code', otpMessage);
+                                    if (u.phoneNumber) apiService.sendSms(u.phoneNumber, otpMessage);
+
+                                    return 'otp_required';
                                 }
-                                setCurrentUser(u);
-                                apiService.storeSession(u);
-                                return 'success';
-                            }
-                            return 'failed';
-                        }} {...commonLoginProps} />
+                                return 'failed';
+                            }}
+                            onVerifyOtp={(code) => {
+                                if (code === currentOtp && otpPendingUser) {
+                                    setCurrentUser(otpPendingUser);
+                                    apiService.storeSession(otpPendingUser);
+                                    setOtpPendingUser(null);
+                                    setCurrentOtp(null);
+                                    return true;
+                                }
+                                return false;
+                            }}
+                            onResendOtp={() => {
+                                if (!otpPendingUser) return;
+                                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                                setCurrentOtp(otp);
+                                const otpMessage = `Your New EduAi Verification Code is: ${otp}.`;
+                                if (otpPendingUser.email) apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage);
+                                if (otpPendingUser.phoneNumber) apiService.sendSms(otpPendingUser.phoneNumber, otpMessage);
+                            }}
+                            {...commonLoginProps}
+                        />
                         {showGuestPortal && (
                             <PublicAppointmentView users={users} timetable={generatedTimetable} timetableSettings={timetableSettings} onClose={() => setShowGuestPortal(false)} onBookAppointment={async (apt) => { await apiService.saveModuleRecord('appointments', apt); setShowGuestPortal(false); alert("Appointment submitted."); }} institutions={institutions} />
                         )}
