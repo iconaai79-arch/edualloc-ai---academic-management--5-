@@ -56,33 +56,30 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 
 initSupabaseClient();
 
-const toSnakeCase = (obj: any): any => {
+function toSnakeCase(obj: any): any {
     if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
-    if (Array.isArray(obj)) return obj.map(toSnakeCase);
+    if (Array.isArray(obj)) return obj.map((item: any) => toSnakeCase(item));
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
         if (key === 'isImpersonated' || key === 'roles') return; // Skip internal session-only flags and non-existent DB columns
         let val = obj[key];
-
-        // Convert empty strings to null to avoid DB errors when an empty string is passed to an integer or UUID column
         if (val === "") val = null;
-
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newObj[snakeKey] = toSnakeCase(val);
     });
     return newObj;
-};
+}
 
-const toCamelCase = (obj: any): any => {
+function toCamelCase(obj: any): any {
     if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
-    if (Array.isArray(obj)) return obj.map(toCamelCase);
+    if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
-        const camelKey = key.replace(/(_\w)/g, match => match[1].toUpperCase());
+        const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
         newObj[camelKey] = toCamelCase(obj[key]);
     });
     return newObj;
-};
+}
 
 // Local Storage Helper
 const ls = {

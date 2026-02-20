@@ -160,9 +160,9 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
 
-    const departmentNameMap = useMemo(() => new Map(departments.map(d => [d.name.toLowerCase().trim(), d.id])), [departments]);
-    const existingUserEmails = useMemo(() => new Set((existingUsers || []).map(u => u.email.toLowerCase())), [existingUsers]);
-    const existingUserStaffIds = useMemo(() => new Set<string>((existingUsers || []).map(u => u.staffId?.toLowerCase()).filter((id): id is string => !!id)), [existingUsers]);
+    const departmentNameMap = useMemo(() => new Map((departments || []).filter(d => d && d.name).map(d => [String(d.name).toLowerCase().trim(), d.id])), [departments]);
+    const existingUserEmails = useMemo(() => new Set((existingUsers || []).filter(u => u && u.email).map(u => String(u.email).toLowerCase())), [existingUsers]);
+    const existingUserStaffIds = useMemo(() => new Set<string>((existingUsers || []).filter(u => u && u.staffId).map(u => String(u.staffId).toLowerCase())), [existingUsers]);
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
     const availableRolesForImport = useMemo(() => {
@@ -556,6 +556,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const filteredUsers = useMemo(() => {
         let list = (users || []).filter(u => {
+            if (!u) return false;
             if (activeTab === 'staff') {
                 return u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent';
             }
@@ -573,7 +574,11 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            list = list.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.staffId?.toLowerCase().includes(q));
+            list = list.filter(u =>
+                (u.name || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q) ||
+                (u.staffId || '').toLowerCase().includes(q)
+            );
         }
         return list;
     }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId]);
@@ -656,7 +661,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         return (courses || []).find(c => c.id === courseId)?.levels || [];
     }, [courseId, courses]);
 
-    const institutionMap = useMemo(() => new Map((institutions || []).map(i => [i.id, i.name])), [institutions]);
+    const institutionMap = useMemo(() => new Map((institutions || []).filter(i => i && i.id).map(i => [i.id, i.name])), [institutions]);
 
     return (
         <div className="space-y-6">
