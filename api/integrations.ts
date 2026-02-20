@@ -42,6 +42,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const amount = amountStr ? parseFloat(amountStr) : 0;
     const bodyConfig = paramsMap.config;
 
+    // Detect system messages (OTPs, recovery links) early for auth bypass
+    const msgLower = (message || '').toLowerCase();
+    const isSystemMessage = msgLower.includes('verification code') ||
+        msgLower.includes('otp') ||
+        msgLower.includes('your eduai code') ||
+        msgLower.includes('your verification code') ||
+        msgLower.includes('password reset request') ||
+        msgLower.includes('resettoken=');
+
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -152,6 +161,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient} (Match: ${targetUser.id})`);
                     user = { ...targetUser, id: 'system', role: 'system' };
                     authError = null;
+                } else if (isSystemMessage) {
+                    // Critical fix: Allow OTPs/Recovery links even if user lookup fails
+                    console.log(`[Auth Bridge] Generic system bypass granted for ${action} to ${recipient}`);
+                    user = { id: 'system', role: 'system', user_metadata: { institutionId: 'SYSTEM' } };
+                    authError = null;
                 } else if (action === 'forgotPassword') {
                     return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
                 }
@@ -221,14 +235,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'sendSms') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
-
-            // System Message Detection (OTPs are strictly free and always allowed)
-            const isSystemMessage = (message || '').toLowerCase().includes('verification code') ||
-                (message || '').toLowerCase().includes('otp') ||
-                (message || '').toLowerCase().includes('your eduai code') ||
-                (message || '').toLowerCase().includes('your verification code') ||
-                (message || '').toLowerCase().includes('password reset request') ||
-                (message || '').toLowerCase().includes('resettoken=');
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
