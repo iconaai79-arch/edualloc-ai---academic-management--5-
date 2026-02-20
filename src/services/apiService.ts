@@ -61,7 +61,7 @@ function toSnakeCase(obj: any): any {
     if (Array.isArray(obj)) return obj.map((item: any) => toSnakeCase(item));
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
-        if (key === 'isImpersonated' || key === 'roles') return; // Skip internal session-only flags and non-existent DB columns
+        if (key === 'isImpersonated') return; // Skip internal session-only flags
         let val = obj[key];
         if (val === "") val = null;
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);

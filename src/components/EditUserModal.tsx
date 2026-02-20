@@ -30,7 +30,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       setPhoneNumber(user.phoneNumber);
       setStaffId(user.staffId || '');
       setExpertise(user.expertise?.join(', ') || '');
-      setRoles(user.roles && user.roles.length > 0 ? user.roles : [user.role]);
+      setRoles(Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role]);
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
