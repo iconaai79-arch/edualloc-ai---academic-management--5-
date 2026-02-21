@@ -549,18 +549,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestSms = async () => {
         setIsSavingConfigs(true);
         try {
-            const res = await apiService.sendSms(
-                localCompanyInfo.phone,
-                'This is a test SMS from EduAlloc to verify your SMS gateway configuration.',
-                localSmsConfig
-            );
-
-            const detailStr = res.detail ? `\n\nGateway Details: ${typeof res.detail === 'object' ? JSON.stringify(res.detail) : res.detail}` : '';
-
+            const res = await apiService.sendSms(localCompanyInfo.phone || '', "Test message from EduAi Academic Management System.", localSmsConfig);
             if (res.success) {
-                alert('Test SMS request initiated for ' + localCompanyInfo.phone + detailStr);
+                alert('SMS sent successfully.');
             } else {
-                alert('Failed to send test SMS: ' + res.message + detailStr);
+                alert('Failed to send SMS. Please verify your gateway settings.');
             }
         } catch (error: any) {
             alert('Error sending test SMS: ' + error.message);

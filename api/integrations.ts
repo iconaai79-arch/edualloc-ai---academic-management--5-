@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 html: (message || '').replace(/\n/g, '<br>')
             });
 
-            return res.status(200).json({ success: true, message: 'Email dispatched successfully.', messageId: info.messageId });
+            return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
         }
 
         if (action === 'sendSms') {
@@ -383,7 +383,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         return res.status(502).json({
                             success: false,
-                            message: cleanMessage,
+                            message: 'Failed to send SMS. Please verify gateway settings or balance.',
+                            error: cleanMessage,
                             hint: `Attempted Gateway URL: ${maskedUrl}`,
                             detail: smsDetail,
                             raw: isHtml ? "[HTML Content Truncated]" : (smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw),
@@ -403,7 +404,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // If it's not explicitly success but we are here, it's still probably an error or at least untrusted
                         return res.status(502).json({
                             success: false,
-                            message: `Gateway ${provider} returned an ambiguous response.`,
+                            message: 'SMS gateway returned an ambiguous status.',
+                            error: `Gateway ${provider} returned an ambiguous response.`,
                             detail: smsDetail,
                             recipient: phone
                         });
@@ -416,14 +418,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         return res.status(200).json({
                             success: true,
-                            message: 'SMS dispatched successfully.',
+                            message: 'SMS sent successfully.',
                             detail: smsDetail,
                             recipient: phone
                         });
                     }
 
                 } catch (e: any) {
-                    return res.status(504).json({ success: false, message: `Gateway ${provider} connection timeout or failure.`, error: e.message });
+                    return res.status(504).json({ success: false, message: 'SMS gateway connection timeout.', error: e.message });
                 }
             } else if (provider === 'Sematime') {
                 // Placeholder for Sematime implementation
@@ -551,7 +553,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({
                 success: true,
-                message: smsSuccess ? 'Recovery link dispatched via Email and SMS.' : 'Recovery link dispatched via Email.',
+                message: smsSuccess ? 'Recovery link sent via Email and SMS.' : 'Recovery link sent via Email.',
                 messageId: info.messageId
             });
         }

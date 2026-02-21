@@ -2085,7 +2085,7 @@ export const App: React.FC = () => {
                                             const smsResult = results[1] as any;
                                             if (smsResult && smsResult.success === false) {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
-                                                alert(`SMS Delivery Issue: ${smsResult.message || 'The gateway failed to send the code.'} We have also sent the code to your email if available.`);
+                                                // Simplified feedback for initial login
                                             }
                                         }).catch(err => {
                                             console.error("[OTP] Dispatch Exception:", err);
@@ -2123,7 +2123,9 @@ export const App: React.FC = () => {
                                 ]).then(results => {
                                     const smsResult = results[1] as any;
                                     if (smsResult && smsResult.success === false) {
-                                        alert(`SMS Delivery Issue: ${smsResult.message || 'Gateway failure.'}`);
+                                        alert("OTP sending failed. Please check your connection or contact support.");
+                                    } else {
+                                        alert("OTP sent successfully.");
                                     }
                                 }).catch(err => {
                                     console.error("[OTP Resend] Dispatch Exception:", err);

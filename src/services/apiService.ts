@@ -485,14 +485,11 @@ export const apiService = {
             }
 
             if (!response.ok) {
-                const detail = resData.raw ? ` (Gateway Response: ${resData.raw})` : '';
-                const hint = resData.hint ? `\n\nHint: ${resData.hint}` : '';
-                const apiDetails = resData.error ? `\n\nDetails: ${resData.error}` : '';
-                const baseMessage = resData.message || `Gateway error (${response.status})`;
-
+                const baseMessage = resData.message || `Failed to send SMS (${response.status})`;
                 return {
                     success: false,
-                    message: (typeof baseMessage === 'string' ? baseMessage : 'Unknown Error') + detail + hint + apiDetails
+                    message: typeof baseMessage === 'string' ? baseMessage : 'Unknown Gateway Error',
+                    errorDetail: resData.error || resData.raw || null
                 };
             }
 

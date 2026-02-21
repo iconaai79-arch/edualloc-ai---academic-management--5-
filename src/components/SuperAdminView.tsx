@@ -506,8 +506,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsTesting(true);
         try {
             const res = await apiService.sendSms(testRecipient, "Test message from EduAi Academic Management System.", localSmsConfig);
-            if (res.success) alert("SMS test initiated successfully.");
-            else alert(`SMS Failed: ${res.message || 'Check credentials'}`);
+            if (res.success) alert("SMS sent successfully.");
+            else alert("Failed to send SMS. Please verify your gateway settings.");
         } catch (e) {
             alert("SMS Gateway connection error.");
         } finally {
@@ -520,8 +520,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsTesting(true);
         try {
             const res = await apiService.sendEmail(testRecipient, "Platform Configuration Test", "This is a test email to verify your SMTP relay settings on the EduAi platform.", localEmailConfig);
-            if (res.success) alert("Email dispatched successfully.");
-            else alert(`Email Failed: ${res.message || 'Check SMTP settings'}`);
+            if (res.success) alert("Email sent successfully.");
+            else alert("Failed to send email. Please check your SMTP settings.");
         } catch (e) {
             alert("SMTP handshake failed.");
         } finally {
@@ -534,8 +534,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsTesting(true);
         try {
             const res = await apiService.initiateMpesaPayment(1, testRecipient, undefined, localMpesaConfig);
-            if (res.success) alert(res.message || "STK Push sent to phone.");
-            else alert(`M-Pesa Failed: ${res.message || 'Check Daraja credentials'}`);
+            if (res.success) alert("Payment request sent to phone.");
+            else alert("Failed to initiate payment. Please check your M-Pesa settings.");
         } catch (e) {
             alert("M-Pesa gateway connection error.");
         } finally {

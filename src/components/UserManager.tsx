@@ -899,8 +899,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                                 title="Email Credentials"
                                                                 onClick={async () => {
                                                                     const res = await onSendBulkCredentials([u], 'email');
-                                                                    if (res.success_count > 0) alert(`Credentials sent to ${u.email}`);
-                                                                    else alert("Failed to send email.");
+                                                                    if (res.success_count > 0) alert("Credentials sent successfully.");
+                                                                    else alert("Failed to send email. Please check your SMTP settings.");
                                                                 }}
                                                                 className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-md transition-all"
                                                             >
@@ -910,8 +910,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                                 title="SMS Credentials"
                                                                 onClick={async () => {
                                                                     const res = await onSendBulkCredentials([u], 'sms');
-                                                                    if (res.success_count > 0) alert(`Credentials sent to ${u.phoneNumber}`);
-                                                                    else alert("Failed to send SMS.");
+                                                                    if (res.success_count > 0) alert("Credentials sent successfully.");
+                                                                    else alert("Failed to send SMS. Please verify your gateway settings.");
                                                                 }}
                                                                 className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-md transition-all"
                                                             >

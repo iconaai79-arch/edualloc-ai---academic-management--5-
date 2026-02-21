@@ -285,7 +285,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                         type="button"
                                         onClick={() => {
                                             onResendOtp();
-                                            alert("New OTP dispatched.");
                                         }}
                                         className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700"
                                     >
