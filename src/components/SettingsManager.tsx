@@ -781,7 +781,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <input
                                                     type="text"
                                                     value={localSmsConfig.baseUrl || ''}
-                                                    placeholder="e.g. https://sms.zettatel.com/smsapi/send"
+                                                    placeholder="e.g., https://sms.abmis.co.ke/SMSApi/send"
                                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })}
                                                     className="form-input font-mono text-xs h-10"
                                                 />

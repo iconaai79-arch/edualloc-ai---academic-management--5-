@@ -29,7 +29,8 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
         provider: 'Zettatel',
         apiKey: '',
         apiSecret: '',
-        fromNumber: ''
+        fromNumber: '',
+        baseUrl: 'https://sms.abmis.co.ke/SMSApi/send'
     },
     letterheadConfig: { headerImageUrl: null, stampImageUrl: null },
     databaseConfig: {

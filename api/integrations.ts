@@ -289,8 +289,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Provider-specific logic
             if (provider === 'ABMIS' || provider === 'Zettatel') {
                 const defaultUrls: Record<string, string> = {
-                    'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
-                    'Zettatel': 'https://sms.zettatel.com/smsapi/send'
+                    'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
+                    'Zettatel': 'https://sms.abmis.co.ke/SMSApi/send'
                 };
 
                 // Allow override from config
