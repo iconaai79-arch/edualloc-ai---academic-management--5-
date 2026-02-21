@@ -509,8 +509,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         const provider = smsConfig.provider || 'Zettatel';
                         const defaultUrls: Record<string, string> = {
-                            'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
-                            'Zettatel': 'https://sms.zettatel.com/smsapi/send'
+                            'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
+                            'Zettatel': 'https://sms.abmis.co.ke/SMSApi/send'
                         };
                         const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 
