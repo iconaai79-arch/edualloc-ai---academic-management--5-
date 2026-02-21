@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, CompanyDetails, MpesaTransaction, TransactionStatus, Invoice, Receipt, InvoiceItem, ExtensionRequest, SmsConfig } from '../types';
 import { PayNowModal } from './PayNowModal';
-import { BuySMSModal } from './BuySMSModal';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 
@@ -195,32 +193,6 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 />
             )}
 
-            <section>
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-black uppercase tracking-tight">SMS Unit Balance</h3>
-                    <button
-                        onClick={() => setIsBuySMSModalOpen(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-widest px-4 py-2 rounded-xl transition-all shadow-lg active:scale-95 flex items-center gap-2"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
-                        Buy SMS Units
-                    </button>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative group">
-                    <div className="flex items-end gap-2">
-                        <p className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
-                            {(institution.smsBalance || 0).toLocaleString()}
-                        </p>
-                        <p className="text-xs font-black uppercase text-slate-400 mb-2 tracking-widest">Units Available</p>
-                    </div>
-                    {(institution.smsBalance || 0) < 50 && (
-                        <div className="mt-4 flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                            <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                            <span className="text-xs font-bold uppercase tracking-tight">Low balance! Please top up soon to avoid interruption.</span>
-                        </div>
-                    )}
-                </div>
-            </section>
 
             <section>
                 <h3 className="text-xl font-semibold mb-4">Subscription Pricing</h3>
@@ -391,24 +363,6 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 />
             )}
 
-            {isBuySMSModalOpen && (
-                <BuySMSModal
-                    isOpen={isBuySMSModalOpen}
-                    onClose={() => setIsBuySMSModalOpen(false)}
-                    onPurchaseComplete={(purchasedUnits) => {
-                        if (onRefreshData) {
-                            onRefreshData();
-                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance will reflect in a moment.`);
-                        }
-                    }}
-                    mpesaConfig={mpesaConfig}
-                    institutionId={institution.id}
-                    institutionCode={institution.institutionCode || 'SYSTEM'}
-                    institutionName={institution.name}
-                    smsUnitPrice={institution.customSmsPrice || (smsConfig as any).smsUnitPrice || 2}
-                    minSmsUnits={(smsConfig as any).minSmsUnits || 0}
-                />
-            )}
         </div>
     );
 };

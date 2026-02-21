@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Department, Course, Institution } from '../types';
+import { BuySMSModal } from './BuySMSModal';
+import { PlusIcon } from './icons/index';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig } from '../types';
 
 interface CommunicationsManagerProps {
     users: User[];
@@ -9,6 +11,10 @@ interface CommunicationsManagerProps {
     onSendSms: (recipient: string, message: string) => Promise<{ success: boolean; message: string }>;
     currentUser?: User;
     smsBalance?: number;
+    currentInstitution?: Institution | null;
+    mpesaConfig?: MpesaConfig;
+    smsConfig?: SmsConfig;
+    onRefreshData?: () => void;
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -37,7 +43,8 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData }) => {
+    const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
     const [selectedInstitutionRoleFilter, setSelectedInstitutionRoleFilter] = useState<'all' | 'admins'>('all');
@@ -283,6 +290,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         {smsBalance < 10 && (
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-1" />
                         )}
+                        <button
+                            onClick={() => setIsBuySMSModalOpen(true)}
+                            className="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                        >
+                            <PlusIcon className="w-3.5 h-3.5" />
+                            Top Up
+                        </button>
                     </div>
                 )}
             </div>
@@ -328,8 +342,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     <div className="flex justify-end items-center gap-4">
                         {status.type !== 'idle' && (
                             <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
-                                    status.type === 'success' ? 'text-green-600' :
-                                        'text-slate-500'
+                                status.type === 'success' ? 'text-green-600' :
+                                    'text-slate-500'
                                 }`}>{status.message}</p>
                         )}
                         <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
@@ -356,6 +370,24 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     </div>
                 </div>
             </div>
+            {isBuySMSModalOpen && currentInstitution && mpesaConfig && (
+                <BuySMSModal
+                    isOpen={isBuySMSModalOpen}
+                    onClose={() => setIsBuySMSModalOpen(false)}
+                    onPurchaseComplete={(purchasedUnits) => {
+                        if (onRefreshData) {
+                            onRefreshData();
+                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance will reflect in a moment.`);
+                        }
+                    }}
+                    mpesaConfig={mpesaConfig}
+                    institutionId={currentInstitution.id}
+                    institutionCode={currentInstitution.institutionCode || 'SYSTEM'}
+                    institutionName={currentInstitution.name}
+                    smsUnitPrice={currentInstitution.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
+                    minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
+                />
+            )}
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 0.375rem; border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; background-color: white; }
                 .dark .form-input, .dark .form-select { border-color: #4b5563; background-color: #374151; color: white; }

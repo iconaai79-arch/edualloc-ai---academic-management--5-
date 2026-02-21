@@ -612,6 +612,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                         currentUser={props.currentUser}
                         smsBalance={props.currentInstitution?.smsBalance}
+                        currentInstitution={props.currentInstitution}
+                        mpesaConfig={props.companyDetails.mpesaConfig}
+                        smsConfig={props.smsConfig}
+                        onRefreshData={props.onRefreshData}
                     />
                 )}
 
