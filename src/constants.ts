@@ -26,10 +26,10 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
         fromEmail: 'info@eduai.co.ke'
     },
     smsConfig: {
-        provider: 'ABMIS',
+        provider: 'Zettatel',
         apiKey: '',
         apiSecret: '',
-        fromNumber: 'ABMIS'
+        fromNumber: ''
     },
     letterheadConfig: { headerImageUrl: null, stampImageUrl: null },
     databaseConfig: {

@@ -268,7 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            const provider = smsConfig.provider || 'ABMIS';
+            const provider = smsConfig.provider || 'Zettatel';
 
             // Normalize Kenyan phone numbers to strict 254 format
             let phone = recipient.replace(/[^\d]/g, '');
@@ -290,11 +290,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (provider === 'ABMIS' || provider === 'Zettatel') {
                 const defaultUrls: Record<string, string> = {
                     'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
-                    'Zettatel': 'https://portal.zettatel.com/smsapi/send'
+                    'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                 };
 
                 // Allow override from config
-                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['ABMIS'];
+                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 
                 const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
@@ -511,12 +511,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             phone = '254' + phone;
                         }
 
-                        const provider = smsConfig.provider || 'ABMIS';
+                        const provider = smsConfig.provider || 'Zettatel';
                         const defaultUrls: Record<string, string> = {
                             'ABMIS': 'https://sms.abmis.co.ke/smsapi/send',
-                            'Zettatel': 'https://portal.zettatel.com/smsapi/send'
+                            'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                         };
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['ABMIS'];
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 
                         const finalParams: Record<string, string> = {
                             userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,

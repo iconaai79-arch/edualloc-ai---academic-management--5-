@@ -432,7 +432,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         enforceGlobalOtp: props.companyDetails?.enforceGlobalOtp ?? false
     });
 
-    const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
+    const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
     const [localEmailConfig, setLocalEmailConfig] = useState<EmailConfig>(props.companyDetails?.emailConfig || { provider: 'smtp', host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
     const [localMpesaConfig, setLocalMpesaConfig] = useState<MpesaConfig>(props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
     const [localSubConfig, setLocalSubConfig] = useState<SubscriptionConfig>(props.companyDetails?.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
@@ -458,7 +458,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false
             });
-            setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' });
+            setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
             setLocalMpesaConfig(props.companyDetails.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
             setLocalSubConfig(props.companyDetails.subscriptionConfig || { defaultMonthlyPrice: 5000, defaultYearlyPrice: 50000 });
@@ -768,9 +768,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLocalSmsConfig({ ...localSmsConfig, provider: e.target.value })}
                                             className="form-select h-12 font-bold text-sm"
                                         >
-                                            <option value="ABMIS">ABMIS (Standard)</option>
+                                            <option value="ABMIS">ABMIS (Legacy)</option>
                                             <option value="Sematime">Sematime (Modern)</option>
-                                            <option value="Zettatel">Zettatel Solutions</option>
+                                            <option value="Zettatel">Zettatel (Default)</option>
                                         </select>
                                     </div>
                                     <div className="md:col-span-2 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50 space-y-6">
@@ -781,7 +781,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <input
                                                     type="text"
                                                     value={localSmsConfig.baseUrl || ''}
-                                                    placeholder="e.g. https://sms.abmis.co.ke/smsapi/send"
+                                                    placeholder="e.g. https://sms.zettatel.com/smsapi/send"
                                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalSmsConfig({ ...localSmsConfig, baseUrl: e.target.value })}
                                                     className="form-input font-mono text-xs h-10"
                                                 />
