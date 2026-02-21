@@ -35,31 +35,38 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     minSmsUnits = 0
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
-    const [selectedPackage, setSelectedPackage] = useState(SMS_PACKAGES[0]);
+    const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
 
+    const calculatedTotal = units * smsUnitPrice;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (units < (minSmsUnits || 1)) {
+            alert(`Minimum purchase is ${(minSmsUnits || 1)} units.`);
+            return;
+        }
+
         if (!/^(254)\d{9}$/.test(phoneNumber)) {
             alert('Please enter a valid phone number in the format 254xxxxxxxxx.');
             return;
         }
 
         setIsLoading(true);
-        const amount = selectedPackage.units * smsUnitPrice;
 
         try {
             const metadata = {
                 type: 'sms',
-                units: selectedPackage.units,
+                units,
                 institutionId,
                 institutionCode,
                 institutionName
             };
 
-            const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
+            const mpesaResult = await apiService.initiateMpesaPayment(calculatedTotal, phoneNumber, metadata, mpesaConfig);
 
             if (mpesaResult.success && mpesaResult.data?.CheckoutRequestID) {
                 const checkoutRequestId = mpesaResult.data.CheckoutRequestID;
@@ -75,9 +82,9 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                     if (status === 'completed') {
                         clearInterval(pollInterval);
                         setFinalStatus('completed');
-                        setStatusMessage(`Payment Confirmed! ${selectedPackage.units} SMS units have been added to your balance.`);
+                        setStatusMessage(`Payment Confirmed! ${units.toLocaleString()} SMS units have been added to your balance.`);
                         setIsLoading(false);
-                        onPurchaseComplete(selectedPackage.units);
+                        onPurchaseComplete(units);
                     } else if (status === 'failed' || attempts >= maxAttempts) {
                         clearInterval(pollInterval);
                         setFinalStatus('failed');
@@ -151,22 +158,22 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Select Package</label>
-                                <div className="grid grid-cols-2 gap-3">
+                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Quick Select Package</label>
+                                <div className="grid grid-cols-2 gap-3 mb-6">
                                     {SMS_PACKAGES.map((pkg) => (
                                         <button
                                             key={pkg.units}
                                             type="button"
                                             disabled={pkg.units < minSmsUnits}
-                                            onClick={() => setSelectedPackage(pkg)}
-                                            className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all group ${selectedPackage.units === pkg.units
+                                            onClick={() => setUnits(pkg.units)}
+                                            className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all group ${units === pkg.units
                                                 ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-none'
                                                 : pkg.units < minSmsUnits
                                                     ? 'opacity-50 grayscale cursor-not-allowed bg-slate-50 border-slate-200'
                                                     : 'border-slate-100 dark:border-slate-700 hover:border-indigo-300'
                                                 }`}
                                         >
-                                            <span className={`text-lg font-black tracking-tight ${selectedPackage.units === pkg.units ? 'text-indigo-600' : 'text-slate-600 dark:text-slate-300'}`}>
+                                            <span className={`text-lg font-black tracking-tight ${units === pkg.units ? 'text-indigo-600' : 'text-slate-600 dark:text-slate-300'}`}>
                                                 {pkg.units.toLocaleString()}
                                             </span>
                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-400">
@@ -174,6 +181,23 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                             </span>
                                         </button>
                                     ))}
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <label htmlFor="customUnits" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Custom Units Count</label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            id="customUnits"
+                                            min={minSmsUnits || 1}
+                                            value={units}
+                                            onChange={(e) => setUnits(parseInt(e.target.value) || 0)}
+                                            className="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 text-lg"
+                                            placeholder="Enter units (e.g. 750)"
+                                        />
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-slate-400"> Units </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-2 font-medium">Price per unit: KES {smsUnitPrice}</p>
                                 </div>
                             </div>
 
@@ -197,8 +221,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                     <MpesaIcon className="w-8 h-8" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-200 tracking-tight">Total Amount</p>
-                                    <p className="text-xl font-black text-amber-900 dark:text-amber-100">KES {(selectedPackage.units * smsUnitPrice).toLocaleString()}</p>
+                                    <p className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-200 tracking-tight">Total Amount Due</p>
+                                    <p className="text-xl font-black text-amber-900 dark:text-amber-100">KES {calculatedTotal.toLocaleString()}</p>
                                 </div>
                             </div>
 
@@ -207,7 +231,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-100 dark:shadow-none active:scale-[0.98] flex items-center justify-center gap-2"
                             >
                                 <MpesaIcon className="w-6 h-6 brightness-0 invert" />
-                                Buy Units Now
+                                Pay KES {calculatedTotal.toLocaleString()} Now
                             </button>
                         </div>
                     </form>
