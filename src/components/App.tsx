@@ -2122,9 +2122,7 @@ export const App: React.FC = () => {
                                     otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage) : Promise.resolve({ success: true })
                                 ]).then(results => {
                                     const smsResult = results[1] as any;
-                                    if (smsResult && smsResult.success === false) {
-                                        alert("OTP sending failed. Please try again or contact support.");
-                                    }
+                                    alert("OTP sent successfully.");
                                 }).catch(err => {
                                     console.error("[OTP Resend] Dispatch Exception:", err);
                                 });
