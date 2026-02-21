@@ -384,10 +384,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return res.status(502).json({
                             success: false,
                             message: 'Failed to send SMS. Please verify gateway settings or balance.',
-                            error: cleanMessage,
-                            hint: `Attempted Gateway URL: ${maskedUrl}`,
-                            detail: smsDetail,
-                            raw: isHtml ? "[HTML Content Truncated]" : (smsRaw.length > 500 ? smsRaw.substring(0, 500) + '...' : smsRaw),
                             recipient: phone
                         });
                     }
@@ -405,8 +401,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return res.status(502).json({
                             success: false,
                             message: 'SMS gateway returned an ambiguous status.',
-                            error: `Gateway ${provider} returned an ambiguous response.`,
-                            detail: smsDetail,
                             recipient: phone
                         });
                     }

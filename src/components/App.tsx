@@ -2123,9 +2123,7 @@ export const App: React.FC = () => {
                                 ]).then(results => {
                                     const smsResult = results[1] as any;
                                     if (smsResult && smsResult.success === false) {
-                                        alert("OTP sending failed. Please check your connection or contact support.");
-                                    } else {
-                                        alert("OTP sent successfully.");
+                                        alert("OTP sending failed. Please try again or contact support.");
                                     }
                                 }).catch(err => {
                                     console.error("[OTP Resend] Dispatch Exception:", err);
