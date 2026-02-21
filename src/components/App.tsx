@@ -1766,6 +1766,8 @@ export const App: React.FC = () => {
                                     companyDetails={companyDetails}
                                     activityLog={activityLog}
                                     transactions={transactions}
+                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                    onRefreshData={() => loadData()}
                                     receipts={receipts}
                                     invoices={invoices}
                                     extensionRequests={extensionRequests}

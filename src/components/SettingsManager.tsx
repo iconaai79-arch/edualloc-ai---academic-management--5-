@@ -136,6 +136,7 @@ interface SettingsManagerProps {
     onImportDepartments?: (departments: any[]) => Promise<void>;
     companyDetails?: CompanyDetails;
     onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
+    onRefreshData?: () => void;
     users: User[];
     transactions?: MpesaTransaction[];
     receipts?: Receipt[];
@@ -1134,6 +1135,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     invoices={props.invoices || []}
                                     receipts={props.receipts || []}
                                     logoUrl={props.logoUrl}
+                                    onRefreshData={props.onRefreshData}
                                     extensionRequests={props.extensionRequests || []}
                                     onAddExtensionRequest={props.onAddExtensionRequest}
                                     smsConfig={props.companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' }}

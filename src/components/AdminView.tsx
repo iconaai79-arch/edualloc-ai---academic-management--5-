@@ -239,6 +239,7 @@ export interface AdminViewProps {
     onDeleteAssignment?: (id: string) => void;
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
+    onRefreshData?: () => void;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -635,6 +636,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         academicYears={props.academicYears}
                         semesters={props.semesters}
                         onUpdateCompanyDetails={props.onUpdateCompanyDetails}
+                        onRefreshData={props.onRefreshData}
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         examTimetableSettings={props.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                     />

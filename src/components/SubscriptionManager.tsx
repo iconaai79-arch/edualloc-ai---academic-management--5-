@@ -17,6 +17,7 @@ interface SubscriptionManagerProps {
     extensionRequests?: ExtensionRequest[];
     onAddExtensionRequest?: (reason: string) => void;
     smsConfig: SmsConfig;
+    onRefreshData?: () => void;
 }
 
 const calculateTimeLeft = (endDate: string) => {
@@ -112,7 +113,7 @@ const InvoiceStatusBadge: React.FC<{ status: Invoice['status'] }> = ({ status })
 };
 
 
-export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ institution, companyDetails, transactions, onAddTransaction, invoices, receipts, logoUrl, extensionRequests, onAddExtensionRequest, smsConfig }) => {
+export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ institution, companyDetails, transactions, onAddTransaction, invoices, receipts, logoUrl, extensionRequests, onAddExtensionRequest, smsConfig, onRefreshData }) => {
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [extensionReason, setExtensionReason] = useState('');
@@ -394,8 +395,11 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}
                     onClose={() => setIsBuySMSModalOpen(false)}
-                    onPurchaseComplete={() => {
-                        // Optionally refresh data
+                    onPurchaseComplete={(purchasedUnits) => {
+                        if (onRefreshData) {
+                            onRefreshData();
+                            alert(`SMS purchase successful! ${purchasedUnits.toLocaleString()} units have been added. Your new balance will reflect in a moment.`);
+                        }
                     }}
                     mpesaConfig={mpesaConfig}
                     institutionId={institution.id}
