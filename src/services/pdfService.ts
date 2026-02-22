@@ -807,9 +807,61 @@ export const generateAdvisoryReportPdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
-    const [headerImg, footerImg] = await Promise.all([loadImage(letterheadConfig?.headerImageUrl), loadImage(footerImageUrl)]);
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
     let yPos = setupPdfHeader(doc, headerImg);
-    doc.text("Advisory Report", 14, yPos);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Room Allocation Advisory Report", margin, yPos);
+    yPos += 12;
+
+    // Summary Section
+    doc.setFillColor(248, 250, 252);
+    doc.rect(margin, yPos, pageWidth - (margin * 2), 25, 'F');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text("REPORT SUMMARY", margin + 5, yPos + 8);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Total Concurrent Room Capacity: ${totalRooms}`, margin + 5, yPos + 16);
+    doc.text(`Detected Conflicting Time Slots: ${conflicts.length}`, margin + 80, yPos + 16);
+    yPos += 35;
+
+    if (conflicts.length > 0) {
+        const head = [['Day', 'Time Slot', 'Lessons', 'Capacity', 'Shortfall']];
+        const body = conflicts.map(c => [
+            c.day,
+            `${c.startTime} - ${c.endTime}`,
+            c.concurrentLessons.toString(),
+            totalRooms.toString(),
+            { content: c.roomShortfall.toString(), styles: { fontStyle: 'bold', textColor: [220, 38, 38] } }
+        ]);
+
+        (doc as any).autoTable({
+            startY: yPos,
+            head: head,
+            body: body,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59], fontSize: 9 },
+            styles: { fontSize: 8, cellPadding: 3 },
+            margin: { left: margin }
+        });
+    } else {
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100);
+        doc.text("No room allocation conflicts were detected in the current timetable configuration.", margin, yPos);
+    }
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
@@ -829,9 +881,59 @@ export const generateStudentTimetablePdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({ orientation: 'landscape' });
-    const [headerImg, footerImg] = await Promise.all([loadImage(letterheadConfig?.headerImageUrl), loadImage(footerImageUrl)]);
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
     let yPos = setupPdfHeader(doc, headerImg);
-    doc.text(`Student: ${student.name}`, 14, yPos);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Student Timetable: ${student.name}`, margin, yPos);
+    yPos += 7;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${course.name} - ${level.name} (${student.staffId || 'No ID'})`, margin, yPos);
+    yPos += 12;
+
+    const days = timetableSettings?.operatingDays || [];
+    const head = [['Day', 'Time', 'Subject', 'Lecturer', 'Room']];
+
+    // Day order for sorting
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const sortedEntries = [...entries].sort((a, b) => {
+        const d1 = dayOrder.indexOf(a.day);
+        const d2 = dayOrder.indexOf(b.day);
+        if (d1 !== d2) return d1 - d2;
+        return a.startTime.localeCompare(b.startTime);
+    });
+
+    const body = sortedEntries.map(e => {
+        const s = getSubjectById(e.subjectId);
+        const l = getLecturerById(e.lecturerId);
+        const r = getRoomById(e.roomId);
+        return [
+            e.day,
+            `${e.startTime} - ${e.endTime}`,
+            s?.name || s?.code || 'N/A',
+            l?.name || 'N/A',
+            r?.name || 'N/A'
+        ];
+    });
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3 },
+        margin: { left: margin }
+    });
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
@@ -848,9 +950,56 @@ export const generateInternshipReportPdf = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
-    const [headerImg, footerImg] = await Promise.all([loadImage(letterheadConfig?.headerImageUrl), loadImage(footerImageUrl)]);
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
     let yPos = setupPdfHeader(doc, headerImg);
-    doc.text(`Attachment Report: ${student.name}`, 14, yPos);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Industrial Attachment / Internship Report", margin, yPos);
+    yPos += 12;
+
+    // Student & Internship Details Table
+    const detailsHead = [['Attribute', 'Details']];
+    const detailsBody = [
+        ['Student Name', student.name],
+        ['Registration Number', student.staffId || 'N/A'],
+        ['Course of Study', courseName],
+        ['Company/Organization', internship.companyName],
+        ['Position', internship.position || 'Student Intern'],
+        ['Duration', `${new Date(internship.startDate).toLocaleDateString()} to ${new Date(internship.endDate).toLocaleDateString()}`],
+        ['Supervisor', internship.supervisorName || 'N/A']
+    ];
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head: detailsHead,
+        body: detailsBody,
+        theme: 'grid',
+        headStyles: { fillColor: [74, 85, 104], fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 3 },
+        margin: { left: margin },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Report Content
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Internship Summary & Activities", margin, yPos);
+    yPos += 7;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const splitReport = doc.splitTextToSize(report || "No activity report provided.", pageWidth - (margin * 2));
+    doc.text(splitReport, margin, yPos);
+
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
