@@ -251,7 +251,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                 const { data: institution, error: balanceError } = await supabase
                     .from('institutions')
-                    .select('sms_balance')
+                    .select('sms_balance, sms_config')
                     .eq('id', institutionId)
                     .maybeSingle();
 
@@ -266,6 +266,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         balance: institution?.sms_balance || 0,
                         buy_url: '/settings?tab=billing'
                     });
+                }
+
+                // If the institution has a custom SMS gateway, prefer it over the global one
+                if (institution.sms_config && institution.sms_config.apiKey) {
+                    Object.assign(smsConfig, institution.sms_config);
                 }
             }
 
