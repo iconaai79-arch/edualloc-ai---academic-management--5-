@@ -20,6 +20,7 @@ import { LibraryPenaltyManager } from './LibraryPenaltyManager';
 import { BookReservationManager } from './BookReservationManager';
 import { LibraryReports } from './LibraryReports';
 import { BookSponsorManager } from './BookSponsorManager';
+import { LibraryMemberManager } from './LibraryMemberManager';
 
 interface LibraryMasterViewProps {
     currentUser: User;
@@ -33,7 +34,7 @@ interface LibraryMasterViewProps {
     onLogAction: (action: string) => Promise<void>;
 }
 
-type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'reservations' | 'penalties' | 'reports';
+type LibraryTab = 'dashboard' | 'inventory' | 'sponsors' | 'lending' | 'members' | 'reservations' | 'penalties' | 'reports';
 
 export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     currentUser,
@@ -163,6 +164,13 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                                 <p className="font-bold text-slate-900 dark:text-white">Analytics Hub</p>
                                 <p className="text-xs text-slate-500 mt-1">Generate lists and statements</p>
                             </button>
+                            <button onClick={() => setActiveTab('members')} className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-transparent hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-800 transition-all text-left group">
+                                <div className="p-3 bg-white dark:bg-slate-800 w-fit rounded-xl mb-4 shadow-sm group-hover:scale-110 transition-transform">
+                                    <UsersIcon className="w-6 h-6 text-indigo-600" />
+                                </div>
+                                <p className="font-bold text-slate-900 dark:text-white">Member Registry</p>
+                                <p className="text-xs text-slate-500 mt-1">Manage students & staff profiles</p>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -223,6 +231,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                         { id: 'dashboard', label: 'Overview', icon: BarChart3Icon },
                         { id: 'inventory', label: 'Inventory', icon: BookOpenIcon },
                         { id: 'lending', label: 'Circulation', icon: ArchiveBoxIcon },
+                        { id: 'members', label: 'Members', icon: UsersIcon },
                         { id: 'sponsors', label: 'Inward Receipts', icon: BuildingOfficeIcon },
                         { id: 'reservations', label: 'Reservations', icon: RectangleStackIcon },
                         { id: 'penalties', label: 'Dues & Fines', icon: CurrencyIcon },
@@ -245,6 +254,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                 {activeTab === 'dashboard' && renderDashboard()}
                 {activeTab === 'inventory' && <BookInventoryManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'lending' && <BookLendingManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
+                {activeTab === 'members' && <LibraryMemberManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} />}
                 {activeTab === 'sponsors' && <BookSponsorManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'reservations' && <BookReservationManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                 {activeTab === 'penalties' && <LibraryPenaltyManager institutionId={currentInstitution.id} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
