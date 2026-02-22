@@ -168,8 +168,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     }, [recipientList]);
 
     const handleSend = async () => {
-        if ((smsBalance || 0) <= 0) {
-            setStatus({ type: 'error', message: 'You have 0 SMS units remaining. Please top up to continue.' });
+        const totalUnitsRequired = validRecipients.length * smsInfo.count;
+
+        if ((smsBalance || 0) < totalUnitsRequired) {
+            setStatus({
+                type: 'error',
+                message: `Insufficient balance. This send requires ${totalUnitsRequired.toLocaleString()} units, but you only have ${(smsBalance || 0).toLocaleString()}.`
+            });
             setIsBuySMSModalOpen(true);
             return;
         }
@@ -181,7 +186,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             setStatus({ type: 'error', message: 'Message cannot be empty.' });
             return;
         }
-        if (!window.confirm(`You are about to send an SMS to ${validRecipients.length} recipient(s). Are you sure?`)) {
+        if (!window.confirm(`You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipient(s). Total units: ${totalUnitsRequired.toLocaleString()}. Are you sure?`)) {
             return;
         }
 
@@ -321,10 +326,15 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
                     {renderSecondarySelector()}
 
-                    <div className="pt-2">
+                    <div className="pt-2 space-y-1">
                         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                            This message will be sent to <span className="font-bold text-[var(--color-primary)]">{validRecipients.length}</span> recipient(s).
+                            Recipients: <span className="font-bold text-[var(--color-primary)]">{validRecipients.length}</span>
                         </p>
+                        {validRecipients.length > 0 && (
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                Total Units Required: <span className="text-indigo-600 dark:text-indigo-400">{(validRecipients.length * smsInfo.count).toLocaleString()}</span>
+                            </p>
+                        )}
                     </div>
 
                     <div>
