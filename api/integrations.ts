@@ -245,7 +245,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
-            const institutionId = user.user_metadata?.institutionId || user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id;
+            const institutionId = user.user_metadata?.institutionId ||
+                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id);
 
             if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                 const { data: institution, error: balanceError } = await supabase
@@ -383,7 +384,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         return res.status(502).json({
                             success: false,
-                            message: 'OTP sent successfully.',
+                            message: `Gateway ${provider} returned an error. ${isHtml ? 'HTML page returned — check your SMS gateway URL or IP whitelist.' : parseError ? 'Invalid non-JSON response.' : smsRaw.substring(0, 200)}`,
                             recipient: phone
                         });
                     }
