@@ -638,7 +638,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 institutionCode: `INST-${Date.now().toString().slice(-4)}`,
                 themeColor: '#4f46e5',
                 logoUrl: null,
-                useAllocationRequests: true
+                useAllocationRequests: true,
+                smsConfig: props.smsConfig
             });
             setIsAddingInstitution(false);
             setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University' });
