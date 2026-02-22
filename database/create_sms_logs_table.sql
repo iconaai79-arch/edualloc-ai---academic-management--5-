@@ -23,7 +23,11 @@ ALTER TABLE sms_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their institution's SMS logs"
     ON sms_logs FOR SELECT
     USING (
-        auth.jwt() ->> 'institutionId' = institution_id
+        EXISTS (
+            SELECT 1 FROM users u
+            WHERE u.id = auth.uid()
+            AND (u.institution_id = sms_logs.institution_id OR u.role = 'super_admin')
+        )
     );
 
 CREATE POLICY "System can insert SMS logs"
