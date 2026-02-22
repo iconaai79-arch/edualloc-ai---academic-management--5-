@@ -4,7 +4,7 @@
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS sms_balance INTEGER DEFAULT 10; -- Give 10 free units to existing institutions
 
 -- 2. Create RPC for safe balance decrement
-CREATE OR REPLACE FUNCTION decrement_sms_balance(inst_id UUID, amount INTEGER)
+CREATE OR REPLACE FUNCTION decrement_sms_balance(inst_id TEXT, amount INTEGER)
 RETURNS void AS $$
 BEGIN
     UPDATE institutions
@@ -14,7 +14,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 3. Create RPC for safe balance increment
-CREATE OR REPLACE FUNCTION increment_sms_balance(inst_id UUID, amount INTEGER)
+CREATE OR REPLACE FUNCTION increment_sms_balance(inst_id TEXT, amount INTEGER)
 RETURNS void AS $$
 BEGIN
     UPDATE institutions

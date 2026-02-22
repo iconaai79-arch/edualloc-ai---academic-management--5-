@@ -763,33 +763,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else if (metadata.type === 'sms' && metadata.units) {
                             console.log(`[queryStkStatus] Crediting SMS units via poll: ${metadata.units} for ${transaction.institution_id}`);
 
+                            const unitsToCredit = parseInt(metadata.units);
                             const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
                                 inst_id: transaction.institution_id,
-                                amount: parseInt(metadata.units)
+                                amount: unitsToCredit
                             });
 
                             if (smsCreditError) {
+                                console.warn('[queryStkStatus] RPC failed, falling back to direct update:', smsCreditError);
                                 await supabase.from('institutions')
-                                    .update({ sms_balance: supabase.rpc('increment', { amount: parseInt(metadata.units) }) })
+                                    .update({ sms_balance: supabase.rpc('increment', { amount: unitsToCredit }) })
                                     .eq('id', transaction.institution_id);
                             }
-                            console.log(`[queryStkStatus] ✅ SMS Units Credited via poll: ${metadata.units}`);
+                            console.log(`[queryStkStatus] ✅ SMS Units Credited via poll: ${unitsToCredit}`);
                         }
 
                         // Create notification if requesterId exists
                         if (metadata.requesterId) {
-                            const message = metadata.type === 'sms'
-                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added.`
-                                : `Subscription renewed successfully!`;
+                            const isSms = metadata.type === 'sms';
+                            const message = isSms
+                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added to your institution's balance.`
+                                : `Subscription renewed successfully! Your new expiry date is reflected in the billing section.`;
 
                             await supabase.from('app_notifications').insert({
-                                id: `ntf_poll_${Date.now()}`,
+                                id: `ntf_${isSms ? 'sms' : 'sub'}_${Date.now()}`,
                                 user_id: metadata.requesterId,
                                 message,
                                 type: 'success',
                                 is_read: false,
                                 timestamp: new Date().toISOString()
                             });
+                            console.log(`[queryStkStatus] Notification created for user: ${metadata.requesterId}`);
                         }
                     }
                 }

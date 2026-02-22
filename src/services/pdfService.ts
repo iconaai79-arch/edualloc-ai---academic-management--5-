@@ -2394,7 +2394,7 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text('BOOK CIRCULATION HISTORY', margin, tableY - 5);
 
     const transactionBody = transactions.map(t => ([
-        new Date(t.borrowDate).toLocaleDateString(),
+        new Date(t.issueDate).toLocaleDateString(),
         getBookTitle(t.bookId),
         t.returnDate ? new Date(t.returnDate).toLocaleDateString() : 'NOT RETURNED',
         t.status.toUpperCase()

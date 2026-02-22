@@ -229,16 +229,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (metadata.type === 'sms' && metadata.units) {
                 console.log(`[M-Pesa Callback] Crediting SMS units: ${metadata.units} for ${transaction.institution_id}`);
 
+                const unitsToCredit = parseInt(metadata.units);
                 const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
                     inst_id: transaction.institution_id,
-                    amount: parseInt(metadata.units)
+                    amount: unitsToCredit
                 });
 
                 if (smsCreditError) {
                     console.error('[M-Pesa Callback] RPC Error crediting SMS:', smsCreditError);
                     // Fallback to direct update if RPC fails
                     await supabase.from('institutions')
-                        .update({ sms_balance: supabase.rpc('increment', { amount: parseInt(metadata.units) }) })
+                        .update({ sms_balance: supabase.rpc('increment', { amount: unitsToCredit }) })
                         .eq('id', transaction.institution_id);
                 }
 
@@ -253,7 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     total_amount: transaction.amount,
                     status: 'paid',
                     items: JSON.stringify([{
-                        description: `SMS Units Purchase - ${metadata.units} units`,
+                        description: `SMS Units Purchase - ${unitsToCredit} units`,
                         quantity: 1,
                         unitPrice: transaction.amount,
                         amount: transaction.amount
@@ -271,7 +272,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     related_transaction_id: transaction.id
                 });
 
-                console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${metadata.units}`);
+                console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${unitsToCredit}`);
+
+                // Create notification if requesterId exists
+                if (metadata.requesterId) {
+                    await supabase.from('app_notifications').insert({
+                        id: `ntf_sms_${Date.now()}`,
+                        user_id: metadata.requesterId,
+                        message: `Payment successful! ${unitsToCredit.toLocaleString()} SMS units have been added to your institution's balance.`,
+                        type: 'success',
+                        is_read: false,
+                        timestamp: new Date().toISOString()
+                    });
+                    console.log(`[M-Pesa Callback] Notification created for user: ${metadata.requesterId}`);
+                }
             }
 
             console.log('[M-Pesa Callback] ========================================');
