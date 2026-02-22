@@ -2090,7 +2090,11 @@ export const App: React.FC = () => {
                     <>
                         <LoginView
                             onLogin={(e, p) => {
-                                const u = (users || []).find(user => user && user.email?.toLowerCase() === e.toLowerCase() && (user.password === p || (!user.password && p === 'password123')));
+                                const u = (users || []).find(user =>
+                                    user &&
+                                    (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
+                                    (user.password === p || (!user.password && p === 'password123'))
+                                );
                                 if (u) {
                                     const inst = institutions.find(i => i.id === u.institutionId);
                                     if (inst?.status === 'suspended' && u.role !== 'super_admin') {

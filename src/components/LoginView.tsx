@@ -35,7 +35,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     onVerifyOtp, onResendOtp
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
@@ -78,7 +78,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const result = onLogin(email, password);
+        const result = onLogin(identifier, password);
         if (result === 'failed') {
             setError('Invalid email or password.');
         } else if (result === 'suspended') {
@@ -102,7 +102,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const cleanEmail = email.trim().toLowerCase();
+        const cleanEmail = identifier.trim().toLowerCase();
         if (!cleanEmail) {
             setError("Please enter your registered email address.");
             return;
@@ -220,10 +220,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         <div className="animate-fade-in space-y-6">
                             <form onSubmit={handleLoginSubmit} className="space-y-4">
                                 <div>
-                                    <label className={labelClasses} htmlFor="email">Email Address</label>
+                                    <label className={labelClasses} htmlFor="identifier">Email or Phone Number</label>
                                     <div className="relative">
                                         <UserIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                                        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="official@institution.edu" className={`${inputClasses} pl-10`} required />
+                                        <input id="identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="07xx... or official@institution.edu" className={`${inputClasses} pl-10`} required />
                                     </div>
                                 </div>
                                 <div>
@@ -313,7 +313,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     <label className={labelClasses}>Official Email</label>
                                     <div className="relative">
                                         <PaperAirplaneIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400 rotate-45" />
-                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={`${inputClasses} pl-12`} placeholder="name@institution.edu" required autoFocus />
+                                        <input type="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className={`${inputClasses} pl-12`} placeholder="name@institution.edu" required autoFocus />
                                     </div>
                                 </div>
                                 <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50">
@@ -331,7 +331,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                             </div>
                             <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tighter">Request Received</h2>
                             <p className="text-sm text-slate-500 leading-relaxed">
-                                If an account exists for <span className="font-bold text-slate-700 dark:text-slate-300">{email}</span>,
+                                If an account exists for <span className="font-bold text-slate-700 dark:text-slate-300">{identifier}</span>,
                                 you will receive an email with recovery instructions shortly.
                             </p>
                             <button onClick={() => setView('login')} className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-4 rounded-2xl shadow-xl transition-all">
