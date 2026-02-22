@@ -468,6 +468,19 @@ export interface AppNotification {
     timestamp: string;
 }
 
+export interface SmsLog {
+    id: string;
+    institutionId: string;
+    senderId: string;
+    recipient: string;
+    message: string;
+    units: number;
+    status: string;
+    provider: string;
+    gatewayResponse?: any;
+    createdAt: string;
+}
+
 export interface StudentAttendance {
     id: string;
     timetableEntryId: string;

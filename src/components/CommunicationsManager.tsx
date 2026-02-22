@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/index';
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog } from '../types';
+import { apiService } from '../services/apiService';
 
 interface CommunicationsManagerProps {
     users: User[];
@@ -51,6 +52,9 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [message, setMessage] = useState('');
     const [status, setStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState<'compose' | 'history'>('compose');
+    const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
     const [smsInfo, setSmsInfo] = useState({ count: 0, characters: 0, limit: 160, isUnicode: false });
 
@@ -60,6 +64,26 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     useEffect(() => {
         setSmsInfo(calculateSmsParts(message));
     }, [message]);
+
+    const fetchLogs = async () => {
+        if (!currentInstitution) return;
+        setIsLoadingLogs(true);
+        try {
+            const logs = await apiService.fetchSmsLogs(currentInstitution.id);
+            // Sort by date descending
+            setSmsLogs(logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } catch (err) {
+            console.error('Failed to fetch SMS logs:', err);
+        } finally {
+            setIsLoadingLogs(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'history') {
+            fetchLogs();
+        }
+    }, [activeTab, currentInstitution]);
 
     const filteredUsersForIndividualSelection = useMemo(() => {
         if (!searchTerm) return [];
@@ -299,10 +323,89 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
     };
 
+    const renderHistoryTab = () => {
+        if (isLoadingLogs) {
+            return (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-sm font-medium">Loading history...</p>
+                </div>
+            );
+        }
+
+        if (smsLogs.length === 0) {
+            return (
+                <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400">No sent messages found.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <thead>
+                        <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                            <th className="py-3 px-4">Date</th>
+                            <th className="py-3 px-4">Recipient</th>
+                            <th className="py-3 px-4">Message</th>
+                            <th className="py-3 px-4 text-center">Units</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {smsLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                                    {new Date(log.createdAt).toLocaleDateString()}
+                                    <span className="block text-[10px] opacity-60">
+                                        {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </td>
+                                <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
+                                    {log.recipient}
+                                </td>
+                                <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
+                                    {log.message}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                    <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                        {log.units}
+                                    </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                    <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        {log.status}
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold">Send SMS Communication</h3>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-semibold">Broadcaster</h3>
+                    <div className="flex gap-4 mt-1">
+                        <button
+                            onClick={() => setActiveTab('compose')}
+                            className={`text-xs font-black uppercase tracking-widest pb-1 border-b-2 transition-all ${activeTab === 'compose' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Compose
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`text-xs font-black uppercase tracking-widest pb-1 border-b-2 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Sent History
+                        </button>
+                    </div>
+                </div>
                 {(smsBalance !== undefined || ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'super_admin', 'academics_officer', 'boarding_master'].includes(currentUser?.role || '')) && (
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</span>
@@ -322,81 +425,87 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     </div>
                 )}
             </div>
-            <div className="flex flex-col lg:flex-row gap-8">
-                <div className="flex-1 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient Group</label>
-                        <select value={recipientTarget} onChange={handleRecipientTargetChange} className="form-select mt-1" aria-label="Select recipient group">
-                            <option value="individual">Individual User</option>
-                            {isSuperAdminView && <option value="institution">By Institution</option>}
-                            <option value="all_staff">All Staff</option>
-                            <option value="all_students">All Students</option>
-                            <option value="department">By Department</option>
-                            <option value="course">By Course</option>
-                        </select>
-                    </div>
+            {activeTab === 'compose' ? (
+                <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="flex-1 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient Group</label>
+                            <select value={recipientTarget} onChange={handleRecipientTargetChange} className="form-select mt-1" aria-label="Select recipient group">
+                                <option value="individual">Individual User</option>
+                                {isSuperAdminView && <option value="institution">By Institution</option>}
+                                <option value="all_staff">All Staff</option>
+                                <option value="all_students">All Students</option>
+                                <option value="department">By Department</option>
+                                <option value="course">By Course</option>
+                            </select>
+                        </div>
 
-                    {renderSecondarySelector()}
+                        {renderSecondarySelector()}
 
-                    <div className="pt-2 space-y-1">
-                        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                            Recipients: <span className="font-bold text-[var(--color-primary)]">{validRecipients.length}</span>
-                        </p>
-                        {validRecipients.length > 0 && (
-                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                                Total Units Required: <span className="text-indigo-600 dark:text-indigo-400">{(validRecipients.length * smsInfo.count).toLocaleString()}</span>
+                        <div className="pt-2 space-y-1">
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                Recipients: <span className="font-bold text-[var(--color-primary)]">{validRecipients.length}</span>
                             </p>
-                        )}
-                    </div>
+                            {validRecipients.length > 0 && (
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                    Total Units Required: <span className="text-indigo-600 dark:text-indigo-400">{(validRecipients.length * smsInfo.count).toLocaleString()}</span>
+                                </p>
+                            )}
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Message</label>
-                        <textarea
-                            rows={5}
-                            value={message}
-                            onChange={e => setMessage(e.target.value)}
-                            required
-                            className="form-input mt-1"
-                            placeholder="Type your message here..."
-                        ></textarea>
-                        <div className="mt-2 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
-                            <span>{smsInfo.isUnicode && "Unicode characters detected"}</span>
-                            <span>
-                                {smsInfo.characters} / {smsInfo.limit * smsInfo.count} ({smsInfo.count} SMS)
-                            </span>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Message</label>
+                            <textarea
+                                rows={5}
+                                value={message}
+                                onChange={e => setMessage(e.target.value)}
+                                required
+                                className="form-input mt-1"
+                                placeholder="Type your message here..."
+                            ></textarea>
+                            <div className="mt-2 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                                <span>{smsInfo.isUnicode && "Unicode characters detected"}</span>
+                                <span>
+                                    {smsInfo.characters} / {smsInfo.limit * smsInfo.count} ({smsInfo.count} SMS)
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex justify-end items-center gap-4">
+                            {status.type !== 'idle' && (
+                                <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
+                                    status.type === 'success' ? 'text-green-600' :
+                                        'text-slate-500'
+                                    }`}>{status.message}</p>
+                            )}
+                            <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
+                                {status.type === 'sending' ? 'Sending...' : 'Send SMS'}
+                            </button>
                         </div>
                     </div>
-                    <div className="flex justify-end items-center gap-4">
-                        {status.type !== 'idle' && (
-                            <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
-                                status.type === 'success' ? 'text-green-600' :
-                                    'text-slate-500'
-                                }`}>{status.message}</p>
-                        )}
-                        <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
-                            {status.type === 'sending' ? 'Sending...' : 'Send SMS'}
-                        </button>
-                    </div>
-                </div>
 
-                <div className="w-full lg:w-72 flex-shrink-0">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 text-center">Phone Preview</p>
-                    <div className="relative mx-auto border-black dark:border-slate-600 bg-black border-[10px] rounded-[2.5rem] h-[450px] w-full max-w-[220px]">
-                        <div className="h-[22px] w-[100px] bg-black dark:bg-slate-600 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
-                        <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -left-[13px] top-[60px] rounded-l-lg"></div>
-                        <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -right-[13px] top-[120px] rounded-r-lg"></div>
-                        <div className="rounded-[2rem] overflow-hidden w-full h-full bg-slate-50 dark:bg-slate-800">
-                            <div className="p-4 space-y-2">
-                                <div className="flex justify-end">
-                                    <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[80%]">
-                                        <p className="text-sm break-words">{message || "Your message will appear here..."}</p>
+                    <div className="w-full lg:w-72 flex-shrink-0">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 text-center">Phone Preview</p>
+                        <div className="relative mx-auto border-black dark:border-slate-600 bg-black border-[10px] rounded-[2.5rem] h-[450px] w-full max-w-[220px]">
+                            <div className="h-[22px] w-[100px] bg-black dark:bg-slate-600 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute"></div>
+                            <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -left-[13px] top-[60px] rounded-l-lg"></div>
+                            <div className="h-[35px] w-[3px] bg-black dark:bg-slate-600 absolute -right-[13px] top-[120px] rounded-r-lg"></div>
+                            <div className="rounded-[2rem] overflow-hidden w-full h-full bg-slate-50 dark:bg-slate-800">
+                                <div className="p-4 space-y-2">
+                                    <div className="flex justify-end">
+                                        <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[80%]">
+                                            <p className="text-sm break-words">{message || "Your message will appear here..."}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            ) : (
+                <div className="mt-4">
+                    {renderHistoryTab()}
+                </div>
+            )}
             {isBuySMSModalOpen && currentInstitution && mpesaConfig && (
                 <BuySMSModal
                     isOpen={isBuySMSModalOpen}

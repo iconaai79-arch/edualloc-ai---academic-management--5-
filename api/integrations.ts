@@ -421,6 +421,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Success! Decrement balance (except for free system messages)
                         if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                             await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
+
+                            // Record log
+                            try {
+                                await supabase.from('sms_logs').insert({
+                                    institution_id: institutionId,
+                                    sender_id: user.id === 'system' ? null : user.id,
+                                    recipient: phone,
+                                    message: message,
+                                    units: unitsToDeduct,
+                                    status: 'sent',
+                                    provider: provider,
+                                    gateway_response: smsDetail
+                                });
+                            } catch (logErr) {
+                                console.error('[SMS Logging] Failed to record log:', logErr);
+                            }
                         }
                         return res.status(200).json({
                             success: true,
