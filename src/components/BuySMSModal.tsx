@@ -33,6 +33,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     institutionCode,
     institutionName,
     smsUnitPrice = 2, // Default if not provided
+    requesterId,
     minSmsUnits = 0
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
