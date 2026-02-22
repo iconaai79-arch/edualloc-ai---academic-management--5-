@@ -48,10 +48,10 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         }
     };
 
-    const members = useMemo(() => {
+    const groupedMembers = useMemo(() => {
         const eligibleUsers = users.filter(u => u.role !== 'super_admin');
 
-        return eligibleUsers.map(user => {
+        const processed = eligibleUsers.map(user => {
             const userTrans = transactions.filter(t => t.userId === user.id);
             const userFines = fines.filter(f => f.userId === user.id);
 
@@ -65,6 +65,11 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (u.staffId && u.staffId.toLowerCase().includes(searchTerm.toLowerCase()))
         );
+
+        return {
+            staff: processed.filter(u => u.role !== 'student'),
+            students: processed.filter(u => u.role === 'student')
+        };
     }, [users, transactions, fines, searchTerm]);
 
     const handleClearFine = async (fine: LibraryFine) => {
@@ -85,6 +90,45 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     };
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
+
+    const renderMemberRow = (member: any) => (
+        <div
+            key={member.id}
+            className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 last:border-0 transition-colors cursor-pointer group"
+            onClick={() => setSelectedMember(member)}
+        >
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm border border-indigo-100/50 dark:border-indigo-800/50">
+                    {member.name.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                    <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.name}</h4>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{member.staffId || 'No ID'}</p>
+                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
+                            {member.role.replace('_', ' ')}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-8 ml-4">
+                <div className="text-right min-w-[60px]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Loans</p>
+                    <p className={`text-[10px] font-black ${member.activeLoans > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>{member.activeLoans}</p>
+                </div>
+                <div className="text-right min-w-[60px]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Overdue</p>
+                    <p className={`text-[10px] font-black ${member.overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{member.overdueCount}</p>
+                </div>
+                <div className="text-right min-w-[80px]">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">Outstanding</p>
+                    <p className={`text-[10px] font-black ${member.totalFines > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{member.totalFines > 0 ? `KES ${member.totalFines.toFixed(0)}` : '0'}</p>
+                </div>
+                <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+            </div>
+        </div>
+    );
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -110,51 +154,44 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 <div className="flex gap-4 px-4">
                     <div className="flex flex-col items-end">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Members</span>
-                        <span className="text-xl font-black text-slate-900 dark:text-white">{members.length}</span>
+                        <span className="text-xl font-black text-slate-900 dark:text-white">{groupedMembers.staff.length + groupedMembers.students.length}</span>
                     </div>
                 </div>
             </div>
 
-            {/* Members Grid/List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {members.map(member => (
-                    <div
-                        key={member.id}
-                        className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                        onClick={() => setSelectedMember(member)}
-                    >
-                        <div className="flex items-start justify-between mb-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm border border-indigo-100/50 dark:border-indigo-800/50">
-                                    {member.name.charAt(0)}
-                                </div>
-                                <div className="min-w-0">
-                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.name}</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{member.staffId || 'No ID'}</p>
-                                    <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-[8px] font-black text-slate-500 rounded-md uppercase tracking-tighter">
-                                        {member.role.replace('_', ' ')}
-                                    </span>
-                                </div>
-                            </div>
-                            <ChevronRightIcon className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+            {/* Members List Sections */}
+            <div className="space-y-10">
+                {/* Staff Section */}
+                {groupedMembers.staff.length > 0 && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600">Staff Members</h3>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.staff.length} Active Profiles</span>
                         </div>
-
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl text-center border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 transition-colors">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Loans</p>
-                                <p className={`text-sm font-black ${member.activeLoans > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>{member.activeLoans}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl text-center border border-transparent hover:border-rose-100 dark:hover:border-rose-900 transition-colors">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Overdue</p>
-                                <p className={`text-sm font-black ${member.overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{member.overdueCount}</p>
-                            </div>
-                            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl text-center border border-transparent hover:border-emerald-100 dark:hover:border-emerald-900 transition-colors">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">Dues</p>
-                                <p className={`text-sm font-black ${member.totalFines > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{member.totalFines > 0 ? `KES ${member.totalFines.toFixed(0)}` : '0'}</p>
-                            </div>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {groupedMembers.staff.map(renderMemberRow)}
                         </div>
                     </div>
-                ))}
+                )}
+
+                {/* Students Section */}
+                {groupedMembers.students.length > 0 && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Student Body</h3>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">{groupedMembers.students.length} Active Records</span>
+                        </div>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {groupedMembers.students.map(renderMemberRow)}
+                        </div>
+                    </div>
+                )}
+
+                {groupedMembers.staff.length === 0 && groupedMembers.students.length === 0 && (
+                    <div className="py-20 text-center bg-white dark:bg-slate-800 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No members found matching your search</p>
+                    </div>
+                )}
             </div>
 
             {/* Member Side Profile Detail Drawer/Overlay */}
