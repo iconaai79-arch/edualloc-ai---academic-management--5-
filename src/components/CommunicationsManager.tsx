@@ -168,6 +168,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     }, [recipientList]);
 
     const handleSend = async () => {
+        if ((smsBalance || 0) <= 0) {
+            setStatus({ type: 'error', message: 'You have 0 SMS units remaining. Please top up to continue.' });
+            setIsBuySMSModalOpen(true);
+            return;
+        }
         if (validRecipients.length === 0) {
             setStatus({ type: 'error', message: 'No recipients with valid phone numbers found for the selected group.' });
             return;
