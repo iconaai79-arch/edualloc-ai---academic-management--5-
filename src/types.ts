@@ -121,6 +121,7 @@ export interface Institution {
     isOtpEnabled?: boolean;
     smsBalance?: number;
     customSmsPrice?: number;
+    smsConfig?: SmsConfig;
 }
 
 

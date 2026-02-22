@@ -365,6 +365,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
+    const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
+    const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
+    const [tenantSmsConfig, setTenantSmsConfig] = useState<SmsConfig>({ provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
+    const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
+    const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
 
 
     // State for new institution form
@@ -975,7 +980,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex justify-end gap-3 transition-all">
+                                                        <div className="flex justify-end gap-2 flex-wrap transition-all">
                                                             <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                 <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                 Portal
@@ -983,6 +988,26 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                             <button onClick={() => setExtendingInstitution(inst)} className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg">
                                                                 <ClockIcon className="w-3 h-3" />
                                                                 Extend
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingGatewayFor(inst);
+                                                                    setTenantSmsConfig(inst.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-purple-600 hover:text-purple-900 font-black text-[10px] uppercase tracking-tighter bg-purple-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <ChatBubbleBottomCenterTextIcon className="w-3 h-3" />
+                                                                Gateway
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingSmsUnitsFor(inst);
+                                                                    setTenantSmsAdjustment({ amount: 0, reason: '' });
+                                                                }}
+                                                                className="flex items-center gap-1 text-sky-600 hover:text-sky-900 font-black text-[10px] uppercase tracking-tighter bg-sky-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <CreditCardIcon className="w-3 h-3" />
+                                                                SMS Units
                                                             </button>
                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                 Edit
@@ -1990,6 +2015,144 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
                             <button onClick={() => setExtendingInstitution(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
                             <button onClick={handleExtendSubscription} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100">Grant Extension</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Sender Gateway Modal ── */}
+            {managingGatewayFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingGatewayFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-purple-50/50 dark:bg-purple-900/10">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight text-purple-900 dark:text-purple-200">Sender Gateway</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingGatewayFor.name}</p>
+                            </div>
+                            <button onClick={() => setManagingGatewayFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Provider</label>
+                                    <select
+                                        value={tenantSmsConfig.provider || 'Zettatel'}
+                                        onChange={e => setTenantSmsConfig(prev => ({ ...prev, provider: e.target.value }))}
+                                        className="form-select"
+                                    >
+                                        <option value="Zettatel">Zettatel</option>
+                                        <option value="ABMIS">ABMIS</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Sender ID</label>
+                                    <input type="text" value={tenantSmsConfig.fromNumber || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, fromNumber: e.target.value }))} className="form-input" placeholder="e.g. EduAi" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">API Key / Username</label>
+                                    <input type="text" value={tenantSmsConfig.apiKey || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiKey: e.target.value }))} className="form-input" placeholder="Gateway username" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">API Secret / Password</label>
+                                    <input type="password" value={tenantSmsConfig.apiSecret || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiSecret: e.target.value }))} className="form-input" placeholder="Gateway password" />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Gateway URL (optional override)</label>
+                                    <input type="text" value={(tenantSmsConfig as any).baseUrl || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, baseUrl: e.target.value } as any))} className="form-input" placeholder="Leave blank to use default" />
+                                </div>
+                            </div>
+                            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
+                                <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">This gateway config is saved directly on the tenant's institution record and overrides the global system gateway for this tenant only.</p>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setManagingGatewayFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingGatewayFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingGatewayFor.id, { smsConfig: tenantSmsConfig });
+                                        setManagingGatewayFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-100"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save Gateway'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── SMS Units Management Modal ── */}
+            {managingSmsUnitsFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingSmsUnitsFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-sky-50/50 dark:bg-sky-900/10">
+                            <div>
+                                <h3 className="text-lg font-black uppercase tracking-tight text-sky-900 dark:text-sky-200">SMS Units</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingSmsUnitsFor.name}</p>
+                            </div>
+                            <button onClick={() => setManagingSmsUnitsFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Current Balance</p>
+                                    <p className="text-3xl font-black text-sky-600 tracking-tighter mt-1">{(managingSmsUnitsFor.smsBalance ?? 0).toLocaleString()}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">SMS units</p>
+                                </div>
+                                <CreditCardIcon className="w-10 h-10 text-sky-200" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Adjust Units (use negative to deduct)</label>
+                                <input
+                                    type="number"
+                                    value={tenantSmsAdjustment.amount}
+                                    onChange={e => setTenantSmsAdjustment(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                                    className="form-input text-xl font-black"
+                                    placeholder="e.g. 500 or -100"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Adjustment Reason (optional)</label>
+                                <input
+                                    type="text"
+                                    value={tenantSmsAdjustment.reason}
+                                    onChange={e => setTenantSmsAdjustment(prev => ({ ...prev, reason: e.target.value }))}
+                                    className="form-input"
+                                    placeholder="e.g. Manual top-up, correction…"
+                                />
+                            </div>
+                            {tenantSmsAdjustment.amount !== 0 && (
+                                <div className={`p-3 rounded-xl border text-xs font-medium ${tenantSmsAdjustment.amount > 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+                                    New balance will be: <strong>{(Math.max(0, (managingSmsUnitsFor.smsBalance ?? 0) + tenantSmsAdjustment.amount)).toLocaleString()}</strong> units
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setManagingSmsUnitsFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig || tenantSmsAdjustment.amount === 0}
+                                onClick={async () => {
+                                    if (!managingSmsUnitsFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        const newBalance = Math.max(0, (managingSmsUnitsFor.smsBalance ?? 0) + tenantSmsAdjustment.amount);
+                                        await props.onUpdateInstitution(managingSmsUnitsFor.id, { smsBalance: newBalance });
+                                        setManagingSmsUnitsFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-100"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Apply Adjustment'}
+                            </button>
                         </div>
                     </div>
                 </div>
