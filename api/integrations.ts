@@ -812,7 +812,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             .select('sms_balance')
                             .eq('id', transaction.institution_id)
                             .single();
-                        
+
                         const newBalance = updatedInst?.sms_balance || 0;
 
                         // Create notification if requesterId exists
@@ -992,6 +992,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     payment_method: 'Manual Verification',
                     related_transaction_id: transaction.id
                 });
+            } else if (metadata.type === 'sms' && metadata.units) {
+                const unitsToCredit = parseInt(metadata.units);
+                await supabase.rpc('increment_sms_balance', {
+                    inst_id: transaction.institution_id,
+                    amount: unitsToCredit
+                });
+
+                // Create invoice & receipt
+                const invoiceId = `inv_manual_sms_${Date.now()}`;
+                await supabase.from('invoices').insert({
+                    id: invoiceId,
+                    invoice_number: `INV-SMS-MAN-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    issue_date: new Date().toISOString().split('T')[0],
+                    due_date: new Date().toISOString().split('T')[0],
+                    total_amount: transaction.amount,
+                    status: 'paid',
+                    items: JSON.stringify([{
+                        description: `Manual Verification: SMS Purchase (${unitsToCredit} units)`,
+                        quantity: 1,
+                        unitPrice: transaction.amount,
+                        amount: transaction.amount
+                    }])
+                });
+
+                await supabase.from('receipts').insert({
+                    id: `rec_manual_sms_${Date.now()}`,
+                    receipt_number: `REC-SMS-MAN-${Date.now().toString().slice(-6)}`,
+                    institution_id: transaction.institution_id,
+                    invoice_id: invoiceId,
+                    amount_paid: transaction.amount,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: 'Manual Verification',
+                    related_transaction_id: transaction.id
+                });
             }
 
             // 4. Send Notifications
@@ -1000,7 +1035,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (inst) {
                     const isSms = metadata.type === 'sms';
                     const newBalance = inst.sms_balance || 0;
-                    
+
                     let notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${inst.name} has been manually verified. Your account is now active and your subscription has been extended. Thank you for choosing EduAi.`;
 
                     if (isSms) {
@@ -1043,7 +1078,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const provider = smsConfig.provider || 'Zettatel';
                             const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
                             const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : 'https://sms.abmis.co.ke/smsapi/send');
-                            
+
                             const params = new URLSearchParams({
                                 userid: smsConfig.apiKey || smsConfig.api_key,
                                 password: smsConfig.apiSecret || smsConfig.api_secret,
