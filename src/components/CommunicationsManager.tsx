@@ -164,7 +164,15 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser]);
 
     const validRecipients = useMemo(() => {
-        return recipientList.filter(u => u.phoneNumber && u.phoneNumber.trim() !== '');
+        const unique = new Map<string, User>();
+        recipientList.forEach(u => {
+            if (u.phoneNumber && u.phoneNumber.trim() !== '') {
+                // Deduplicate by ID if available, otherwise by Phone Number
+                const key = u.id || u.phoneNumber.trim();
+                unique.set(key, u);
+            }
+        });
+        return Array.from(unique.values());
     }, [recipientList]);
 
     const handleSend = async () => {
@@ -186,7 +194,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             setStatus({ type: 'error', message: 'Message cannot be empty.' });
             return;
         }
-        if (!window.confirm(`You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipient(s). Total units: ${totalUnitsRequired.toLocaleString()}. Are you sure?`)) {
+        const confirmMsg = validRecipients.length === 1
+            ? `You are about to send ${smsInfo.count} page(s) of SMS to 1 recipient. This will deduct ${totalUnitsRequired.toLocaleString()} units. Are you sure?`
+            : `You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipients. \n\nCalculation: ${validRecipients.length} recipients × ${smsInfo.count} pages = ${totalUnitsRequired.toLocaleString()} total units.\n\nAre you sure?`;
+
+        if (!window.confirm(confirmMsg)) {
             return;
         }
 
