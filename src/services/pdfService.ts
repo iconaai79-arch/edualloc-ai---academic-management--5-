@@ -1,5 +1,5 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -2191,6 +2191,109 @@ export const generateRoomProximityReportPdf = async (
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(150, 150, 150);
     doc.text("* Results represent the closest 10 facilities by air distance.", margin, finalY);
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateMemberLibraryHistoryPdf = async (
+    member: User,
+    transactions: LibraryTransaction[],
+    fines: LibraryFine[],
+    getBookTitle: (id: string) => string,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [logoImg, footerImg] = await Promise.all([
+        loadImage(logoUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    const tableStartY = createPdfWithLetterhead(doc, 'LIBRARY MEMBER STATEMENT', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Member Information Section
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('MEMBER DETAILS', margin, tableStartY - 15);
+    doc.line(margin, tableStartY - 12, pageWidth - margin, tableStartY - 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${member.name}`, margin, tableStartY - 5);
+    doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
+    doc.text(`Role: ${member.role.replace(/_/g, ' ').toUpperCase()}`, margin, tableStartY + 5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Statement Date: ${new Date().toLocaleDateString()}`, pageWidth - margin, tableStartY - 5, { align: 'right' });
+
+    let yPos = tableStartY + 20;
+
+    // Borrowing History Table
+    doc.setFontSize(12);
+    doc.text('Resource Circulation History', margin, yPos);
+    yPos += 5;
+
+    const transHead = [['Book Title', 'Issue Date', 'Due Date', 'Status']];
+    const transBody = transactions.map(t => [
+        getBookTitle(t.bookId),
+        new Date(t.issueDate).toLocaleDateString(),
+        new Date(t.dueDate).toLocaleDateString(),
+        t.status.toUpperCase()
+    ]);
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head: transHead,
+        body: transBody.length > 0 ? transBody : [['No transactions found', '', '', '']],
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 8 },
+        styles: { fontSize: 8 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Financial Ledger Section
+    if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+    }
+
+    doc.setFontSize(12);
+    doc.text('Library Financial Ledger', margin, yPos);
+    yPos += 5;
+
+    const finesHead = [['Description', 'Amount', 'Paid', 'Balance', 'Status']];
+    const finesBody = fines.map(f => [
+        f.description,
+        f.amount.toLocaleString(),
+        f.paidAmount.toLocaleString(),
+        (f.amount - f.paidAmount).toLocaleString(),
+        f.status.toUpperCase()
+    ]);
+
+    (doc as any).autoTable({
+        startY: yPos,
+        head: finesHead,
+        body: finesBody.length > 0 ? finesBody : [['No fines recorded', '', '', '', '']],
+        theme: 'striped',
+        headStyles: { fillColor: [74, 85, 104], textColor: 255, fontSize: 8 },
+        styles: { fontSize: 8 },
+    });
+
+    const totalDue = fines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0);
+    const finalY = (doc as any).lastAutoTable.finalY;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 50, finalY + 10);
+    doc.setTextColor(totalDue > 0 ? [200, 0, 0] : [0, 100, 0]);
+    doc.text(`KES ${totalDue.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');

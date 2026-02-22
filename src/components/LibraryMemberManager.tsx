@@ -1,21 +1,27 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, LibraryTransaction, LibraryFine, Book } from '../types';
+import type { User, LibraryTransaction, LibraryFine, Book, Institution, CompanyDetails } from '../types';
 import {
     SearchIcon, UserIcon, BookOpenIcon, ClockIcon,
     CurrencyIcon, ArrowPathIcon, ChevronRightIcon, XIcon,
-    CheckCircleIcon
+    CheckCircleIcon, PrinterIcon, FilterIcon, CalendarDaysIcon as CalendarIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
+import { generateMemberLibraryHistoryPdf } from '../services/pdfService';
+import { PdfPreviewModal } from './PdfPreviewModal';
 
 interface LibraryMemberManagerProps {
     institutionId: string;
+    institution: Institution;
+    companyDetails: CompanyDetails;
     users: User[];
     onLogAction: (action: string) => Promise<void>;
 }
 
 export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     institutionId,
+    institution,
+    companyDetails,
     users,
     onLogAction
 }) => {
@@ -25,6 +31,15 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedMember, setSelectedMember] = useState<User | null>(null);
+
+    // Filtering states for the selected member
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'issued' | 'overdue' | 'returned'>('all');
+
+    // PDF Preview state
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [generatingPdf, setGeneratingPdf] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -90,6 +105,41 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     };
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
+
+    const handlePreviewPdf = async () => {
+        if (!selectedMember) return;
+        setGeneratingPdf(true);
+        try {
+            const memberTrans = transactions.filter(t => t.userId === selectedMember.id);
+            const memberFines = fines.filter(f => f.userId === selectedMember.id);
+
+            // Apply current filters for the PDF as well
+            const filteredTrans = memberTrans.filter(t => {
+                const transDate = new Date(t.issueDate);
+                const isAfterStart = !startDate || transDate >= new Date(startDate);
+                const isBeforeEnd = !endDate || transDate <= new Date(endDate);
+                const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                return isAfterStart && isBeforeEnd && matchesStatus;
+            });
+
+            const dataUri = await generateMemberLibraryHistoryPdf(
+                selectedMember,
+                filteredTrans,
+                memberFines,
+                getBookTitle,
+                institution,
+                companyDetails,
+                institution.logoUrl || null,
+                null // Footer image if available
+            );
+            setPreviewUrl(dataUri);
+        } catch (error) {
+            console.error('PDF Generation Error:', error);
+            alert('Failed to generate PDF statement.');
+        } finally {
+            setGeneratingPdf(false);
+        }
+    };
 
     const renderMemberRow = (member: any) => (
         <div
@@ -245,35 +295,120 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                                 </div>
                             </div>
 
+                            {/* Filtering and PDF Actions */}
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 space-y-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                                        <FilterIcon className="w-3.5 h-3.5" />
+                                        Statement Control Center
+                                    </h4>
+                                    <button
+                                        onClick={handlePreviewPdf}
+                                        disabled={generatingPdf}
+                                        className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
+                                    >
+                                        {generatingPdf ? (
+                                            <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <PrinterIcon className="w-3 h-3" />
+                                        )}
+                                        {generatingPdf ? 'Generating...' : 'Preview PDF Statement'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1 ml-1">From Date</label>
+                                        <div className="relative">
+                                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                            <input
+                                                type="date"
+                                                value={startDate}
+                                                onChange={(e) => setStartDate(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl text-[10px] font-bold outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1 ml-1">To Date</label>
+                                        <div className="relative">
+                                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                            <input
+                                                type="date"
+                                                value={endDate}
+                                                onChange={(e) => setEndDate(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl text-[10px] font-bold outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1 ml-1">Circulation Status</label>
+                                        <div className="relative">
+                                            <FilterIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                            <select
+                                                value={statusFilter}
+                                                onChange={(e) => setStatusFilter(e.target.value as any)}
+                                                className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl text-[10px] font-bold outline-none appearance-none transition-all"
+                                            >
+                                                <option value="all">Every Transaction</option>
+                                                <option value="issued">Currently Out</option>
+                                                <option value="overdue">Overdue Items</option>
+                                                <option value="returned">Successfully Returned</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Active Transactions */}
                             <div className="space-y-6">
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2 px-2">
                                     <ClockIcon className="w-3.5 h-3.5" />
-                                    Active Loans In-Progress
+                                    Filtered Circulation History
                                 </h4>
                                 <div className="space-y-3">
-                                    {transactions.filter(t => t.userId === selectedMember.id && (t.status === 'issued' || t.status === 'overdue')).map((t, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl hover:border-indigo-500/50 transition-all shadow-sm">
-                                            <div className="flex items-center gap-4 min-w-0">
-                                                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-indigo-600">
-                                                    <BookOpenIcon className="w-5 h-5" />
+                                    {transactions
+                                        .filter(t => t.userId === selectedMember.id)
+                                        .filter(t => {
+                                            const transDate = new Date(t.issueDate);
+                                            const isAfterStart = !startDate || transDate >= new Date(startDate);
+                                            const isBeforeEnd = !endDate || transDate <= new Date(endDate);
+                                            const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                                            return isAfterStart && isBeforeEnd && matchesStatus;
+                                        })
+                                        .map((t, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl hover:border-indigo-500/50 transition-all shadow-sm">
+                                                <div className="flex items-center gap-4 min-w-0">
+                                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-indigo-600">
+                                                        <BookOpenIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{getBookTitle(t.bookId)}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Issued: {new Date(t.issueDate).toLocaleDateString()}</p>
+                                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">•</p>
+                                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Due: {new Date(t.dueDate).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{getBookTitle(t.bookId)}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Expected Return: {new Date(t.dueDate).toLocaleDateString()}</p>
-                                                </div>
+                                                <span className={`px-3 py-1 text-[8px] font-black uppercase rounded-full tracking-widest ${t.status === 'overdue' ? 'bg-rose-50 text-rose-600 animate-pulse' : t.status === 'returned' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                    {t.status}
+                                                </span>
                                             </div>
-                                            <span className={`px-3 py-1 text-[8px] font-black uppercase rounded-full tracking-widest ${t.status === 'overdue' ? 'bg-rose-50 text-rose-600 animate-pulse' : 'bg-indigo-50 text-indigo-600'}`}>
-                                                {t.status}
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {transactions.filter(t => t.userId === selectedMember.id && (t.status === 'issued' || t.status === 'overdue')).length === 0 && (
-                                        <div className="py-10 text-center bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-700">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No Active Loans Found</p>
-                                            <p className="text-[9px] font-bold text-slate-300 uppercase">Current Inventory Posession: Zero</p>
-                                        </div>
-                                    )}
+                                        ))}
+                                    {transactions
+                                        .filter(t => t.userId === selectedMember.id)
+                                        .filter(t => {
+                                            const transDate = new Date(t.issueDate);
+                                            const isAfterStart = !startDate || transDate >= new Date(startDate);
+                                            const isBeforeEnd = !endDate || transDate <= new Date(endDate);
+                                            const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+                                            return isAfterStart && isBeforeEnd && matchesStatus;
+                                        }).length === 0 && (
+                                            <div className="py-10 text-center bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-700">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">No Transactions Found</p>
+                                                <p className="text-[9px] font-bold text-slate-300 uppercase">Adjust filters to see more results</p>
+                                            </div>
+                                        )}
                                 </div>
                             </div>
 
@@ -322,6 +457,15 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* PDF Preview Modal */}
+            {previewUrl && (
+                <PdfPreviewModal
+                    url={previewUrl}
+                    onClose={() => setPreviewUrl(null)}
+                    filename={`Library_Statement_${selectedMember?.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`}
+                />
             )}
 
             <style>{`
