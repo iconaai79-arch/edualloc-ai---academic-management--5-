@@ -59,37 +59,64 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
     const handleIssueBook = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validation
+        if (!newLoan.userId || !newLoan.bookId || !newLoan.dueDate) {
+            alert('Please select both a member and a book, and set a due date.');
+            return;
+        }
+
         const book = books.find(b => b.id === newLoan.bookId);
-        if (!book || book.available < 1) {
-            alert('This book is currently out of stock.');
+        if (!book) {
+            alert('Selected resource not found in registry.');
+            return;
+        }
+
+        if (book.available < 1) {
+            alert(`"${book.title}" is currently out of stock. (Total: ${book.quantity}, Available: 0)`);
             return;
         }
 
         try {
             const transactionId = `ltx_${Date.now()}`;
+            // Ensure full ISO strings for consistency
+            const issueDate = new Date().toISOString();
+            const dueDate = new Date(newLoan.dueDate).toISOString();
+
             const transaction: LibraryTransaction = {
                 id: transactionId,
                 bookId: newLoan.bookId,
                 userId: newLoan.userId,
-                issueDate: new Date().toISOString(),
-                dueDate: newLoan.dueDate,
+                issueDate,
+                dueDate,
                 status: 'issued',
                 institutionId,
                 fineAmount: 0
             };
 
             await apiService.saveModuleRecord('library_transactions', transaction);
-            // Deduct from availability
-            await apiService.saveModuleRecord('books', { ...book, available: book.available - 1 });
+
+            // Deduct from availability - Ensure we pass the full book object with updated available count
+            await apiService.saveModuleRecord('books', {
+                ...book,
+                available: Math.max(0, book.available - 1)
+            });
 
             await onLogAction(`Issued book "${book.title}" to user ${newLoan.userId}`);
 
             setIsIssuing(false);
-            setNewLoan({ userId: '', bookId: '', dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] });
+            setNewLoan({
+                userId: '',
+                bookId: '',
+                dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            });
             loadData();
             onDataChange();
-        } catch (error) {
-            alert('Failed to process book issuance.');
+        } catch (error: any) {
+            console.error('Critical Issuance Error:', error);
+            const errorMessage = error.message || 'Unknown database error';
+            const details = error.details || '';
+            alert(`Failed to process book issuance:\n\n${errorMessage}\n${details}`);
         }
     };
 
@@ -113,10 +140,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
 
         try {
+            const returnDate = new Date().toISOString();
             const updatedTransaction: LibraryTransaction = {
                 ...transaction,
                 status: 'returned',
-                returnDate: new Date().toISOString(),
+                returnDate,
                 fineAmount: calculatedFine
             };
 
@@ -126,6 +154,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             if (calculatedFine > 0) {
                 // Create a fine record
                 const fineId = `fine_${Date.now()}`;
+                const now = new Date().toISOString();
                 await apiService.saveModuleRecord('library_fines', {
                     id: fineId,
                     transactionId: transaction.id,
@@ -134,8 +163,8 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                     paidAmount: 0,
                     status: 'pending',
                     description: `Overdue return for "${book.title}"`,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+                    createdAt: now,
+                    updatedAt: now,
                     institutionId
                 });
             }
@@ -143,8 +172,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             await onLogAction(`Processed return for "${book.title}" from user ${transaction.userId}`);
             loadData();
             onDataChange();
-        } catch (error) {
-            alert('Error processing return.');
+        } catch (error: any) {
+            console.error('Return Processing Error:', error);
+            alert(`Error processing return: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -275,7 +305,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 <div className="absolute top-4 inset-x-4 h-1 bg-indigo-500/20 animate-scan pointer-events-none" />
                             </div>
                         </div>
-                        <button 
+                        <button
                             onClick={() => alert("Scanner hardware layer initialization requested. In a live production environment, this would activate the device camera.")}
                             className="w-full mt-6 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all">
                             Initialize Camera Scanner
