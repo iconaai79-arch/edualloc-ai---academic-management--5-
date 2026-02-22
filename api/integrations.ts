@@ -375,14 +375,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Zettatel/ABMIS usually return a JSON with status or response field
                     // Example success: {"response":"Success","msgid":"123"}
                     // Example error: {"response":"Error","error":"Invalid Login"}
+                    // Improve error detection: don't just look for "error" in the raw text, 
+                    // as it could be part of the message text.
                     const isError = !smsRes.ok ||
                         isHtml ||
-                        smsRaw.toLowerCase().includes('error') ||
-                        smsRaw.toLowerCase().includes('failed') ||
-                        smsRaw.toLowerCase().includes('invalid') ||
-                        smsRaw.toLowerCase().includes('denied') ||
                         (smsDetail.response && smsDetail.response.toLowerCase() === 'error') ||
-                        (smsDetail.status && smsDetail.status.toLowerCase().includes('error'));
+                        (smsDetail.status && smsDetail.status.toLowerCase().includes('error')) ||
+                        (parseError && (
+                            smsRaw.toLowerCase().includes('error') ||
+                            smsRaw.toLowerCase().includes('invalid login') ||
+                            smsRaw.toLowerCase().includes('access denied') ||
+                            smsRaw.toLowerCase().includes('authentication failed')
+                        ));
 
                     if (isError) {
                         let cleanMessage = `Gateway ${provider} reported an error (Status: ${smsRes.status}).`;
@@ -403,20 +407,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const isExplicitSuccess = (smsRes.ok && !parseError) && (
                         smsRaw.toLowerCase().includes('success') ||
                         smsRaw.toLowerCase().includes('ok') ||
-                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success')
+                        (smsDetail.response && smsDetail.response.toLowerCase() === 'success') ||
+                        (smsDetail.msgid || smsDetail.msg_id || smsDetail.id) // If there's a message ID, it's usually success
                     );
 
-                    if (!isExplicitSuccess && smsRaw.length > 0) {
-                        console.warn(`[SMS Gateway] Ambiguous response from ${provider}:`, smsRaw);
-                        // If it's not explicitly success but we are here, it's still probably an error or at least untrusted
-                        return res.status(502).json({
-                            success: false,
-                            message: 'SMS gateway returned an ambiguous status.',
-                            recipient: phone
-                        });
+                    if (!isExplicitSuccess && !isError && smsRes.ok) {
+                        // If it's not explicitly success but we have a 200 OK and no error detected, 
+                        // and it's not HTML, we'll treat it as success.
+                        console.log(`[SMS Gateway] Treating ambiguous but non-error response from ${provider} as success:`, smsRaw);
                     }
 
-                    if (isExplicitSuccess) {
+                    if (isExplicitSuccess || (!isError && smsRes.ok)) {
                         // Success! Decrement balance (except for free system messages)
                         if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                             await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
