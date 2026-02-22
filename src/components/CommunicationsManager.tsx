@@ -281,13 +281,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold">Send SMS Communication</h3>
-                {smsBalance !== undefined && (
+                {(smsBalance !== undefined || ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'super_admin', 'academics_officer', 'boarding_master'].includes(currentUser?.role || '')) && (
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</span>
-                        <span className={`text-sm font-black ${smsBalance < 50 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
-                            {smsBalance.toLocaleString()} Units
+                        <span className={`text-sm font-black ${(smsBalance || 0) < 50 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
+                            {(smsBalance || 0).toLocaleString()} Units
                         </span>
-                        {smsBalance < 10 && (
+                        {(smsBalance || 0) < 10 && (
                             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-1" />
                         )}
                         <button

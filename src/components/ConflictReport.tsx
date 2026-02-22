@@ -10,7 +10,7 @@ interface ConflictReportProps {
 }
 
 export const ConflictReport: React.FC<ConflictReportProps> = ({ conflicts, getLecturerById, getRoomById, getSubjectById }) => {
-    
+
     if (conflicts.length === 0) {
         return (
             <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
@@ -20,7 +20,7 @@ export const ConflictReport: React.FC<ConflictReportProps> = ({ conflicts, getLe
             </div>
         );
     }
-    
+
     return (
         <div className="space-y-6">
             <div className="bg-red-100 dark:bg-red-900/50 p-4 rounded-lg shadow-sm">
@@ -32,7 +32,7 @@ export const ConflictReport: React.FC<ConflictReportProps> = ({ conflicts, getLe
                         <h3 className="text-lg font-medium text-red-800 dark:text-red-200">
                             Timetable Conflict Report
                         </h3>
-                         <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                        <p className="mt-1 text-sm text-red-700 dark:text-red-300">
                             A total of {conflicts.length} conflict(s) were detected. Please review and resolve these issues by regenerating the timetable or adjusting allocations.
                         </p>
                     </div>
@@ -41,7 +41,7 @@ export const ConflictReport: React.FC<ConflictReportProps> = ({ conflicts, getLe
 
             <div className="space-y-4">
                 {conflicts.map((conflict, index) => {
-                    const resourceName = conflict.type === 'room' 
+                    const resourceName = conflict.type === 'room'
                         ? `Room: ${getRoomById(conflict.resourceId)?.name || 'Unknown'}`
                         : `Lecturer: ${getLecturerById(conflict.resourceId)?.name || 'Unknown'}`;
 
