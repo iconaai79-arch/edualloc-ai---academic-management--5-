@@ -610,6 +610,36 @@ export const App: React.FC = () => {
         loadData();
     };
 
+    const handleAddExtensionRequest = async (reason: string) => {
+        if (!currentUser || !activeInstitution) return;
+        try {
+            await apiService.saveModuleRecord('institution_extension_requests', {
+                id: `ext_${Date.now()}`,
+                institutionId: activeInstitution.id,
+                requesterId: currentUser.id,
+                reason,
+                status: 'pending',
+                requestedAt: new Date().toISOString()
+            });
+            await loadData();
+            alert("Extension request submitted successfully.");
+        } catch (err) {
+            console.error("Failed to submit extension request:", err);
+            alert("Failed to submit extension request. Please contact support.");
+        }
+    };
+
+    const handleUpdateExtensionRequestStatus = async (requestId: string, status: 'approved' | 'rejected', extensionDays?: number) => {
+        try {
+            await apiService.updateExtensionRequestStatus(requestId, status, extensionDays);
+            await loadData();
+            alert(`Extension request ${status} successfully.`);
+        } catch (err) {
+            console.error("Failed to update extension request status:", err);
+            alert("Failed to update status. Please try again.");
+        }
+    };
+
     // --- Academic Handlers ---
 
     const handleUpdateSubject = async (id: string, data: any) => {
@@ -1324,9 +1354,9 @@ export const App: React.FC = () => {
                                     onUpdateFooterImage={(footer) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer })}
                                     onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
                                     onUpdateThemeColor={(color) => onUpdateInstitution(activeInstitution!.id, { themeColor: color })}
-                                    onUpdateExtensionRequestStatus={(id, s, d) => { }}
+                                    onUpdateExtensionRequestStatus={handleUpdateExtensionRequestStatus}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onAddExtensionRequest={() => { }}
+                                    onAddExtensionRequest={handleAddExtensionRequest}
                                     timeOffRequests={timeOffRequests}
                                     onUpdateTimeOffRequestStatus={() => { }}
                                     enrollmentRequests={enrollmentRequests}
@@ -1874,8 +1904,8 @@ export const App: React.FC = () => {
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                     onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
-                                    onAddExtensionRequest={() => { }}
-                                    onUpdateExtensionRequestStatus={() => { }}
+                                    onAddExtensionRequest={handleAddExtensionRequest}
+                                    onUpdateExtensionRequestStatus={handleUpdateExtensionRequestStatus}
                                     onSaveBiometricConfig={() => { }}
                                     onUpdateVoteHeads={() => { }}
                                     onUpdateFeeStructures={() => { }}

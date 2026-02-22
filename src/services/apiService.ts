@@ -729,6 +729,51 @@ export const apiService = {
     async fetchInvoices(instId?: string): Promise<Invoice[]> { return this.fetchModuleRecords('invoices', instId); },
     async fetchSmsLogs(instId?: string): Promise<SmsLog[]> { return this.fetchModuleRecords('sms_logs', instId); },
     async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('institution_extension_requests', instId); },
+    async updateExtensionRequestStatus(requestId: string, status: 'approved' | 'rejected', extensionDays: number = 14): Promise<void> {
+        if (!_supabase) return;
+
+        try {
+            // 1. Update the request status
+            const { data: request, error: reqError } = await _supabase
+                .from('institution_extension_requests')
+                .update({ status })
+                .eq('id', requestId)
+                .select()
+                .single();
+
+            if (reqError) throw reqError;
+
+            // 2. If approved, extend the institution's trial
+            if (status === 'approved' && request) {
+                const { data: inst, error: instError } = await _supabase
+                    .from('institutions')
+                    .select('trial_ends_at, status')
+                    .eq('id', request.institution_id)
+                    .single();
+
+                if (instError) throw instError;
+
+                // Calculate new expiry date
+                // If already expired, extend from today. If not, extend from current expiry.
+                const currentExpiry = inst.trial_ends_at ? new Date(inst.trial_ends_at) : new Date();
+                const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+                const newExpiry = new Date(baseDate.getTime() + (extensionDays * 24 * 60 * 60 * 1000));
+
+                await _supabase
+                    .from('institutions')
+                    .update({
+                        status: 'trial', // Ensure it's set back to 'trial' if it was suspended
+                        trial_ends_at: newExpiry.toISOString()
+                    })
+                    .eq('id', request.institution_id);
+
+                console.log(`[Extension] Institution ${request.institution_id} extended to ${newExpiry.toISOString()}`);
+            }
+        } catch (error) {
+            console.error("Failed to update extension request status:", error);
+            throw error;
+        }
+    },
     async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
     async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
     async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
