@@ -12,7 +12,7 @@ import {
     ArrowRightIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
-import { generateLibraryUnreturnedReportPdf } from '../services/pdfService';
+import { generateLibraryUnreturnedReportPdf, generateMemberLibraryHistoryPdf } from '../services/pdfService';
 
 interface LibraryReportsProps {
     institution: Institution;
@@ -39,6 +39,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [selectedStatementUser, setSelectedStatementUser] = useState<User | null>(null);
     const [selectedClassId, setSelectedClassId] = useState('');
     const [selectedStreamId, setSelectedStreamId] = useState('');
+    const [isPrintingStatement, setIsPrintingStatement] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -96,10 +97,33 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         return { transactions: userTrans, fines: userFines };
     }, [selectedStatementUser, transactions, fines]);
 
-    const handlePrintStatement = () => {
-        if (!selectedStatementUser) return;
-        alert(`Generating Official Library Statement for ${selectedStatementUser.name}. This would trigger a high-fidelity PDF print job.`);
-        onLogAction(`Generated Library Statement for ${selectedStatementUser.name}`);
+    const handlePrintStatement = async () => {
+        if (!selectedStatementUser || !userStatementData) return;
+        setIsPrintingStatement(true);
+        try {
+            const dataUri = await generateMemberLibraryHistoryPdf(
+                selectedStatementUser,
+                userStatementData.transactions,
+                userStatementData.fines,
+                getBookTitle,
+                institution,
+                companyDetails,
+                institution.logoUrl || null,
+                institution.footerImageUrl || null
+            );
+
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Library-Statement-${selectedStatementUser.name.replace(/\s+/g, '-')}.pdf`;
+            link.click();
+
+            await onLogAction(`Generated Library Statement for ${selectedStatementUser.name}`);
+        } catch (error) {
+            console.error('PDF Generation Error:', error);
+            alert('Failed to generate official library statement.');
+        } finally {
+            setIsPrintingStatement(false);
+        }
     };
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
@@ -313,10 +337,20 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     </button>
                                     <button
                                         onClick={handlePrintStatement}
-                                        className="h-14 px-8 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none transition-all hover:translate-y-[-2px]"
+                                        disabled={isPrintingStatement}
+                                        className="h-14 px-8 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none transition-all hover:translate-y-[-2px] disabled:opacity-50 disabled:translate-y-0"
                                     >
-                                        <PrinterIcon className="w-5 h-5" />
-                                        Print Statement
+                                        {isPrintingStatement ? (
+                                            <>
+                                                <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                                                Preparing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PrinterIcon className="w-5 h-5" />
+                                                Print Statement
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>

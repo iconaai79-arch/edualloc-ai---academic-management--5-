@@ -28,6 +28,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [isIssuing, setIsIssuing] = useState(false);
     const [scanSearch, setScanSearch] = useState('');
     const [isScannerOpen, setIsScannerOpen] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const [newLoan, setNewLoan] = useState({
         userId: '',
@@ -66,17 +67,33 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             return;
         }
 
+        if (isProcessing) return;
+
         const book = books.find(b => b.id === newLoan.bookId);
         if (!book) {
             alert('Selected resource not found in registry.');
             return;
         }
 
+        // Strict Check 1: Check if this user already has an active loan for this EXACT book
+        const hasActiveLoan = transactions.some(t =>
+            t.userId === newLoan.userId &&
+            t.bookId === newLoan.bookId &&
+            (t.status === 'issued' || t.status === 'overdue')
+        );
+
+        if (hasActiveLoan) {
+            alert(`This member already has an active loan for "${book.title}". They must return the current copy before being issued another one.`);
+            return;
+        }
+
+        // Strict Check 2: Check availability
         if (book.available < 1) {
             alert(`"${book.title}" is currently out of stock. (Total: ${book.quantity}, Available: 0)`);
             return;
         }
 
+        setIsProcessing(true);
         try {
             const transactionId = `ltx_${Date.now()}`;
             // Ensure full ISO strings for consistency
@@ -110,13 +127,15 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 bookId: '',
                 dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
             });
-            loadData();
+            await loadData();
             onDataChange();
         } catch (error: any) {
             console.error('Critical Issuance Error:', error);
             const errorMessage = error.message || 'Unknown database error';
             const details = error.details || '';
             alert(`Failed to process book issuance:\n\n${errorMessage}\n${details}`);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -393,9 +412,18 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 </div>
                             </div>
                             <div className="pt-6 flex gap-3">
-                                <button type="button" onClick={() => setIsIssuing(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase tracking-widest text-xs transition-all">Discard</button>
-                                <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-100 dark:shadow-none hover:translate-y-[-2px]">
-                                    Commit Issuance
+                                <button type="button" disabled={isProcessing} onClick={() => setIsIssuing(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase tracking-widest text-xs transition-all disabled:opacity-50">Discard</button>
+                                <button
+                                    type="submit"
+                                    disabled={isProcessing}
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-100 dark:shadow-none hover:translate-y-[-2px] disabled:opacity-50 disabled:translate-y-0"
+                                >
+                                    {isProcessing ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                            Processing...
+                                        </div>
+                                    ) : 'Commit Issuance'}
                                 </button>
                             </div>
                         </form>
