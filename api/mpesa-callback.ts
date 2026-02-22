@@ -52,6 +52,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+        // Helper for fetch with timeout
+        const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (e) {
+                clearTimeout(id);
+                throw e;
+            }
+        };
+
+        // Fetch settings (bypass RLS as we are on the server)
+        let settings: any = {};
+        const { data: settingsData } = await supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+        if (settingsData) settings = settingsData.data;
+
         // Parse M-Pesa callback data
         const { Body } = req.body;
 
@@ -285,6 +304,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         timestamp: new Date().toISOString()
                     });
                     console.log(`[M-Pesa Callback] Notification created for user: ${metadata.requesterId}`);
+                }
+
+                // Send SMS confirmation if payerPhoneNumber exists
+                const smsConfig = settings.sms_config;
+                const payerPhone = metadata.payerPhoneNumber || phoneNumber;
+
+                if (smsConfig && payerPhone) {
+                    const unitsCount = parseInt(metadata.units).toLocaleString();
+                    const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+
+                    try {
+                        const provider = smsConfig.provider || 'Zettatel';
+                        let phone = (payerPhone as string).replace(/[^\d]/g, '');
+
+                        // Normalize phone
+                        if (phone.startsWith('254')) {
+                            const afterPrefix = phone.substring(3);
+                            if (afterPrefix.startsWith('0')) {
+                                phone = '254' + afterPrefix.substring(1);
+                            }
+                        } else if (phone.startsWith('0')) {
+                            phone = '254' + phone.substring(1);
+                        } else if (phone.length === 9) {
+                            phone = '254' + phone;
+                        }
+
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.abmis.co.ke/SMSApi/send';
+                        const finalParams: Record<string, string> = {
+                            userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                            password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                            mobile: phone,
+                            msg: smsMessage,
+                            senderid: smsConfig.fromNumber || provider,
+                            msgType: 'text',
+                            output: 'json'
+                        };
+
+                        const urlParams = new URLSearchParams(finalParams);
+                        const dispatchUrl = `${baseUrl}?${urlParams.toString()}`;
+
+                        console.log(`[M-Pesa Callback] Sending SMS to ${phone} via ${provider}`);
+                        await fetchWithTimeout(dispatchUrl, { method: 'GET' }, 15000);
+                    } catch (smsErr) {
+                        console.error('[M-Pesa Callback] Failed to send SMS confirmation:', smsErr);
+                    }
                 }
             }
 

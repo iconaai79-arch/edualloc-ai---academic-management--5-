@@ -65,7 +65,8 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 institutionId,
                 institutionCode,
                 institutionName,
-                requesterId
+                requesterId,
+                payerPhoneNumber: phoneNumber
             };
 
             const mpesaResult = await apiService.initiateMpesaPayment(calculatedTotal, phoneNumber, metadata, mpesaConfig);

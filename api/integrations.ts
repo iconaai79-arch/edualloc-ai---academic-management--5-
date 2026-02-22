@@ -795,6 +795,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             });
                             console.log(`[queryStkStatus] Notification created for user: ${metadata.requesterId}`);
                         }
+
+                        // Send SMS confirmation if payerPhoneNumber exists
+                        const smsConfig = settings.sms_config;
+                        const payerPhone = metadata.payerPhoneNumber || transaction.phone_number;
+
+                        if (isSms && smsConfig && payerPhone) {
+                            const unitsCount = parseInt(metadata.units).toLocaleString();
+                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+
+                            try {
+                                const provider = smsConfig.provider || 'Zettatel';
+                                let phone = (payerPhone as string).replace(/[^\d]/g, '');
+
+                                // Normalize phone
+                                if (phone.startsWith('254')) {
+                                    const afterPrefix = phone.substring(3);
+                                    if (afterPrefix.startsWith('0')) {
+                                        phone = '254' + afterPrefix.substring(1);
+                                    }
+                                } else if (phone.startsWith('0')) {
+                                    phone = '254' + phone.substring(1);
+                                } else if (phone.length === 9) {
+                                    phone = '254' + phone;
+                                }
+
+                                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.abmis.co.ke/SMSApi/send';
+                                const finalParams: Record<string, string> = {
+                                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
+                                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                                    mobile: phone,
+                                    msg: smsMessage,
+                                    senderid: smsConfig.fromNumber || provider,
+                                    msgType: 'text',
+                                    output: 'json'
+                                };
+
+                                const urlParams = new URLSearchParams(finalParams);
+                                const dispatchUrl = `${baseUrl}?${urlParams.toString()}`;
+
+                                console.log(`[queryStkStatus] Sending SMS to ${phone} via ${provider}`);
+                                await fetchWithTimeout(dispatchUrl, { method: 'GET' }, 15000);
+                            } catch (smsErr) {
+                                console.error('[queryStkStatus] Failed to send SMS confirmation:', smsErr);
+                            }
+                        }
                     }
                 }
             }
