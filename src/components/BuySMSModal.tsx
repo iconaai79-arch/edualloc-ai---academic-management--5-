@@ -13,6 +13,7 @@ interface BuySMSModalProps {
     institutionCode: string;
     institutionName: string;
     smsUnitPrice: number;
+    requesterId?: string;
     minSmsUnits?: number;
 }
 

@@ -760,6 +760,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }).eq('id', inst.id);
                                 console.log(`[queryStkStatus] Reactivated institution ${inst.id} via poll`);
                             }
+                        } else if (metadata.type === 'sms' && metadata.units) {
+                            console.log(`[queryStkStatus] Crediting SMS units via poll: ${metadata.units} for ${transaction.institution_id}`);
+
+                            const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
+                                inst_id: transaction.institution_id,
+                                amount: parseInt(metadata.units)
+                            });
+
+                            if (smsCreditError) {
+                                await supabase.from('institutions')
+                                    .update({ sms_balance: supabase.rpc('increment', { amount: parseInt(metadata.units) }) })
+                                    .eq('id', transaction.institution_id);
+                            }
+                            console.log(`[queryStkStatus] ✅ SMS Units Credited via poll: ${metadata.units}`);
+                        }
+
+                        // Create notification if requesterId exists
+                        if (metadata.requesterId) {
+                            const message = metadata.type === 'sms'
+                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added.`
+                                : `Subscription renewed successfully!`;
+
+                            await supabase.from('app_notifications').insert({
+                                id: `ntf_poll_${Date.now()}`,
+                                user_id: metadata.requesterId,
+                                message,
+                                type: 'success',
+                                is_read: false,
+                                timestamp: new Date().toISOString()
+                            });
                         }
                     }
                 }

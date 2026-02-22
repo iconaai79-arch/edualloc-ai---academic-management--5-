@@ -2376,64 +2376,73 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.setFont('helvetica', 'normal');
     doc.text(`Name: ${member.name}`, margin, tableStartY - 5);
     doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
-    doc.text(`Role: ${member.role.replace(/_/g, ' ').toUpperCase()}`, margin, tableStartY + 5);
 
+    // Guard for member.role
+    const roleText = member.role ? member.role.replace(/_/g, ' ').toUpperCase() : 'N/A';
+    doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
+
+    // Institution Contact Details
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    const contactInfo = `Email: ${institution.email || 'N/A'} | Phone: ${institution.phoneNumber || 'N/A'}`;
+    doc.text(contactInfo, margin, tableStartY + 15);
+
+    // Transactions Table
+    let tableY = tableStartY + 25;
     doc.setFont('helvetica', 'bold');
-    doc.text(`Statement Date: ${new Date().toLocaleDateString()}`, pageWidth - margin, tableStartY - 5, { align: 'right' });
+    doc.setFontSize(10);
+    doc.text('BOOK CIRCULATION HISTORY', margin, tableY - 5);
 
-    let yPos = tableStartY + 20;
-
-    // Borrowing History Table
-    doc.setFontSize(12);
-    doc.text('Resource Circulation History', margin, yPos);
-    yPos += 5;
-
-    const transHead = [['Book Title', 'Issue Date', 'Due Date', 'Status']];
-    const transBody = transactions.map(t => [
+    const transactionBody = transactions.map(t => ([
+        new Date(t.borrowDate).toLocaleDateString(),
         getBookTitle(t.bookId),
-        new Date(t.issueDate).toLocaleDateString(),
-        new Date(t.dueDate).toLocaleDateString(),
+        t.returnDate ? new Date(t.returnDate).toLocaleDateString() : 'NOT RETURNED',
         t.status.toUpperCase()
-    ]);
+    ]));
 
-    (doc as any).autoTable({
-        startY: yPos,
-        head: transHead,
-        body: transBody.length > 0 ? transBody : [['No transactions found', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 8 },
-        styles: { fontSize: 8 },
-    });
+    const autoTable = (doc as any).autoTable;
+    if (autoTable) {
+        autoTable.call(doc, {
+            startY: tableY,
+            head: [['Borrow Date', 'Book Title', 'Return Date', 'Status']],
+            body: transactionBody.length > 0 ? transactionBody : [['No transactions found', '', '', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+            styles: { fontSize: 8 }
+        });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-
-    // Financial Ledger Section
-    if (yPos > 250) {
-        doc.addPage();
-        yPos = 20;
+        tableY = (doc as any).lastAutoTable.finalY + 20;
+    } else {
+        tableY += 20;
     }
 
-    doc.setFontSize(12);
-    doc.text('Library Financial Ledger', margin, yPos);
-    yPos += 5;
+    // Financial Ledger Section
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('FINANCIAL LEDGER (FINES)', margin, tableY - 5);
 
-    const finesHead = [['Description', 'Amount', 'Paid', 'Balance', 'Status']];
-    const finesBody = fines.map(f => [
-        f.description,
-        f.amount.toLocaleString(),
-        f.paidAmount.toLocaleString(),
-        (f.amount - f.paidAmount).toLocaleString(),
-        f.status.toUpperCase()
-    ]);
-
-    (doc as any).autoTable({
-        startY: yPos,
-        head: finesHead,
-        body: finesBody.length > 0 ? finesBody : [['No fines recorded', '', '', '', '']],
-        theme: 'striped',
-        headStyles: { fillColor: [74, 85, 104], textColor: 255, fontSize: 8 },
-        styles: { fontSize: 8 },
+    const finesBody = fines.map(f => {
+        const amount = Number(f.amount || 0);
+        const paidAmount = Number(f.paidAmount || 0);
+        return [
+            f.description || 'Fine',
+            amount.toLocaleString(),
+            paidAmount.toLocaleString(),
+            (amount - paidAmount).toLocaleString(),
+            (f.status || 'pending').toUpperCase()
+        ];
     });
+
+    if (autoTable) {
+        autoTable.call(doc, {
+            startY: tableY,
+            head: [['Description', 'Fine Amount', 'Paid', 'Balance', 'Status']],
+            body: finesBody.length > 0 ? finesBody : [['No fines recorded', '', '', '', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 8 }
+        });
+    }
 
     const totalDue = fines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0);
     const finalY = (doc as any).lastAutoTable.finalY;

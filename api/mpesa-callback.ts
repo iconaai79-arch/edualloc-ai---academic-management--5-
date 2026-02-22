@@ -212,6 +212,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         console.log(`[M-Pesa Callback] ✅ Subscription extended by ${days} days`);
                         console.log(`[M-Pesa Callback] ✅ New expiry: ${newEndDate.toISOString()}`);
+
+                        // Create notification for subscription
+                        if (metadata.requesterId) {
+                            await supabase.from('app_notifications').insert({
+                                id: `ntf_${Date.now()}`,
+                                user_id: metadata.requesterId,
+                                message: `Successfully renewed ${metadata.plan} subscription! New expiry: ${newEndDate.toLocaleDateString()}`,
+                                type: 'success',
+                                is_read: false,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     }
                 }
             } else if (metadata.type === 'sms' && metadata.units) {

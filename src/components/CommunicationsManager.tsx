@@ -401,6 +401,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     institutionName={currentInstitution.name}
                     smsUnitPrice={currentInstitution.customSmsPrice || (smsConfig as any)?.smsUnitPrice || 2}
                     minSmsUnits={(smsConfig as any)?.minSmsUnits || 0}
+                    requesterId={currentUser?.id}
                 />
             )}
             <style>{`
