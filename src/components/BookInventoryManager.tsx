@@ -9,6 +9,7 @@ import {
 import { apiService } from '../services/apiService';
 
 import { BookQrCodeModal } from './BookQrCodeModal';
+import { SmartLibraryImporterModal } from './SmartLibraryImporterModal';
 
 interface BookInventoryManagerProps {
     institutionId: string;
@@ -30,6 +31,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const [isAddingBook, setIsAddingBook] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [qrBook, setQrBook] = useState<Book | null>(null);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const [newBook, setNewBook] = useState<Partial<Book>>({
         title: '',
@@ -108,15 +110,19 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         }
     };
 
-    const handleDeleteBook = async (id: string) => {
-        if (!confirm('Are you sure you want to remove this book from the catalog? This will delete all copies and history.')) return;
+    const handleImportBooks = async (items: any[]) => {
         try {
-            await apiService.deleteModuleRecord('books', id);
-            await onLogAction(`Deleted book from inventory: ${id}`);
+            // Save each book. We use saveModuleRecord which handles snake_case conversion etc.
+            for (const item of items) {
+                await apiService.saveModuleRecord('books', item);
+            }
+            await onLogAction(`Imported ${items.length} books via Smart Importer`);
+            setIsImportModalOpen(false);
             loadBooks();
             onDataChange();
-        } catch (error) {
-            alert('Error deleting book.');
+        } catch (error: any) {
+            console.error('Import error:', error);
+            throw new Error(`Failed to import books: ${error.message}`);
         }
     };
 
@@ -148,13 +154,23 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
-                <button
-                    onClick={() => { setIsAddingBook(true); setEditingBook(null); }}
-                    className="btn-primary px-6 py-2 rounded-2xl flex items-center justify-center gap-2"
-                >
-                    <PlusIcon className="w-4 h-4" />
-                    New Entry
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl border-2 border-indigo-100 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                        title="Import from Excel"
+                    >
+                        <DownloadIcon className="w-4 h-4 rotate-180" />
+                        <span className="hidden sm:inline">Batch Import</span>
+                    </button>
+                    <button
+                        onClick={() => { setIsAddingBook(true); setEditingBook(null); }}
+                        className="btn-primary px-6 py-2 rounded-2xl flex items-center justify-center gap-2"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        New Entry
+                    </button>
+                </div>
             </div>
 
             {/* Inventory List */}
@@ -370,6 +386,14 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                 <BookQrCodeModal
                     book={qrBook}
                     onClose={() => setQrBook(null)}
+                />
+            )}
+
+            {isImportModalOpen && (
+                <SmartLibraryImporterModal
+                    onClose={() => setIsImportModalOpen(false)}
+                    onImport={handleImportBooks}
+                    institutionId={institutionId}
                 />
             )}
         </div>

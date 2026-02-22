@@ -457,3 +457,15 @@ export const analyzeInstitutionSpreadsheet = async (headers: string[], aiModelTi
         return {};
     }
 };
+
+export const analyzeBookSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    try {
+        checkAiAvailable();
+        const prompt = `Map these spreadsheet headers to book fields: title, author, isbn, accessionNumber, category, location, quantity. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        return sanitizeAndParseJson(response.text || "{}");
+    } catch (error) {
+        console.error("AI book map error:", error);
+        return {};
+    }
+};

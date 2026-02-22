@@ -209,6 +209,7 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
         timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution } = props;
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [subTab, setSubTab] = useState<'weekly' | 'exams' | 'enrollment' | 'requests'>('weekly');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -341,82 +342,110 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         return null;
     };
 
-    const tabs = ['dashboard', 'my_timetable', 'exam_timetable', 'enrollment', 'my_requests', 'assignments', 'feedback', 'absences', 'nearby_classes'];
+    const tabs = ['dashboard', 'my_timetable', 'assignments', 'feedback', 'absences', 'nearby_classes'];
 
     return (
         <div className="space-y-6">
             <div className="border-b border-slate-200 dark:border-slate-700 no-print">
                 <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
                     {tabs.map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} className={`${activeTab === tab ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}>
+                        <button key={tab} onClick={() => { setActiveTab(tab); if (tab === 'my_timetable') setSubTab('weekly'); }} className={`${activeTab === tab ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}>
                             {tab.replace(/_/g, ' ')}
                         </button>
                     ))}
                 </nav>
             </div>
 
-            {activeTab === 'dashboard' && <StudentDashboard user={user} timetable={studentTimetable} course={course} level={level} subjects={subjects} users={users} getSubjectById={getSubjectById} getRoomById={getRoomById} getLecturerById={getLecturerById} now={now} timetableSettings={timetableSettings} studentCheckIns={studentCheckIns} onStudentLessonCheckIn={onStudentLessonCheckIn} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} lessonRatings={lessonRatings} onRateLesson={onRateLesson} userTasks={userTasks} onAddTask={onAddTask} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} currentInstitution={currentInstitution} studentAttendances={props.studentAttendances} />}
             {activeTab === 'my_timetable' && (
-                <div>
-                    <div className="flex flex-wrap gap-4 justify-between items-center mb-4 no-print">
-                        <h3 className="text-xl font-semibold">My Weekly Timetable</h3>
-                        <div className="flex items-center gap-2">
-                            <button onClick={handlePrint} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50"><PrinterIcon className="w-5 h-5" /> Print</button>
-                            <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"><DocumentArrowDownIcon className="w-5 h-5" /> PDF</button>
-                        </div>
+                <div className="space-y-6">
+                    {/* Sub-Tabs */}
+                    <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-slate-900/50 rounded-2xl w-fit no-print">
+                        {[
+                            { id: 'weekly', label: 'Weekly Schedule' },
+                            { id: 'exams', label: 'Exam Timetable' },
+                            { id: 'enrollment', label: 'Enrollment' },
+                            { id: 'requests', label: 'My Requests' }
+                        ].map(st => (
+                            <button
+                                key={st.id}
+                                onClick={() => setSubTab(st.id as any)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${subTab === st.id ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                            >
+                                {st.label}
+                            </button>
+                        ))}
                     </div>
-                    <div className="printable-area">
-                        <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
-                            {studentTimetable.length > 0 ? (
-                                <TimetableGrid
-                                    entries={studentTimetable}
-                                    subjects={subjects}
-                                    courses={courses}
-                                    rooms={rooms || []}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={getLecturerById}
-                                    getRoomById={getRoomById}
-                                    timetableSettings={timetableSettings}
-                                    renderCellActions={renderCellActions}
-                                />
-                            ) : (
-                                <div className="p-12 text-center">
-                                    <div className="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
-                                        <CalendarDaysIcon className="w-8 h-8 text-slate-400" />
-                                    </div>
-                                    <h3 className="text-lg font-medium text-slate-900 dark:text-white">No Classes Scheduled</h3>
-                                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                                        Your timetable is currently empty. This happens if you haven't enrolled in any subjects or if the timetable hasn't been generated yet.
-                                    </p>
-                                    <button onClick={() => setActiveTab('enrollment')} className="mt-6 btn-primary">
-                                        Go to Enrollment
-                                    </button>
+
+                    {subTab === 'weekly' && (
+                        <div className="animate-fade-in">
+                            <div className="flex flex-wrap gap-4 justify-between items-center mb-4 no-print">
+                                <h3 className="text-xl font-semibold">My Weekly Timetable</h3>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handlePrint} disabled={isGeneratingPdf} className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50"><PrinterIcon className="w-5 h-5" /> Print</button>
+                                    <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"><DocumentArrowDownIcon className="w-5 h-5" /> PDF</button>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-            {activeTab === 'exam_timetable' && <ExamTimetableGrid entries={studentExamTimetable} getSubjectById={getSubjectById} getLecturerById={getLecturerById} getRoomById={getRoomById} buildings={buildings} courses={courses} title="My Exam Timetable" />}
-            {activeTab === 'enrollment' && (
-                <div>
-                    <h3 className="text-xl font-semibold mb-4">Add/Drop Subjects</h3>
-                    {activeSemester?.enrollmentDeadline && new Date() > new Date(new Date(activeSemester.enrollmentDeadline).setHours(23, 59, 59)) ? (
-                        <p className="p-4 text-center bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-lg">The deadline for subject enrollment has passed.</p>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {availableSubjects.map(subject => (
-                                <SubjectCard key={subject.id} subject={subject} onSelect={() => handleSubjectSelect(subject.id)} isSelected={selectedSubjectIds.has(subject.id)} isEnrolled={user.enrolledSubjectIds?.includes(subject.id)} isEnrollmentPending={requestedSubjectIds.has(subject.id)} actionLabel="Request" />
-                            ))}
+                            </div>
+                            <div className="printable-area">
+                                <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg">
+                                    {studentTimetable.length > 0 ? (
+                                        <TimetableGrid
+                                            entries={studentTimetable}
+                                            subjects={subjects}
+                                            courses={courses}
+                                            rooms={rooms || []}
+                                            getSubjectById={getSubjectById}
+                                            getLecturerById={getLecturerById}
+                                            getRoomById={getRoomById}
+                                            timetableSettings={timetableSettings}
+                                            renderCellActions={renderCellActions}
+                                        />
+                                    ) : (
+                                        <div className="p-12 text-center">
+                                            <div className="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
+                                                <CalendarDaysIcon className="w-8 h-8 text-slate-400" />
+                                            </div>
+                                            <h3 className="text-lg font-medium text-slate-900 dark:text-white">No Classes Scheduled</h3>
+                                            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                                                Your timetable is currently empty. This happens if you haven't enrolled in any subjects or if the timetable hasn't been generated yet.
+                                            </p>
+                                            <button onClick={() => setSubTab('enrollment')} className="mt-6 btn-primary">
+                                                Go to Enrollment
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
-                    {selectedSubjectIds.size > 0 && <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700"><div className="max-w-7xl mx-auto flex justify-between items-center"><p>{selectedSubjectIds.size} subject(s) selected</p><button onClick={() => setIsRequestModalOpen(true)} className="btn-primary">Request Enrollment</button></div></div>}
-                </div>
-            )}
-            {activeTab === 'my_requests' && (
-                <div>
-                    <h3 className="text-xl font-semibold mb-4">My Enrollment Requests</h3>
-                    <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden"><ul className="divide-y divide-slate-200 dark:divide-slate-700">{enrollmentRequests.length > 0 ? enrollmentRequests.map(req => (<li key={req.id} className="px-4 py-4 sm:px-6 flex items-center justify-between"><p>{getSubjectById(req.subjectId)?.name}</p><EnrollmentStatusBadge status={req.status} /></li>)) : <li className="p-6 text-center text-slate-500">You have no pending requests.</li>}</ul></div>
+
+                    {subTab === 'exams' && (
+                        <div className="animate-fade-in">
+                            <ExamTimetableGrid entries={studentExamTimetable} getSubjectById={getSubjectById} getLecturerById={getLecturerById} getRoomById={getRoomById} buildings={buildings} courses={courses} title="My Exam Timetable" />
+                        </div>
+                    )}
+
+                    {subTab === 'enrollment' && (
+                        <div className="animate-fade-in">
+                            <h3 className="text-xl font-semibold mb-4">Add/Drop Subjects</h3>
+                            {activeSemester?.enrollmentDeadline && new Date() > new Date(new Date(activeSemester.enrollmentDeadline).setHours(23, 59, 59)) ? (
+                                <p className="p-4 text-center bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-lg">The deadline for subject enrollment has passed.</p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {availableSubjects.map(subject => (
+                                        <SubjectCard key={subject.id} subject={subject} onSelect={() => handleSubjectSelect(subject.id)} isSelected={selectedSubjectIds.has(subject.id)} isEnrolled={user.enrolledSubjectIds?.includes(subject.id)} isEnrollmentPending={requestedSubjectIds.has(subject.id)} actionLabel="Request" />
+                                    ))}
+                                </div>
+                            )}
+                            {selectedSubjectIds.size > 0 && <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-700"><div className="max-w-7xl mx-auto flex justify-between items-center"><p className="text-slate-900 dark:text-white font-bold">{selectedSubjectIds.size} subject(s) selected</p><button onClick={() => setIsRequestModalOpen(true)} className="btn-primary">Request Enrollment</button></div></div>}
+                        </div>
+                    )}
+
+                    {subTab === 'requests' && (
+                        <div className="animate-fade-in">
+                            <h3 className="text-xl font-semibold mb-4">My Enrollment Requests</h3>
+                            <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-hidden"><ul className="divide-y divide-slate-200 dark:divide-slate-700">{enrollmentRequests.length > 0 ? enrollmentRequests.map(req => (<li key={req.id} className="px-4 py-4 sm:px-6 flex items-center justify-between"><p className="text-slate-900 dark:text-white font-medium">{getSubjectById(req.subjectId)?.name}</p><EnrollmentStatusBadge status={req.status} /></li>)) : <li className="p-6 text-center text-slate-500">You have no pending requests.</li>}</ul></div>
+                        </div>
+                    )}
                 </div>
             )}
             {activeTab === 'assignments' && <StudentAssignmentManager user={user} assignments={assignments} submissions={submissions} getSubjectById={getSubjectById} getLecturerById={getLecturerById} onAddSubmission={onAddSubmission} />}
