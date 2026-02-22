@@ -436,7 +436,7 @@ export const apiService = {
         await this.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
-    async sendSms(recipient: string, message: string, config?: SmsConfig): Promise<any> {
+    async sendSms(recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string): Promise<any> {
         const formattedRecipient = formatPhoneNumber(recipient);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
@@ -468,7 +468,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'sendSms', recipient: formattedRecipient, message, config })
+                body: JSON.stringify({ action: 'sendSms', recipient: formattedRecipient, message, config, units, institutionId })
             });
 
             let resData: any = {};

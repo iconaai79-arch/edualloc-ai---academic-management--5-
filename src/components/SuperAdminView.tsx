@@ -170,7 +170,7 @@ export interface SuperAdminViewProps {
     onDeleteTask?: (id: string) => void;
     onLogAction?: (action: string) => Promise<void>;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
-    onSendSms?: (r: string, m: string) => Promise<any>;
+    onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
     onWithdrawRequest: (id: string) => void;

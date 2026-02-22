@@ -40,6 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const subject = getParam('subject');
     const amountStr = getParam('amount');
     const amount = amountStr ? parseFloat(amountStr) : 0;
+    const institutionIdOverride = getParam('institutionId');
+    const unitsParam = getParam('units');
+    const unitsToDeduct = unitsParam ? parseInt(unitsParam) : 1;
     const bodyConfig = paramsMap.config;
 
     // Detect system messages (OTPs, recovery links) early for auth bypass
@@ -245,7 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
-            const institutionId = user.user_metadata?.institutionId ||
+            const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
                 (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id);
 
             if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
@@ -259,11 +262,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(500).json({ success: false, message: 'Database error checking SMS balance.' });
                 }
 
-                if (!institution || (institution.sms_balance || 0) < 1) {
+                if (!institution || (institution.sms_balance || 0) < unitsToDeduct) {
                     return res.status(402).json({
                         success: false,
-                        message: 'Insufficient SMS balance. Please purchase more units.',
+                        message: `Insufficient SMS balance. This message requires ${unitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
                         balance: institution?.sms_balance || 0,
+                        required: unitsToDeduct,
                         buy_url: '/settings?tab=billing'
                     });
                 }
@@ -296,11 +300,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (provider === 'ABMIS' || provider === 'Zettatel') {
                 const defaultUrls: Record<string, string> = {
                     'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
-                    'Zettatel': 'https://sms.abmis.co.ke/SMSApi/send'
+                    'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                 };
 
                 // Allow override from config
-                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
+                const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
+                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : (defaultUrls[provider] || defaultUrls['Zettatel']));
 
                 const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
@@ -414,7 +419,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (isExplicitSuccess) {
                         // Success! Decrement balance (except for free system messages)
                         if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
-                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: 1 });
+                            await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
                         }
                         return res.status(200).json({
                             success: true,
@@ -516,7 +521,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const provider = smsConfig.provider || 'Zettatel';
                         const defaultUrls: Record<string, string> = {
                             'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
-                            'Zettatel': 'https://sms.abmis.co.ke/SMSApi/send'
+                            'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                         };
                         const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
 

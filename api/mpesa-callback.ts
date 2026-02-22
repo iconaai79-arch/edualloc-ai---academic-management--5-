@@ -330,7 +330,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             phone = '254' + phone;
                         }
 
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.abmis.co.ke/SMSApi/send';
+                        const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : 'https://sms.abmis.co.ke/SMSApi/send');
                         const finalParams: Record<string, string> = {
                             userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
                             password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,

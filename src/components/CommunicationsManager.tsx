@@ -8,7 +8,7 @@ interface CommunicationsManagerProps {
     departments: Department[];
     courses: Course[];
     institutions?: Institution[]; // Optional for super admin view
-    onSendSms: (recipient: string, message: string) => Promise<{ success: boolean; message: string }>;
+    onSendSms: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<{ success: boolean; message: string }>;
     currentUser?: User;
     smsBalance?: number;
     currentInstitution?: Institution | null;
@@ -198,7 +198,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             const user = validRecipients[i];
             setStatus({ type: 'sending', message: `Sending ${i + 1} of ${validRecipients.length} to ${user.name}...` });
             try {
-                const result = await onSendSms(user.phoneNumber, message);
+                const result = await onSendSms(user.phoneNumber, message, smsConfig, smsInfo.count, user.institutionId);
                 if (result.success) {
                     successCount++;
                 } else {
