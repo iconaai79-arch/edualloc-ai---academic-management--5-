@@ -806,11 +806,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.log(`[queryStkStatus] ✅ SMS Units Credited via poll: ${unitsToCredit}`);
                         }
 
+                        // Fetch new balance for accurate notifications
+                        const { data: updatedInst } = await supabase
+                            .from('institutions')
+                            .select('sms_balance')
+                            .eq('id', transaction.institution_id)
+                            .single();
+                        
+                        const newBalance = updatedInst?.sms_balance || 0;
+
                         // Create notification if requesterId exists
                         if (metadata.requesterId) {
                             const isSms = metadata.type === 'sms';
                             const message = isSms
-                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added to your institution's balance.`
+                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units.`
                                 : `Subscription renewed successfully! Your new expiry date is reflected in the billing section.`;
 
                             await supabase.from('app_notifications').insert({
@@ -830,7 +839,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         if (isSms && smsConfig && payerPhone) {
                             const unitsCount = parseInt(metadata.units).toLocaleString();
-                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing EduAlloc Hub.`;
 
                             try {
                                 const provider = smsConfig.provider || 'Zettatel';
@@ -987,9 +996,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 4. Send Notifications
             try {
-                const { data: inst } = await supabase.from('institutions').select('name, email').eq('id', transaction.institution_id).single();
+                const { data: inst } = await supabase.from('institutions').select('name, email, sms_balance').eq('id', transaction.institution_id).single();
                 if (inst) {
-                    const notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${inst.name} has been manually verified. Your account is now active and your subscription has been extended. Thank you for choosing EduAi.`;
+                    const isSms = metadata.type === 'sms';
+                    const newBalance = inst.sms_balance || 0;
+                    
+                    let notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${inst.name} has been manually verified. Your account is now active and your subscription has been extended. Thank you for choosing EduAi.`;
+
+                    if (isSms) {
+                        notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${parseInt(metadata.units).toLocaleString()} SMS units has been manually verified. Your new balance is ${newBalance.toLocaleString()} units. Thank you for choosing EduAi.`;
+                    }
 
                     // Send Email
                     const emailConfig = settings.email_config || settings.emailConfig;
@@ -1005,10 +1021,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             await transporter.sendMail({
                                 from: `"${emailConfig.fromName || 'EduAi Notification'}" <${emailConfig.fromEmail || emailConfig.username}>`,
                                 to: inst.email,
-                                subject: 'Payment Verified & Account Reactivated',
+                                subject: isSms ? 'SMS Top-up Verified' : 'Payment Verified & Account Reactivated',
                                 text: notifyMessage,
                                 html: `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-                                    <h2 style="color: #4f46e5;">Payment Verified Successfully</h2>
+                                    <h2 style="color: #4f46e5;">${isSms ? 'SMS Top-up Verified' : 'Payment Verified Successfully'}</h2>
                                     <p>${notifyMessage.replace(/\n/g, '<br>')}</p>
                                     <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
                                     <p style="font-size: 12px; color: #64748b;">This is an automated notification from the EduAi Academic Management Platform.</p>
@@ -1024,19 +1040,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const smsConfig = settings.sms_config;
                     if (smsConfig && transaction.phone_number) {
                         try {
+                            const provider = smsConfig.provider || 'Zettatel';
+                            const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
+                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : 'https://sms.abmis.co.ke/smsapi/send');
+                            
                             const params = new URLSearchParams({
                                 userid: smsConfig.apiKey || smsConfig.api_key,
                                 password: smsConfig.apiSecret || smsConfig.api_secret,
                                 mobile: transaction.phone_number.replace(/[^\d]/g, ''),
                                 msg: notifyMessage,
-                                senderid: smsConfig.fromNumber || 'ABMIS',
+                                senderid: smsConfig.fromNumber || provider,
                                 msgType: 'text', output: 'json'
                             });
-                            await fetch(`https://sms.abmis.co.ke/smsapi/send?${params.toString()}`);
+                            await fetch(`${baseUrl}?${params.toString()}`);
                             console.log(`[Manual Verify] SMS sent to ${transaction.phone_number}`);
                         } catch (smsErr) {
                             console.error('[Manual Verify] SMS notification failed:', smsErr);
                         }
+                    }
+
+                    // Also create in-app notification if requesterId exists
+                    if (metadata.requesterId) {
+                        await supabase.from('app_notifications').insert({
+                            id: `ntf_manual_${Date.now()}`,
+                            user_id: metadata.requesterId,
+                            message: notifyMessage,
+                            type: 'success',
+                            is_read: false,
+                            timestamp: new Date().toISOString()
+                        });
                     }
                 }
             } catch (notifyErr) {

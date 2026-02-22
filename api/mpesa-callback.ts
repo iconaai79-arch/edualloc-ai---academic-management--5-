@@ -291,14 +291,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     related_transaction_id: transaction.id
                 });
 
-                console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${unitsToCredit}`);
+                // Fetch new balance for accurate notifications
+                const { data: updatedInst } = await supabase
+                    .from('institutions')
+                    .select('sms_balance, email')
+                    .eq('id', transaction.institution_id)
+                    .single();
+
+                const newBalance = updatedInst?.sms_balance || 0;
+
+                console.log(`[M-Pesa Callback] ✅ SMS Units Credited: ${unitsToCredit}. New Total: ${newBalance}`);
 
                 // Create notification if requesterId exists
                 if (metadata.requesterId) {
                     await supabase.from('app_notifications').insert({
                         id: `ntf_sms_${Date.now()}`,
                         user_id: metadata.requesterId,
-                        message: `Payment successful! ${unitsToCredit.toLocaleString()} SMS units have been added to your institution's balance.`,
+                        message: `Payment successful! ${unitsToCredit.toLocaleString()} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units.`,
                         type: 'success',
                         is_read: false,
                         timestamp: new Date().toISOString()
@@ -306,13 +315,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.log(`[M-Pesa Callback] Notification created for user: ${metadata.requesterId}`);
                 }
 
+                // Send Email confirmation
+                const emailConfig = settings.email_config || settings.emailConfig;
+                if (emailConfig && updatedInst?.email) {
+                    try {
+                        const { default: nodemailer } = await import('nodemailer');
+                        const transporter = nodemailer.createTransport({
+                            host: emailConfig.host,
+                            port: Number(emailConfig.port || 587),
+                            auth: { user: emailConfig.username, pass: emailConfig.password },
+                            tls: { rejectUnauthorized: false }
+                        });
+                        const unitsCount = unitsToCredit.toLocaleString();
+                        const emailMessage = `Dear Admin, payment confirmed! ${unitsCount} SMS units have been added to your balance. Your new balance is ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+
+                        await transporter.sendMail({
+                            from: `"${emailConfig.fromName || 'EduAlloc Support'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            to: updatedInst.email,
+                            subject: 'SMS Units Topped Up Successfully',
+                            text: emailMessage,
+                            html: `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
+                                <h2 style="color: #4f46e5;">SMS Top-up Confirmed</h2>
+                                <p>${emailMessage}</p>
+                                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                                <p style="font-size: 12px; color: #64748b;">This is an automated notification from the EduAlloc Hub Platform.</p>
+                            </div>`
+                        });
+                        console.log(`[M-Pesa Callback] Confirmation email sent to ${updatedInst.email}`);
+                    } catch (emailErr) {
+                        console.error('[M-Pesa Callback] Email notification failed:', emailErr);
+                    }
+                }
+
                 // Send SMS confirmation if payerPhoneNumber exists
                 const smsConfig = settings.sms_config;
                 const payerPhone = metadata.payerPhoneNumber || phoneNumber;
 
                 if (smsConfig && payerPhone) {
-                    const unitsCount = parseInt(metadata.units).toLocaleString();
-                    const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+                    const unitsCount = unitsToCredit.toLocaleString();
+                    const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
 
                     try {
                         const provider = smsConfig.provider || 'Zettatel';
