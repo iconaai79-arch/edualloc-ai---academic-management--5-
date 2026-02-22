@@ -354,38 +354,39 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                        <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                            <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                                {(() => {
-                                    const date = new Date(log.createdAt);
-                                    const isValid = !isNaN(date.getTime());
-                                    return (
-                                        <>
-                                            {isValid ? date.toLocaleDateString() : 'Invalid Date'}
-                                            <span className="block text-[10px] opacity-60">
-                                                {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
-                                            </span>
-                                        </>
-                                    );
-                                })()}
-                            </td>
-                            <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
-                                {log.recipient}
-                            </td>
-                            <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
-                                {log.message}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                                <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                                    {log.units}
-                                </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                                <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                    {log.status}
-                                </span>
-                            </td>
-                        </tr>
+                        {smsLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                                    {(() => {
+                                        const date = new Date(log.createdAt);
+                                        const isValid = !isNaN(date.getTime());
+                                        return (
+                                            <>
+                                                {isValid ? date.toLocaleDateString() : 'Invalid Date'}
+                                                <span className="block text-[10px] opacity-60">
+                                                    {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
+                                                </span>
+                                            </>
+                                        );
+                                    })()}
+                                </td>
+                                <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
+                                    {log.recipient}
+                                </td>
+                                <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
+                                    {log.message}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                    <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                        {log.units}
+                                    </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                    <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        {log.status}
+                                    </span>
+                                </td>
+                            </tr>
                         ))}
                     </tbody>
                 </table>
