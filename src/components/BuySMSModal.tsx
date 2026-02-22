@@ -113,78 +113,86 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" onClick={handleClose}>
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden transition-all animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-[400px] overflow-hidden transition-all animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
                 {isLoading ? (
-                    <div className="p-12 text-center">
-                        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-                        <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                    <div className="p-10 text-center">
+                        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-5"></div>
+                        <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">
                             {statusMessage.includes('Sent') ? 'Confirming Payment...' : 'Processing Request...'}
                         </h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                             {statusMessage || 'Connecting to M-Pesa...'}
                         </p>
                     </div>
                 ) : finalStatus === 'completed' ? (
-                    <div className="p-12 text-center">
-                        <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl shadow-emerald-200/50">
-                            <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                    <div className="p-10 text-center">
+                        <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-200/50">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                         </div>
-                        <h4 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Units Purchased!</h4>
-                        <p className="text-slate-500 dark:text-slate-400 mt-4 font-medium">{statusMessage}</p>
-                        <button onClick={handleClose} className="mt-10 w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-4 rounded-2xl transition-all active:scale-[0.98]">
-                            Back to Dashboard
+                        <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Success!</h4>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 font-medium">{statusMessage}</p>
+                        <button onClick={handleClose} className="mt-8 w-full bg-indigo-600 text-white font-black py-3.5 rounded-xl transition-all active:scale-[0.98]">
+                            Continue
                         </button>
                     </div>
                 ) : finalStatus === 'failed' ? (
-                    <div className="p-12 text-center">
-                        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <div className="p-10 text-center">
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </div>
-                        <h4 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Purchase Failed</h4>
-                        <p className="text-slate-500 dark:text-slate-400 mt-2">{statusMessage}</p>
-                        <button onClick={() => setFinalStatus(null)} className="mt-8 w-full bg-slate-900 dark:bg-slate-700 text-white font-black py-4 rounded-2xl">Try Again</button>
+                        <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Purchase Failed</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{statusMessage}</p>
+                        <button onClick={() => setFinalStatus(null)} className="mt-8 w-full bg-slate-900 dark:bg-slate-700 text-white font-black py-3.5 rounded-xl transition-all active:scale-[0.98]">Try Again</button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="p-8">
-                        <div className="flex justify-between items-start mb-6">
+                    <form onSubmit={handleSubmit} className="p-6">
+                        <div className="flex justify-between items-start mb-5">
                             <div>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Buy SMS Units</h3>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Instant delivery via M-Pesa STK Push</p>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Buy SMS Units</h3>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Instant delivery via M-Pesa STK</p>
                             </div>
-                            <button type="button" onClick={handleClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <button type="button" onClick={handleClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-400">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                             <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Quick Select Package</label>
-                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Select Package</label>
+                                <div className="grid grid-cols-2 gap-2 mb-4">
                                     {SMS_PACKAGES.map((pkg) => (
                                         <button
                                             key={pkg.units}
                                             type="button"
                                             disabled={pkg.units < minSmsUnits}
                                             onClick={() => setUnits(pkg.units)}
-                                            className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all group ${units === pkg.units
-                                                ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-none'
+                                            className={`flex flex-col items-center py-3 px-2 rounded-xl border-2 transition-all relative overflow-hidden group ${units === pkg.units
+                                                ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20'
                                                 : pkg.units < minSmsUnits
-                                                    ? 'opacity-50 grayscale cursor-not-allowed bg-slate-50 border-slate-200'
-                                                    : 'border-slate-100 dark:border-slate-700 hover:border-indigo-300'
+                                                    ? 'opacity-40 grayscale cursor-not-allowed bg-slate-50 border-slate-200'
+                                                    : 'border-slate-50 dark:border-slate-700 hover:border-indigo-200'
                                                 }`}
                                         >
-                                            <span className={`text-lg font-black tracking-tight ${units === pkg.units ? 'text-indigo-600' : 'text-slate-600 dark:text-slate-300'}`}>
+                                            <span className={`text-base font-black tracking-tight ${units === pkg.units ? 'text-indigo-600' : 'text-slate-700 dark:text-slate-200'}`}>
                                                 {pkg.units.toLocaleString()}
                                             </span>
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-400">
-                                                {pkg.units < minSmsUnits ? 'Below Minimum' : `KES ${(pkg.units * smsUnitPrice).toLocaleString()}`}
+                                            <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
+                                                {pkg.units < minSmsUnits ? 'Disabled' : `KES ${(pkg.units * smsUnitPrice).toLocaleString()}`}
                                             </span>
+                                            {units === pkg.units && (
+                                                <div className="absolute top-0 right-0 p-0.5 bg-indigo-600 rounded-bl-lg">
+                                                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7"></path></svg>
+                                                </div>
+                                            )}
                                         </button>
                                     ))}
                                 </div>
 
-                                <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <label htmlFor="customUnits" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Custom Units Count</label>
+                                <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                                    <div className="flex justify-between items-end mb-1.5 ml-1">
+                                        <label htmlFor="customUnits" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">Custom Count</label>
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase">KES {smsUnitPrice}/Unit</span>
+                                    </div>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -192,47 +200,45 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                                             min={minSmsUnits || 1}
                                             value={units}
                                             onChange={(e) => setUnits(parseInt(e.target.value) || 0)}
-                                            className="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 text-lg"
-                                            placeholder="Enter units (e.g. 750)"
+                                            className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base outline-none"
+                                            placeholder="Enter amount..."
                                         />
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-slate-400"> Units </div>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase text-slate-400"> Units </div>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-2 font-medium">Price per unit: KES {smsUnitPrice}</p>
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                <label htmlFor="phoneNumber" className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">M-Pesa Phone Number</label>
-                                <input
-                                    type="tel"
-                                    id="phoneNumber"
-                                    value={phoneNumber}
-                                    onChange={(e) => setPhoneNumber(e.target.value)}
-                                    className="w-full bg-white dark:bg-slate-800 border-none rounded-xl py-3 px-4 font-bold text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="254712345678"
-                                    required
-                                    pattern="^(254)\d{9}$"
-                                />
-                                <p className="text-[10px] text-slate-400 mt-2 font-medium">Format: 254XXXXXXXXX</p>
+                            <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">M-Pesa Number</label>
+                                <div className="relative">
+                                    <input
+                                        type="tel"
+                                        id="phoneNumber"
+                                        value={phoneNumber}
+                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base' outline-none"
+                                        placeholder="2547..."
+                                        required
+                                        pattern="^(254)\d{9}$"
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                        <MpesaIcon className="w-5 h-5 opacity-40" />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="flex items-center gap-4 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-800">
-                                <div className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                                    <MpesaIcon className="w-8 h-8" />
-                                </div>
+                            <div className="flex items-center justify-between px-2 pt-2">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-200 tracking-tight">Total Amount Due</p>
-                                    <p className="text-xl font-black text-amber-900 dark:text-amber-100">KES {calculatedTotal.toLocaleString()}</p>
+                                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-0.5">Payable Amount</p>
+                                    <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">KES {calculatedTotal.toLocaleString()}</p>
                                 </div>
+                                <button
+                                    type="submit"
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 px-6 rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-none active:scale-[0.95] flex items-center justify-center gap-2 text-sm"
+                                >
+                                    Pay Now
+                                </button>
                             </div>
-
-                            <button
-                                type="submit"
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-indigo-100 dark:shadow-none active:scale-[0.98] flex items-center justify-center gap-2"
-                            >
-                                <MpesaIcon className="w-6 h-6 brightness-0 invert" />
-                                Pay KES {calculatedTotal.toLocaleString()} Now
-                            </button>
                         </div>
                     </form>
                 )}
