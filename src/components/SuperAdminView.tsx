@@ -2056,9 +2056,118 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">API Secret / Password</label>
                                     <input type="password" value={tenantSmsConfig.apiSecret || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, apiSecret: e.target.value }))} className="form-input" placeholder="Gateway password" />
                                 </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Request Method</label>
+                                    <select
+                                        value={tenantSmsConfig.method || 'GET'}
+                                        onChange={e => setTenantSmsConfig(prev => ({ ...prev, method: e.target.value as any }))}
+                                        className="form-select font-bold text-xs h-12"
+                                    >
+                                        <option value="GET">HTTP GET</option>
+                                        <option value="POST">HTTP POST</option>
+                                    </select>
+                                </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Gateway URL (optional override)</label>
-                                    <input type="text" value={(tenantSmsConfig as any).baseUrl || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, baseUrl: e.target.value } as any))} className="form-input" placeholder="Leave blank to use default" />
+                                    <input type="text" value={tenantSmsConfig.baseUrl || tenantSmsConfig.api_url || ''} onChange={e => setTenantSmsConfig(prev => ({ ...prev, baseUrl: e.target.value }))} className="form-input font-mono text-xs" placeholder="Leave blank to use default" />
+                                </div>
+
+                                <div className="sm:col-span-2 pt-4">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom HTTP Headers</label>
+                                        <button
+                                            onClick={() => setTenantSmsConfig(prev => ({ ...prev, headers: [...(prev.headers || []), { name: '', value: '' }] }))}
+                                            className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                        >
+                                            <PlusIcon className="w-3 h-3" /> Add Header
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {(tenantSmsConfig.headers || []).map((header, idx) => (
+                                            <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                <input
+                                                    type="text"
+                                                    value={header.name}
+                                                    placeholder="Name"
+                                                    onChange={(e) => {
+                                                        const newHeaders = [...(tenantSmsConfig.headers || [])];
+                                                        newHeaders[idx].name = e.target.value;
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, headers: newHeaders });
+                                                    }}
+                                                    className="form-input text-xs font-mono h-10"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={header.value}
+                                                    placeholder="Value"
+                                                    onChange={(e) => {
+                                                        const newHeaders = [...(tenantSmsConfig.headers || [])];
+                                                        newHeaders[idx].value = e.target.value;
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, headers: newHeaders });
+                                                    }}
+                                                    className="form-input text-xs font-mono h-10"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const newHeaders = (tenantSmsConfig.headers || []).filter((_, i) => i !== idx);
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, headers: newHeaders });
+                                                    }}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="sm:col-span-2 pt-4">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom Parameters / Body</label>
+                                        <button
+                                            onClick={() => setTenantSmsConfig(prev => ({ ...prev, params: [...(prev.params || []), { name: '', value: '' }] }))}
+                                            className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 hover:underline"
+                                        >
+                                            <PlusIcon className="w-3 h-3" /> Add Parameter
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {(tenantSmsConfig.params || []).map((param, idx) => (
+                                            <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                <input
+                                                    type="text"
+                                                    value={param.name}
+                                                    placeholder="Key"
+                                                    onChange={(e) => {
+                                                        const newParams = [...(tenantSmsConfig.params || [])];
+                                                        newParams[idx].name = e.target.value;
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, params: newParams });
+                                                    }}
+                                                    className="form-input text-xs font-mono h-10"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={param.value}
+                                                    placeholder="Value"
+                                                    onChange={(e) => {
+                                                        const newParams = [...(tenantSmsConfig.params || [])];
+                                                        newParams[idx].value = e.target.value;
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, params: newParams });
+                                                    }}
+                                                    className="form-input text-xs font-mono h-10"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const newParams = (tenantSmsConfig.params || []).filter((_, i) => i !== idx);
+                                                        setTenantSmsConfig({ ...tenantSmsConfig, params: newParams });
+                                                    }}
+                                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                             <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
