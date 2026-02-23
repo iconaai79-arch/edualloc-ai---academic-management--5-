@@ -2350,15 +2350,18 @@ export const App: React.FC = () => {
                                         const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
                                         console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${u.institutionId})`);
 
-                                        // Dispatch to both channels with improved error reporting
+                                        // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
                                         Promise.all([
-                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage) : Promise.resolve({ success: true }),
-                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage) : Promise.resolve({ success: true })
+                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, undefined, u.id) : Promise.resolve({ success: true }),
+                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage, undefined, 1, u.institutionId, u.id) : Promise.resolve({ success: true })
                                         ]).then(results => {
-                                            const smsResult = results[1] as any;
+                                            const smsResult = (results[1] || results[0]) as any;
                                             if (smsResult && smsResult.success === false) {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
-                                                // Simplified feedback for initial login
+                                                // Alert super admins of gateway failures immediately
+                                                if (u.role === 'super_admin') {
+                                                    alert(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. Check your gateway settings. (Email OTP should still be sent)`);
+                                                }
                                             }
                                         }).catch(err => {
                                             console.error("[OTP] Dispatch Exception:", err);
@@ -2390,13 +2393,17 @@ export const App: React.FC = () => {
                                 const otpMessage = `Your New EduAi Verification Code is: ${otp}.`;
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
-                                // Dispatch with reporting
+                                // Dispatch with reporting and explicit authToken (User ID)
                                 Promise.all([
-                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage) : Promise.resolve({ success: true }),
-                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage) : Promise.resolve({ success: true })
+                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage, undefined, otpPendingUser.id) : Promise.resolve({ success: true }),
+                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage, undefined, 1, otpPendingUser.institutionId, otpPendingUser.id) : Promise.resolve({ success: true })
                                 ]).then(results => {
-                                    const smsResult = results[1] as any;
-                                    alert("OTP sent successfully.");
+                                    const smsResult = (results[1] || results[0]) as any;
+                                    if (smsResult && smsResult.success === false) {
+                                        alert(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}.`);
+                                    } else {
+                                        alert("OTP sent successfully via both channels.");
+                                    }
                                 }).catch(err => {
                                     console.error("[OTP Resend] Dispatch Exception:", err);
                                 });

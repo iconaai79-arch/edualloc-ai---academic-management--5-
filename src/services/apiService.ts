@@ -460,7 +460,7 @@ export const apiService = {
         await this.saveModuleRecord('mpesa_transactions', transaction);
         return 'completed';
     },
-    async sendSms(recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string): Promise<any> {
+    async sendSms(recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string, authToken?: string): Promise<any> {
         const formattedRecipient = formatPhoneNumber(recipient);
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
@@ -482,8 +482,12 @@ export const apiService = {
 
             // Final Deep Fallback: Use the Internal User ID as a token
             if (!token) {
-                const session = this.getSession();
-                if (session?.id) token = session.id;
+                if (authToken) {
+                    token = authToken;
+                } else {
+                    const session = this.getSession();
+                    if (session?.id) token = session.id;
+                }
             }
 
             let headers: any = { 'Content-Type': 'application/json' };
@@ -523,7 +527,7 @@ export const apiService = {
             return { success: false, message: e.message || "Gateway connection failure." };
         }
     },
-    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig): Promise<any> {
+    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string): Promise<any> {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
@@ -544,8 +548,12 @@ export const apiService = {
 
             // Final Deep Fallback: Use the Internal User ID as a token
             if (!token) {
-                const session = this.getSession();
-                if (session?.id) token = session.id;
+                if (authToken) {
+                    token = authToken;
+                } else {
+                    const session = this.getSession();
+                    if (session?.id) token = session.id;
+                }
             }
 
             let headers: any = { 'Content-Type': 'application/json' };
