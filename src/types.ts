@@ -99,7 +99,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business';
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
     trialEndsAt?: string;
@@ -1101,6 +1101,7 @@ export interface InstitutionRegistrationData {
     adminName: string;
     adminEmail: string;
     loadDemoData: boolean;
+    businessSubType?: string;
     name?: string;
     email?: string;
     phoneNumber?: string;

@@ -55,6 +55,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         adminName: '',
         adminEmail: '',
         loadDemoData: false,
+        businessSubType: '',
     });
 
     const [countyRegData, setCountyRegData] = useState<CountyRegistrationData>({
@@ -399,7 +400,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                         </div>
                                         <div>
                                             <label className={labelClasses}>Institution Type</label>
-                                            <select className={inputClasses} value={regData.institutionType} onChange={e => setRegData({ ...regData, institutionType: e.target.value })}>
+                                            <select className={inputClasses} value={regData.institutionType} onChange={e => setRegData({ ...regData, institutionType: e.target.value, businessSubType: '' })}>
                                                 <option value="Primary">Primary School</option>
                                                 <option value="Secondary">Secondary School</option>
                                                 <option value="University">University</option>
@@ -408,7 +409,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Polytechnic">Polytechnic</option>
                                                 <option value="ECD">ECD Center</option>
                                                 <option value="International">International School</option>
+                                                <option value="Business">Business</option>
                                             </select>
+                                            {regData.institutionType === 'Business' && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Business Category</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.businessSubType || ''}
+                                                        onChange={e => setRegData({ ...regData, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Business Type --</option>
+                                                        <option value="Car Wash">Car Wash</option>
+                                                        <option value="Agrovet">Agrovet</option>
+                                                        <option value="Salon/Kinyozi">Salon / Kinyozi</option>
+                                                        <option value="Pharmacy">Pharmacy</option>
+                                                        <option value="Retail Shop">Retail Shop</option>
+                                                        <option value="Law Firm">Law Firm</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
                                             <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-widest mb-3 flex items-center gap-2">
