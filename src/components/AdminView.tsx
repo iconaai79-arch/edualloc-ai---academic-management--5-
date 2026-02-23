@@ -635,14 +635,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                 {activeTab === 'transport' && (
                     <TransportManager
-                        currentUser={props.currentUser}
-                        institutionId={props.currentInstitution!.id}
+                        currentInstitution={props.currentInstitution!}
                         vehicles={props.vehicles || []}
                         users={props.users || []}
                         onAddVehicle={props.onAddVehicle!}
                         onUpdateVehicle={props.onUpdateVehicle!}
                         onDeleteVehicle={props.onDeleteVehicle!}
-                        onLogAction={props.onLogAction!}
                     />
                 )}
 

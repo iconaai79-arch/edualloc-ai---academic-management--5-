@@ -1336,11 +1336,12 @@ export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) =
     return (
         <TransportOnboardingView
             currentUser={props.user}
+            currentInstitution={props.currentInstitution!}
             vehicles={props.vehicles || []}
-            students={props.users?.filter(u => u.role === 'student') || []}
+            users={props.users || []}
             onboardingRecords={props.transportOnboarding || []}
-            onOnboard={props.onOnboardStudent!}
-            onOffboard={props.onOffboardStudent!}
+            onOnboardStudent={props.onOnboardStudent!}
+            onOffboardStudent={props.onOffboardStudent!}
         />
     );
 };
