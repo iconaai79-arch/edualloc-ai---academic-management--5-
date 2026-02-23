@@ -260,7 +260,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Security: System messages (OTPs, Recovery links) default to system configuration
             // but we allow institution-specific override if an institutionId is provided.
             const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
-            const smsConfig = { ...(settings.sms_config || {}) };
+            let smsConfig = { ...(settings.sms_config || {}) };
 
             // If a custom config was provided in the body (mostly for Super Admin tests), use it
             if (bodyConfig && effectiveRole === 'super_admin') {
@@ -277,7 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .eq('id', institutionId)
                     .maybeSingle();
 
-                if (!configError && institution) {
+                if (!configError && institution && institution.sms_config) {
                     // Check balance for non-system messages
                     if (user.id !== 'system' && !isSystemMessage && (institution.sms_balance || 0) < unitsToDeduct) {
                         return res.status(402).json({
@@ -290,9 +290,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     // Prefer institution-specific SMS gateway if configured
-                    if (institution.sms_config && (institution.sms_config.apiKey || institution.sms_config.api_key)) {
+                    if (institution.sms_config.apiKey || institution.sms_config.api_key || institution.sms_config.username || institution.sms_config.userId) {
                         console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId}`);
-                        Object.assign(smsConfig, institution.sms_config);
+                        // Priority Fix: Start fresh with institution config to avoid collisions 
+                        // with differently named keys in system settings (e.g. apiKey vs api_key)
+                        smsConfig = { ...institution.sms_config };
                     }
                 }
             }
@@ -300,7 +302,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[SMS Gateway] Processing send for ${recipient}`);
             console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
 
-            if (!smsConfig || (!smsConfig.apiKey && !smsConfig.api_key && !smsConfig.username && !smsConfig.userId && !smsConfig.apikey)) {
+            // Validation: Ensure we have at least one valid key alias
+            const hasAuthKey = smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey;
+            if (!smsConfig || !hasAuthKey) {
                 console.error(`[SMS Gateway] Configuration missing or invalid for ${isSystemMessage ? 'system' : 'custom'} message`);
                 return res.status(400).json({ success: false, message: 'SMS configuration is missing or invalid.' });
             }
@@ -329,8 +333,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl.replace(/\/\/.*@/, '//***@')}`);
 
                 const finalParams: Record<string, string> = {
-                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey,
-                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret,
+                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey || '',
+                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret || '',
                     mobile: phone,
                     msg: message || '',
                     senderid: smsConfig.fromNumber || provider,
