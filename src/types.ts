@@ -35,6 +35,7 @@ export interface User {
     passwordExpiresAt?: string;
     countyId?: string;
     isImpersonated?: boolean;
+    vehicleId?: string;
 }
 
 export interface GradeDefinition {

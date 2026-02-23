@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     TruckIcon, PlusIcon, PencilIcon, TrashIcon,
-    QrCodeIcon, UserIcon, CheckIcon, XIcon
+    QrCodeIcon, UserIcon, CheckIcon, XIcon,
+    MagnifyingGlassIcon, UserPlusIcon, LinkIcon
 } from './icons';
-import type { Vehicle, User, Institution } from '../types';
+import type { Vehicle, User, Institution, UserUpdateData } from '../types';
 import { apiService } from '../services/apiService';
 
 interface TransportManagerProps {
@@ -14,14 +15,22 @@ interface TransportManagerProps {
     onAddVehicle: (vehicle: Omit<Vehicle, 'id'>) => Promise<void>;
     onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => Promise<void>;
     onDeleteVehicle: (id: string) => Promise<void>;
+    onAddUser?: (userData: any) => Promise<void>;
+    onEditUser?: (userId: string, data: UserUpdateData) => Promise<void>;
 }
 
 export const TransportManager: React.FC<TransportManagerProps> = ({
     vehicles, users, currentInstitution,
-    onAddVehicle, onUpdateVehicle, onDeleteVehicle
+    onAddVehicle, onUpdateVehicle, onDeleteVehicle,
+    onAddUser, onEditUser
 }) => {
+    const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers' | 'students'>('vehicles');
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [courseFilter, setCourseFilter] = useState('all');
+
+    // Form data for Vehicle
     const [formData, setFormData] = useState<Omit<Vehicle, 'id' | 'institutionId'>>({
         plateNumber: '',
         model: '',
@@ -29,11 +38,41 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         capacity: 14,
         status: 'active'
     });
+
+    // Form data for Driver
+    const [driverFormData, setDriverFormData] = useState({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        staffId: ''
+    });
+
     const [showQrId, setShowQrId] = useState<string | null>(null);
     const [qrUrl, setQrUrl] = useState<string>('');
 
-    const drivers = users.filter(u => u.role === 'driver' || u.roles?.includes('driver'));
-    const assistants = users.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant'));
+    const drivers = useMemo(() =>
+        users.filter(u => u.role === 'driver' || u.roles?.includes('driver')),
+        [users]
+    );
+
+    const assistants = useMemo(() =>
+        users.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant')),
+        [users]
+    );
+
+    const students = useMemo(() =>
+        users.filter(u => u.role === 'student'),
+        [users]
+    );
+
+    const filteredStudents = useMemo(() => {
+        return students.filter(s => {
+            const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (s.staffId || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesCourse = courseFilter === 'all' || s.courseId === courseFilter;
+            return matchesSearch && matchesCourse;
+        });
+    }, [students, searchTerm, courseFilter]);
 
     useEffect(() => {
         if (showQrId) {
@@ -57,7 +96,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         }
     }, [showQrId, vehicles, currentInstitution]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleVehicleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             if (editingId) {
@@ -79,6 +118,33 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         }
     };
 
+    const handleDriverSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!onAddUser) return;
+        try {
+            await onAddUser({
+                ...driverFormData,
+                role: 'driver',
+                roles: ['driver'],
+                institutionId: currentInstitution.id,
+                expertise: []
+            });
+            setIsAdding(false);
+            setDriverFormData({ name: '', email: '', phoneNumber: '', staffId: '' });
+        } catch (error: any) {
+            alert(error.message);
+        }
+    };
+
+    const handleStudentAssignment = async (studentId: string, vehicleId: string) => {
+        if (!onEditUser) return;
+        try {
+            await onEditUser(studentId, { vehicleId: vehicleId || undefined } as any);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    };
+
     const startEdit = (v: Vehicle) => {
         setEditingId(v.id);
         setFormData({
@@ -95,75 +161,99 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
 
     return (
         <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-                    <TruckIcon className="w-8 h-8 text-blue-600" />
-                    Transport Fleet Management
-                </h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h2 className="text-3xl font-black flex items-center gap-3 text-slate-800 dark:text-white uppercase tracking-tighter">
+                        <TruckIcon className="w-10 h-10 text-indigo-600" />
+                        Transport Management
+                    </h2>
+                    <p className="text-slate-500 font-medium text-sm mt-1">Manage vehicles, drivers, and student assignments.</p>
+                </div>
                 {!isAdding && (
                     <button
                         onClick={() => setIsAdding(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-200 dark:shadow-none font-bold active:scale-95"
                     >
                         <PlusIcon className="w-5 h-5" />
-                        Register Vehicle
+                        {activeTab === 'vehicles' ? 'Register Vehicle' : activeTab === 'drivers' ? 'Register Driver' : 'Assign Students'}
                     </button>
                 )}
             </div>
 
-            {isAdding && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg mb-8 border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-lg font-semibold mb-4 text-slate-700 dark:text-slate-200">
+            <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl mb-8 w-fit border border-slate-200 dark:border-slate-800">
+                <button
+                    onClick={() => { setActiveTab('vehicles'); setIsAdding(false); }}
+                    className={`px-8 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'vehicles' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Vehicles
+                </button>
+                <button
+                    onClick={() => { setActiveTab('drivers'); setIsAdding(false); }}
+                    className={`px-8 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'drivers' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Drivers
+                </button>
+                <button
+                    onClick={() => { setActiveTab('students'); setIsAdding(false); }}
+                    className={`px-8 py-2.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all ${activeTab === 'students' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Student Assignment
+                </button>
+            </div>
+
+            {isAdding && activeTab === 'vehicles' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl mb-8 border border-slate-100 dark:border-slate-700 animate-fade-in-up">
+                    <h3 className="text-xl font-black mb-6 text-slate-800 dark:text-slate-200 uppercase tracking-tight">
                         {editingId ? 'Edit Vehicle Details' : 'Register New Vehicle'}
                     </h3>
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <form onSubmit={handleVehicleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Plate Number</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Plate Number</label>
                             <input
                                 required
                                 value={formData.plateNumber}
                                 onChange={e => setFormData({ ...formData, plateNumber: e.target.value })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                                 placeholder="e.g. KCA 123X"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Make & Model</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Make & Model</label>
                             <input
                                 required
                                 value={formData.model}
                                 onChange={e => setFormData({ ...formData, model: e.target.value })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                                 placeholder="e.g. Isuzu FRR"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Capacity (Seats)</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Capacity (Seats)</label>
                             <input
                                 type="number"
                                 required
                                 value={formData.capacity}
                                 onChange={e => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Vehicle Type</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Vehicle Type</label>
                             <select
                                 value={formData.vehicleType}
                                 onChange={e => setFormData({ ...formData, vehicleType: e.target.value as any })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                             >
                                 <option value="school">School Owned</option>
                                 <option value="private">Private (Consourced)</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Assigned Driver</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Assigned Driver</label>
                             <select
                                 value={formData.driverId || ''}
                                 onChange={e => setFormData({ ...formData, driverId: e.target.value || undefined })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                             >
                                 <option value="">Not Assigned</option>
                                 {drivers.map(d => (
@@ -172,11 +262,11 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Assigned Assistant</label>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Assigned Assistant</label>
                             <select
                                 value={formData.assistantId || ''}
                                 onChange={e => setFormData({ ...formData, assistantId: e.target.value || undefined })}
-                                className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
                             >
                                 <option value="">Not Assigned</option>
                                 {assistants.map(a => (
@@ -184,17 +274,17 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 ))}
                             </select>
                         </div>
-                        <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 mt-4">
+                        <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 mt-6">
                             <button
                                 type="button"
                                 onClick={() => { setIsAdding(false); setEditingId(null); }}
-                                className="px-6 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700 transition-colors"
+                                className="px-8 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold uppercase text-[10px] tracking-widest transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                                className="px-8 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
                             >
                                 {editingId ? 'Update Vehicle' : 'Register Vehicle'}
                             </button>
@@ -203,120 +293,330 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {vehicles.map(vehicle => (
-                    <div key={vehicle.id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                        <div className={`h-2 w-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <div className="p-5">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${vehicle.vehicleType === 'school' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                                        {vehicle.vehicleType}
-                                    </span>
-                                    <h4 className="text-xl font-bold text-slate-800 dark:text-white mt-1">{vehicle.plateNumber}</h4>
-                                    <p className="text-sm text-slate-500">{vehicle.model}</p>
-                                </div>
-                                <button
-                                    onClick={() => setShowQrId(vehicle.id)}
-                                    className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                                    title="View Gate Pass QR"
-                                >
-                                    <QrCodeIcon className="w-6 h-6" />
-                                </button>
-                            </div>
+            {isAdding && activeTab === 'drivers' && (
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl mb-8 border border-slate-100 dark:border-slate-700 animate-fade-in-up">
+                    <h3 className="text-xl font-black mb-6 text-slate-800 dark:text-slate-200 uppercase tracking-tight">Register New Driver</h3>
+                    <form onSubmit={handleDriverSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Full Name</label>
+                            <input
+                                required
+                                value={driverFormData.name}
+                                onChange={e => setDriverFormData({ ...driverFormData, name: e.target.value })}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
+                                placeholder="e.g. John Doe"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Email Address</label>
+                            <input
+                                required
+                                type="email"
+                                value={driverFormData.email}
+                                onChange={e => setDriverFormData({ ...driverFormData, email: e.target.value })}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
+                                placeholder="driver@inst.edu"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Phone Number</label>
+                            <input
+                                required
+                                value={driverFormData.phoneNumber}
+                                onChange={e => setDriverFormData({ ...driverFormData, phoneNumber: e.target.value })}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
+                                placeholder="254700000000"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Staff ID</label>
+                            <input
+                                required
+                                value={driverFormData.staffId}
+                                onChange={e => setDriverFormData({ ...driverFormData, staffId: e.target.value })}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
+                                placeholder="DRV001"
+                            />
+                        </div>
+                        <div className="lg:col-span-4 flex justify-end gap-3 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => setIsAdding(false)}
+                                className="px-8 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold uppercase text-[10px] tracking-widest transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-8 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
+                            >
+                                Register Driver
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
-                            <div className="space-y-3 mb-6">
-                                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-                                    <UserIcon className="w-4 h-4 text-blue-500" />
-                                    <span>Driver: {users.find(u => u.id === vehicle.driverId)?.name || 'None'}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-                                    <UserIcon className="w-4 h-4 text-purple-500" />
-                                    <span>Assistant: {users.find(u => u.id === vehicle.assistantId)?.name || 'None'}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
-                                    <TruckIcon className="w-4 h-4 text-slate-400" />
-                                    <span>Capacity: {vehicle.capacity} Students</span>
-                                </div>
-                            </div>
+            {activeTab === 'vehicles' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {vehicles.map(vehicle => {
+                        const assignedStudentsCount = users.filter(u => u.vehicleId === vehicle.id).length;
+                        return (
+                            <div key={vehicle.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group hover:-translate-y-1">
+                                <div className={`h-3 w-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                <div className="p-8">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div>
+                                            <span className={`text-[9px] uppercase font-black px-3 py-1 rounded-full tracking-widest ${vehicle.vehicleType === 'school' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'}`}>
+                                                {vehicle.vehicleType} Owned
+                                            </span>
+                                            <h4 className="text-2xl font-black text-slate-800 dark:text-white mt-3 uppercase tracking-tight">{vehicle.plateNumber}</h4>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{vehicle.model}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowQrId(vehicle.id)}
+                                            className="p-3 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl transition-all"
+                                            title="View Gate Pass QR"
+                                        >
+                                            <QrCodeIcon className="w-6 h-6" />
+                                        </button>
+                                    </div>
 
-                            <div className="flex justify-center border-t border-slate-100 dark:border-slate-700 pt-4 gap-4">
-                                <button
-                                    onClick={() => startEdit(vehicle)}
-                                    className="flex-1 flex items-center justify-center gap-2 text-sm text-blue-600 hover:bg-blue-50 py-2 rounded-lg transition-colors"
-                                >
-                                    <PencilIcon className="w-4 h-4" />
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => { if (confirm('Delete this vehicle?')) onDeleteVehicle(vehicle.id) }}
-                                    className="flex-1 flex items-center justify-center gap-2 text-sm text-red-600 hover:bg-red-50 py-2 rounded-lg transition-colors"
-                                >
-                                    <TrashIcon className="w-4 h-4" />
-                                    Delete
-                                </button>
+                                    <div className="space-y-4 mb-8 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                                                <UserIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Driver</p>
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">
+                                                    {users.find(u => u.id === vehicle.driverId)?.name || 'None Assigned'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="p-2 bg-purple-100 text-purple-600 rounded-xl">
+                                                <UserIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Transport Assistant</p>
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">
+                                                    {users.find(u => u.id === vehicle.assistantId)?.name || 'None Assigned'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="p-2 bg-orange-100 text-orange-600 rounded-xl">
+                                                <TruckIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Capacity</p>
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">
+                                                    {assignedStudentsCount} / {vehicle.capacity} Students
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => startEdit(vehicle)}
+                                            className="flex-1 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-4 rounded-2xl transition-all active:scale-95"
+                                        >
+                                            <PencilIcon className="w-4 h-4" />
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => { if (confirm('Delete this vehicle?')) onDeleteVehicle(vehicle.id) }}
+                                            className="flex-1 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 hover:bg-red-100 py-4 rounded-2xl transition-all active:scale-95"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
+                        );
+                    })}
+
+                    {vehicles.length === 0 && !isAdding && (
+                        <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-900/20 rounded-[3rem] border-4 border-dashed border-slate-100 dark:border-slate-800">
+                            <TruckIcon className="w-20 h-20 text-slate-200 mx-auto mb-6" />
+                            <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tight">No Vehicles Found</h3>
+                            <button
+                                onClick={() => setIsAdding(true)}
+                                className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest transition-all"
+                            >
+                                Register First Vehicle
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'drivers' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {drivers.map(driver => {
+                        const assignedVehicle = vehicles.find(v => v.driverId === driver.id);
+                        return (
+                            <div key={driver.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-3xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
+                                    <UserIcon className="w-10 h-10" />
+                                </div>
+                                <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">{driver.name}</h4>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">{driver.staffId || 'NO STAFF ID'}</p>
+
+                                <div className="w-full bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl mb-6">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Vehicle Assigned</span>
+                                        <span className={`font-bold ${assignedVehicle ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
+                                            {assignedVehicle ? assignedVehicle.plateNumber : 'Not Assigned'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="w-full space-y-3">
+                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        <CheckIcon className="w-4 h-4 text-green-500" />
+                                        {driver.phoneNumber || 'No phone'}
+                                    </div>
+                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        <CheckIcon className="w-4 h-4 text-green-500" />
+                                        {driver.email}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {activeTab === 'students' && (
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                    <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col md:flex-row justify-between gap-6">
+                        <div className="relative flex-1">
+                            <MagnifyingGlassIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-16 pr-6 py-4 rounded-2xl bg-white dark:bg-slate-800 border-none outline-none font-bold text-sm shadow-sm"
+                                placeholder="Search by name or student ID..."
+                            />
+                        </div>
+                        <div className="flex gap-4">
+                            <select
+                                value={courseFilter}
+                                onChange={e => setCourseFilter(e.target.value)}
+                                className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 border-none outline-none font-bold text-sm shadow-sm min-w-[200px]"
+                            >
+                                <option value="all">All Courses</option>
+                                {/* Populate from courses if needed */}
+                            </select>
                         </div>
                     </div>
-                ))}
 
-                {vehicles.length === 0 && !isAdding && (
-                    <div className="col-span-full py-12 text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                        <TruckIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                        <h3 className="text-lg font-medium text-slate-600 dark:text-slate-400">No vehicles registered yet</h3>
-                        <p className="text-sm text-slate-500 mb-6">Start by adding your school buses or contracted private transport.</p>
-                        <button
-                            onClick={() => setIsAdding(true)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors"
-                        >
-                            Register First Vehicle
-                        </button>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Student</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">ID Number</th>
+                                    <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Vehicle</th>
+                                    <th className="px-8 py-6 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {filteredStudents.map(student => (
+                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center font-black">
+                                                    {student.name.charAt(0)}
+                                                </div>
+                                                <span className="font-bold text-slate-800 dark:text-white">{student.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 font-mono text-xs font-bold text-slate-400 uppercase">{student.staffId || '---'}</td>
+                                        <td className="px-8 py-6">
+                                            <select
+                                                value={student.vehicleId || ''}
+                                                onChange={e => handleStudentAssignment(student.id, e.target.value)}
+                                                className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="">No Vehicle Assigned</option>
+                                                {vehicles.map(v => (
+                                                    <option key={v.id} value={v.id}>{v.plateNumber} ({v.model})</option>
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className="px-8 py-6 text-center">
+                                            {student.vehicleId ? (
+                                                <button
+                                                    onClick={() => handleStudentAssignment(student.id, '')}
+                                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-red-100 transition-all"
+                                                >
+                                                    Unassign
+                                                </button>
+                                            ) : (
+                                                <span className="text-[10px] font-bold text-slate-300 uppercase italic">Pending</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredStudents.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="px-8 py-20 text-center font-black text-slate-300 uppercase tracking-widest">No students found matching your criteria</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {showQrId && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowQrId(null)}>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 text-center">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Vehicle Gate Pass</h3>
-                                <button onClick={() => setShowQrId(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-md shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 text-center">
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Vehicle Gate Pass</h3>
+                                <button onClick={() => setShowQrId(null)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
                                     <XIcon className="w-6 h-6" />
                                 </button>
                             </div>
 
-                            <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-2xl mb-6 relative">
+                            <div className="bg-slate-50 dark:bg-slate-900 p-10 rounded-[2.5rem] mb-8 relative border border-slate-100 dark:border-slate-800">
                                 {qrUrl ? (
                                     <img src={qrUrl} alt="Gate Pass QR" className="mx-auto w-full max-w-[250px] mix-blend-multiply dark:mix-blend-normal" />
                                 ) : (
-                                    <div className="w-48 h-48 bg-slate-200 mx-auto animate-pulse flex items-center justify-center rounded-xl">Generating QR...</div>
+                                    <div className="w-48 h-48 bg-slate-200 mx-auto animate-pulse flex items-center justify-center rounded-3xl">Generating QR...</div>
                                 )}
-                                <div className="mt-6">
-                                    <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white tracking-widest">
+                                <div className="mt-8">
+                                    <p className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-[0.2em] uppercase">
                                         {vehicles.find(v => v.id === showQrId)?.plateNumber}
                                     </p>
-                                    <p className="text-sm text-slate-500 mt-1 uppercase tracking-tight">Official Transport QR Code</p>
+                                    <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-[0.3em] font-black">Official Transport QR</p>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <button
                                     onClick={() => window.print()}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none"
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-indigo-200 dark:shadow-none transition-all active:scale-95"
                                 >
                                     <PlusIcon className="w-5 h-5" />
                                     Print Pass
                                 </button>
                                 <button
                                     onClick={() => setShowQrId(null)}
-                                    className="w-full border border-slate-200 dark:border-slate-700 py-3 rounded-xl font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 transition-colors"
+                                    className="w-full bg-slate-100 dark:bg-slate-700 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all"
                                 >
                                     Dismiss
                                 </button>
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-6 uppercase tracking-widest font-bold">
-                                Security Personnel must scan this code for entry or exit
+                            <p className="text-[9px] text-slate-400 mt-8 uppercase tracking-[0.2em] font-black leading-relaxed">
+                                Security Personnel must scan this code<br />at every entry or exit point
                             </p>
                         </div>
                     </div>

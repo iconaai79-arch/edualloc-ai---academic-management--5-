@@ -641,6 +641,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddVehicle={props.onAddVehicle!}
                         onUpdateVehicle={props.onUpdateVehicle!}
                         onDeleteVehicle={props.onDeleteVehicle!}
+                        onAddUser={props.onAddUser}
+                        onEditUser={props.onEditUser}
                     />
                 )}
 
