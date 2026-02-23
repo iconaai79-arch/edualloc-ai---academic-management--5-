@@ -463,7 +463,39 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 <XIcon className="w-6 h-6 text-white" />
                             </button>
                         </div>
-                        <form onSubmit={handleIssueBook} className="p-8 space-y-6">
+                        <form onSubmit={handleIssueBook} className="p-8 space-y-6 overflow-y-auto max-h-[75vh]">
+                            {/* Member Identity Card */}
+                            {newLoan.userId && (() => {
+                                const member = users.find(u => u.id === newLoan.userId);
+                                if (!member) return null;
+                                return (
+                                    <div className="flex items-center gap-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 animate-fade-in">
+                                        <div className="flex-shrink-0">
+                                            {member.profilePhotoUrl ? (
+                                                <img
+                                                    src={member.profilePhotoUrl}
+                                                    alt={member.name}
+                                                    className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-lg"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
+                                                    <span className="text-2xl font-black text-white">{member.name.charAt(0).toUpperCase()}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Member Identified</p>
+                                            </div>
+                                            <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5 truncate">{member.name}</p>
+                                            <p className="text-xs font-bold text-slate-500 font-mono">{member.staffId || 'No ID'}</p>
+                                            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">{(member.role || 'Member').replace(/_/g, ' ')}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Member Registry</label>
