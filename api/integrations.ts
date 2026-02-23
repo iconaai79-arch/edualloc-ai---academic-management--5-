@@ -60,6 +60,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const normalizePhone = (p: string): string => {
         if (!p) return '';
         let digits = p.replace(/[^\d]/g, '');
+        // Handle 2540... case: strip the leading 0 after 254
+        if (digits.startsWith('2540')) digits = '254' + digits.substring(4);
         if (digits.startsWith('0')) digits = '254' + digits.substring(1);
         if (digits.length === 9) digits = '254' + digits;
         return digits;
@@ -251,11 +253,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Security: System messages (OTPs, Recovery links) MUST stick to the default system configuration
             // Exception: For Super Admins, allow using the provided config (e.g., during testing from the dashboard)
             const smsConfig = (isSystemMessage && user.role !== 'super_admin') ? settings.sms_config : (bodyConfig || settings.sms_config);
-            if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
+
+            console.log(`[SMS Gateway] Processing send for ${recipient}`);
+            console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
+            console.log(`[SMS Gateway] Final Config Used:`, JSON.stringify(smsConfig).substring(0, 100) + '...');
+
+            if (!smsConfig) {
+                console.error(`[SMS Gateway] Configuration missing for ${isSystemMessage ? 'system' : 'custom'} message`);
+                return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
+            }
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
             const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
                 (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId || 'SYSTEM'));
+
+            console.log(`[SMS Gateway] Target Institution: ${institutionId}`);
 
             if (institutionId !== 'SYSTEM' && user.id !== 'system') {
                 const { data: institution, error: balanceError } = await supabase
@@ -299,6 +311,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Allow override from config
                 const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
                 const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : (defaultUrls[provider] || defaultUrls['Zettatel']));
+
+                console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl}`);
 
                 const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
@@ -351,8 +365,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
+                    console.log(`[SMS Gateway] Dispatching to ${dispatchUrl}`);
                     const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions);
                     const smsRaw = await smsRes.text();
+
+                    console.log(`[SMS Gateway] HTTP Status: ${smsRes.status}`);
+                    console.log(`[SMS Gateway] Raw Response: ${smsRaw.substring(0, 300)}`);
 
                     const isHtml = smsRaw.includes('<!DOCTYPE') || smsRaw.includes('<html') || (smsRes.headers.get('content-type')?.includes('text/html'));
 
