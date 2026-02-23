@@ -4,7 +4,7 @@ import type { Book, User, LibraryTransaction, LibrarySettings } from '../types';
 import {
     PlusIcon, SearchIcon, CheckCircleIcon, XIcon, UserIcon,
     BookOpenIcon, ClockIcon, AlertTriangleIcon, ArrowPathIcon,
-    CurrencyIcon, QrCodeIcon
+    CurrencyIcon, QrCodeIcon, BellIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -139,61 +139,69 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
     };
 
-    const handleReturnBook = async (transaction: LibraryTransaction) => {
+    const handleSendReminder = async (transaction: LibraryTransaction) => {
+        const user = users.find(u => u.id === transaction.userId);
         const book = books.find(b => b.id === transaction.bookId);
+
+        if (!user || !user.phoneNumber) {
+            alert('User contact information missing.');
+            return;
+        }
         if (!book) return;
 
-        const isOverdue = new Date(transaction.dueDate) < new Date() && transaction.status !== 'returned';
-        let calculatedFine = 0;
+        try {
+            const res = await apiService.sendLibraryOverdueReminder(
+                user.phoneNumber,
+                book.title,
+                transaction.dueDate,
+                institutionId
+            );
+            if (res.success) {
+                alert(`Reminder sent to ${user.name}`);
+                await onLogAction(`Sent overdue reminder to ${user.name} for "${book.title}"`);
+            } else {
+                alert(`Failed to send reminder: ${res.message}`);
+            }
+        } catch (error: any) {
+            alert(`Error: ${error.message}`);
+        }
+    };
 
-        if (isOverdue && settings) {
-            const diffTime = Math.abs(new Date().getTime() - new Date(transaction.dueDate).getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            calculatedFine = diffDays * settings.overdueFinePerDay;
+    const handleBulkReminders = async () => {
+        const overdueLoans = transactions.filter(t => t.status === 'issued' && new Date(t.dueDate) < new Date());
+
+        if (overdueLoans.length === 0) {
+            alert('No overdue loans found to send reminders.');
+            return;
         }
 
-        if (calculatedFine > 0) {
-            if (!confirm(`This book is overdue. A fine of KES ${calculatedFine.toFixed(2)} will be applied. Proceed with return?`)) return;
-        } else {
-            if (!confirm(`Confirm return for "${book.title}"?`)) return;
-        }
+        if (!confirm(`Send SMS reminders to ${overdueLoans.length} members?`)) return;
+
+        setIsProcessing(true);
+        let successCount = 0;
 
         try {
-            const returnDate = new Date().toISOString();
-            const updatedTransaction: LibraryTransaction = {
-                ...transaction,
-                status: 'returned',
-                returnDate,
-                fineAmount: calculatedFine
-            };
+            for (const loan of overdueLoans) {
+                const user = users.find(u => u.id === loan.userId);
+                const book = books.find(b => b.id === loan.bookId);
 
-            await apiService.saveModuleRecord('library_transactions', updatedTransaction);
-            await apiService.saveModuleRecord('books', { ...book, available: book.available + 1 });
-
-            if (calculatedFine > 0) {
-                // Create a fine record
-                const fineId = `fine_${Date.now()}`;
-                const now = new Date().toISOString();
-                await apiService.saveModuleRecord('library_fines', {
-                    id: fineId,
-                    transactionId: transaction.id,
-                    userId: transaction.userId,
-                    amount: calculatedFine,
-                    paidAmount: 0,
-                    status: 'pending',
-                    description: `Overdue return for "${book.title}"`,
-                    createdAt: now,
-                    updatedAt: now,
-                    institutionId
-                });
+                if (user && user.phoneNumber && book) {
+                    const res = await apiService.sendLibraryOverdueReminder(
+                        user.phoneNumber,
+                        book.title,
+                        loan.dueDate,
+                        institutionId
+                    );
+                    if (res.success) successCount++;
+                }
             }
-
-            await onLogAction(`Processed return for "${book.title}" from user ${transaction.userId}`);
-            loadData();
-            onDataChange();
+            alert(`Bulk reminders process complete. ${successCount} reminders sent.`);
+            await onLogAction(`Sent bulk library reminders to ${successCount} members.`);
         } catch (error: any) {
-            console.error('Return Processing Error:', error);
-            alert(`Error processing return: ${error.message || 'Unknown error'}`);
+            console.error('Bulk reminders error:', error);
+            alert('A critical error occurred during bulk messaging.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -212,13 +220,23 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Circulation</h3>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Lent items awaiting retrieval</p>
                         </div>
-                        <button
-                            onClick={() => setIsIssuing(true)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-[1.5rem] flex items-center gap-3 shadow-lg shadow-emerald-100 transition-all font-black uppercase text-[10px] tracking-widest"
-                        >
-                            <PlusIcon className="w-5 h-5" />
-                            Launch Issuance Registry
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleBulkReminders}
+                                disabled={isProcessing}
+                                className="bg-amber-100 hover:bg-amber-200 text-amber-600 px-5 h-14 rounded-[1.5rem] flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                            >
+                                <BellIcon className="w-5 h-5" />
+                                Bulk Prompt Overdue
+                            </button>
+                            <button
+                                onClick={() => setIsIssuing(true)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 h-14 rounded-[1.5rem] flex items-center gap-3 shadow-lg shadow-emerald-100 transition-all font-black uppercase text-[10px] tracking-widest"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                Launch Issuance Registry
+                            </button>
+                        </div>
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden min-h-[400px]">
@@ -267,12 +285,21 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-right">
-                                                <button
-                                                    onClick={() => handleReturnBook(transaction)}
-                                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                                >
-                                                    Process Return
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleSendReminder(transaction)}
+                                                        className={`p-2.5 rounded-xl transition-all ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
+                                                        title="Send SMS Reminder"
+                                                    >
+                                                        <BellIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleReturnBook(transaction)}
+                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        Process Return
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );

@@ -556,6 +556,10 @@ export const apiService = {
         }
         return res;
     },
+    async sendLibraryOverdueReminder(recipient: string, bookTitle: string, dueDate: string, institutionId: string): Promise<any> {
+        const message = `REMINDER: Your library book "${bookTitle}" was due on ${new Date(dueDate).toLocaleDateString()}. Please return it to avoid further fines.`;
+        return this.sendSms(recipient, message, undefined, 1, institutionId);
+    },
     async fetchTransportBills(driverId: string): Promise<TransportBill[]> {
         if (!_supabase) {
             const bills = ls.get('transport_bills');
