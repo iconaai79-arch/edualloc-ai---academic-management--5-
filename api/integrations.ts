@@ -115,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (dbUser) {
                 console.log(`[Auth Bridge] Verified identity for ${dbUser.email} (Role: ${dbUser.role})`);
-                user = { id: dbUser.id, email: dbUser.email, role: dbUser.role, user_metadata: { institutionId: dbUser.institutionId } };
+                user = { ...dbUser, id: dbUser.id || token, role: dbUser.role, user_metadata: { institutionId: dbUser.institution_id || dbUser.institutionId } };
                 authError = null;
             } else {
                 console.warn(`[Auth Bridge] Database lookup failed. No user found for ID: ${token?.substring(0, 8)}...`);
@@ -249,9 +249,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
             const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
-                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : user.institution_id);
+                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId));
 
-            if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+            if (institutionId !== 'SYSTEM' && user.id !== 'system') {
                 const { data: institution, error: balanceError } = await supabase
                     .from('institutions')
                     .select('sms_balance, sms_config')
@@ -418,15 +418,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (isExplicitSuccess || (!isError && smsRes.ok)) {
-                        // Success! Decrement balance (except for free system messages)
-                        if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
+                        // Success! Decrement balance (except for generic system messages without institution)
+                        if (institutionId !== 'SYSTEM' && user.id !== 'system') {
                             await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
+
+                            // NEW: If super admin sent it, add it back immediately (deduct then add back)
+                            if (user.role === 'super_admin') {
+                                console.log(`[SMS Balance] Restoring ${unitsToDeduct} units for super_admin send.`);
+                                await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
+                            }
 
                             // Record log
                             try {
                                 await supabase.from('sms_logs').insert({
                                     institution_id: institutionId,
-                                    sender_id: user.id === 'system' ? null : user.id,
+                                    sender_id: (user.id === 'system' || !user.id) ? null : user.id,
                                     recipient: phone,
                                     message: message,
                                     units: unitsToDeduct,
@@ -817,13 +823,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         // Create notification if requesterId exists
                         if (metadata.requesterId) {
-                            const isSms = metadata.type === 'sms';
-                            const message = isSms
+                            const isSmsType = metadata.type === 'sms';
+                            const message = isSmsType
                                 ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units.`
                                 : `Subscription renewed successfully! Your new expiry date is reflected in the billing section.`;
 
                             await supabase.from('app_notifications').insert({
-                                id: `ntf_${isSms ? 'sms' : 'sub'}_${Date.now()}`,
+                                id: `ntf_${isSmsType ? 'sms' : 'sub'}_${Date.now()}`,
                                 user_id: metadata.requesterId,
                                 message,
                                 type: 'success',
@@ -836,8 +842,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Send SMS confirmation if payerPhoneNumber exists
                         const smsConfig = settings.sms_config;
                         const payerPhone = metadata.payerPhoneNumber || transaction.phone_number;
+                        const isSmsType = metadata.type === 'sms';
 
-                        if (isSms && smsConfig && payerPhone) {
+                        if (isSmsType && smsConfig && payerPhone) {
                             const unitsCount = parseInt(metadata.units).toLocaleString();
                             const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing EduAlloc Hub.`;
 
