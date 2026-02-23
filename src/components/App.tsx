@@ -1862,6 +1862,7 @@ export const App: React.FC = () => {
                                     companyDetails={companyDetails}
                                     onLogAction={handleLogAction}
                                     vehicles={vehicles}
+                                    vehicleLogs={vehicleLogs}
                                     onLogGateAction={handleLogGateAction}
                                 />
 

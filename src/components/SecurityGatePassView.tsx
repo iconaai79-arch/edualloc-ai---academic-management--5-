@@ -41,7 +41,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
         }
     };
 
-    const recentLogs = vehicleLogs
+    const recentLogs = (vehicleLogs || [])
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 10);
 

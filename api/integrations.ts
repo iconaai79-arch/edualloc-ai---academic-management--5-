@@ -251,51 +251,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
             }
 
-            // Security: System messages (OTPs, Recovery links) MUST stick to the default system configuration
-            // Exception: For Super Admins, allow using the provided config (e.g., during testing from the dashboard)
-            const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
-            const smsConfig = (isSystemMessage && effectiveRole !== 'super_admin') ? settings.sms_config : (bodyConfig || settings.sms_config);
-
-            console.log(`[SMS Gateway] Processing send for ${recipient}`);
-            console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
-            console.log(`[SMS Gateway] Final Config Used:`, JSON.stringify(smsConfig).substring(0, 100) + '...');
-
-            if (!smsConfig) {
-                console.error(`[SMS Gateway] Configuration missing for ${isSystemMessage ? 'system' : 'custom'} message`);
-                return res.status(400).json({ success: false, message: 'SMS configuration is missing.' });
-            }
-
             // SMS Balance Check Logic (OTPs bypass this check and are free)
             const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
                 (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId || 'SYSTEM'));
 
             console.log(`[SMS Gateway] Target Institution: ${institutionId}`);
 
-            if (institutionId !== 'SYSTEM' && user.id !== 'system') {
-                const { data: institution, error: balanceError } = await supabase
+            // Security: System messages (OTPs, Recovery links) default to system configuration
+            // but we allow institution-specific override if an institutionId is provided.
+            const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
+            const smsConfig = { ...(settings.sms_config || {}) };
+
+            // If a custom config was provided in the body (mostly for Super Admin tests), use it
+            if (bodyConfig && effectiveRole === 'super_admin') {
+                Object.assign(smsConfig, bodyConfig);
+                console.log(`[SMS Gateway] Using provided body configuration (Super Admin override)`);
+            }
+
+            // Load institution-specific config if available
+            // We allow this even for 'system' user (unauthenticated OTPs) if institutionId is set
+            if (institutionId !== 'SYSTEM') {
+                const { data: institution, error: configError } = await supabase
                     .from('institutions')
                     .select('sms_balance, sms_config')
                     .eq('id', institutionId)
                     .maybeSingle();
 
-                if (balanceError) {
-                    return res.status(500).json({ success: false, message: 'Database error checking SMS balance.' });
-                }
+                if (!configError && institution) {
+                    // Check balance for non-system messages
+                    if (user.id !== 'system' && !isSystemMessage && (institution.sms_balance || 0) < unitsToDeduct) {
+                        return res.status(402).json({
+                            success: false,
+                            message: `Insufficient SMS balance. This message requires ${unitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
+                            balance: institution?.sms_balance || 0,
+                            required: unitsToDeduct,
+                            buy_url: '/settings?tab=billing'
+                        });
+                    }
 
-                if (!institution || (institution.sms_balance || 0) < unitsToDeduct) {
-                    return res.status(402).json({
-                        success: false,
-                        message: `Insufficient SMS balance. This message requires ${unitsToDeduct} units, but your current balance is ${institution?.sms_balance || 0}.`,
-                        balance: institution?.sms_balance || 0,
-                        required: unitsToDeduct,
-                        buy_url: '/settings?tab=billing'
-                    });
+                    // Prefer institution-specific SMS gateway if configured
+                    if (institution.sms_config && (institution.sms_config.apiKey || institution.sms_config.api_key)) {
+                        console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId}`);
+                        Object.assign(smsConfig, institution.sms_config);
+                    }
                 }
+            }
 
-                // If the institution has a custom SMS gateway, prefer it over the global one
-                if (institution.sms_config && institution.sms_config.apiKey) {
-                    Object.assign(smsConfig, institution.sms_config);
-                }
+            console.log(`[SMS Gateway] Processing send for ${recipient}`);
+            console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
+
+            if (!smsConfig || (!smsConfig.apiKey && !smsConfig.api_key)) {
+                console.error(`[SMS Gateway] Configuration missing or invalid for ${isSystemMessage ? 'system' : 'custom'} message`);
+                return res.status(400).json({ success: false, message: 'SMS configuration is missing or invalid.' });
             }
 
             const provider = smsConfig.provider || 'Zettatel';
@@ -313,12 +320,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 let baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultUrls['Zettatel'] : defaultUrls['ABMIS']);
 
-                // Force correct endpoint for Zettatel if it looks like the generic ABMIS one or is empty
-                if (provider === 'Zettatel' && (!baseUrl || baseUrl.includes('abmis.co.ke'))) {
+                // Force correct endpoint for Zettatel if it looks like the generic ABMIS one or is empty / incorrect
+                if (provider === 'Zettatel' && (!baseUrl || baseUrl.includes('abmis.co.ke') || !baseUrl.startsWith('http'))) {
+                    console.log(`[SMS Gateway] Correcting Zettatel URL from ${baseUrl} to ${defaultUrls['Zettatel']}`);
                     baseUrl = defaultUrls['Zettatel'];
                 }
 
-                console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl}`);
+                console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl.replace(/\/\/.*@/, '//***@')}`);
 
                 const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,

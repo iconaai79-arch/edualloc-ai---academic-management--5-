@@ -393,8 +393,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             {activeTab === 'gatepass' && (
                 <SecurityGatePassView
                     vehicles={props.vehicles || []}
-                    onLogAction={props.onLogGateAction!}
-                    institutionId={props.user.institutionId}
+                    vehicleLogs={props.vehicleLogs || []}
+                    users={props.users || []}
+                    currentUser={props.user}
+                    currentInstitution={props.currentInstitution!}
+                    onLogGateAction={props.onLogGateAction!}
                 />
             )}
 
