@@ -303,14 +303,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Provider-specific logic
             if (provider === 'ABMIS' || provider === 'Zettatel') {
+                // Allow override from config
                 const defaultUrls: Record<string, string> = {
                     'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
                     'Zettatel': 'https://sms.zettatel.com/smsapi/send'
                 };
 
-                // Allow override from config
-                const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
-                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : (defaultUrls[provider] || defaultUrls['Zettatel']));
+                let baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultUrls['Zettatel'] : defaultUrls['ABMIS']);
+
+                // Force correct endpoint for Zettatel if it looks like the generic ABMIS one or is empty
+                if (provider === 'Zettatel' && (!baseUrl || baseUrl.includes('abmis.co.ke'))) {
+                    baseUrl = defaultUrls['Zettatel'];
+                }
 
                 console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl}`);
 
