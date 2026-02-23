@@ -100,6 +100,7 @@ export interface Institution {
     email: string;
     phoneNumber: string;
     institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business';
+    businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
     trialEndsAt?: string;
@@ -1578,4 +1579,106 @@ export interface MaintenanceRequest {
     status: 'Pending' | 'In Progress' | 'Completed';
     reportedBy: string;
     reportedAt: string;
+}
+
+// ============================================================================
+// CAR WASH MODULE TYPES
+// ============================================================================
+
+export type CarWashVehicleType = 'Sedan' | 'SUV' | 'Truck' | 'Matatu' | 'Motorbike' | 'Van' | 'Bus';
+export type CarWashJobStatus = 'queued' | 'in_progress' | 'completed' | 'cancelled';
+export type CarWashPaymentMethod = 'cash' | 'mpesa' | 'card' | 'credit';
+
+export interface CarWashPackage {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    pricing: Partial<Record<CarWashVehicleType, number>>;
+    estimatedMinutes: number;
+    includesInterior: boolean;
+    isActive: boolean;
+    color?: string; // UI accent color
+}
+
+export interface CarWashCustomer {
+    id: string;
+    institutionId: string;
+    name: string;
+    phoneNumber: string;
+    email?: string;
+    loyaltyStamps: number;
+    stampsForFreeWash: number;
+    notes?: string;
+    createdAt: string;
+}
+
+export interface CarWashVehicle {
+    id: string;
+    institutionId: string;
+    customerId: string;
+    plateNumber: string;
+    make: string;
+    model: string;
+    color: string;
+    vehicleType: CarWashVehicleType;
+}
+
+export interface CarWashJob {
+    id: string;
+    institutionId: string;
+    customerId?: string;
+    vehicleId?: string;
+    vehiclePlate: string;
+    vehicleType: CarWashVehicleType;
+    packageId: string;
+    packageName: string;
+    addOns: string[];
+    attendantId?: string;
+    attendantName?: string;
+    bayNumber?: number;
+    status: CarWashJobStatus;
+    paymentMethod: CarWashPaymentMethod;
+    amountCharged: number;
+    amountPaid: number;
+    isLoyaltyRedemption: boolean;
+    startedAt?: string;
+    completedAt?: string;
+    createdAt: string;
+    notes?: string;
+}
+
+export interface CarWashInventoryItem {
+    id: string;
+    institutionId: string;
+    name: string;
+    unit: string;
+    currentStock: number;
+    reorderLevel: number;
+    costPerUnit: number;
+    supplierId?: string;
+    lastRestockedAt?: string;
+    category: 'chemical' | 'equipment' | 'consumable' | 'other';
+}
+
+export interface CarWashFeedback {
+    id: string;
+    institutionId: string;
+    jobId: string;
+    customerId?: string;
+    rating: number; // 1-5
+    comment?: string;
+    submittedAt: string;
+}
+
+export interface CarWashShiftLog {
+    id: string;
+    institutionId: string;
+    attendantId: string;
+    attendantName: string;
+    checkIn: string;
+    checkOut?: string;
+    jobsCompleted: number;
+    totalRevenue: number;
+    date: string;
 }
