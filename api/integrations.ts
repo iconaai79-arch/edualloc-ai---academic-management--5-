@@ -169,7 +169,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (targetUser) {
                     console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient} (Match: ${targetUser.id})`);
-                    user = { ...targetUser, id: 'system', role: 'system' };
+                    // Create a system context but preserve the original role for configuration selection
+                    user = { ...targetUser, id: 'system', originalRole: targetUser.role };
                     authError = null;
                 } else if (isSystemMessage) {
                     // Critical fix: Allow OTPs/Recovery links even if user lookup fails
@@ -252,7 +253,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Security: System messages (OTPs, Recovery links) MUST stick to the default system configuration
             // Exception: For Super Admins, allow using the provided config (e.g., during testing from the dashboard)
-            const smsConfig = (isSystemMessage && user.role !== 'super_admin') ? settings.sms_config : (bodyConfig || settings.sms_config);
+            const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
+            const smsConfig = (isSystemMessage && effectiveRole !== 'super_admin') ? settings.sms_config : (bodyConfig || settings.sms_config);
 
             console.log(`[SMS Gateway] Processing send for ${recipient}`);
             console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
