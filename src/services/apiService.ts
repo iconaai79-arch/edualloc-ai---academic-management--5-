@@ -231,7 +231,18 @@ export const apiService = {
             return null;
         }
     },
-    async fetchModuleRecords<T>(module: string, institutionId?: string): Promise<T[]> {
+    async fetchModuleRecords<T>(module: string, institutionId?: string, countyId?: string): Promise<T[]> {
+        const getFilterCol = (mod: string, type: 'institution' | 'county') => {
+            if (type === 'institution') {
+                if (mod === 'institutions') return 'id';
+                if (mod === 'county_inventory') return 'target_institution_id';
+                return 'institution_id';
+            } else {
+                if (mod === 'counties') return 'id';
+                return 'county_id';
+            }
+        };
+
         if (!_supabase) {
             // Mapping for views in local storage mode
             let effectiveModule = module;
@@ -241,18 +252,29 @@ export const apiService = {
 
             let records = ls.get(effectiveModule);
             if (institutionId) {
-                const filterKey = effectiveModule === 'institutions' ? 'id' : 'institution_id';
+                const filterKey = getFilterCol(effectiveModule, 'institution');
                 records = records.filter((r: any) => r[filterKey] === institutionId);
+            }
+            if (countyId) {
+                const filterKey = getFilterCol(effectiveModule, 'county');
+                records = records.filter((r: any) => r[filterKey] === countyId);
             }
             return toCamelCase(records) || [];
         }
 
         try {
             let query = _supabase.from(module as any).select('*');
+            
             if (institutionId) {
-                const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                const filterCol = getFilterCol(module, 'institution');
                 query = query.eq(filterCol, institutionId);
             }
+
+            if (countyId) {
+                const filterCol = getFilterCol(module, 'county');
+                query = query.eq(filterCol, countyId);
+            }
+
             const { data, error } = await query;
             if (error) {
                 console.error(`Fetch Error [${module}]:`, error);
@@ -264,7 +286,8 @@ export const apiService = {
             console.error(`Fetch Exception [${module}]:`, e);
             return [];
         }
-    },
+    }
+    ,
     async saveModuleRecord<T = any>(module: string, data: T): Promise<void> {
         const payload = toSnakeCase(data);
 

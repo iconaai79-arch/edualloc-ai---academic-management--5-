@@ -59,6 +59,7 @@ interface CountyAdminViewProps {
     onAddStore?: (data: any) => Promise<void>;
     onUpdateStore?: (id: string, data: Partial<CountyStore>) => Promise<void>;
     onDeleteStore?: (id: string) => Promise<void>;
+    onAddStockTransaction?: (data: any) => Promise<void>;
     stockTransactions?: StockTransaction[];
     bursaryApplications?: BursaryApplication[];
     bursaryFunds?: CountyBursaryFund[];
@@ -96,6 +97,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     onAddStore,
     onUpdateStore,
     onDeleteStore,
+    onAddStockTransaction,
     stockTransactions = [],
     bursaryApplications = [],
     bursaryFunds = [],
@@ -377,13 +379,30 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 }
             } else {
                 if (onAddInventoryItem) {
+                    const itemId = `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                     await onAddInventoryItem({
                         ...inventoryForm,
+                        id: itemId,
                         countyId: myCounty.id,
                         status: 'at_hq',
                         atHqDate: new Date().toISOString(),
                         qrCode: `INV-${Date.now()}`
                     });
+
+                    // Record HQ Receipt Transaction
+                    if (onAddStockTransaction) {
+                        await onAddStockTransaction({
+                            itemId: itemId,
+                            itemName: inventoryForm.name,
+                            type: 'Receipt',
+                            quantity: inventoryForm.quantity,
+                            recipientOrSupplier: inventoryForm.supplierName || 'HQ',
+                            date: new Date().toISOString(),
+                            recordedBy: currentUser.id,
+                            countyId: myCounty.id
+                        });
+                    }
+
                     onLogAction?.(`Logged HQ receipt: ${inventoryForm.name} (${inventoryForm.quantity} ${inventoryForm.unit}) from ${inventoryForm.supplierName}`);
                 }
             }
@@ -417,6 +436,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 recipientName: dispatchForm.recipientName,
                 recipientSignature: signature
             });
+
+            // Create stock transaction
+            if (onAddStockTransaction) {
+                await onAddStockTransaction({
+                    itemId: showDispatchModal.id,
+                    itemName: showDispatchModal.name,
+                    type: 'Dispatch',
+                    quantity: showDispatchModal.quantity,
+                    recipientOrSupplier: institutions.find(i => i.id === showDispatchModal.targetInstitutionId)?.name || 'Institution',
+                    date: new Date().toISOString(),
+                    recordedBy: currentUser.id,
+                    countyId: myCounty.id
+                });
+            }
+
             onLogAction?.(`Dispatched inventory: ${showDispatchModal.name} to ${institutions.find(i => i.id === showDispatchModal.targetInstitutionId)?.name || 'institution'}`);
             setShowDispatchModal(null);
         } catch (err) {

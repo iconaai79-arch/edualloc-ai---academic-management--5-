@@ -363,6 +363,7 @@ export const App: React.FC = () => {
             setIsSchemaInitializationRequired(false);
 
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
+            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
             const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
@@ -437,11 +438,11 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
                 apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
                 apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyStore>('county_stores', instId).catch(() => []),
-                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', instId).catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId, cntId).catch(() => []),
+                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
+                apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
+                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId, cntId).catch(() => []),
+                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
                 apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
                 apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
@@ -1501,7 +1502,8 @@ export const App: React.FC = () => {
                                     inventoryItems={countyInventory}
                                     inventoryCategories={countyInventoryCategories}
                                     onAddInventoryItem={async (data) => {
-                                        await apiService.saveModuleRecord('county_inventory', { ...data, id: `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` });
+                                        const id = data.id || `cinv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                        await apiService.saveModuleRecord('county_inventory', { ...data, id });
                                         loadData();
                                     }}
                                     onUpdateInventoryItem={async (id, data) => {
@@ -1513,7 +1515,8 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onAddInventoryCategory={async (data) => {
-                                        await apiService.saveModuleRecord('county_inventory_categories', { ...data, id: `cat_${Date.now()}` });
+                                        const id = data.id || `cat_${Date.now()}`;
+                                        await apiService.saveModuleRecord('county_inventory_categories', { ...data, id });
                                         loadData();
                                     }}
                                     onUpdateInventoryCategory={async (id, data) => {
@@ -1526,7 +1529,8 @@ export const App: React.FC = () => {
                                     }}
                                     stores={countyStores}
                                     onAddStore={async (data) => {
-                                        await apiService.saveModuleRecord('county_stores', { ...data, id: `store_${Date.now()}` });
+                                        const id = data.id || `store_${Date.now()}`;
+                                        await apiService.saveModuleRecord('county_stores', { ...data, id });
                                         loadData();
                                     }}
                                     onUpdateStore={async (id, data) => {
@@ -1535,6 +1539,11 @@ export const App: React.FC = () => {
                                     }}
                                     onDeleteStore={async (id) => {
                                         await apiService.deleteModuleRecord('county_stores', id);
+                                        loadData();
+                                    }}
+                                    onAddStockTransaction={async (data) => {
+                                        const countyId = currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
+                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId });
                                         loadData();
                                     }}
                                     stockTransactions={stockTransactions}
