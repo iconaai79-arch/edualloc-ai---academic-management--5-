@@ -300,7 +300,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.log(`[SMS Gateway] Processing send for ${recipient}`);
             console.log(`[SMS Gateway] System Message: ${isSystemMessage}, User Role: ${user.role}`);
 
-            if (!smsConfig || (!smsConfig.apiKey && !smsConfig.api_key)) {
+            if (!smsConfig || (!smsConfig.apiKey && !smsConfig.api_key && !smsConfig.username && !smsConfig.userId && !smsConfig.apikey)) {
                 console.error(`[SMS Gateway] Configuration missing or invalid for ${isSystemMessage ? 'system' : 'custom'} message`);
                 return res.status(400).json({ success: false, message: 'SMS configuration is missing or invalid.' });
             }
@@ -331,8 +331,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const finalParams: Record<string, string> = {
                     userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey,
                     password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret,
-                    apikey: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey,
-                    apisecret: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret,
                     mobile: phone,
                     msg: message || '',
                     senderid: smsConfig.fromNumber || provider,
