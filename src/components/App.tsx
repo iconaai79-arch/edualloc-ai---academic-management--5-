@@ -2213,6 +2213,16 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                     isImpersonating={!!impersonatedRole}
+                                    vehicles={vehicles}
+                                    transportOnboarding={transportOnboarding}
+                                    vehicleLogs={vehicleLogs}
+                                    onAddVehicle={handleAddVehicle}
+                                    onUpdateVehicle={handleUpdateVehicle}
+                                    onDeleteVehicle={handleDeleteVehicle}
+                                    onLogGateAction={handleLogGateAction}
+                                    onOnboardStudent={handleOnboardStudent}
+                                    onOffboardStudent={handleOffboardStudent}
+                                    onConfirmTransport={handleConfirmReceipt}
                                 />
                             ) : (
                                 <LecturerView
