@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Book, User, LibraryTransaction, LibrarySettings } from '../types';
 import {
     PlusIcon, SearchIcon, CheckCircleIcon, XIcon, UserIcon,
     BookOpenIcon, ClockIcon, AlertTriangleIcon, ArrowPathIcon,
-    CurrencyIcon, QrCodeIcon, BellIcon
+    CurrencyIcon, QrCodeIcon, BellIcon, EyeIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -35,6 +35,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         bookId: '',
         dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
+    const [memberSearch, setMemberSearch] = useState('');
+    const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+    const [hasSigned, setHasSigned] = useState(false);
+    const [isDrawing, setIsDrawing] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -61,7 +65,6 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const handleIssueBook = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validation
         if (!newLoan.userId || !newLoan.bookId || !newLoan.dueDate) {
             alert('Please select both a member and a book, and set a due date.');
             return;
@@ -75,7 +78,6 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             return;
         }
 
-        // Strict Check 1: Check if this user already has an active loan for this EXACT book
         const hasActiveLoan = transactions.some(t =>
             t.userId === newLoan.userId &&
             t.bookId === newLoan.bookId &&
@@ -87,7 +89,6 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             return;
         }
 
-        // Strict Check 2: Check availability
         if (book.available < 1) {
             alert(`"${book.title}" is currently out of stock. (Total: ${book.quantity}, Available: 0)`);
             return;
@@ -95,8 +96,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
         setIsProcessing(true);
         try {
+            const signatureUrl = hasSigned && signatureCanvasRef.current ? signatureCanvasRef.current.toDataURL('image/png') : undefined;
+
             const transactionId = `ltx_${Date.now()}`;
-            // Ensure full ISO strings for consistency
             const issueDate = new Date().toISOString();
             const dueDate = new Date(newLoan.dueDate).toISOString();
 
@@ -108,12 +110,12 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 dueDate,
                 status: 'issued',
                 institutionId,
-                fineAmount: 0
+                fineAmount: 0,
+                memberSignature: signatureUrl
             };
 
             await apiService.saveModuleRecord('library_transactions', transaction);
 
-            // Deduct from availability - Ensure we pass the full book object with updated available count
             await apiService.saveModuleRecord('books', {
                 ...book,
                 available: Math.max(0, book.available - 1)
@@ -122,22 +124,76 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             await onLogAction(`Issued book "${book.title}" to user ${newLoan.userId}`);
 
             setIsIssuing(false);
+            setHasSigned(false);
             setNewLoan({
                 userId: '',
                 bookId: '',
                 dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
             });
+            setMemberSearch('');
             await loadData();
             onDataChange();
         } catch (error: any) {
             console.error('Critical Issuance Error:', error);
-            const errorMessage = error.message || 'Unknown database error';
-            const details = error.details || '';
-            alert(`Failed to process book issuance:\n\n${errorMessage}\n${details}`);
+            alert(`Failed to process book issuance: ${error.message || 'Unknown database error'}`);
         } finally {
             setIsProcessing(false);
         }
     };
+
+    // Signature Pad Logic
+    useEffect(() => {
+        if (!isIssuing || !signatureCanvasRef.current) return;
+        const canvas = signatureCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        const getCoords = (e: MouseEvent | TouchEvent) => {
+            const rect = canvas.getBoundingClientRect();
+            if (e instanceof MouseEvent) return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+        };
+
+        const start = (e: MouseEvent | TouchEvent) => {
+            const { x, y } = getCoords(e);
+            ctx?.beginPath();
+            ctx?.moveTo(x, y);
+            setIsDrawing(true);
+            setHasSigned(true);
+        };
+
+        const move = (e: MouseEvent | TouchEvent) => {
+            if (!isDrawing) return;
+            const { x, y } = getCoords(e);
+            ctx?.lineTo(x, y);
+            ctx?.stroke();
+        };
+
+        const stop = () => setIsDrawing(false);
+
+        canvas.addEventListener('mousedown', start);
+        canvas.addEventListener('mousemove', move);
+        canvas.addEventListener('mouseup', stop);
+        canvas.addEventListener('mouseleave', stop);
+        canvas.addEventListener('touchstart', start, { passive: false });
+        canvas.addEventListener('touchmove', move, { passive: false });
+        canvas.addEventListener('touchend', stop);
+
+        return () => {
+            canvas.removeEventListener('mousedown', start);
+            canvas.removeEventListener('mousemove', move);
+            canvas.removeEventListener('mouseup', stop);
+            canvas.removeEventListener('mouseleave', stop);
+            canvas.removeEventListener('touchstart', start);
+            canvas.removeEventListener('touchmove', move);
+            canvas.removeEventListener('touchend', stop);
+        };
+    }, [isIssuing, isDrawing]);
 
     const handleSendReminder = async (transaction: LibraryTransaction) => {
         const user = users.find(u => u.id === transaction.userId);
@@ -299,6 +355,17 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                     >
                                                         Process Return
                                                     </button>
+                                                    {transaction.memberSignature && (
+                                                        <div className="group relative">
+                                                            <button className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl" title="View Confirmation Signature">
+                                                                <EyeIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <div className="absolute bottom-full right-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
+                                                                <img src={transaction.memberSignature} className="w-32 h-16 object-contain" alt="Signature" />
+                                                                <p className="text-[8px] font-black uppercase text-center text-slate-400 mt-1">Receipt Confirm</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -400,14 +467,57 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Member Registry</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by QR, ID or Name..."
+                                            value={memberSearch}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setMemberSearch(val);
+
+                                                // Automatic QR Matching
+                                                try {
+                                                    const qrData = JSON.parse(val);
+                                                    if (qrData.type === 'member' && qrData.id) {
+                                                        setNewLoan(prev => ({ ...prev, userId: qrData.id }));
+                                                        const foundUser = users.find(u => u.id === qrData.id);
+                                                        if (foundUser) setMemberSearch(foundUser.name);
+                                                        return;
+                                                    }
+                                                } catch (e) { }
+
+                                                // Partial Matching for ID or Name
+                                                const found = users.find(u =>
+                                                    u.staffId?.toLowerCase() === val.toLowerCase() ||
+                                                    u.name.toLowerCase() === val.toLowerCase()
+                                                );
+                                                if (found) setNewLoan(prev => ({ ...prev, userId: found.id }));
+                                            }}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
+                                        />
+                                        <div className="absolute right-4 top-4 text-slate-400">
+                                            <SearchIcon className="w-5 h-5" />
+                                        </div>
+                                    </div>
                                     <select
                                         required
                                         value={newLoan.userId}
-                                        onChange={(e) => setNewLoan({ ...newLoan, userId: e.target.value })}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all appearance-none cursor-pointer"
+                                        onChange={(e) => {
+                                            setNewLoan({ ...newLoan, userId: e.target.value });
+                                            const u = users.find(user => user.id === e.target.value);
+                                            if (u) setMemberSearch(u.name);
+                                        }}
+                                        className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2 outline-none border-none"
                                     >
-                                        <option value="">-- Select Student or Staff --</option>
-                                        {users.filter(u => u.role !== 'super_admin').map(user => (
+                                        <option value="">-- Or select from list --</option>
+                                        {users.filter(u => {
+                                            const search = memberSearch.toLowerCase();
+                                            return u.role !== 'super_admin' && (
+                                                u.name.toLowerCase().includes(search) ||
+                                                (u.staffId || '').toLowerCase().includes(search)
+                                            );
+                                        }).map(user => (
                                             <option key={user.id} value={user.id}>{user.name} ({user.staffId || 'No ID'})</option>
                                         ))}
                                     </select>
@@ -436,6 +546,38 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         onChange={(e) => setNewLoan({ ...newLoan, dueDate: e.target.value })}
                                         className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
                                     />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center ml-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400">Digital Signature</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const ctx = signatureCanvasRef.current?.getContext('2d');
+                                                if (ctx && signatureCanvasRef.current) {
+                                                    ctx.clearRect(0, 0, signatureCanvasRef.current.width, signatureCanvasRef.current.height);
+                                                    setHasSigned(false);
+                                                }
+                                            }}
+                                            className="text-[9px] font-black text-indigo-600 hover:underline uppercase"
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                    <canvas
+                                        ref={signatureCanvasRef}
+                                        width={450}
+                                        height={120}
+                                        className="w-full h-32 bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 touch-none cursor-crosshair"
+                                    />
+                                    {hasSigned ? (
+                                        <p className="text-[9px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+                                            <CheckCircleIcon className="w-3 h-3" /> Signature Captured
+                                        </p>
+                                    ) : (
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Member must sign to confirm receipt</p>
+                                    )}
                                 </div>
                             </div>
                             <div className="pt-6 flex gap-3">

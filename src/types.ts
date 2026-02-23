@@ -783,6 +783,7 @@ export interface LibraryTransaction {
     status: 'issued' | 'returned' | 'overdue';
     fineAmount?: number;
     institutionId: string;
+    memberSignature?: string;
 }
 
 export interface LibraryFine {
