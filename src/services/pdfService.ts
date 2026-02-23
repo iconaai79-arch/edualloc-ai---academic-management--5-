@@ -2378,8 +2378,10 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
 
     // Guard for member.role
-    const roleText = member.role ? member.role.replace(/_/g, ' ').toUpperCase() : 'N/A';
-    doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
+    const roleText = (member.roles && member.roles.length > 0)
+        ? member.roles.join(', ').replace(/_/g, ' ').toUpperCase()
+        : (member.role ? member.role.replace(/_/g, ' ').toUpperCase() : 'N/A');
+    doc.text(`Role: ${roleText}`, margin, tableY - 5);
 
     // Institution Contact Details
     doc.setFont('helvetica', 'italic');
@@ -2397,7 +2399,7 @@ export const generateMemberLibraryHistoryPdf = async (
         new Date(t.issueDate).toLocaleDateString(),
         getBookTitle(t.bookId),
         t.returnDate ? new Date(t.returnDate).toLocaleDateString() : 'NOT RETURNED',
-        t.status.toUpperCase()
+        (t.status || 'unknown').toUpperCase()
     ]));
 
     const autoTable = (doc as any).autoTable;
@@ -2442,10 +2444,11 @@ export const generateMemberLibraryHistoryPdf = async (
             headStyles: { fillColor: [220, 38, 38], textColor: 255 },
             styles: { fontSize: 8 }
         });
+        tableY = (doc as any).lastAutoTable?.finalY || tableY;
     }
 
-    const totalDue = fines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0);
-    const finalY = (doc as any).lastAutoTable.finalY;
+    const totalDue = fines.reduce((acc, f) => acc + (Number(f.amount || 0) - Number(f.paidAmount || 0)), 0);
+    const finalY = (doc as any).lastAutoTable?.finalY || tableY;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
@@ -2455,4 +2458,109 @@ export const generateMemberLibraryHistoryPdf = async (
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
+};
+
+/**
+ * Generates a PDF sheet of QR codes for all provided members.
+ */
+export const generateMemberQrCodesPdf = async (
+    members: User[],
+    institutionName: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<Blob> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    const QRCodeLib = (window as any).QRCode;
+    if (!QRCodeLib) throw new Error("QRCode library not available on window.");
+
+    const margin = 10;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const cols = 3;
+    const rows = 5;
+    const padding = 10;
+    const cellWidth = (pageWidth - (margin * 2)) / cols;
+    const cellHeight = (pageHeight - (margin * 2) - 40) / rows; // Adjust for header/footer
+
+    let currentMemberIdx = 0;
+    let pageNum = 0;
+
+    while (currentMemberIdx < members.length) {
+        if (pageNum > 0) doc.addPage();
+        pageNum++;
+
+        let yPos = setupPdfHeader(doc, headerImg);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${institutionName} - Member QR Access Cards`, margin, yPos);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Page ${pageNum} | Total Members: ${members.length}`, margin, yPos + 5);
+        yPos += 15;
+
+        for (let r = 0; r < rows && currentMemberIdx < members.length; r++) {
+            for (let c = 0; c < cols && currentMemberIdx < members.length; c++) {
+                const member = members[currentMemberIdx];
+                const x = margin + (c * cellWidth);
+                const y = yPos + (r * cellHeight);
+
+                // Draw Card Border
+                doc.setDrawColor(230);
+                doc.rect(x + 2, y + 2, cellWidth - 4, cellHeight - 4);
+
+                try {
+                    const qrData = JSON.stringify({
+                        type: 'member',
+                        id: member.id,
+                        staffId: member.staffId,
+                        name: member.name,
+                        role: member.role
+                    });
+
+                    // Generate QR Code as Data URL
+                    const qrUrl = await new Promise<string>((resolve, reject) => {
+                        QRCodeLib.toDataURL(qrData, { margin: 1, width: 256 }, (err: any, url: string) => {
+                            if (err) reject(err);
+                            else resolve(url);
+                        });
+                    });
+
+                    // Add QR Code Image
+                    doc.addImage(qrUrl, 'PNG', x + (cellWidth / 2) - 15, y + 5, 30, 30);
+
+                    // Add Member Info
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(member.name, x + (cellWidth / 2), y + 42, { align: 'center', maxWidth: cellWidth - 10 });
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFont('courier', 'normal');
+                    doc.text(member.staffId || 'ID: Pending', x + (cellWidth / 2), y + 47, { align: 'center' });
+                    doc.setFont('helvetica', 'normal');
+                    doc.text((member.role || 'Member').toUpperCase().replace(/_/g, ' '), x + (cellWidth / 2), y + 52, { align: 'center' });
+
+                } catch (err) {
+                    console.error("QR Error for member:", member.name, err);
+                }
+
+                currentMemberIdx++;
+            }
+        }
+
+        setupPdfFooter(doc, footerImg);
+    }
+
+    return doc.output('blob');
 };

@@ -13,9 +13,10 @@ import {
     ArchiveBoxIcon,
     ArrowPathIcon,
     ChatBubbleLeftRightIcon,
-    PhoneIcon
+    PhoneIcon, QrCodeIcon
 } from './icons/index';
 import { analyzeUserSpreadsheet } from '../services/geminiService';
+import { generateMemberQrCodesPdf } from '../services/pdfService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
 import { TimeOffRequestModal } from './TimeOffRequestModal';
@@ -675,6 +676,31 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileImport} accept=".xlsx, .xls, .csv" />
                         <button onClick={() => { activeTab === 'staff' ? setIsImportModalOpen(true) : fileInputRef.current?.click() }} className="btn-secondary flex items-center gap-2">
                             <ArrowUpTrayIcon className="w-5 h-5" /> Import
+                        </button>
+                        <button
+                            onClick={async () => {
+                                if (filteredUsers.length === 0) return;
+                                try {
+                                    const blob = await generateMemberQrCodesPdf(
+                                        filteredUsers,
+                                        currentInstitution?.name || 'Institution',
+                                        props.letterheadConfig,
+                                        props.footerImageUrl
+                                    );
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = `Member_QR_Cards_${new Date().getTime()}.pdf`;
+                                    link.click();
+                                    URL.revokeObjectURL(url);
+                                    props.onLogAction?.(`Generated QR Access Cards for ${filteredUsers.length} members`);
+                                } catch (err: any) {
+                                    alert(`Failed to generate QR codes: ${err.message}`);
+                                }
+                            }}
+                            className="btn-secondary flex items-center gap-2 bg-slate-900 text-white hover:bg-black border-none"
+                        >
+                            <QrCodeIcon className="w-5 h-5" /> QR Cards
                         </button>
                         {onSendBulkCredentials && filteredUsers.length > 0 && (
                             <div className="flex gap-2">
