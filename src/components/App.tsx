@@ -2348,6 +2348,7 @@ export const App: React.FC = () => {
                                         setOtpPendingUser(u);
 
                                         const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
+                                        console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting
                                         Promise.all([
@@ -2387,6 +2388,7 @@ export const App: React.FC = () => {
                                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                 setCurrentOtp(otp);
                                 const otpMessage = `Your New EduAi Verification Code is: ${otp}.`;
+                                console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
                                 // Dispatch with reporting
                                 Promise.all([

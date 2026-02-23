@@ -51,8 +51,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         msgLower.includes('otp') ||
         msgLower.includes('your eduai code') ||
         msgLower.includes('your verification code') ||
+        msgLower.includes('verificaiton code') || // Typo tolerance
+        msgLower.includes('new eduai verification code') ||
         msgLower.includes('password reset request') ||
         msgLower.includes('resettoken=');
+
+    // Robust phone normalization function
+    const normalizePhone = (p: string): string => {
+        if (!p) return '';
+        let digits = p.replace(/[^\d]/g, '');
+        if (digits.startsWith('0')) digits = '254' + digits.substring(1);
+        if (digits.length === 9) digits = '254' + digits;
+        return digits;
+    };
 
     try {
         if (!action) {
@@ -132,19 +143,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (action === 'sendSms' && recipient) {
                     // Normalize Kenyan phone numbers for robust database search
+                    const normalized = normalizePhone(recipient);
                     const rawDigits = recipient.replace(/[^\d]/g, '');
-                    let searchNumbers: string[] = [recipient, rawDigits];
+                    let searchNumbers: string[] = [recipient, rawDigits, normalized];
 
-                    // Generate common variants
-                    if (rawDigits.length === 9) {
-                        searchNumbers.push('0' + rawDigits);
-                        searchNumbers.push('254' + rawDigits);
-                    } else if (rawDigits.startsWith('0') && rawDigits.length === 10) {
-                        const base = rawDigits.substring(1);
-                        searchNumbers.push('254' + base);
-                        searchNumbers.push(base);
-                    } else if (rawDigits.startsWith('254') && rawDigits.length === 12) {
-                        const base = rawDigits.substring(3);
+                    // Generate common variants for lookup
+                    if (normalized.startsWith('254') && normalized.length === 12) {
+                        const base = normalized.substring(3);
                         searchNumbers.push('0' + base);
                         searchNumbers.push(base);
                     }
@@ -249,7 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // SMS Balance Check Logic (OTPs bypass this check and are free)
             const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
-                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId));
+                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId || 'SYSTEM'));
 
             if (institutionId !== 'SYSTEM' && user.id !== 'system') {
                 const { data: institution, error: balanceError } = await supabase
@@ -281,20 +286,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const provider = smsConfig.provider || 'Zettatel';
 
             // Normalize Kenyan phone numbers to strict 254 format
-            let phone = recipient.replace(/[^\d]/g, '');
-
-            if (phone.startsWith('254')) {
-                const afterPrefix = phone.substring(3);
-                if (afterPrefix.startsWith('0')) {
-                    phone = '254' + afterPrefix.substring(1);
-                }
-            } else if (phone.startsWith('0')) {
-                phone = '254' + phone.substring(1);
-            } else if (phone.length === 9) {
-                phone = '254' + phone;
-            } else if (phone.length === 12 && phone.startsWith('254')) {
-                // Already correct
-            }
+            const phone = normalizePhone(recipient);
 
             // Provider-specific logic
             if (provider === 'ABMIS' || provider === 'Zettatel') {
