@@ -520,6 +520,21 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
+    const handleTestOtp = async () => {
+        if (!testRecipient) return alert("Enter a phone number for OTP test.");
+        setIsTesting(true);
+        try {
+            const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+            const res = await apiService.sendSms(testRecipient, `Your EduAi Verification Code is: ${testOtp}. Do not share this code with anyone.`, localSmsConfig);
+            if (res.success) alert(`OTP Test sent successfully. Code sent: ${testOtp}`);
+            else alert("Failed to send OTP test. Verify your gateway settings.");
+        } catch (e) {
+            alert("OTP Test Gateway connection error.");
+        } finally {
+            setIsTesting(false);
+        }
+    };
+
     const handleTestEmail = async () => {
         if (!testRecipient || !testRecipient.includes('@')) return alert("Enter a valid email to test.");
         setIsTesting(true);
@@ -825,8 +840,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                 <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Platform SMS Balance</h3>
                                 <p className={`text-4xl font-black tracking-tighter ${(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0) < 500
-                                        ? 'text-amber-500'
-                                        : 'text-sky-600'
+                                    ? 'text-amber-500'
+                                    : 'text-sky-600'
                                     }`}>
                                     {(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0).toLocaleString()}
                                 </p>
@@ -1707,6 +1722,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                 className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
                                             >
                                                 {isTesting ? 'Sending...' : 'Send Test SMS'}
+                                            </button>
+                                            <button
+                                                onClick={handleTestOtp}
+                                                disabled={isTesting}
+                                                className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-100 transition-colors"
+                                            >
+                                                {isTesting ? 'Sending...' : 'Test OTP'}
                                             </button>
                                         </div>
                                         <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Sync Gateway</button>
