@@ -36,6 +36,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
     const [memberSearch, setMemberSearch] = useState('');
+    const [bookSearch, setBookSearch] = useState('');
     const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
     const [hasSigned, setHasSigned] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -131,6 +132,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
             });
             setMemberSearch('');
+            setBookSearch('');
             await loadData();
             onDataChange();
         } catch (error: any) {
@@ -556,19 +558,90 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Catalogued Resource</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by Title, Author, ISBN or scan QR/Accession..."
+                                            value={bookSearch}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setBookSearch(val);
+
+                                                // QR / Accession exact match (auto-select)
+                                                const upper = val.toUpperCase();
+                                                const exactAccession = books.find(b => b.accessionNumber === upper);
+                                                if (exactAccession) {
+                                                    setNewLoan(prev => ({ ...prev, bookId: exactAccession.id }));
+                                                    setBookSearch(`[${exactAccession.accessionNumber}] ${exactAccession.title}`);
+                                                    return;
+                                                }
+
+                                                // Try parsing as QR JSON
+                                                try {
+                                                    const qrData = JSON.parse(val);
+                                                    if (qrData.accessionNumber) {
+                                                        const found = books.find(b => b.accessionNumber === qrData.accessionNumber);
+                                                        if (found) {
+                                                            setNewLoan(prev => ({ ...prev, bookId: found.id }));
+                                                            setBookSearch(`[${found.accessionNumber}] ${found.title}`);
+                                                        }
+                                                    }
+                                                } catch (e) { }
+                                            }}
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
+                                        />
+                                        <div className="absolute right-4 top-4 text-slate-400">
+                                            <SearchIcon className="w-5 h-5" />
+                                        </div>
+                                    </div>
                                     <select
                                         required
                                         value={newLoan.bookId}
-                                        onChange={(e) => setNewLoan({ ...newLoan, bookId: e.target.value })}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all appearance-none cursor-pointer"
+                                        onChange={(e) => {
+                                            const book = books.find(b => b.id === e.target.value);
+                                            setNewLoan({ ...newLoan, bookId: e.target.value });
+                                            if (book) setBookSearch(`[${book.accessionNumber}] ${book.title}`);
+                                        }}
+                                        className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2 outline-none border-none"
                                     >
-                                        <option value="">-- Select Book --</option>
-                                        {books.filter(b => b.available > 0).map(book => (
+                                        <option value="">-- Or select from list --</option>
+                                        {books.filter(b => {
+                                            if (b.available < 1) return false;
+                                            const search = bookSearch.toLowerCase();
+                                            if (!search) return true;
+                                            return (
+                                                b.title.toLowerCase().includes(search) ||
+                                                b.author.toLowerCase().includes(search) ||
+                                                (b.isbn || '').toLowerCase().includes(search) ||
+                                                (b.accessionNumber || '').toLowerCase().includes(search) ||
+                                                (b.category || '').toLowerCase().includes(search)
+                                            );
+                                        }).map(book => (
                                             <option key={book.id} value={book.id}>
-                                                [{book.accessionNumber}] {book.title} ({book.available} Available)
+                                                [{book.accessionNumber}] {book.title} — {book.author} ({book.available} avail.)
                                             </option>
                                         ))}
                                     </select>
+                                    {/* Book Identity Card */}
+                                    {newLoan.bookId && (() => {
+                                        const book = books.find(b => b.id === newLoan.bookId);
+                                        if (!book) return null;
+                                        return (
+                                            <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800 animate-fade-in">
+                                                <div className="w-10 h-12 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow">
+                                                    <BookOpenIcon className="w-5 h-5 text-white" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{book.title}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 truncate">by {book.author}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-[9px] font-black text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{book.accessionNumber}</span>
+                                                        <span className="text-[9px] font-black text-emerald-600">{book.available} Available</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Lending Deadline</label>
