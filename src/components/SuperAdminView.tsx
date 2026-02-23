@@ -805,7 +805,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                 <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Active Faculty</h3>
                                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
@@ -821,6 +821,16 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
                                     {(props.users || []).filter(u => u && u.role === 'student').length}
                                 </p>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Platform SMS Balance</h3>
+                                <p className={`text-4xl font-black tracking-tighter ${(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0) < 500
+                                        ? 'text-amber-500'
+                                        : 'text-sky-600'
+                                    }`}>
+                                    {(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0).toLocaleString()}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-mono mt-1">SMS units across all tenants</p>
                             </div>
                         </div>
 
@@ -1169,6 +1179,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             {...props}
                             onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                             currentUser={props.currentUser}
+                            smsBalance={(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)}
                         />
                     </div>
                 )}
