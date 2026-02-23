@@ -238,7 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 to: recipient,
                 subject: subject || 'EduAi Notification',
                 text: message,
-                html: (message || '').replace(/\n/g, '<br>')
+                html: (message || '').replace(/\n/g, '<br>'),
+                attachments: paramsMap.attachments // Supports { filename: string, content: string (base64) / Buffer, contentType: string }
             });
 
             return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });

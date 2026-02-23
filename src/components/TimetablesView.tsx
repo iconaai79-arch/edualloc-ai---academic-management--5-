@@ -17,10 +17,12 @@ import {
     RectangleStackIcon,
     ArrowsRightLeftIcon,
     EyeIcon,
-    XIcon
+    XIcon,
+    EnvelopeIcon
 } from './icons/index';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf } from '../services/pdfService';
+import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf, generateStudentTimetablePdf } from '../services/pdfService';
+import { apiService } from '../services/apiService';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
 import { LecturerTimetableList } from './LecturerTimetableList';
@@ -52,6 +54,7 @@ export interface TimetablesViewProps {
     onMoveTimetableEntry?: (entryId: string, newDay: string, newStartTime: string) => void;
     onLogAction?: (action: string) => void;
     timetableConflicts?: Conflict[];
+    allUsers?: User[];
 }
 
 export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
@@ -59,7 +62,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
         generatedTimetable = [], subjects = [], lecturers = [], departments = [], courses = [], buildings = [],
         rooms = [], allocations = [], getSubjectById, getLecturerById, getRoomById, letterheadConfig,
         logoUrl, footerImageUrl, currentUser, timetableSettings, activeSemester,
-        academicYears = [], currentInstitution, onMoveTimetableEntry, onLogAction, timetableConflicts
+        academicYears = [], currentInstitution, onMoveTimetableEntry, onLogAction, timetableConflicts,
+        allUsers = []
     } = props;
 
     const [viewMode, setViewMode] = useState<'grid' | 'workload' | 'relations' | 'master_course' | 'master_department' | 'master_building' | 'lecturer_schedule' | 'master_staff'>('master_course');
@@ -68,6 +72,8 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
     const [selectedDay, setSelectedDay] = useState<string>(timetableSettings?.operatingDays?.[0] || 'Monday');
     const [selectedBuildingId, setSelectedBuildingId] = useState<string>('all');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [isBulkEmailing, setIsBulkEmailing] = useState(false);
+    const [bulkEmailProgress, setBulkEmailProgress] = useState({ current: 0, total: 0 });
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('vertical'); // List Layout by default to match PDF default
 
@@ -113,6 +119,129 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
 
     const periodHeaders = useMemo(() => generatePeriodLabels(timetableSettings, true), [timetableSettings]);
     const cellSpanMinutes = timetableSettings?.cellSpanMinutes || 60;
+
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result as string;
+                const base64 = result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    const handleBulkEmail = async () => {
+        const recipients: User[] = [];
+        if (viewMode === 'lecturer_schedule') {
+            if (selectedLecturerId && selectedLecturerId !== 'all') {
+                const lecturer = getLecturerById(selectedLecturerId);
+                if (lecturer) recipients.push(lecturer);
+            } else {
+                recipients.push(...filteredLecturers);
+            }
+        } else if (viewMode === 'master_course') {
+            const courseId = selectedCourseForMasterView;
+            if (courseId === 'all') {
+                alert("Please select a specific course to email students.");
+                return;
+            }
+            const students = allUsers.filter(u => u.role === 'student' && u.courseId === courseId);
+            recipients.push(...students);
+        }
+
+        if (recipients.length === 0) {
+            alert("No recipients found for the current selection.");
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to send automated timetable emails to ${recipients.length} ${viewMode === 'lecturer_schedule' ? 'lecturers' : 'students'}?`)) return;
+
+        setIsBulkEmailing(true);
+        setBulkEmailProgress({ current: 0, total: recipients.length });
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < recipients.length; i++) {
+            const recipient = recipients[i];
+            setBulkEmailProgress(prev => ({ ...prev, current: i + 1 }));
+
+            if (!recipient.email) {
+                failCount++;
+                continue;
+            }
+
+            try {
+                if (recipient.role === 'student') {
+                    const studentCourse = courses.find(c => c.id === recipient.courseId);
+                    const level = studentCourse?.levels?.find(l => l.id === recipient.courseLevelId);
+                    if (!studentCourse || !level) continue;
+
+                    const studentEntries = generatedTimetable.filter(e => {
+                        const subject = getSubjectById(e.subjectId);
+                        return subject && (level.subjectIds || []).includes(e.subjectId);
+                    });
+
+                    const dataUri = await generateStudentTimetablePdf(
+                        recipient,
+                        studentEntries,
+                        getSubjectById,
+                        getLecturerById,
+                        getRoomById,
+                        letterheadConfig,
+                        footerImageUrl,
+                        studentCourse,
+                        level,
+                        timetableSettings
+                    );
+
+                    const base64 = dataUri.split(',')[1];
+                    const subject = `Your Timetable - ${studentCourse.code} ${level.name}`;
+                    const message = `Dear ${recipient.name},\n\nPlease find attached your personalized timetable for ${activeSemester?.name || 'the current semester'}.\n\nBest Regards,\nRegistrar's Office`;
+
+                    await apiService.sendEmail(recipient.email, subject, message, undefined, undefined, [
+                        { filename: `Timetable_${recipient.staffId || recipient.name}.pdf`, content: base64, encoding: 'base64' }
+                    ]);
+                } else {
+                    const blob = await generateLecturerTimetablePdf(
+                        generatedTimetable,
+                        [recipient],
+                        `Timetable - ${recipient.name}`,
+                        activeSemester?.name || '',
+                        letterheadConfig,
+                        footerImageUrl,
+                        logoUrl,
+                        activeAcademicYear?.name || '',
+                        activeSemester?.name || '',
+                        timetableSettings,
+                        getSubjectById,
+                        getRoomById,
+                        courses,
+                        false
+                    );
+
+                    const base64 = await blobToBase64(blob);
+                    const subject = `Timetable Update - ${recipient.name}`;
+                    const message = `Dear ${recipient.name},\n\nPlease find attached your teaching schedule for ${activeSemester?.name || 'the current semester'}.\n\nBest Regards,\nAcademic Affairs`;
+
+                    await apiService.sendEmail(recipient.email, subject, message, undefined, undefined, [
+                        { filename: `Timetable_${recipient.name}.pdf`, content: base64, encoding: 'base64' }
+                    ]);
+                }
+                successCount++;
+            } catch (err) {
+                console.error(`Failed to send email to ${recipient.email}:`, err);
+                failCount++;
+            }
+        }
+
+        setIsBulkEmailing(false);
+        alert(`Bulk emailing complete!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+        onLogAction?.(`Completed bulk email of timetables. Success: ${successCount}, Failed: ${failCount}`);
+    };
 
     const handleDownloadPdf = async () => {
         if (!generatedTimetable || generatedTimetable.length === 0) return;
@@ -296,6 +425,13 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                                     <EyeIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Compiling...' : 'All PDF'}
                                 </button>
                             )}
+                            <button
+                                onClick={handleBulkEmail}
+                                disabled={isBulkEmailing}
+                                className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm border border-emerald-100 disabled:opacity-50"
+                            >
+                                <EnvelopeIcon className="w-4 h-4" /> {isBulkEmailing ? `Sending (${bulkEmailProgress.current}/${bulkEmailProgress.total})` : selectedLecturerId === 'all' ? `Email All ${staffLabel}s` : `Email ${staffLabel}`}
+                            </button>
                         </>
                     )}
                     {viewMode === 'master_course' && (
@@ -325,6 +461,15 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                             <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all flex items-center gap-2 shadow-sm border border-indigo-100 disabled:opacity-50">
                                 <EyeIcon className="w-4 h-4" /> {isGeneratingPdf ? 'Compiling...' : 'PDF Preview'}
                             </button>
+                            {selectedCourseForMasterView !== 'all' && (
+                                <button
+                                    onClick={handleBulkEmail}
+                                    disabled={isBulkEmailing}
+                                    className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all flex items-center gap-2 shadow-sm border border-emerald-100 disabled:opacity-50"
+                                >
+                                    <EnvelopeIcon className="w-4 h-4" /> {isBulkEmailing ? `Sending (${bulkEmailProgress.current}/${bulkEmailProgress.total})` : 'Email Students'}
+                                </button>
+                            )}
                         </>
                     )}
                     <button onClick={() => window.print()} className="h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-slate-900 text-white hover:opacity-90 transition-all flex items-center gap-2 shadow-lg">

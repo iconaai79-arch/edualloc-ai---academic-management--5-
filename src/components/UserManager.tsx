@@ -28,7 +28,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -529,11 +529,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [departmentId, setDepartmentId] = useState('');
     const [courseId, setCourseId] = useState('');
     const [courseLevelId, setCourseLevelId] = useState('');
+    const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
         setGender('Male'); setRole('lecturer'); setRoles(['teacher']); setDepartmentId('');
-        setCourseId(''); setCourseLevelId('');
+        setCourseId(''); setCourseLevelId(''); setDriverType('staff');
     };
 
     const toggleRole = (r: Role) => {
@@ -630,7 +631,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             role: activeTab === 'staff' ? roles[0] : 'student',
             roles: activeTab === 'staff' ? roles : ['student'],
             institutionId: currentUser?.institutionId || '',
-            expertise: []
+            expertise: [],
+            driverType: roles.includes('driver') ? driverType : undefined
         };
 
         if (activeTab === 'staff') {
@@ -767,6 +769,19 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                         </select>
                                     </div>
+                                    {roles.includes('driver') && (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Driver Type</label>
+                                            <select
+                                                value={driverType}
+                                                onChange={e => setDriverType(e.target.value as any)}
+                                                className="form-select w-full"
+                                            >
+                                                <option value="staff">Official Staff</option>
+                                                <option value="private">Private / Outsourced</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <>

@@ -1920,6 +1920,7 @@ export const App: React.FC = () => {
                                     onLogGateAction={handleLogGateAction}
                                     onOnboardStudent={handleOnboardStudent}
                                     onOffboardStudent={handleOffboardStudent}
+                                    currentInstitution={activeInstitution}
                                 />
                             ) : activeRole === 'store' ? (
                                 <StoreView

@@ -44,7 +44,8 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         name: '',
         email: '',
         phoneNumber: '',
-        staffId: ''
+        staffId: '',
+        driverType: 'staff' as 'staff' | 'private'
     });
 
     const [showQrId, setShowQrId] = useState<string | null>(null);
@@ -130,7 +131,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                 expertise: []
             });
             setIsAdding(false);
-            setDriverFormData({ name: '', email: '', phoneNumber: '', staffId: '' });
+            setDriverFormData({ name: '', email: '', phoneNumber: '', staffId: '', driverType: 'staff' });
         } catch (error: any) {
             alert(error.message);
         }
@@ -338,6 +339,17 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 placeholder="DRV001"
                             />
                         </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Driver Type</label>
+                            <select
+                                value={driverFormData.driverType}
+                                onChange={e => setDriverFormData({ ...driverFormData, driverType: e.target.value as any })}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 dark:border-slate-700 dark:bg-slate-900 focus:border-indigo-500 outline-none transition-colors font-bold"
+                            >
+                                <option value="staff">Official Staff</option>
+                                <option value="private">Private / Outsourced</option>
+                            </select>
+                        </div>
                         <div className="lg:col-span-4 flex justify-end gap-3 mt-4">
                             <button
                                 type="button"
@@ -483,6 +495,11 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                     <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
                                         <CheckIcon className="w-4 h-4 text-green-500" />
                                         {driver.email}
+                                    </div>
+                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${driver.driverType === 'private' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                            {driver.driverType || 'staff'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

@@ -40,6 +40,7 @@ import { TransportOnboardingView } from './TransportOnboardingView';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
+import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { timeToMinutes } from '../utils/timeUtils';
 
 
@@ -1336,6 +1337,20 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
 };
 
 export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) => {
+    if (props.user.driverType === 'private') {
+        return (
+            <PrivateDriverBillingPortal
+                user={props.user}
+                users={props.users || []}
+                vehicles={props.vehicles || []}
+                transportOnboarding={props.transportOnboarding || []}
+                currentInstitution={props.currentInstitution!}
+                onOnboardStudent={props.onOnboardStudent!}
+                onOffboardStudent={props.onOffboardStudent!}
+            />
+        );
+    }
+
     return (
         <TransportOnboardingView
             currentUser={props.user}

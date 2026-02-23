@@ -20,6 +20,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [roles, setRoles] = useState<Role[]>([]);
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
@@ -34,6 +35,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       // Use fixed ID if provided, otherwise fallback to user's dept or empty
       setAssignedDepartmentId(fixedDepartmentId || user.departmentId || '');
       setGender(user.gender || 'Male');
+      setDriverType(user.driverType || 'staff');
     }
   }, [user, fixedDepartmentId]);
 
@@ -73,7 +75,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         role: uniqueRoles[0], // Keep first as primary
         roles: uniqueRoles,
         departmentId: needsDepartment ? assignedDepartmentId : undefined,
-        gender
+        gender,
+        driverType: roles.includes('driver') ? driverType : undefined
       });
       onClose();
     }
@@ -154,6 +157,15 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Expertise / Skills (comma separated)</label>
                   <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder="e.g. Mathematics, Pedagogy, Sports Coaching" required={user.role !== 'student'} />
                 </div>
+                {roles.includes('driver') && (
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Driver Type</label>
+                    <select value={driverType} onChange={(e) => setDriverType(e.target.value as 'staff' | 'private')} className="form-select">
+                      <option value="staff">Official Staff</option>
+                      <option value="private">Private / Outsourced</option>
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 

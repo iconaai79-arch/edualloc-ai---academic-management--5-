@@ -36,6 +36,10 @@ export interface User {
     countyId?: string;
     isImpersonated?: boolean;
     vehicleId?: string;
+    driverType?: 'staff' | 'private';
+    smsBalance?: number;
+    subscriptionStatus?: 'active' | 'expired' | 'none';
+    subscriptionExpiry?: string;
 }
 
 export interface GradeDefinition {
@@ -889,6 +893,24 @@ export interface InventoryItem {
     location: string;
     lastUpdated: string;
     institutionId: string;
+}
+
+export interface TransportBill {
+    id: string;
+    institutionId: string;
+    driverId: string;
+    vehicleId: string;
+    billDate: string;
+    totalAmount: number;
+    status: 'pending' | 'paid' | 'overdue';
+    items: {
+        description: string;
+        amount: number;
+    }[];
+    generatedBy: string;
+    paidDate?: string;
+    paymentMethod?: string;
+    notes?: string;
 }
 
 export type CountyInventoryStatus = 'at_hq' | 'in_transit' | 'received';

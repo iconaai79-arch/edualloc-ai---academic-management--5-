@@ -21,7 +21,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'driver', 'transport_assistant'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -486,11 +486,13 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
     const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
     const [role, setRole] = useState<Role>('lecturer');
     const [departmentId, setDepartmentId] = useState('');
+    const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
     const [isSaving, setIsSaving] = useState(false);
 
     const resetForm = () => {
         setName(''); setEmail(''); setPhone(''); setStaffId('');
         setGender('Male'); setRole('lecturer'); setDepartmentId('');
+        setDriverType('staff');
     };
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
@@ -527,7 +529,8 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
             gender,
             role,
             institutionId: currentUser.institutionId,
-            expertise: []
+            expertise: [],
+            driverType: role === 'driver' ? driverType : undefined
         };
 
         userData.departmentId = (currentUser.role === 'hod' || currentUser.role === 'dos') ? currentUser.departmentId : departmentId;
@@ -609,6 +612,19 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                 </select>
                             </div>
+                            {role === 'driver' && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Driver Type</label>
+                                    <select
+                                        value={driverType}
+                                        onChange={e => setDriverType(e.target.value as any)}
+                                        className="form-select w-full"
+                                    >
+                                        <option value="staff">Official Staff</option>
+                                        <option value="private">Private / Outsourced</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                         <div className="flex justify-end pt-4">
                             <button

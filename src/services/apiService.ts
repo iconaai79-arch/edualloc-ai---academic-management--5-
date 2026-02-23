@@ -10,7 +10,7 @@ import type {
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
-    Vehicle, TransportOnboarding, VehicleLog
+    Vehicle, TransportOnboarding, VehicleLog, TransportBill
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -342,6 +342,19 @@ export const apiService = {
                 console.error("Failed to send welcome email:", e);
             });
         }
+
+        // Send Welcome SMS if phone number exists
+        if (userData.phoneNumber) {
+            let smsMessage = `Welcome to EduAlloc Hub. Your account is ready. Email: ${userData.email || userData.staffId}, Password: ${password}. Portal: ${window.location.origin}`;
+
+            if (userData.role === 'driver' || userData.role === 'transport_assistant') {
+                smsMessage = `Welcome to the Transport Fleet. Your driver account is active. ID: ${userData.staffId || userData.email}, Pass: ${password}. Access portal at ${window.location.origin}`;
+            }
+
+            this.sendSms(userData.phoneNumber, smsMessage).catch(e => {
+                console.error("Failed to send welcome SMS:", e);
+            });
+        }
     },
     async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> { return this.fetchModuleRecords('allocation_requests', institutionId); },
     async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await this.saveModuleRecord('allocation_requests', data); },
@@ -527,7 +540,73 @@ export const apiService = {
             return { success: false, message: e.message || "Gateway connection failure." };
         }
     },
-    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string): Promise<any> {
+    async sendPrivateDriverSms(driver: User, recipient: string, message: string): Promise<any> {
+        if (!driver.smsBalance || driver.smsBalance <= 0) {
+            throw new Error("Insufficient SMS balance. Please top up to send notifications.");
+        }
+        if (driver.subscriptionStatus !== 'active') {
+            throw new Error("Portal service is not active. Please subscribe to use this feature.");
+        }
+
+        const res = await this.sendSms(recipient, message);
+        if (res.success) {
+            const updatedDriver = { ...driver, smsBalance: driver.smsBalance - 1 };
+            await this.saveUser(updatedDriver);
+            this.storeSession(updatedDriver);
+        }
+        return res;
+    },
+    async fetchTransportBills(driverId: string): Promise<TransportBill[]> {
+        if (!_supabase) {
+            const bills = ls.get('transport_bills');
+            return toCamelCase(bills.filter((b: any) => b.driver_id === driverId));
+        }
+        const { data, error } = await _supabase.from('transport_bills').select('*').eq('driver_id', driverId);
+        if (error) throw error;
+        return toCamelCase(data);
+    },
+    async saveTransportBill(bill: TransportBill): Promise<void> {
+        await this.saveModuleRecord('transport_bills', bill);
+    },
+    async topUpDriverSms(driver: User, amount: number, units: number): Promise<void> {
+        const updatedUser = {
+            ...driver,
+            smsBalance: (driver.smsBalance || 0) + units
+        };
+        await this.saveUser(updatedUser);
+        this.storeSession(updatedUser);
+        // Record as transaction
+        await this.onAddTransaction({
+            amount,
+            phoneNumber: driver.phoneNumber,
+            institutionId: driver.institutionId,
+            payerName: driver.name,
+            description: `SMS Top-up (${units} units)`
+        }, []);
+    },
+    async activateDriverSubscription(driver: User, months: number): Promise<void> {
+        const expiry = new Date();
+        const currentExpiry = driver.subscriptionExpiry ? new Date(driver.subscriptionExpiry) : new Date();
+        const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+        baseDate.setMonth(baseDate.getMonth() + months);
+
+        const updatedUser: User = {
+            ...driver,
+            subscriptionStatus: 'active',
+            subscriptionExpiry: baseDate.toISOString()
+        };
+        await this.saveUser(updatedUser);
+        this.storeSession(updatedUser);
+
+        await this.onAddTransaction({
+            amount: months * 1000, // Example scale
+            phoneNumber: driver.phoneNumber,
+            institutionId: driver.institutionId,
+            payerName: driver.name,
+            description: `Portal Subscription (${months} months)`
+        }, []);
+    },
+    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string, attachments?: any[]): Promise<any> {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
@@ -562,7 +641,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config })
+                body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config, attachments })
             });
 
             let resData: any = {};

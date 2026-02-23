@@ -272,17 +272,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const tabs = useMemo(() => {
-        return [
+        const baseTabs = [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
             { id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
-            { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
+            { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
+
+        // Hide Broadcaster for non-Super Admins
+        if (props.currentUser?.role !== 'super_admin') {
+            return baseTabs.filter(t => t.id !== 'comms');
+        }
+
+        return baseTabs;
     }, [props.currentUser?.role, isSchool]);
 
     const stats = useMemo(() => {
@@ -530,6 +537,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     generatedTimetable={props.timetable || props.generatedTimetable || []}
                                     subjects={props.subjects || []}
                                     lecturers={props.users?.filter(u => u.role === 'lecturer' || u.role === 'teacher') || []}
+                                    allUsers={props.users || []}
                                     rooms={props.rooms || []}
                                     courses={props.courses || []}
                                     departments={props.departments || []}
