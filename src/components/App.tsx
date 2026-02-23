@@ -2339,7 +2339,7 @@ export const App: React.FC = () => {
                                         return 'suspended';
                                     }
 
-                                    const isOtpRequired = inst?.isOtpEnabled || companyDetails.enforceGlobalOtp;
+                                    const isOtpRequired = u.role !== 'super_admin' && (inst?.isOtpEnabled || companyDetails.enforceGlobalOtp);
 
                                     if (isOtpRequired) {
                                         // Generate and Send OTP
