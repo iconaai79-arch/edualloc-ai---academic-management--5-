@@ -512,7 +512,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         try {
             const res = await apiService.sendSms(testRecipient, "Test message from EduAi Academic Management System.", localSmsConfig);
             if (res.success) alert("SMS sent successfully.");
-            else alert("Failed to send SMS. Please verify your gateway settings.");
+            else alert(`Failed to send SMS: ${res.message || "Verify your gateway settings."}${res.errorDetail ? `\n\nDetail: ${JSON.stringify(res.errorDetail)}` : ""}`);
         } catch (e) {
             alert("SMS Gateway connection error.");
         } finally {
@@ -527,7 +527,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
             const res = await apiService.sendSms(testRecipient, `Your EduAi Verification Code is: ${testOtp}. Do not share this code with anyone.`, localSmsConfig);
             if (res.success) alert(`OTP Test sent successfully. Code sent: ${testOtp}`);
-            else alert("Failed to send OTP test. Verify your gateway settings.");
+            else alert(`Failed to send OTP test: ${res.message || "Verify your gateway settings."}${res.errorDetail ? `\n\nDetail: ${JSON.stringify(res.errorDetail)}` : ""}`);
         } catch (e) {
             alert("OTP Test Gateway connection error.");
         } finally {
