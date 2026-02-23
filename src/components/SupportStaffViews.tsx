@@ -8,7 +8,7 @@ import type {
     FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument,
     CountyInventoryItem, Department, TeacherCheckIn, TimeOffRequest,
     StudentAbsenceRequest, LeaveOutRequest, BulletinItem, DocumentCollection,
-    WatchlistRecord, MaintenanceRequest
+    WatchlistRecord, MaintenanceRequest, Vehicle, TransportOnboarding, VehicleLog
 } from '../types';
 import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
@@ -35,6 +35,8 @@ import { StoreItemForm } from './StoreItemForm';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
 import { TransactionForm } from './TransactionForm';
 import { ItemQrCodeModal } from './ItemQrCodeModal';
+import { SecurityGatePassView } from './SecurityGatePassView';
+import { TransportOnboardingView } from './TransportOnboardingView';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
@@ -108,6 +110,12 @@ export interface SupportStaffViewProps {
     onUpdateDocumentStatus?: (id: string, status: DocumentCollection['status']) => void;
     onAddMaintenanceRequest?: (req: Omit<MaintenanceRequest, 'id' | 'institutionId' | 'reportedAt'>) => void;
     studentAttendances?: StudentAttendance[];
+    vehicles?: Vehicle[];
+    transportOnboarding?: TransportOnboarding[];
+    vehicleLogs?: VehicleLog[];
+    onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
+    onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
+    onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
 }
 
 
@@ -153,7 +161,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
         onCheckoutVisitor, onAddVisitor, onAddAlert, onResolveAlert, onUpdateAppointmentStatus,
         onLogAction
     } = props;
-    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts'>('checkpoint');
+    const [activeTab, setActiveTab] = useState<'checkpoint' | 'expected' | 'leaveout' | 'logs' | 'alerts' | 'gatepass'>('checkpoint');
 
     const [isScanning, setIsScanning] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
@@ -227,6 +235,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         { id: 'expected', label: 'Expected Guests', icon: <CalendarDaysIcon className="w-4 h-4" />, count: todaysAppointments.length },
                         { id: 'leaveout', label: 'Student Leave Out', icon: <ArrowUpTrayIcon className="w-4 h-4" /> },
                         { id: 'logs', label: 'Security Logs', icon: <ClipboardListIcon className="w-4 h-4" />, count: activeVisitors.length },
+                        { id: 'gatepass', label: 'Gate Passes', icon: <MapPinIcon className="w-4 h-4" /> },
                         { id: 'alerts', label: 'Security Alerts', icon: <ExclamationTriangleIcon className="w-4 h-4" />, count: securityAlerts.filter(a => a.status === 'active').length }
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`whitespace-nowrap py-4 px-1 border-b-2 font-black text-xs uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
@@ -380,6 +389,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
             )}
 
             {activeTab === 'alerts' && (<SecurityAlertManager alerts={securityAlerts} users={props.users || []} onAddAlert={onAddAlert!} onResolveAlert={onResolveAlert!} />)}
+
+            {activeTab === 'gatepass' && (
+                <SecurityGatePassView
+                    vehicles={props.vehicles || []}
+                    onLogAction={props.onLogGateAction!}
+                    institutionId={props.user.institutionId}
+                />
+            )}
 
             {activeTab === 'logs' && (
                 <div className="space-y-8 animate-fade-in-up">
@@ -1312,5 +1329,18 @@ export const SupplierView: React.FC<SupportStaffViewProps> = (props) => {
                 </div>
             )}
         </BaseDashboard>
+    );
+};
+
+export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) => {
+    return (
+        <TransportOnboardingView
+            currentUser={props.user}
+            vehicles={props.vehicles || []}
+            students={props.users?.filter(u => u.role === 'student') || []}
+            onboardingRecords={props.transportOnboarding || []}
+            onOnboard={props.onOnboardStudent!}
+            onOffboard={props.onOffboardStudent!}
+        />
     );
 };

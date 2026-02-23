@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master';
+export type Role = 'super_admin' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant';
 
 
 export interface Unavailability {
@@ -122,6 +122,7 @@ export interface Institution {
     smsBalance?: number;
     customSmsPrice?: number;
     smsConfig?: SmsConfig;
+    parentAbsenceNotificationsEnabled?: boolean;
 }
 
 
@@ -506,6 +507,41 @@ export interface Assessment {
     status: 'Draft' | 'Published' | 'Graded';
     institutionId: string;
     createdAt: string;
+}
+
+export interface Vehicle {
+    id: string;
+    institutionId: string;
+    plateNumber: string;
+    model: string;
+    vehicleType: 'school' | 'private';
+    capacity: number;
+    driverId?: string;
+    assistantId?: string;
+    status: 'active' | 'maintenance' | 'out_of_service';
+}
+
+export interface TransportOnboarding {
+    id: string;
+    institutionId: string;
+    vehicleId?: string;
+    studentId: string;
+    direction: 'to_school' | 'from_school';
+    status: 'pending' | 'onboarded' | 'offboarded' | 'received';
+    locationLat?: number;
+    locationLng?: number;
+    timestamp: string;
+    parentConfirmedAt?: string;
+}
+
+export interface VehicleLog {
+    id: string;
+    institutionId: string;
+    vehicleId: string;
+    eventType: 'entry' | 'exit';
+    securityId?: string;
+    timestamp: string;
+    notes?: string;
 }
 
 export interface AssessmentMark {

@@ -24,6 +24,7 @@ import {
 import { AbsenceRequestModal } from './AbsenceRequestModal';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';
+import { AttendanceTakerModal } from './AttendanceTakerModal';
 
 
 interface LecturerDashboardProps {
@@ -44,6 +45,10 @@ interface LecturerDashboardProps {
     onNavigateToNearby: () => void;
     currentInstitution?: Institution | null;
     onRequestChange?: (allocation: AllocationRequest) => void;
+    studentAttendances?: any[];
+    studentAbsenceRequests?: any[];
+    onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
+    users?: User[];
 }
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; colorClass?: string }> = ({ title, value, icon, colorClass = 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' }) => (
@@ -80,6 +85,10 @@ interface UpcomingLessonsWidgetProps {
     getRoomById: (id: string) => Room | undefined;
     onCheckIn: (entryId: string) => void;
     onAbsenceRequest: (entryId: string, reason: string) => void;
+    studentAttendances?: any[];
+    studentAbsenceRequests?: any[];
+    onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
+    users?: User[];
 }
 
 const timeToMinutes = (time: string): number => {
@@ -89,9 +98,13 @@ const timeToMinutes = (time: string): number => {
 
 const dayMapping = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, timetable = [], getSubjectById, getRoomById, onCheckIn, onAbsenceRequest }) => {
+const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
+    userId, timetable = [], getSubjectById, getRoomById, onCheckIn, onAbsenceRequest,
+    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = []
+}) => {
     const [now, setNow] = useState(new Date());
     const [absenceModalEntry, setAbsenceModalEntry] = useState<TimetableEntry | null>(null);
+    const [attendanceModalEntry, setAttendanceModalEntry] = useState<TimetableEntry | null>(null);
     const [checkInState, setCheckInState] = useState<Record<string, {
         status: 'idle' | 'checking' | 'error';
         message: string;
@@ -249,13 +262,22 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                                         <>
                                             <button onClick={() => setAbsenceModalEntry(lesson)} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-500 bg-white border border-slate-200 hover:bg-slate-50">Notify Absence</button>
                                             {canCheckIn && (
-                                                <button
-                                                    onClick={() => handleCheckInAttempt(lesson)}
-                                                    className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-60"
-                                                    disabled={currentCheckInState?.status === 'checking'}
-                                                >
-                                                    {currentCheckInState?.status === 'checking' ? 'Verifying...' : 'Class Check-In'}
-                                                </button>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleCheckInAttempt(lesson)}
+                                                        className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-60"
+                                                        disabled={currentCheckInState?.status === 'checking'}
+                                                    >
+                                                        {currentCheckInState?.status === 'checking' ? 'Verifying...' : 'Class Check-In'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setAttendanceModalEntry(lesson)}
+                                                        className="px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-all flex items-center gap-1.5"
+                                                    >
+                                                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                                                        Mark Students
+                                                    </button>
+                                                </div>
                                             )}
                                         </>
                                     )}
@@ -293,6 +315,19 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
                     onSubmit={handleAbsenceSubmit}
                 />
             )}
+            {attendanceModalEntry && (
+                <AttendanceTakerModal
+                    lesson={attendanceModalEntry}
+                    subject={getSubjectById(attendanceModalEntry.subjectId)!}
+                    students={users.filter(u => u.role === 'student' && (u.courseLevelId === attendanceModalEntry.courseLevelId || u.courseId === attendanceModalEntry.courseId))}
+                    initialAttendance={studentAttendances.filter(a => a.lessonId === attendanceModalEntry.id)}
+                    onClose={() => setAttendanceModalEntry(null)}
+                    onSave={async (lid, data) => {
+                        if (onSaveAttendance) await onSaveAttendance(lid, data);
+                        setAttendanceModalEntry(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
@@ -300,7 +335,8 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({ userId, t
 
 export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     user, requests = [], allocations = [], subjects = [], getSubjectById, getRoomById, setActiveTab, generatedTimetable = [], onLessonCheckIn, onAbsenceRequest,
-    userTasks = [], onAddTask, onUpdateTask, onDeleteTask, onNavigateToNearby, currentInstitution, onRequestChange
+    userTasks = [], onAddTask, onUpdateTask, onDeleteTask, onNavigateToNearby, currentInstitution, onRequestChange,
+    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = []
 }) => {
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
     const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
@@ -369,6 +405,10 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 getRoomById={getRoomById}
                 onCheckIn={onLessonCheckIn}
                 onAbsenceRequest={onAbsenceRequest}
+                studentAttendances={studentAttendances}
+                studentAbsenceRequests={studentAbsenceRequests}
+                onSaveAttendance={onSaveAttendance}
+                users={users}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type {
     User, Department, Subject, Building, Room, AllocationRequest,
-    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig,
+    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, Vehicle, TransportOnboarding, VehicleLog,
     TimetableSettings, Course, AcademicYear, Semester, RequestStatus,
     Institution, Priority, CompanyDetails, MpesaTransaction,
     ExamTimetableSettings, AcademicLevel, StudentAttendance,
@@ -48,7 +48,8 @@ import {
     BeakerIcon,
     PlusIcon,
     BedIcon,
-    CreditCardIcon
+    CreditCardIcon,
+    MapPinIcon
 } from './icons/index';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -56,6 +57,7 @@ import { TimetablesView } from './TimetablesView';
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { TimetableWizard } from './TimetableWizard';
+import { TransportManager } from './TransportManager';
 import { apiService } from '../services/apiService';
 
 export interface AdminViewProps {
@@ -240,13 +242,23 @@ export interface AdminViewProps {
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
     onRefreshData?: () => void;
+    vehicles?: Vehicle[];
+    transportOnboarding?: TransportOnboarding[];
+    vehicleLogs?: VehicleLog[];
+    onAddVehicle?: (vehicle: Omit<Vehicle, 'id'>) => Promise<void>;
+    onUpdateVehicle?: (id: string, updates: Partial<Vehicle>) => Promise<void>;
+    onDeleteVehicle?: (id: string) => Promise<void>;
+    onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
+    onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
+    onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
+    onConfirmReceipt?: (recordId: string) => Promise<void>;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -268,6 +280,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
     }, [props.currentUser?.role, isSchool]);
@@ -616,6 +629,19 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         mpesaConfig={props.companyDetails.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
+                    />
+                )}
+
+                {activeTab === 'transport' && (
+                    <TransportManager
+                        currentUser={props.currentUser}
+                        institutionId={props.currentInstitution!.id}
+                        vehicles={props.vehicles || []}
+                        users={props.users || []}
+                        onAddVehicle={props.onAddVehicle!}
+                        onUpdateVehicle={props.onUpdateVehicle!}
+                        onDeleteVehicle={props.onDeleteVehicle!}
+                        onLogAction={props.onLogAction!}
                     />
                 )}
 

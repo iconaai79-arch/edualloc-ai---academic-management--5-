@@ -9,7 +9,8 @@ import type {
     MpesaTransaction, Receipt, Invoice, ExtensionRequest, AcademicLevel,
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
-    BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog
+    BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
+    Vehicle, TransportOnboarding, VehicleLog
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -264,7 +265,7 @@ export const apiService = {
 
         try {
             let query = _supabase.from(module as any).select('*');
-            
+
             if (institutionId) {
                 const filterCol = getFilterCol(module, 'institution');
                 query = query.eq(filterCol, institutionId);
@@ -1087,5 +1088,9 @@ export const apiService = {
             if (error) throw error;
             return toCamelCase(data) || [];
         } catch (e) { return []; }
-    }
+    },
+    // Transport Module
+    async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
+    async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
+    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); }
 };

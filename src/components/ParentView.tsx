@@ -1,7 +1,7 @@
 import React from 'react';
 import type {
     User, Course, StudentAttendance, TimetableEntry,
-    Subject, Room, Building, TimetableSettings, LeaveOutRequest
+    Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, Vehicle
 } from '../types';
 import { UserIcon } from './icons';
 
@@ -20,9 +20,13 @@ interface ParentViewProps {
     studentCheckIns: Record<string, string>;
     leaveOutRequests: LeaveOutRequest[];
     onUpdateLeaveOut?: (id: string, data: Partial<LeaveOutRequest>) => Promise<void>;
+    transportOnboarding?: TransportOnboarding[];
+    vehicles?: Vehicle[];
+    onConfirmTransport?: (recordId: string) => Promise<void>;
 }
 
 import { AttendanceAnalytics } from './AttendanceAnalytics';
+import { StudentTransportTracker } from './StudentTransportTracker';
 
 const ChildCard: React.FC<{ child: User, course?: Course, attendances: StudentAttendance[], timetable: TimetableEntry[], subjects: Subject[] }> = ({ child, course, attendances, timetable, subjects }) => {
     const childAttendances = attendances.filter(a => a.studentId === child.id);
@@ -187,6 +191,28 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                             studentId={child.id}
                                         />
                                     </div>
+
+                                    {props.transportOnboarding && (
+                                        <div className="mt-6">
+                                            {(() => {
+                                                const activeRecord = props.transportOnboarding.find(r => r.studentId === child.id && r.status !== 'received');
+                                                const vehicle = props.vehicles?.find(v => v.id === activeRecord?.vehicleId);
+                                                const driver = props.users?.find(u => u.id === vehicle?.driverId);
+                                                const assistant = props.users?.find(u => u.id === vehicle?.assistantId);
+
+                                                return (
+                                                    <StudentTransportTracker
+                                                        student={child}
+                                                        activeOnboarding={activeRecord}
+                                                        assignedVehicle={vehicle}
+                                                        driver={driver}
+                                                        assistant={assistant}
+                                                        onConfirmReceipt={props.onConfirmTransport!}
+                                                    />
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
                                     <LeaveOutManager
                                         child={child}
                                         requests={props.leaveOutRequests || []}

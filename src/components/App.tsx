@@ -14,7 +14,7 @@ import { TrialExpiredView } from './TrialExpiredView';
 import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
-import { SecurityView, StoreView, InfoDeskView, SupplierView } from './SupportStaffViews';
+import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
 import { LibraryMasterView } from './LibraryMasterView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
@@ -245,7 +245,9 @@ export const App: React.FC = () => {
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
     const [teacherCheckIns, setTeacherCheckIns] = useState<TeacherCheckIn[]>([]);
     const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
-
+    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+    const [transportOnboarding, setTransportOnboarding] = useState<TransportOnboarding[]>([]);
+    const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -412,7 +414,7 @@ export const App: React.FC = () => {
 
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -454,6 +456,9 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
                 apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
+                apiService.fetchVehicles(instId).catch(() => []),
+                apiService.fetchTransportOnboarding(instId).catch(() => []),
+                apiService.fetchVehicleLogs(instId).catch(() => []),
             ]);
 
 
@@ -495,9 +500,11 @@ export const App: React.FC = () => {
             setTimeOffRequests(tor || []);
             setBulletinItems(fBulletin || []);
             setDocumentCollections(fDocs || []);
-            setWatchlist(fWatch || []);
             setMaintenanceRequests(fMaint || []);
             setTeacherCheckIns(fCheckIn || []);
+            setVehicles(vhcls || []);
+            setTransportOnboarding(tonb || []);
+            setVehicleLogs(vlogs || []);
 
             setIsGeneratingDemoData(false);
         } catch (error) {
@@ -825,6 +832,137 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleAddVehicle = async (vehicle: Omit<Vehicle, 'id'>) => {
+        try {
+            await apiService.saveModuleRecord('vehicles', { ...vehicle, id: `vh_${Date.now()}` });
+            await handleLogAction(`Registered vehicle: ${vehicle.plateNumber}`);
+            loadData();
+        } catch (error) {
+            console.error('Error adding vehicle:', error);
+            throw error;
+        }
+    };
+
+    const handleUpdateVehicle = async (id: string, updates: Partial<Vehicle>) => {
+        try {
+            const existing = vehicles.find(v => v.id === id);
+            if (existing) {
+                await apiService.saveModuleRecord('vehicles', { ...existing, ...updates, id });
+                await handleLogAction(`Updated vehicle: ${existing.plateNumber}`);
+                loadData();
+            }
+        } catch (error) {
+            console.error('Error updating vehicle:', error);
+            throw error;
+        }
+    };
+
+    const handleDeleteVehicle = async (id: string) => {
+        try {
+            const vehicle = vehicles.find(v => v.id === id);
+            await apiService.deleteModuleRecord('vehicles', id);
+            if (vehicle) await handleLogAction(`Deleted vehicle: ${vehicle.plateNumber}`);
+            loadData();
+        } catch (error) {
+            console.error('Error deleting vehicle:', error);
+            throw error;
+        }
+    };
+
+    const handleLogGateAction = async (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => {
+        try {
+            const vehicle = vehicles.find(v => v.id === vehicleId);
+            const payload: VehicleLog = {
+                id: `vlog_${Date.now()}`,
+                institutionId: activeInstitution!.id,
+                vehicleId,
+                eventType,
+                securityId: currentUser!.id,
+                timestamp: new Date().toISOString(),
+                notes
+            };
+            await apiService.saveModuleRecord('vehicle_logs', payload);
+            await handleLogAction(`Log: Vehicle ${vehicle?.plateNumber} ${eventType}`);
+            loadData();
+        } catch (error) {
+            console.error('Error logging gate action:', error);
+            throw error;
+        }
+    };
+
+    const handleOnboardStudent = async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
+        try {
+            const student = users.find(u => u.id === studentId);
+            const vehicle = vehicles.find(v => v.id === vehicleId);
+            const payload: TransportOnboarding = {
+                id: `tonb_${Date.now()}`,
+                institutionId: activeInstitution!.id,
+                vehicleId,
+                studentId,
+                direction,
+                status: 'onboarded',
+                locationLat: lat,
+                locationLng: lng,
+                timestamp: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('transport_onboarding', payload);
+
+            // Send SMS to Parent
+            const parents = users.filter(u => u.role === 'parent' && u.studentIds?.includes(studentId));
+            for (const parent of parents) {
+                if (parent.phoneNumber) {
+                    const msg = direction === 'from_school'
+                        ? `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading home. Please be ready to pick.`
+                        : `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading to school.`;
+                    await apiService.sendSms(parent.phoneNumber, msg, activeInstitution?.smsConfig, 1, activeInstitution?.id);
+                }
+            }
+
+            await handleLogAction(`Onboarded student ${student?.name} to ${vehicle?.plateNumber}`);
+            loadData();
+        } catch (error) {
+            console.error('Error onboarding student:', error);
+            throw error;
+        }
+    };
+
+    const handleOffboardStudent = async (recordId: string, lat?: number, lng?: number) => {
+        try {
+            const record = transportOnboarding.find(r => r.id === recordId);
+            if (record) {
+                await apiService.saveModuleRecord('transport_onboarding', {
+                    ...record,
+                    status: 'offboarded',
+                    locationLat: lat,
+                    locationLng: lng
+                });
+                await handleLogAction(`Offboarded student from record ${recordId}`);
+                loadData();
+            }
+        } catch (error) {
+            console.error('Error offboarding student:', error);
+            throw error;
+        }
+    };
+
+    const handleConfirmReceipt = async (recordId: string) => {
+        try {
+            const record = transportOnboarding.find(r => r.id === recordId);
+            if (record) {
+                await apiService.saveModuleRecord('transport_onboarding', {
+                    ...record,
+                    status: 'received',
+                    parentConfirmedAt: new Date().toISOString()
+                });
+                await handleLogAction(`Parent confirmed receipt of child (record ${recordId})`);
+                loadData();
+            }
+        } catch (error) {
+            console.error('Error confirming receipt:', error);
+            throw error;
+        }
+    };
+
     const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
         if (!activeInstitution) return;
 
@@ -916,6 +1054,62 @@ export const App: React.FC = () => {
             return true;
         } catch (e) { return false; }
     };
+
+    const handleSaveAttendance = useCallback(async (timetableEntryId: string, attendanceData: { studentId: string, status: 'present' | 'absent' | 'late' }[]) => {
+        if (!currentUser || !activeInstitution) return;
+
+        try {
+            const now = new Date().toISOString();
+            const dateStr = now.split('T')[0];
+            const promises = attendanceData.map(record => {
+                const existing = studentAttendances.find(a => a.timetableEntryId === timetableEntryId && a.studentId === record.studentId && a.date === dateStr);
+                const id = existing ? existing.id : `att_${timetableEntryId}_${record.studentId}_${Date.now()}`;
+
+                const attendanceRecord: StudentAttendance = {
+                    id,
+                    timetableEntryId,
+                    studentId: record.studentId,
+                    date: dateStr,
+                    status: record.status,
+                    markedBy: currentUser.id,
+                    timestamp: now,
+                    institutionId: activeInstitution.id
+                };
+
+                return apiService.saveModuleRecord('student_attendances', attendanceRecord);
+            });
+
+            await Promise.all(promises);
+            await loadData();
+
+            // Notify Parents if enabled
+            if (activeInstitution.parentAbsenceNotificationsEnabled) {
+                const absentStudents = attendanceData.filter(r => r.status === 'absent');
+                for (const studentRecord of absentStudents) {
+                    const student = users.find(u => u.id === studentRecord.studentId);
+                    const parent = users.find(u => u.role === 'parent' && u.studentIds?.includes(studentRecord.studentId));
+                    const lesson = generatedTimetable.find(l => l.id === timetableEntryId);
+                    const subject = subjects.find(s => s.id === lesson?.subjectId);
+
+                    if (parent && student && lesson && subject) {
+                        const message = `Parent/Guardian Alert: ${student.name} was marked ABSENT for ${subject.name} on ${lesson.day} at ${lesson.startTime}. Please confirm with the school.`;
+
+                        if (parent.phoneNumber) {
+                            await apiService.sendSms(parent.phoneNumber, message);
+                        }
+                        if (parent.email) {
+                            await apiService.sendEmail(parent.email, "Student Absence Notification", message);
+                        }
+                    }
+                }
+            }
+
+            alert("Attendance records saved successfully.");
+        } catch (error: any) {
+            console.error("Failed to save attendance:", error);
+            alert(`Failed to save attendance: ${error.message || "Unknown error"}`);
+        }
+    }, [currentUser, activeInstitution, studentAttendances, loadData, users, generatedTimetable, subjects]);
 
     const handleAddTimeOffRequest = useCallback(async (userId: string, data: any) => {
         try {
@@ -1667,6 +1861,8 @@ export const App: React.FC = () => {
                                     departments={departments}
                                     companyDetails={companyDetails}
                                     onLogAction={handleLogAction}
+                                    vehicles={vehicles}
+                                    onLogGateAction={handleLogGateAction}
                                 />
 
                             ) : activeRole === 'info_desk' ? (
@@ -1705,6 +1901,24 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
                                         loadData();
                                     }}
+                                    onUpdateDocumentStatus={async (id, status) => {
+                                        const doc = documentCollections.find(d => d.id === id);
+                                        if (doc) {
+                                            await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
+                                            loadData();
+                                        }
+                                    }}
+                                />
+                            ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
+                                <TransportAssistantView
+                                    user={currentUser}
+                                    users={users}
+                                    vehicles={vehicles}
+                                    transportOnboarding={transportOnboarding}
+                                    vehicleLogs={vehicleLogs}
+                                    onLogGateAction={handleLogGateAction}
+                                    onOnboardStudent={handleOnboardStudent}
+                                    onOffboardStudent={handleOffboardStudent}
                                 />
                             ) : activeRole === 'store' ? (
                                 <StoreView
@@ -2087,6 +2301,9 @@ export const App: React.FC = () => {
                                             loadData();
                                         }
                                     }}
+                                    studentAttendances={studentAttendances}
+                                    studentAbsenceRequests={studentAbsenceRequests}
+                                    onSaveAttendance={handleSaveAttendance}
                                 />
                             )}
                         </main>

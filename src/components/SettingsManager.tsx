@@ -218,7 +218,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         phoneNumber: props.currentInstitution?.phoneNumber || '',
         useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
         aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
-        isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false
+        isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+        parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false
     });
 
     // --- Exam Settings State ---
@@ -235,7 +236,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 phoneNumber: props.currentInstitution.phoneNumber || '',
                 useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true,
                 aiModelTier: props.currentInstitution.aiModelTier || 'premium',
-                isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false
+                isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false,
+                parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false
             });
         }
     }, [props.currentInstitution]);
@@ -1097,6 +1099,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div>
                                             <label htmlFor="use-alloc-reqs" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enable Collaborative Allocation Requests</label>
                                             <p className="text-xs text-slate-400">Allows {isSchool ? 'teachers' : 'lecturers'} to submit unit preferences before generation.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                        <input
+                                            type="checkbox"
+                                            id="enable-parent-notifications"
+                                            checked={instProfile.parentAbsenceNotificationsEnabled}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, parentAbsenceNotificationsEnabled: e.target.checked })}
+                                            className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <div>
+                                            <label htmlFor="enable-parent-notifications" className="text-sm font-bold text-slate-700 dark:text-slate-300">Parent Absence Notifications</label>
+                                            <p className="text-xs text-slate-400">Automatically notify parents via SMS/Email when a student is marked as absent.</p>
                                         </div>
                                     </div>
 

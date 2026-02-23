@@ -62,6 +62,9 @@ interface LecturerViewProps {
     onSaveAssessmentMarks?: (id: string, marks: any) => Promise<void>;
     inventoryItems?: CountyInventoryItem[];
     onIssueInventoryItem?: (itemId: string, quantity: number, recipientId: string, recipientName: string) => Promise<void>;
+    studentAttendances?: any[];
+    studentAbsenceRequests?: any[];
+    onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -219,6 +222,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     onRequestChange={(alloc) => {
                         setChangingAllocation(alloc);
                     }}
+                    studentAttendances={props.studentAttendances}
+                    studentAbsenceRequests={props.studentAbsenceRequests}
+                    onSaveAttendance={props.onSaveAttendance}
+                    users={props.users}
                 />
             )}
 
