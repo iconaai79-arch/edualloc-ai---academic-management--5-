@@ -329,8 +329,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log(`[SMS Gateway] Provider: ${provider}, URL: ${baseUrl.replace(/\/\/.*@/, '//***@')}`);
 
                 const finalParams: Record<string, string> = {
-                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
-                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
+                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey,
+                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret,
+                    apikey: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || smsConfig.apikey,
+                    apisecret: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || smsConfig.apisecret,
                     mobile: phone,
                     msg: message || '',
                     senderid: smsConfig.fromNumber || provider,
@@ -421,10 +423,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             cleanMessage += " The gateway returned an invalid non-JSON response.";
                         }
 
+                        const rawSnippet = smsRaw.substring(0, 500).replace(/<[^>]*>?/gm, ' ').trim();
+
                         return res.status(502).json({
                             success: false,
                             message: `Gateway ${provider} returned an error. ${isHtml ? 'HTML page returned — check your SMS gateway URL or IP whitelist.' : parseError ? 'Invalid non-JSON response.' : smsRaw.substring(0, 200)}`,
-                            recipient: phone
+                            response_hint: rawSnippet,
+                            recipient: phone,
+                            provider,
+                            url: dispatchUrl.replace(/\/\/.*@/, '//***@')
                         });
                     }
 
