@@ -1682,3 +1682,204 @@ export interface CarWashShiftLog {
     totalRevenue: number;
     date: string;
 }
+
+// ============================================================================
+// AGROVET MODULE TYPES
+// ============================================================================
+
+export type AgrovetSaleStatus = 'pending' | 'completed' | 'cancelled';
+export type AgrovetPaymentMethod = 'cash' | 'mpesa' | 'credit';
+export type AgrovetUnitType = 'kg' | 'packet' | 'litres' | 'grams' | 'bottle' | 'bag' | 'dozen';
+
+export interface AgrovetProduct {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    category: 'Seeds' | 'Fertilizers' | 'Chemicals' | 'Animal Health' | 'Equipment' | 'Other';
+    unitType: AgrovetUnitType;
+    reorderLevel: number;
+    currentStock: number;
+    lastRestockedAt?: string;
+}
+
+export interface AgrovetBatch {
+    id: string;
+    institutionId: string;
+    productId: string;
+    batchNumber: string;
+    quantity: number;
+    costPrice: number;
+    sellingPrice: number;
+    expiryDate: string;
+    receivedDate: string;
+}
+
+export interface AgrovetFarmer {
+    id: string;
+    institutionId: string;
+    name: string;
+    phoneNumber: string;
+    location?: string;
+    farmType?: string;
+    loyaltyPoints: number;
+    creditLimit: number;
+    notes?: string;
+    createdAt: string;
+}
+
+export interface AgrovetAnimal {
+    id: string;
+    institutionId: string;
+    farmerId: string;
+    species: string;
+    breed?: string;
+    tagNumber?: string;
+    birthDate?: string;
+    notes?: string;
+}
+
+export interface AgrovetSale {
+    id: string;
+    institutionId: string;
+    customerId?: string;
+    totalAmount: number;
+    amountPaid: number;
+    paymentMethod: AgrovetPaymentMethod;
+    status: AgrovetSaleStatus;
+    servedById: string;
+    servedByName: string;
+    items?: AgrovetSaleItem[];
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface AgrovetSaleItem {
+    id: string;
+    saleId: string;
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface AgrovetConsultation {
+    id: string;
+    institutionId: string;
+    customerId: string; // Changed from farmerId
+    animalId?: string;
+    symptoms: string;
+    diagnosis: string;
+    prescription: string;
+    fee: number;
+    isPaid: boolean;
+    vetId: string;
+    vetName: string;
+    createdAt: string; // Added
+    date: string;
+}
+
+export interface AgrovetCreditNote {
+    id: string;
+    institutionId: string;
+    customerId: string; // Changed from farmerId
+    saleId?: string;
+    consultationId?: string;
+    amount: number;
+    amountPaid: number; // Added
+    remainingBalance: number;
+    limit: number; // Added
+    dueDate: string;
+    status: 'active' | 'cleared' | 'overdue';
+    createdAt: string;
+}
+
+// ============================================================================
+// PROPERTY MANAGEMENT MODULE TYPES
+// ============================================================================
+
+export type PMPropertyType = 'Apartment' | 'Commercial' | 'Land' | 'Other';
+export type PMUnitStatus = 'Vacant' | 'Occupied' | 'Maintenance';
+export type PMLeaseStatus = 'Active' | 'Terminated' | 'Expired';
+export type PMPaymentMethod = 'Cash' | 'M-Pesa' | 'Bank' | 'Other';
+export type PMPaymentType = 'Rent' | 'Utility' | 'Deposit' | 'Other';
+export type PMPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type PMTicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+
+export interface PMProperty {
+    id: string;
+    name: string;
+    address?: string;
+    propertyType: PMPropertyType;
+    totalUnits: number;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMUnit {
+    id: string;
+    propertyId: string;
+    unitNumber: string;
+    unitType: string;
+    floorNumber?: number;
+    rentAmount: number;
+    status: PMUnitStatus;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMTenant {
+    id: string;
+    name: string;
+    phoneNumber: string;
+    email?: string;
+    idNumber?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMLease {
+    id: string;
+    unitId: string;
+    tenantId: string;
+    startDate: string;
+    endDate?: string;
+    rentAmount: number;
+    depositAmount: number;
+    billingCycle: 'Monthly' | 'Quarterly';
+    status: PMLeaseStatus;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMPayment {
+    id: string;
+    leaseId: string;
+    amount: number;
+    paymentDate: string;
+    paymentMethod: PMPaymentMethod;
+    paymentType: PMPaymentType;
+    periodMonth?: number;
+    periodYear?: number;
+    status: 'Completed' | 'Pending' | 'Cancelled';
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface PMTicket {
+    id: string;
+    propertyId: string;
+    unitId?: string;
+    title: string;
+    description?: string;
+    priority: PMPriority;
+    status: PMTicketStatus;
+    assignedTo?: string;
+    cost: number;
+    institutionId: string;
+    createdAt: string;
+}

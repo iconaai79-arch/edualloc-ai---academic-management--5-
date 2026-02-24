@@ -22,6 +22,9 @@ import BoardingMasterView from './BoardingMasterView';
 import { ParentView } from './ParentView';
 import { PracticeTeacherView } from './PracticeTeacherView';
 import { CarWashView } from './CarWashView';
+import { AgrovetView } from './AgrovetView';
+import { PropertyManagementView } from './PropertyManagementView';
+import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
@@ -2000,6 +2003,20 @@ export const App: React.FC = () => {
 
                             ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
                                 <CarWashView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                    onDataChange={loadData}
+                                />
+                            ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet')) ? (
+                                <AgrovetView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                    onDataChange={loadData}
+                                />
+                            ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('property management')) ? (
+                                <PropertyManagementView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}

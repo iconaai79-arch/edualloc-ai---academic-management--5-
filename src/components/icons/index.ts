@@ -78,3 +78,5 @@ export { Trash2Icon } from './Trash2Icon';
 export { UsersIcon } from './UsersIcon';
 export { XCircleIcon } from './XCircleIcon';
 export { AlertTriangleIcon } from './AlertTriangleIcon';
+export { ShoppingCartIcon } from './ShoppingCartIcon';
+export { TagIcon } from './TagIcon';

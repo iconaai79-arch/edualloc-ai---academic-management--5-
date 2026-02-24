@@ -847,6 +847,164 @@ CREATE TABLE IF NOT EXISTS carwash_shifts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 10. AGROVET BUSINESS MODULE --
+CREATE TABLE IF NOT EXISTS agrovet_products (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL,
+    unit_type TEXT NOT NULL,
+    reorder_level INTEGER DEFAULT 10,
+    current_stock INTEGER DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_batches (
+    id TEXT PRIMARY KEY,
+    product_id TEXT REFERENCES agrovet_products(id) ON DELETE CASCADE,
+    batch_number TEXT NOT NULL,
+    expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    quantity INTEGER DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_customers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    location TEXT,
+    farm_type TEXT,
+    loyalty_points INTEGER DEFAULT 0,
+    credit_limit DECIMAL(12, 2) DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_animals (
+    id TEXT PRIMARY KEY,
+    farmer_id TEXT REFERENCES agrovet_customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    species TEXT,
+    breed TEXT,
+    age TEXT,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_sales (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT REFERENCES agrovet_customers(id) ON DELETE SET NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,
+    amount_paid DECIMAL(12, 2) NOT NULL,
+    payment_method TEXT NOT NULL,
+    status TEXT DEFAULT 'completed',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_consultations (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT REFERENCES agrovet_customers(id) ON DELETE CASCADE,
+    vet_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    clinical_notes TEXT,
+    diagnosis TEXT,
+    prescription TEXT,
+    fee DECIMAL(12, 2) DEFAULT 0,
+    status TEXT DEFAULT 'completed',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS agrovet_credit (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT REFERENCES agrovet_customers(id) ON DELETE CASCADE,
+    total_owed DECIMAL(12, 2) DEFAULT 0,
+    total_paid DECIMAL(12, 2) DEFAULT 0,
+    credit_limit DECIMAL(12, 2) DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 11. PROPERTY MANAGEMENT (RENT COLLECTION) MODULE --
+CREATE TABLE IF NOT EXISTS pm_properties (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT,
+    property_type TEXT NOT NULL,
+    total_units INTEGER DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_units (
+    id TEXT PRIMARY KEY,
+    property_id TEXT REFERENCES pm_properties(id) ON DELETE CASCADE,
+    unit_number TEXT NOT NULL,
+    unit_type TEXT NOT NULL,
+    floor_number INTEGER,
+    rent_amount DECIMAL(12, 2) DEFAULT 0,
+    status TEXT DEFAULT 'Vacant',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_tenants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    email TEXT,
+    id_number TEXT,
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_leases (
+    id TEXT PRIMARY KEY,
+    unit_id TEXT REFERENCES pm_units(id) ON DELETE CASCADE,
+    tenant_id TEXT REFERENCES pm_tenants(id) ON DELETE CASCADE,
+    start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_date TIMESTAMP WITH TIME ZONE,
+    rent_amount DECIMAL(12, 2) NOT NULL,
+    deposit_amount DECIMAL(12, 2) DEFAULT 0,
+    billing_cycle TEXT DEFAULT 'Monthly',
+    status TEXT DEFAULT 'Active',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_payments (
+    id TEXT PRIMARY KEY,
+    lease_id TEXT REFERENCES pm_leases(id) ON DELETE CASCADE,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    payment_method TEXT NOT NULL,
+    payment_type TEXT NOT NULL,
+    period_month INTEGER,
+    period_year INTEGER,
+    status TEXT DEFAULT 'Completed',
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_maintenance (
+    id TEXT PRIMARY KEY,
+    property_id TEXT REFERENCES pm_properties(id) ON DELETE CASCADE,
+    unit_id TEXT REFERENCES pm_units(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    priority TEXT DEFAULT 'Medium',
+    status TEXT DEFAULT 'Open',
+    assigned_to TEXT,
+    cost DECIMAL(12, 2) DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 `;
 
     sql += `\n\n-- ==========================================================================\n`;
