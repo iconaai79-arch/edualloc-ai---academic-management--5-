@@ -56,7 +56,10 @@ import {
     BeakerIcon,
     PlusIcon,
     BedIcon,
-    ArrowRightOnRectangleIcon
+    ArrowRightOnRectangleIcon,
+    HomeIcon,
+    TruckIcon,
+    ShoppingCartIcon
 } from './icons/index';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
@@ -695,7 +698,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
         { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
-        { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' }
+        { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
+        { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
+        { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
+        { role: 'transport_admin', label: 'Transport Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' }
     ];
 
     const activeRole = currentUser?.role;

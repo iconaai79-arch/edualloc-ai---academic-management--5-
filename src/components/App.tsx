@@ -1431,7 +1431,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
+    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -2001,21 +2001,21 @@ export const App: React.FC = () => {
                                     footerImageUrl={activeFooterImageUrl}
                                 />
 
-                            ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
+                            ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
                                 <CarWashView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                 />
-                            ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet')) ? (
+                            ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                 />
-                            ) : (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('property management')) ? (
+                            ) : (activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
                                 <PropertyManagementView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
