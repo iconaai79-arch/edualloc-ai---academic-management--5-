@@ -368,6 +368,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
+    const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
     const [managingMpesaFor, setManagingMpesaFor] = useState<Institution | null>(null);
     const [managingPlansFor, setManagingPlansFor] = useState<Institution | null>(null);
     const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
