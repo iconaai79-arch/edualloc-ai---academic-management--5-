@@ -802,6 +802,18 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         )}
                     </button>
                 ))}
+
+                <div className="flex-grow"></div>
+
+                <div className="flex items-center px-4">
+                    <button
+                        onClick={() => setIsPerspectiveModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-2 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm border border-indigo-100 dark:border-indigo-800 active:scale-95"
+                    >
+                        <SparklesIcon className="w-4 h-4" />
+                        Simulate Perspective
+                    </button>
+                </div>
             </div>
 
             <main className="animate-fade-in">

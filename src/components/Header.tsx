@@ -18,6 +18,7 @@ interface HeaderProps {
     isApiOnline?: boolean;
     activeRole?: Role;
     onSwitchRole?: (role: Role) => void;
+    onExitPerspective?: () => void;
 }
 
 const formatRoleName = (role?: Role, institutionType?: Institution['institutionType']): string => {
@@ -76,7 +77,7 @@ const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
     );
 };
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole, onExitPerspective }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -164,6 +165,15 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                     </div>
 
                     <div className="flex items-center space-x-2 sm:space-x-4">
+                        {onExitPerspective && (
+                            <button
+                                onClick={onExitPerspective}
+                                className="flex items-center gap-2 px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-red-100 dark:border-red-800 hover:bg-red-100 transition-all shadow-sm active:scale-95 animate-pulse"
+                            >
+                                <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
+                                Exit Perspective
+                            </button>
+                        )}
                         {showTrialTimer && currentInstitution.trialEndsAt && (
                             <div className="hidden sm:block">
                                 <TrialTimer trialEndsAt={currentInstitution.trialEndsAt} />

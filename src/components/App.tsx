@@ -1516,6 +1516,7 @@ export const App: React.FC = () => {
                             applicationTitle={companyDetails.applicationTitle}
                             activeRole={activeRole as Role}
                             onSwitchRole={(r) => setSelectedRole(r)}
+                            onExitPerspective={impersonatedRole ? () => setImpersonatedRole(null) : undefined}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
                             {activeRole === 'super_admin' ? (
