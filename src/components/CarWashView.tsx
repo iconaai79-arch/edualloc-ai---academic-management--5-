@@ -15,6 +15,7 @@ interface CarWashViewProps {
     users: User[];
     onDataChange: () => void;
     onSendSms: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
+    onAddTransaction?: (data: any, items: any[]) => Promise<any>;
     smsConfig?: any;
     smsBalance?: number;
     mpesaConfig?: any;
@@ -24,15 +25,16 @@ interface CarWashViewProps {
 
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, users, onDataChange,
-    onSendSms, smsConfig, smsBalance, mpesaConfig, departments, courses
+    onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses
 }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
     const [vehicles, setVehicles] = useState<CarWashVehicle[]>([]);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
+    const [transactions, setTransactions] = useState<MpesaTransaction[]>([]);
     const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
@@ -43,6 +45,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showNewPackageModal, setShowNewPackageModal] = useState(false);
     const [showNewInventoryModal, setShowNewInventoryModal] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
+    const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     const [search, setSearch] = useState('');
 
@@ -54,6 +58,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
                 apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', institutionId),
+                apiService.fetchModuleRecords<MpesaTransaction>('mpesa_transactions', institutionId),
                 apiService.fetchModuleRecords<CarWashInventoryItem>('carwash_inventory', institutionId),
                 apiService.fetchModuleRecords<CarWashFeedback>('carwash_feedback', institutionId),
                 apiService.fetchModuleRecords<CarWashShiftLog>('carwash_shifts', institutionId),
@@ -62,6 +67,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setCustomers(custs || []);
             setVehicles(vehs || []);
             setJobs(jobList || []);
+            setTransactions(trans || []);
             setInventory(inv || []);
             setFeedbacks(fbs || []);
             setShifts(shiftList || []);
@@ -100,26 +106,61 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
-        const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}), ...(status === 'completed' ? { completedAt: new Date().toISOString(), amountPaid: job.amountCharged } : {}) };
-        await apiService.saveModuleRecord('carwash_jobs', updated);
-
         if (status === 'completed') {
+            setShowCheckoutModal(job);
+            return;
+        }
+
+        const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}) };
+        await apiService.saveModuleRecord('carwash_jobs', updated);
+        loadData();
+    };
+
+    const handleCheckout = async (job: CarWashJob, method: CarWashPaymentMethod) => {
+        setIsProcessingPayment(true);
+        try {
+            const customer = customers.find(c => c.id === job.customerId);
+
+            if (method === 'mpesa' && onAddTransaction) {
+                // Initiate STK Push
+                await onAddTransaction({
+                    amount: job.amountCharged,
+                    phoneNumber: customer?.phoneNumber || '',
+                    description: `Car Wash: ${job.packageName} - ${job.vehiclePlate}`,
+                    institutionId,
+                    userId: currentUser.id
+                }, [
+                    { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged }
+                ]);
+            }
+
+            const updated: CarWashJob = {
+                ...job,
+                status: 'completed',
+                paymentMethod: method,
+                completedAt: new Date().toISOString(),
+                amountPaid: job.amountCharged
+            };
+
+            await apiService.saveModuleRecord('carwash_jobs', updated);
+            setShowCheckoutModal(null);
             setShowFeedbackModal(updated);
 
             // Automated SMS Notification
-            if (job.customerId) {
-                const customer = customers.find(c => c.id === job.customerId);
-                if (customer && customer.phoneNumber) {
-                    const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Thank you for choosing ${currentInstitution.name}.`;
-                    try {
-                        await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
-                    } catch (e) {
-                        console.error('Failed to send automated car wash SMS', e);
-                    }
+            if (customer && customer.phoneNumber) {
+                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Amount: KES ${job.amountCharged.toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                try {
+                    await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
+                } catch (e) {
+                    console.error('Failed to send automated car wash SMS', e);
                 }
             }
+            loadData();
+        } catch (e: any) {
+            alert(e.message || 'Checkout failed');
+        } finally {
+            setIsProcessingPayment(false);
         }
-        loadData();
     };
 
     // ── Customer Form ──
@@ -180,6 +221,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-4 h-4" /> },
         { id: 'feedback', label: 'Feedback', icon: <StarIcon className="w-4 h-4" /> },
         { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
+        { id: 'transactions', label: 'Bills & Payments', icon: <CurrencyIcon className="w-4 h-4" /> },
     ];
 
     return (
@@ -483,7 +525,143 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         />
                     </div>
                 )}
+
+                {/* TRANSACTIONS */}
+                {!loading && activeTab === 'transactions' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Financial History</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Audit log of all car wash payments</p>
+                            </div>
+                            <div className="flex gap-4 items-center">
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Collected</p>
+                                    <p className="text-2xl font-black text-emerald-600">KES {transactions.filter(t => t.status === 'completed').reduce((s, t) => s + t.amount, 0).toLocaleString()}</p>
+                                </div>
+                                <div className="w-px h-10 bg-slate-200 dark:bg-slate-700"></div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending</p>
+                                    <p className="text-2xl font-black text-amber-500">KES {transactions.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Transaction ID</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Details</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Amount</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
+                                        <th className="px-8 py-5 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Date/Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {transactions.map(t => (
+                                        <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                            <td className="px-8 py-5 font-mono text-xs font-bold text-slate-500 uppercase tracking-tighter">{t.transactionId || t.id.split('_').pop()}</td>
+                                            <td className="px-8 py-5">
+                                                <p className="font-black text-slate-700 dark:text-slate-200">{t.phoneNumber}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.description}</p>
+                                            </td>
+                                            <td className="px-8 py-5 font-black text-emerald-600">KES {t.amount.toLocaleString()}</td>
+                                            <td className="px-8 py-5">
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                                    t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    {t.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5 text-xs font-bold text-slate-400">{new Date(t.timestamp).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                    {transactions.length === 0 && (
+                                        <tr><td colSpan={5} className="py-20 text-center text-slate-400 font-black uppercase tracking-widest">No payment records found</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* CHECKOUT MODAL */}
+            {showCheckoutModal && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 dark:border-slate-700">
+                        <div className="bg-gradient-to-r from-emerald-600 to-teal-500 px-8 py-8 flex flex-col items-center text-center relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16 blur-2xl"></div>
+                            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
+                                <CurrencyIcon className="w-8 h-8 text-white" />
+                            </div>
+                            <h3 className="text-2xl font-black text-white uppercase tracking-tight">Process Checkout</h3>
+                            <p className="text-emerald-50 text-xs font-bold uppercase tracking-[0.2em] mt-2 opacity-80">Job ID: {showCheckoutModal.id.split('_').pop()}</p>
+                        </div>
+
+                        <div className="p-8 space-y-8">
+                            <div className="bg-slate-50 dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Vehicle Summary</p>
+                                    <span className="px-3 py-1 bg-white dark:bg-slate-800 rounded-full text-[10px] font-black text-indigo-600 shadow-sm border border-slate-100 dark:border-slate-700">{showCheckoutModal.vehiclePlate}</span>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between text-sm font-bold">
+                                        <span className="text-slate-500">{showCheckoutModal.packageName} ({showCheckoutModal.vehicleType})</span>
+                                        <span className="text-slate-700 dark:text-white">KES {showCheckoutModal.amountCharged.toLocaleString()}</span>
+                                    </div>
+                                    {showCheckoutModal.addOns.map(ao => (
+                                        <div key={ao} className="flex justify-between text-xs font-bold text-slate-400">
+                                            <span>+ {ao}</span>
+                                            <span>Included</span>
+                                        </div>
+                                    ))}
+                                    <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                        <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Total Payable</span>
+                                        <span className="text-2xl font-black text-emerald-600">KES {showCheckoutModal.amountCharged.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Choose Payment Method</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={() => handleCheckout(showCheckoutModal, 'cash')}
+                                        disabled={isProcessingPayment}
+                                        className="flex flex-col items-center gap-3 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                            <CurrencyIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="text-xs font-black uppercase tracking-widest">Cash</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleCheckout(showCheckoutModal, 'mpesa')}
+                                        disabled={isProcessingPayment}
+                                        className="flex flex-col items-center gap-3 p-6 rounded-3xl border-2 border-slate-100 dark:border-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                            <SparklesIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="text-xs font-black uppercase tracking-widest">M-Pesa</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="px-8 pb-8 flex gap-4">
+                            <button
+                                onClick={() => setShowCheckoutModal(null)}
+                                disabled={isProcessingPayment}
+                                className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* NEW JOB MODAL */}
             {showNewJobModal && (
