@@ -128,6 +128,7 @@ export interface Institution {
     smsBalance?: number;
     customSmsPrice?: number;
     smsConfig?: SmsConfig;
+    mpesaConfig?: MpesaConfig;
     parentAbsenceNotificationsEnabled?: boolean;
 }
 
