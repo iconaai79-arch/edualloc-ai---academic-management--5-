@@ -806,7 +806,7 @@ export const App: React.FC = () => {
 
 
     const onLoginAsAdmin = (institutionId: string) => {
-        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto'];
+        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin'];
         const admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
         if (admin) {
