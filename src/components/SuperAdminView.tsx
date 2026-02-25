@@ -368,11 +368,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
-    const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
     const [managingMpesaFor, setManagingMpesaFor] = useState<Institution | null>(null);
+    const [managingPlansFor, setManagingPlansFor] = useState<Institution | null>(null);
     const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
     const [tenantSmsConfig, setTenantSmsConfig] = useState<SmsConfig>({ provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
     const [tenantMpesaConfig, setTenantMpesaConfig] = useState<MpesaConfig>({ paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
+    const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly: number; yearly: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
 
@@ -1068,6 +1069,16 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                             >
                                                                 <CurrencyIcon className="w-3 h-3" />
                                                                 M-Pesa
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManagingPlansFor(inst);
+                                                                    setTenantModulePricing(inst.customModulePricing || {});
+                                                                }}
+                                                                className="flex items-center gap-1 text-sky-600 hover:text-sky-900 font-black text-[10px] uppercase tracking-tighter bg-sky-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <RectangleStackIcon className="w-3 h-3" />
+                                                                Plans
                                                             </button>
                                                             <button
                                                                 onClick={() => {
@@ -2376,6 +2387,93 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100/50 dark:shadow-none transition-all active:scale-95"
                             >
                                 {isSavingTenantConfig ? 'Saving…' : 'Save M-Pesa Config'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Module Specific Pricing Modal ── */}
+            {managingPlansFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingPlansFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-sky-50/50 dark:bg-sky-900/10">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-sky-900 dark:text-sky-200">Module Subscription Plans</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingPlansFor.name}</p>
+                            </div>
+                            <button onClick={() => setManagingPlansFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            <div className="space-y-4">
+                                {perspectiveOptions.map((opt) => (
+                                    <div key={opt.role} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                                        <div className={`w-12 h-12 rounded-2xl ${opt.color} flex items-center justify-center shadow-sm`}>
+                                            {opt.icon}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{opt.label}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pricing for {opt.role}</p>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <div className="w-28 space-y-1">
+                                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Monthly</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">KES</span>
+                                                    <input
+                                                        type="number"
+                                                        value={tenantModulePricing[opt.role]?.monthly || ''}
+                                                        onChange={e => setTenantModulePricing({
+                                                            ...tenantModulePricing,
+                                                            [opt.role]: { ...tenantModulePricing[opt.role], monthly: Number(e.target.value) }
+                                                        })}
+                                                        className="form-input text-xs font-black pl-10 h-10"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="w-28 space-y-1">
+                                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Yearly</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">KES</span>
+                                                    <input
+                                                        type="number"
+                                                        value={tenantModulePricing[opt.role]?.yearly || ''}
+                                                        onChange={e => setTenantModulePricing({
+                                                            ...tenantModulePricing,
+                                                            [opt.role]: { ...tenantModulePricing[opt.role], yearly: Number(e.target.value) }
+                                                        })}
+                                                        className="form-input text-xs font-black pl-10 h-10"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800">
+                                <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">Set 0 or leave empty to use system default pricing for that module. These prices are used when generating invoices for the tenant.</p>
+                            </div>
+                        </div>
+                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setManagingPlansFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingPlansFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingPlansFor.id, { customModulePricing: tenantModulePricing });
+                                        setManagingPlansFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-sky-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Saving…' : 'Save Module Plans'}
                             </button>
                         </div>
                     </div>

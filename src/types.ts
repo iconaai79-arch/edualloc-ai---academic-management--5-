@@ -129,6 +129,7 @@ export interface Institution {
     customSmsPrice?: number;
     smsConfig?: SmsConfig;
     mpesaConfig?: MpesaConfig;
+    customModulePricing?: Record<string, { monthly?: number; yearly?: number }>;
     parentAbsenceNotificationsEnabled?: boolean;
 }
 
