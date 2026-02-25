@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod } from '../types';
 import { apiService } from '../services/apiService';
-import { PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon, ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, StarIcon, UserIcon, ArrowPathIcon, ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon } from './icons/index';
+import { PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon, ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, StarIcon, UserIcon, ArrowPathIcon, ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon, EnvelopeIcon } from './icons/index';
+import { CommunicationsManager } from './CommunicationsManager';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus'];
 const PAYMENT_METHODS: CarWashPaymentMethod[] = ['cash', 'mpesa', 'card', 'credit'];
@@ -13,11 +14,20 @@ interface CarWashViewProps {
     currentInstitution: Institution;
     users: User[];
     onDataChange: () => void;
+    onSendSms: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
+    smsConfig?: any;
+    smsBalance?: number;
+    mpesaConfig?: any;
+    departments?: any[];
+    courses?: any[];
 }
 
-export const CarWashView: React.FC<CarWashViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
+export const CarWashView: React.FC<CarWashViewProps> = ({
+    currentUser, currentInstitution, users, onDataChange,
+    onSendSms, smsConfig, smsBalance, mpesaConfig, departments, courses
+}) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
@@ -92,7 +102,23 @@ export const CarWashView: React.FC<CarWashViewProps> = ({ currentUser, currentIn
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
         const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}), ...(status === 'completed' ? { completedAt: new Date().toISOString(), amountPaid: job.amountCharged } : {}) };
         await apiService.saveModuleRecord('carwash_jobs', updated);
-        if (status === 'completed') setShowFeedbackModal(updated);
+
+        if (status === 'completed') {
+            setShowFeedbackModal(updated);
+
+            // Automated SMS Notification
+            if (job.customerId) {
+                const customer = customers.find(c => c.id === job.customerId);
+                if (customer && customer.phoneNumber) {
+                    const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Thank you for choosing ${currentInstitution.name}.`;
+                    try {
+                        await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
+                    } catch (e) {
+                        console.error('Failed to send automated car wash SMS', e);
+                    }
+                }
+            }
+        }
         loadData();
     };
 
@@ -153,6 +179,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({ currentUser, currentIn
         { id: 'staff', label: 'Staff', icon: <UserIcon className="w-4 h-4" /> },
         { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-4 h-4" /> },
         { id: 'feedback', label: 'Feedback', icon: <StarIcon className="w-4 h-4" /> },
+        { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
     ];
 
     return (
@@ -438,6 +465,22 @@ export const CarWashView: React.FC<CarWashViewProps> = ({ currentUser, currentIn
                             ))}
                             {feedbacks.length === 0 && <div className="col-span-2 text-center py-16 text-slate-400"><StarIcon className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-bold">No feedback collected yet.</p></div>}
                         </div>
+                    </div>
+                )}
+
+                {/* BROADCAST */}
+                {!loading && activeTab === 'broadcast' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        <CommunicationsManager
+                            users={users}
+                            departments={departments || []}
+                            courses={courses || []}
+                            smsConfig={smsConfig}
+                            smsBalance={smsBalance}
+                            onSendSms={onSendSms}
+                            currentInstitution={currentInstitution}
+                            currentUser={currentUser}
+                        />
                     </div>
                 )}
             </div>

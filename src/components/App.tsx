@@ -2008,6 +2008,16 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
+                                    onSendSms={async (r, m, config, units, instId) => {
+                                        const res = await apiService.sendSms(r, m, config || activeInstitution?.smsConfig || companyDetails.smsConfig, units, instId || activeInstitution?.id);
+                                        await handleLogAction(`Sent SMS to ${r}`);
+                                        return res;
+                                    }}
+                                    smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
+                                    smsBalance={activeInstitution?.smsBalance || 0}
+                                    mpesaConfig={activeInstitution?.mpesaConfig || companyDetails.mpesaConfig}
+                                    departments={departments}
+                                    courses={courses}
                                 />
                             ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
