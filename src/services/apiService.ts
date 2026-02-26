@@ -951,12 +951,17 @@ export const apiService = {
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
 
-        // Send welcome emails
+        // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
                 const subject = "Welcome to EduAlloc - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+            }
+
+            if (user.phoneNumber) {
+                const smsMessage = `Welcome to EduAlloc. Your account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
+                this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });
     },
@@ -975,12 +980,17 @@ export const apiService = {
         const { error } = await _supabase.from('users').insert(snakeData);
         if (error) throw error;
 
-        // Send welcome emails
+        // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
                 const subject = "Welcome to EduAlloc - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour student account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
+            }
+
+            if (user.phoneNumber) {
+                const smsMessage = `Welcome to EduAlloc Hub. Your student account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
+                this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });
     },

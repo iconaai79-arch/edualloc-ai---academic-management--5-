@@ -284,13 +284,13 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        // Hide Broadcaster for non-Super Admins
-        if (props.currentUser?.role !== 'super_admin') {
+        // Hide Broadcaster for non-Super Admins, except for Broadcaster institutions
+        if (props.currentUser?.role !== 'super_admin' && props.currentInstitution?.institutionType !== 'Broadcaster') {
             return baseTabs.filter(t => t.id !== 'comms');
         }
 
         return baseTabs;
-    }, [props.currentUser?.role, isSchool]);
+    }, [props.currentUser?.role, props.currentInstitution?.institutionType, isSchool]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;

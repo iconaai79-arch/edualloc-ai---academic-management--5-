@@ -374,7 +374,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
     const [tenantSmsConfig, setTenantSmsConfig] = useState<SmsConfig>({ provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
     const [tenantMpesaConfig, setTenantMpesaConfig] = useState<MpesaConfig>({ paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
-    const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly: number; yearly: number }>>({});
+    const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
 
@@ -1000,6 +1000,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     <option value="Polytechnic">Polytechnic</option>
                                                     <option value="ECD">ECD Center</option>
                                                     <option value="International">International School</option>
+                                                    <option value="Business">Business</option>
+                                                    <option value="Broadcaster">Broadcaster</option>
                                                 </select>
                                             </div>
                                         </div>

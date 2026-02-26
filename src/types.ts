@@ -99,7 +99,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -1752,7 +1752,6 @@ export interface AgrovetSale {
     servedById: string;
     servedByName: string;
     items?: AgrovetSaleItem[];
-    institutionId: string;
     createdAt: string;
 }
 

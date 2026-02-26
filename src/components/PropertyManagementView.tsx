@@ -22,7 +22,7 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'tenants' | 'leases' | 'payments' | 'maintenance'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports'>('dashboard');
 
     const [properties, setProperties] = useState<PMProperty[]>([]);
     const [units, setUnits] = useState<PMUnit[]>([]);
@@ -98,12 +98,58 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 unitType: data.unitType || '',
                 floorNumber: data.floorNumber,
                 rentAmount: data.rentAmount || 0,
+                status: 'Vacant',
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_units', newUnit);
 
             setShowUnitModal(false);
+            loadData();
+        } catch (e) { console.error(e); }
+    };
+
+    const handleSaveTenant = async (data: Partial<PMTenant>) => {
+        try {
+            const newTenant: PMTenant = {
+                id: `tenant_${Date.now()}`,
+                name: data.name || '',
+                phoneNumber: data.phoneNumber || '',
+                email: data.email,
+                idNumber: data.idNumber,
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_tenants', newTenant);
+            setShowTenantModal(false);
+            loadData();
+        } catch (e) { console.error(e); }
+    };
+
+    const handleSaveLease = async (data: Partial<PMLease>) => {
+        try {
+            const startDate = new Date().toISOString().split('T')[0];
+            const newLease: PMLease = {
+                id: `lease_${Date.now()}`,
+                unitId: data.unitId || '',
+                tenantId: data.tenantId || '',
+                startDate,
+                rentAmount: data.rentAmount || 0,
+                depositAmount: data.depositAmount || 0,
+                billingCycle: 'Monthly',
+                status: 'Active',
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_leases', newLease);
+
+            // Update unit status to Occupied
+            const unit = units.find(u => u.id === data.unitId);
+            if (unit) {
+                await apiService.saveModuleRecord('pm_units', { ...unit, status: 'Occupied' });
+            }
+
+            setShowLeaseModal(false);
             loadData();
         } catch (e) { console.error(e); }
     };
@@ -226,6 +272,98 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
+    const TenantsTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Active Tenants</h3>
+                <div className="relative">
+                    <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="SEARCH TENANTS..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-64"
+                    />
+                </div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                        <tr>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Tenant Name</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">National ID</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Onboarded</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
+                            <tr key={tenant.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</td>
+                                <td className="p-6">
+                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{tenant.phoneNumber}</p>
+                                    <p className="text-[10px] text-slate-400">{tenant.email || 'No email'}</p>
+                                </td>
+                                <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
+                                <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
+                                <td className="p-6 text-right">
+                                    <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
+                                        <EyeIcon className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const LeasesTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                        <tr>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Lease Reference</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Tenant</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Unit</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Rent</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Status</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {leases.map(lease => {
+                            const tenant = tenants.find(t => t.id === lease.tenantId);
+                            const unit = units.find(u => u.id === lease.unitId);
+                            return (
+                                <tr key={lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</td>
+                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</td>
+                                    <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
+                                    <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</td>
+                                    <td className="p-6">
+                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>
+                                            {lease.status}
+                                        </span>
+                                    </td>
+                                    <td className="p-6 text-right">
+                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
+                                            <EyeIcon className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     const handleSavePayment = async (data: Partial<PMPayment>) => {
         try {
             const newPayment: PMPayment = {
@@ -235,7 +373,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
                 paymentMethod: data.paymentMethod || 'M-Pesa',
                 paymentType: data.paymentType || 'Rent',
-                remarks: data.remarks,
+                status: 'Completed',
                 institutionId,
                 createdAt: new Date().toISOString()
             };
@@ -249,11 +387,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         try {
             const newTicket: PMTicket = {
                 id: `tick_${Date.now()}`,
+                propertyId: data.propertyId || '',
                 unitId: data.unitId || '',
                 title: data.title || '',
                 description: data.description || '',
                 priority: data.priority || 'Medium',
                 status: 'Open',
+                cost: 0,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
@@ -370,7 +510,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 { id: 'leases', label: 'Lease Manager', icon: ArchiveBoxIcon },
                 { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                 { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
-                { id: 'reports', label: 'Reports', icon: ChartBarIcon },
+                { id: 'reports', label: 'Reports', icon: ChartPieIcon },
             ].map(tab => (
                 <button
                     key={tab.id}
@@ -527,19 +667,35 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             </Modal>
 
             <Modal show={showTenantModal} onClose={() => setShowTenantModal(false)} title="Tenant Onboarding">
-                <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSaveTenant({ name: formData.get('name') as string, phone: formData.get('phone') as string, idNumber: formData.get('idNumber') as string }); }} className="space-y-6">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveTenant({
+                        name: formData.get('name') as string,
+                        phoneNumber: formData.get('phoneNumber') as string,
+                        idNumber: formData.get('idNumber') as string
+                    });
+                }} className="space-y-6">
                     <input name="name" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Full Name" />
-                    <input name="phone" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Phone Number" />
+                    <input name="phoneNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Phone Number" />
                     <input name="idNumber" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="ID / Passport Number" />
                     <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Complete Onboarding</button>
                 </form>
             </Modal>
 
             <Modal show={showLeaseModal} onClose={() => setShowLeaseModal(false)} title="Create Lease Agreement">
-                <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSaveLease({ unitId: formData.get('unitId') as string, tenantId: formData.get('tenantId') as string, monthlyRent: parseFloat(formData.get('monthlyRent') as string) || 0, depositAmount: parseFloat(formData.get('depositAmount') as string) || 0 }); }} className="space-y-6">
+                <form onSubmit={(e) => {
+                    e.preventDefault(); const formData = new FormData(e.currentTarget);
+                    handleSaveLease({
+                        unitId: formData.get('unitId') as string,
+                        tenantId: formData.get('tenantId') as string,
+                        rentAmount: parseFloat(formData.get('rentAmount') as string) || 0,
+                        depositAmount: parseFloat(formData.get('depositAmount') as string) || 0
+                    });
+                }} className="space-y-6">
                     <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
                     <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{units.filter(u => u.status === 'Vacant').map(u => <option key={u.id} value={u.id}>{u.unitNumber} - {properties.find(p => p.id === u.propertyId)?.name}</option>)}</select>
-                    <input name="monthlyRent" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Agreed Rent" />
+                    <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Agreed Rent" />
                     <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Security Deposit" />
                     <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Activate Lease</button>
                 </form>
@@ -555,7 +711,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             </Modal>
 
             <Modal show={showTicketModal} onClose={() => setShowTicketModal(false)} title="Maintenance Request">
-                <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSaveTicket({ unitId: formData.get('unitId') as string, title: formData.get('title') as string, description: formData.get('description') as string, priority: formData.get('priority') as PMPriority }); }} className="space-y-6">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveTicket({
+                        unitId: formData.get('unitId') as string,
+                        propertyId: units.find(u => u.id === formData.get('unitId'))?.propertyId || '',
+                        title: formData.get('title') as string,
+                        description: formData.get('description') as string,
+                        priority: formData.get('priority') as PMPriority
+                    });
+                }} className="space-y-6">
                     <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{units.map(u => <option key={u.id} value={u.id}>Unit {u.unitNumber} - {properties.find(p => p.id === u.propertyId)?.name}</option>)}</select>
                     <input name="title" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Issue Title" />
                     <textarea name="description" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none h-32" placeholder="Describe the maintenance issue..."></textarea>
