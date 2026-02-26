@@ -127,6 +127,7 @@ export interface SuperAdminViewProps {
     emailConfig: EmailConfig;
     timetableConflicts: Conflict[];
     currentInstitution?: Institution | null;
+    onRefreshData?: () => void;
     currentUser: User;
 
     onAddUser?: (userData: any) => Promise<void>;
@@ -1253,6 +1254,10 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             onSendSms={props.onSendSms || (async () => ({ success: false, message: 'SMS service disabled' }))}
                             currentUser={props.currentUser}
                             smsBalance={(institutions || []).reduce((sum, inst) => sum + (inst.smsBalance ?? 0), 0)}
+                            currentInstitution={props.currentInstitution}
+                            mpesaConfig={props.companyDetails.mpesaConfig}
+                            smsConfig={props.smsConfig}
+                            onRefreshData={props.onRefreshData}
                         />
                     </div>
                 )}

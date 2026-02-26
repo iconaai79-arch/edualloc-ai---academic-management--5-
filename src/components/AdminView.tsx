@@ -284,8 +284,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        // Hide Broadcaster for non-Super Admins, except for Broadcaster institutions
-        if (props.currentUser?.role !== 'super_admin' && props.currentInstitution?.institutionType !== 'Broadcaster') {
+        // Hide Broadcaster for non-Super Admins, except for Broadcaster institutions or other authorized admins
+        if (props.currentUser?.role !== 'super_admin' &&
+            props.currentInstitution?.institutionType !== 'Broadcaster' &&
+            !['admin', 'head_teacher', 'deputy', 'dos', 'tto'].includes(props.currentUser?.role || '')
+        ) {
             return baseTabs.filter(t => t.id !== 'comms');
         }
 

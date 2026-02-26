@@ -44,7 +44,8 @@ import type {
     ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
-    BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn
+    BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
+    Vehicle, TransportOnboarding, VehicleLog
 
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
@@ -1522,6 +1523,7 @@ export const App: React.FC = () => {
                             {activeRole === 'super_admin' ? (
                                 <SuperAdminView
                                     currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { await apiService.saveInstitution(d as any); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    onRefreshData={() => loadData()}
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
                                     onDeleteCounty={handleDeleteCounty}
@@ -1907,13 +1909,6 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
                                         loadData();
                                     }}
-                                    onUpdateDocumentStatus={async (id, status) => {
-                                        const doc = documentCollections.find(d => d.id === id);
-                                        if (doc) {
-                                            await apiService.saveModuleRecord('document_collections', { ...doc, status, collectedDate: status === 'Collected' ? new Date().toISOString() : doc.collectedDate });
-                                            loadData();
-                                        }
-                                    }}
                                 />
                             ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
                                 <TransportAssistantView
@@ -2164,7 +2159,6 @@ export const App: React.FC = () => {
                                     onImportSubjectsAndAssociate={handleImportSubjectsAndAssociate}
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                     onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
-                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                     onAddExtensionRequest={handleAddExtensionRequest}
                                     onUpdateExtensionRequestStatus={handleUpdateExtensionRequestStatus}
                                     onSaveBiometricConfig={() => { }}
@@ -2260,7 +2254,7 @@ export const App: React.FC = () => {
                                     onLogGateAction={handleLogGateAction}
                                     onOnboardStudent={handleOnboardStudent}
                                     onOffboardStudent={handleOffboardStudent}
-                                    onConfirmTransport={handleConfirmReceipt}
+                                    onConfirmReceipt={handleConfirmReceipt}
                                 />
                             ) : (
                                 <LecturerView
