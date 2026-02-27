@@ -2235,7 +2235,7 @@ export const App: React.FC = () => {
                                     onWithdrawRequestStatus={async (id) => { }}
                                     onManualInvoice={() => { }}
                                     onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)}
-                                    onAddInstitution={async (d) => await apiService.saveInstitution(d as any)}
+                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: d.id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` } as any); loadData(); }}
                                     onDeleteInstitution={onDeleteInstitution}
                                     onToggleInstitutionStatus={onToggleInstitutionStatus}
                                     onLoginAsAdmin={onLoginAsAdmin}
