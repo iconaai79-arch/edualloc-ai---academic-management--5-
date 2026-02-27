@@ -385,7 +385,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         name: '',
         email: '',
         phoneNumber: '',
-        institutionType: 'University' as Institution['institutionType']
+        institutionType: 'University' as Institution['institutionType'],
+        businessSubType: '' as Institution['businessSubType']
     });
 
     // Timetable state
@@ -657,6 +658,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     email: newInstData.email,
                     phoneNumber: newInstData.phoneNumber,
                     institutionType: newInstData.institutionType,
+                    businessSubType: newInstData.businessSubType,
                     status: 'trial',
                     trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                     institutionCode: `INST-${Date.now().toString().slice(-4)}`,
@@ -666,7 +668,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     smsConfig: props.smsConfig
                 });
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University', businessSubType: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -1003,7 +1005,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Institution Type</label>
-                                                <select value={newInstData.institutionType} onChange={e => setNewInstData({ ...newInstData, institutionType: e.target.value as any })} className="form-select">
+                                                <select
+                                                    value={newInstData.institutionType}
+                                                    onChange={e => setNewInstData({ ...newInstData, institutionType: e.target.value as any, businessSubType: e.target.value === 'Business' ? 'Agrovet' : '' })}
+                                                    className="form-select font-black text-indigo-600 border-indigo-100"
+                                                >
                                                     <option value="Primary">Primary School</option>
                                                     <option value="Secondary">Secondary School</option>
                                                     <option value="University">University</option>
@@ -1017,6 +1023,24 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     <option value="Reseller">Reseller Agency</option>
                                                 </select>
                                             </div>
+                                            {newInstData.institutionType === 'Business' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Select Business Niche / Category</label>
+                                                    <select
+                                                        value={newInstData.businessSubType || 'General'}
+                                                        onChange={e => setNewInstData({ ...newInstData, businessSubType: e.target.value as any })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                                                        <option value="Property Management">Property Management (Rent/Leases)</option>
+                                                        <option value="Car Wash">Car Wash / Service Center</option>
+                                                        <option value="Hardware">Hardware Store</option>
+                                                        <option value="Pharmacy">Pharmacy / Chemist</option>
+                                                        <option value="General">General Retail / Business</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700">
                                             <button type="submit" className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100">Create Tenant</button>
@@ -1142,7 +1166,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 }}
                             />
                         )}
-                        
+
                         {institutionsSubTab === 'resellers' && (
                             <div className="space-y-6 animate-fade-in-up">
                                 <div className="flex justify-between items-center">
@@ -1163,37 +1187,38 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                             {institutions.filter(i => i.institutionType === 'Reseller').map((inst: Institution) => {
                                                 const subTenantsCount = institutions.filter(i => i.resellerId === inst.id).length;
                                                 return (
-                                                <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
-                                                        {inst.name}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-slate-500">
-                                                        {inst.institutionCode}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
-                                                            inst.status === 'trial' ? 'bg-blue-100 text-blue-700' :
-                                                                'bg-red-100 text-red-700'
-                                                            }`}>
-                                                            {inst.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-bold">
-                                                        {subTenantsCount} Managed
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
-                                                                <ArrowRightOnRectangleIcon className="w-3 h-3" />
-                                                                Portal
-                                                            </button>
-                                                            <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
-                                                                Edit
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )})}
+                                                    <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
+                                                            {inst.name}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-slate-500">
+                                                            {inst.institutionCode}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
+                                                                inst.status === 'trial' ? 'bg-blue-100 text-blue-700' :
+                                                                    'bg-red-100 text-red-700'
+                                                                }`}>
+                                                                {inst.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-bold">
+                                                            {subTenantsCount} Managed
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                    <ArrowRightOnRectangleIcon className="w-3 h-3" />
+                                                                    Portal
+                                                                </button>
+                                                                <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
+                                                                    Edit
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
                                             {institutions.filter(i => i.institutionType === 'Reseller').length === 0 && (
                                                 <tr>
                                                     <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">
