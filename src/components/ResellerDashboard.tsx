@@ -48,8 +48,13 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
     const handleCreateTenant = async (e: React.FormEvent) => {
         e.preventDefault();
+        const tenantId = generateId('inst');
+        const adminId = generateUserId();
+
+        console.log("Starting tenant onboarding process...", { tenantId, adminId });
+
         try {
-            const tenantId = generateId('inst');
+            // Step 1: Prepare Institution
             const newInst: Institution = {
                 id: tenantId,
                 name: newTenantName,
@@ -64,10 +69,15 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 useAllocationRequests: true,
             };
 
-            await apiService.saveInstitution(newInst);
+            console.log("Step 1: Saving Institution...", newInst);
+            try {
+                await apiService.saveInstitution(newInst);
+            } catch (instError: any) {
+                console.error("Institution Save Failed:", instError);
+                throw new Error(`Institution setup failed: ${instError.message || 'Database error'}`);
+            }
 
-            // Create default admin for the tenant
-            const adminId = generateUserId();
+            // Step 2: Prepare and Register Admin
             const newAdmin: Partial<User> = {
                 id: adminId,
                 name: `Admin - ${newTenantName}`,
@@ -76,10 +86,20 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 role: 'admin',
                 roles: ['admin'],
                 institutionId: tenantId,
-                expertise: [],
+                expertise: ['Administration'],
             };
-            await apiService.registerUser(newAdmin, newTenantName);
 
+            console.log("Step 2: Registering Admin...", newAdmin);
+            try {
+                await apiService.registerUser(newAdmin, newTenantName);
+            } catch (adminError: any) {
+                console.error("Admin Registration Failed:", adminError);
+                // We don't rollback the institution here to avoid potential data loss if it partially worked,
+                // but we inform the user it was the user part that failed.
+                throw new Error(`Admin account setup failed: ${adminError.message || 'Registration error'}`);
+            }
+
+            // Success
             const updatedTenants = [...tenants, newInst];
             setTenants(updatedTenants);
             setIsAddTenantModalOpen(false);
@@ -89,10 +109,10 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             setNewTenantEmail('');
             setNewTenantType('Primary');
 
-            alert('Tenant created successfully!');
-        } catch (error) {
-            console.error("Error creating tenant:", error);
-            alert('Failed to create tenant.');
+            alert('Congratulations! The tenant and admin account have been successfully created.');
+        } catch (error: any) {
+            console.error("Critical Failure in handleCreateTenant:", error);
+            alert(`detailed error report:\n\n${error.message}\n\nCheck the browser console (Inspect > Console) for full technical logs.`);
         }
     };
 
