@@ -379,6 +379,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
 
+    // Commission Disbursement State
+    const [disburseReseller, setDisburseReseller] = useState<Institution | null>(null);
+    const [disbursementAmount, setDisbursementAmount] = useState(0);
+    const [disbursementRef, setDisbursementRef] = useState('');
+    const [disbursementNotes, setDisbursementNotes] = useState('');
+    const [isDisbursing, setIsDisbursing] = useState(false);
+
 
     // State for new institution form
     const [newInstData, setNewInstData] = useState({
@@ -645,6 +652,48 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             }
         } catch (e) {
             alert("An error occurred during verification.");
+        }
+    };
+
+    const handleDisburseCommission = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!disburseReseller || !disbursementAmount) return;
+
+        setIsDisbursing(true);
+        try {
+            // 1. Record the transaction
+            const transactionData = {
+                amount: disbursementAmount,
+                phoneNumber: disburseReseller.phoneNumber,
+                institutionId: disburseReseller.id,
+                payerName: 'Super Admin',
+                description: `Commission Payout: ${disbursementRef} ${disbursementNotes ? `(${disbursementNotes})` : ''}`,
+                metadata: {
+                    type: 'commission_disbursement',
+                    ref: disbursementRef,
+                    resellerName: disburseReseller.name
+                }
+            };
+
+            if (props.onAddTransaction) {
+                await props.onAddTransaction(transactionData, []);
+            }
+
+            // 2. Send SMS Notification
+            const smsMessage = `Hello ${disburseReseller.name}, your commission of KES ${disbursementAmount.toLocaleString()} has been disbursed. Ref: ${disbursementRef}. Thank you for your partnership.`;
+            await apiService.sendSms(disburseReseller.phoneNumber, smsMessage, undefined, 1, disburseReseller.id);
+
+            alert(`Commission of KES ${disbursementAmount.toLocaleString()} disbursed successfully to ${disburseReseller.name}.`);
+            setDisburseReseller(null);
+            setDisbursementAmount(0);
+            setDisbursementRef('');
+            setDisbursementNotes('');
+            onRefreshData?.();
+        } catch (error: any) {
+            console.error("Disbursement Failed:", error);
+            alert(`Disbursement failed: ${error.message}`);
+        } finally {
+            setIsDisbursing(false);
         }
     };
 
@@ -1213,6 +1262,18 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                                 </button>
                                                                 <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                     Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setDisburseReseller(inst);
+                                                                        setDisbursementAmount(0);
+                                                                        setDisbursementRef('');
+                                                                        setDisbursementNotes('');
+                                                                    }}
+                                                                    className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg"
+                                                                >
+                                                                    <CurrencyIcon className="w-3 h-3" />
+                                                                    Disburse
                                                                 </button>
                                                             </div>
                                                         </td>
