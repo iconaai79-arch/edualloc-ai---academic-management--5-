@@ -1726,6 +1726,8 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution!}
                                     onImpersonate={onLoginAsAdmin}
                                     companyDetails={companyDetails}
+                                    transactions={transactions}
+                                    invoices={invoices}
                                 />
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                 <CountyAdminView
@@ -2050,6 +2052,7 @@ export const App: React.FC = () => {
                                         await handleLogAction(`Sent SMS to ${r}`);
                                         return res;
                                     }}
+                                    onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                     smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
                                     smsBalance={activeInstitution?.smsBalance || 0}
                                     mpesaConfig={activeInstitution?.mpesaConfig || companyDetails.mpesaConfig}

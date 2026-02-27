@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Institution, CompanyDetails } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon } from './icons';
+import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyDollarIcon, HistoryIcon, ArrowUpRightIcon } from './icons';
 import { SparklesIcon } from './icons';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -11,13 +11,16 @@ interface ResellerDashboardProps {
     currentInstitution: Institution;
     onImpersonate: (tenantId: string) => void;
     companyDetails: CompanyDetails;
+    transactions: MpesaTransaction[];
+    invoices: Invoice[];
 }
 
-const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, currentInstitution, onImpersonate, companyDetails }) => {
+const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, currentInstitution, onImpersonate, companyDetails, transactions, invoices }) => {
     const [tenants, setTenants] = useState<Institution[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState<'clients' | 'commissions'>('clients');
     const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
 
     // New Tenant Form State
@@ -178,6 +181,37 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const trialTenants = tenants.filter(t => t.status === 'trial').length;
     const totalUsers = allUsers.length;
 
+    // Commission Logic
+    const tenantIds = tenants.map(t => t.id);
+    const commissionTransactions = transactions.filter(tx => tenantIds.includes(tx.institutionId) && tx.status === 'completed');
+
+    const calculateCommission = (tx: MpesaTransaction) => {
+        const tenant = tenants.find(t => t.id === tx.institutionId);
+        if (!tenant) return 0;
+
+        const baseMonthly = companyDetails.subscriptionConfig.defaultMonthlyPrice;
+        const baseYearly = companyDetails.subscriptionConfig.defaultYearlyPrice;
+        const tenantMonthly = tenant.customSubscriptionPrice?.monthly || baseMonthly;
+        const tenantYearly = tenant.customSubscriptionPrice?.yearly || baseYearly;
+
+        // If amount matches yearly pricing
+        if (Math.abs(tx.amount - tenantYearly) < 1) return Math.max(0, tenantYearly - baseYearly);
+        // If amount matches monthly
+        if (Math.abs(tx.amount - tenantMonthly) < 1) return Math.max(0, tenantMonthly - baseMonthly);
+
+        // For multi-month or partial payments, calculate proportional commission
+        const monthlyCommission = tenantMonthly - baseMonthly;
+        if (monthlyCommission <= 0) return 0;
+
+        const monthsCovered = tx.amount / tenantMonthly;
+        return monthsCovered * monthlyCommission;
+    };
+
+    const totalCommissions = commissionTransactions.reduce((acc, tx) => acc + calculateCommission(tx), 0);
+    // We assume any transaction with "Payout" in metadata or role specific is a disbursed amount
+    const disbursedCommissions = transactions.filter(tx => tx.institutionId === currentInstitution.id && tx.metadata?.type === 'commission_payout').reduce((acc, tx) => acc + tx.amount, 0);
+    const pendingPayout = Math.max(0, totalCommissions - disbursedCommissions);
+
     if (isLoading) {
         return (
             <div className="p-8 flex flex-col items-center justify-center">
@@ -189,52 +223,85 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
     return (
         <div className="space-y-6 animate-fade-in p-6">
-            <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                        Reseller Portal: {currentInstitution.name}
-                    </h1>
-                    <p className="text-slate-500 mt-1">Manage your clients and oversee operations.</p>
-                </div>
+            <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
                 <button
-                    onClick={() => setIsAddTenantModalOpen(true)}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm"
+                    onClick={() => setActiveTab('clients')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'clients' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <PlusIcon className="w-5 h-5" />
-                    Onboard New Client
+                    Client Portfolio
+                </button>
+                <button
+                    onClick={() => setActiveTab('commissions')}
+                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'commissions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Earnings & Commissions
                 </button>
             </div>
 
-            {/* Metrics Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
-                    <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
-                        <BuildingOfficeIcon className="w-8 h-8" />
+            {activeTab === 'clients' ? (
+                <>
+                    {/* Metrics Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
+                                <BuildingOfficeIcon className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium tracking-tight">Active Clients</p>
+                                <p className="text-3xl font-black text-slate-900">{activeTenants}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="p-4 bg-amber-50 text-amber-600 rounded-xl">
+                                <ChartBarIcon className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium tracking-tight">Trial Clients</p>
+                                <p className="text-3xl font-black text-slate-900">{trialTenants}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="p-4 bg-blue-50 text-blue-600 rounded-xl">
+                                <UserGroupIcon className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-slate-500 font-medium tracking-tight">Total Managed Users</p>
+                                <p className="text-3xl font-black text-slate-900">{totalUsers}</p>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">Active Clients</p>
-                        <p className="text-3xl font-bold text-slate-800">{activeTenants}</p>
+                </>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-indigo-500">
+                        <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <CurrencyDollarIcon className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Total Earned</p>
+                            <p className="text-3xl font-black text-slate-900 font-mono">KES {totalCommissions.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-emerald-500">
+                        <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <ArrowUpRightIcon className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Pending Payout</p>
+                            <p className="text-3xl font-black text-emerald-600 font-mono">KES {pendingPayout.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-amber-500">
+                        <div className="p-4 bg-amber-50 text-amber-600 rounded-xl">
+                            <HistoryIcon className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">Disbursed to Date</p>
+                            <p className="text-3xl font-black text-slate-900 font-mono">KES {disbursedCommissions.toLocaleString()}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
-                    <div className="p-4 bg-amber-50 text-amber-600 rounded-xl">
-                        <ChartBarIcon className="w-8 h-8" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">Trial Clients</p>
-                        <p className="text-3xl font-bold text-slate-800">{trialTenants}</p>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4">
-                    <div className="p-4 bg-blue-50 text-blue-600 rounded-xl">
-                        <UserGroupIcon className="w-8 h-8" />
-                    </div>
-                    <div>
-                        <p className="text-sm text-slate-500 font-medium">Total Managed Users</p>
-                        <p className="text-3xl font-bold text-slate-800">{totalUsers}</p>
-                    </div>
-                </div>
-            </div>
+            )}
 
             {/* Agency Invite Link */}
             <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl p-8 mb-8 text-white shadow-xl shadow-indigo-200/50 relative overflow-hidden group">
@@ -267,91 +334,159 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 </div>
             </div>
 
-            {/* Client List */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h2 className="text-lg font-bold text-slate-800">Your Portfolio</h2>
-                    <input
-                        type="text"
-                        placeholder="Search clients..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-64 transition-all"
-                    />
-                </div>
+            {activeTab === 'clients' ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h2 className="text-lg font-bold text-slate-800">Your Portfolio</h2>
+                        <input
+                            type="text"
+                            placeholder="Search clients..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-64 transition-all"
+                        />
+                    </div>
 
-                {filteredTenants.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500">
-                        <BuildingOfficeIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                        <p className="text-lg font-medium text-slate-700">No clients found</p>
-                        <p className="text-sm">You haven't onboarded any clients yet, or no clients match your search.</p>
+                    {filteredTenants.length === 0 ? (
+                        <div className="p-12 text-center text-slate-500">
+                            <BuildingOfficeIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                            <p className="text-lg font-medium text-slate-700">No clients found</p>
+                            <p className="text-sm">You haven't onboarded any clients yet, or no clients match your search.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client Name</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Users</th>
+                                        <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredTenants.map(tenant => {
+                                        const tenantUsers = allUsers.filter(u => u.institutionId === tenant.id).length;
+                                        return (
+                                            <tr key={tenant.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="py-4 px-6">
+                                                    <div className="font-medium text-slate-800">{tenant.name}</div>
+                                                    <div className="text-sm text-slate-500">{tenant.email}</div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                                                        {tenant.institutionType}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenant.status === 'active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                                        tenant.status === 'trial' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                                                            'bg-red-100 text-red-800 border border-red-200'
+                                                        }`}>
+                                                        {tenant.status.toUpperCase()}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-1 text-slate-600">
+                                                        <UserGroupIcon className="w-4 h-4 text-slate-400" />
+                                                        <span className="font-medium">{tenantUsers}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6 text-right flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => openEditPricing(tenant)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                                        title="Adjust subscription pricing for this client"
+                                                    >
+                                                        <CreditCardIcon className="w-4 h-4" />
+                                                        Pricing
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onImpersonate(tenant.id)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                                        title="Log in as this client to provide support"
+                                                    >
+                                                        <LockClosedIcon className="w-4 h-4" />
+                                                        Access
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h2 className="text-lg font-bold text-slate-800">Commission History</h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Filter by Tenant</span>
+                            <select
+                                className="border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                onChange={() => { }} // TODO: Implement filtering
+                            >
+                                <option value="all">All Clients</option>
+                                {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </div>
                     </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-slate-50 border-b border-slate-100">
-                                <tr>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client Name</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                    <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Users</th>
-                                    <th className="text-right py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredTenants.map(tenant => {
-                                    const tenantUsers = allUsers.filter(u => u.institutionId === tenant.id).length;
-                                    return (
-                                        <tr key={tenant.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-4 px-6">
-                                                <div className="font-medium text-slate-800">{tenant.name}</div>
-                                                <div className="text-sm text-slate-500">{tenant.email}</div>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                                                    {tenant.institutionType}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tenant.status === 'active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                                                    tenant.status === 'trial' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                                                        'bg-red-100 text-red-800 border border-red-200'
-                                                    }`}>
-                                                    {tenant.status.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <div className="flex items-center gap-1 text-slate-600">
-                                                    <UserGroupIcon className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-medium">{tenantUsers}</span>
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-6 text-right flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => openEditPricing(tenant)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                                                    title="Adjust subscription pricing for this client"
-                                                >
-                                                    <CreditCardIcon className="w-4 h-4" />
-                                                    Pricing
-                                                </button>
-                                                <button
-                                                    onClick={() => onImpersonate(tenant.id)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                                                    title="Log in as this client to provide support"
-                                                >
-                                                    <LockClosedIcon className="w-4 h-4" />
-                                                    Access
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+
+                    {commissionTransactions.length === 0 ? (
+                        <div className="p-12 text-center text-slate-500">
+                            <CurrencyDollarIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                            <p className="text-lg font-medium text-slate-700">No earnings yet</p>
+                            <p className="text-sm">When your clients make subscription payments, your commissions will appear here.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Amount</th>
+                                        <th className="text-left py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Base Rate</th>
+                                        <th className="text-right py-4 px-6 text-xs font-semibold text-indigo-600 uppercase tracking-wider">Your Commission</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {commissionTransactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map(tx => {
+                                        const tenant = tenants.find(t => t.id === tx.institutionId);
+                                        const commission = calculateCommission(tx);
+                                        const baseRate = tx.amount - commission;
+                                        return (
+                                            <tr key={tx.id} className="hover:bg-indigo-50/30 transition-colors">
+                                                <td className="py-4 px-6 text-sm text-slate-600 whitespace-nowrap">
+                                                    {new Date(tx.timestamp).toLocaleDateString()}
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <div className="font-bold text-slate-800">{tenant?.name || 'Unknown Client'}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{tx.transactionId}</div>
+                                                </td>
+                                                <td className="py-4 px-6 font-mono text-sm text-slate-700 font-bold">
+                                                    KES {tx.amount.toLocaleString()}
+                                                </td>
+                                                <td className="py-4 px-6 font-mono text-xs text-slate-500">
+                                                    KES {baseRate.toLocaleString()}
+                                                </td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <div className="text-indigo-600 font-black font-mono">
+                                                        +KES {commission.toLocaleString()}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Add Tenant Modal */}
             {isAddTenantModalOpen && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction } from '../types';
 import { apiService } from '../services/apiService';
 import { PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon, ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, StarIcon, UserIcon, ArrowPathIcon, ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon, EnvelopeIcon } from './icons/index';
 import { CommunicationsManager } from './CommunicationsManager';
@@ -53,7 +53,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, inv, fbs, shiftList] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -166,13 +166,33 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     // ── Customer Form ──
     const [custForm, setCustForm] = useState({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' as CarWashVehicleType });
     const handleCreateCustomer = async () => {
-        const cust: CarWashCustomer = { id: `cwc_${Date.now()}`, institutionId, name: custForm.name, phoneNumber: custForm.phoneNumber, email: custForm.email, loyaltyStamps: 0, stampsForFreeWash: 10, createdAt: new Date().toISOString() };
+        if (!custForm.name || !custForm.phoneNumber) {
+            alert('Please provide at least a name and phone number');
+            return;
+        }
+
+        const customerId = `cwc_${Date.now()}`;
+        const cust: CarWashCustomer = { id: customerId, institutionId, name: custForm.name, phoneNumber: custForm.phoneNumber, email: custForm.email, loyaltyStamps: 0, stampsForFreeWash: 10, createdAt: new Date().toISOString() };
+
         await apiService.saveModuleRecord('carwash_customers', cust);
+
         if (custForm.plateNumber) {
             const veh: CarWashVehicle = { id: `cwv_${Date.now()}`, institutionId, customerId: cust.id, plateNumber: custForm.plateNumber.toUpperCase(), make: custForm.make, model: custForm.model, color: custForm.color, vehicleType: custForm.vehicleType };
             await apiService.saveModuleRecord('carwash_vehicles', veh);
         }
-        setShowNewCustomerModal(false); setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' });
+
+        // If we were adding from the job modal, auto-select this customer and plate
+        if (showNewJobModal) {
+            setJobForm(prev => ({
+                ...prev,
+                customerId: customerId,
+                vehiclePlate: custForm.plateNumber || prev.vehiclePlate,
+                vehicleType: custForm.vehicleType || prev.vehicleType
+            }));
+        }
+
+        setShowNewCustomerModal(false);
+        setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' });
         loadData();
     };
 
@@ -675,7 +695,22 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div><label className={labelCls}>Bay #</label><input type="number" className={inputCls} value={jobForm.bayNumber} onChange={e => setJobForm({ ...jobForm, bayNumber: +e.target.value })} min={1} max={20} /></div>
                             </div>
                             <div><label className={labelCls}>Package</label><select className={inputCls} value={jobForm.packageId} onChange={e => setJobForm({ ...jobForm, packageId: e.target.value })}><option value="">-- Select --</option>{packages.filter(p => p.isActive).map(p => <option key={p.id} value={p.id}>{p.name} — KES {p.pricing[jobForm.vehicleType] || 'N/A'}</option>)}</select></div>
-                            <div><label className={labelCls}>Customer (optional)</label><select className={inputCls} value={jobForm.customerId} onChange={e => setJobForm({ ...jobForm, customerId: e.target.value })}><option value="">-- Walk-in --</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phoneNumber})</option>)}</select></div>
+                            <div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className={labelCls}>Customer (optional)</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewCustomerModal(true)}
+                                        className="text-[10px] font-black text-cyan-600 uppercase hover:underline flex items-center gap-1"
+                                    >
+                                        <PlusIcon className="w-3 h-3" /> New Customer
+                                    </button>
+                                </div>
+                                <select className={inputCls} value={jobForm.customerId} onChange={e => setJobForm({ ...jobForm, customerId: e.target.value })}>
+                                    <option value="">-- Walk-in --</option>
+                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phoneNumber})</option>)}
+                                </select>
+                            </div>
                             <div><label className={labelCls}>Attendant</label><select className={inputCls} value={jobForm.attendantId} onChange={e => setJobForm({ ...jobForm, attendantId: e.target.value })}><option value="">-- Unassigned --</option>{attendants.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
                             <div><label className={labelCls}>Payment Method</label><select className={inputCls} value={jobForm.paymentMethod} onChange={e => setJobForm({ ...jobForm, paymentMethod: e.target.value as CarWashPaymentMethod })}>{PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
                             <div><label className={labelCls}>Add-ons</label><div className="flex flex-wrap gap-2">{ADD_ONS.map(ao => <button key={ao} type="button" onClick={() => setJobForm(prev => ({ ...prev, addOns: prev.addOns.includes(ao) ? prev.addOns.filter(x => x !== ao) : [...prev.addOns, ao] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${jobForm.addOns.includes(ao) ? 'bg-cyan-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>{ao}</button>)}</div></div>

@@ -724,6 +724,7 @@ export interface MpesaTransaction {
     amount: number;
     phoneNumber: string;
     payerName: string;
+    description?: string;
     timestamp: string;
     status: TransactionStatus;
     metadata?: any;
