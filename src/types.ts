@@ -1421,6 +1421,81 @@ export interface BoardingCheckOutWithDetails extends BoardingCheckOut {
 }
 
 // ============================================================================
+// CAR WASH ACCOUNTING TYPES
+// ============================================================================
+
+export interface CarWashAccount {
+    id: string;
+    institutionId: string;
+    accountCode: string;
+    name: string;
+    type: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+    description?: string;
+    isActive: boolean;
+    createdAt: string;
+}
+
+export interface CarWashJournalEntry {
+    id: string;
+    institutionId: string;
+    entryNumber: string;
+    entryDate: string;
+    description: string;
+    referenceType?: string;
+    referenceId?: string;
+    createdBy?: string;
+    createdAt: string;
+}
+
+export interface CarWashJournalLine {
+    id: string;
+    institutionId: string;
+    entryId: string;
+    accountId: string;
+    description?: string;
+    debit: number;
+    credit: number;
+    createdAt: string;
+    // Joined field for display
+    accountName?: string;
+}
+
+export interface CarWashExpense {
+    id: string;
+    institutionId: string;
+    expenseDate: string;
+    category: string;
+    description: string;
+    amount: number;
+    paymentMethod: 'cash' | 'mpesa' | 'bank';
+    recordedBy?: string;
+    receiptUrl?: string;
+    journalEntryId?: string;
+    createdAt: string;
+}
+
+export interface CarWashPayroll {
+    id: string;
+    institutionId: string;
+    staffId: string;
+    periodStart: string;
+    periodEnd: string;
+    baseSalary: number;
+    commissions: number;
+    advancesTaken: number;
+    deductions: number;
+    netPay: number;
+    status: 'draft' | 'approved' | 'paid';
+    paymentMethod?: string;
+    paymentDate?: string;
+    journalEntryId?: string;
+    processedBy?: string;
+    createdAt: string;
+    // Joined field for display
+    staffName?: string;
+}
+
+// ============================================================================
 // TEACHER CHECK-IN TYPES
 // ============================================================================
 

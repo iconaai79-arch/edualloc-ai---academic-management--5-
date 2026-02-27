@@ -671,7 +671,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     role: 'customer' as any,
                                     institutionId: c.institutionId,
                                     isActive: true,
-                                    createdAt: c.createdAt
+                                    createdAt: c.createdAt,
+                                    expertise: []
                                 }))
                             ]}
                             departments={departments || []}
