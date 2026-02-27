@@ -3,6 +3,8 @@ import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle
 import { apiService } from '../services/apiService';
 import { PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon, ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, StarIcon, UserIcon, ArrowPathIcon, ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon, EnvelopeIcon } from './icons/index';
 import { CommunicationsManager } from './CommunicationsManager';
+import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
+import { ArrowUpTrayIcon } from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus'];
 const PAYMENT_METHODS: CarWashPaymentMethod[] = ['cash', 'mpesa', 'card', 'credit'];
@@ -44,6 +46,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
     const [showNewPackageModal, setShowNewPackageModal] = useState(false);
     const [showNewInventoryModal, setShowNewInventoryModal] = useState(false);
+    const [showSmartImporter, setShowSmartImporter] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -165,6 +168,21 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     // ── Customer Form ──
     const [custForm, setCustForm] = useState({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' as CarWashVehicleType });
+
+    const handleBulkImport = async (newCustomers: any[], newVehicles: any[]) => {
+        try {
+            await Promise.all([
+                ...newCustomers.map(c => apiService.saveModuleRecord('carwash_customers', c)),
+                ...newVehicles.map(v => apiService.saveModuleRecord('carwash_vehicles', v))
+            ]);
+            loadData();
+            onDataChange();
+        } catch (e) {
+            console.error("Bulk import failed:", e);
+            throw e;
+        }
+    };
+
     const handleCreateCustomer = async () => {
         if (!custForm.name || !custForm.phoneNumber) {
             alert('Please provide at least a name and phone number');
@@ -363,7 +381,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-black uppercase">Customer Registry</h2>
-                            <button onClick={() => setShowNewCustomerModal(true)} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> Add Customer</button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowSmartImporter(true)} className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-sm uppercase shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> Import
+                                </button>
+                                <button onClick={() => setShowNewCustomerModal(true)} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all active:scale-95 animate-pulse-subtle">
+                                    <PlusIcon className="w-4 h-4" /> Add Customer
+                                </button>
+                            </div>
                         </div>
                         <div className="relative"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers or plate..." className={inputCls + ' pl-10'} /><SearchIcon className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" /></div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -798,6 +823,37 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* SMART IMPORTER MODAL */}
+            {showSmartImporter && (
+                <SmartCarWashCustomerImporterModal
+                    institutionId={institutionId}
+                    onClose={() => setShowSmartImporter(false)}
+                    onImport={handleBulkImport}
+                />
+            )}
+
+            <style>{`
+                @keyframes pulse-subtle {
+                    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+                    50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(6, 182, 212, 0); }
+                    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+                }
+                .animate-pulse-subtle {
+                    animation: pulse-subtle 2s infinite ease-in-out;
+                }
+                .btn-save-animate {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .btn-save-animate:hover {
+                    transform: translateY(-2px) scale(1.02);
+                    filter: brightness(1.1);
+                    box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.3);
+                }
+                .btn-save-animate:active {
+                    transform: translateY(0) scale(0.98);
+                }
+            `}</style>
         </div>
     );
 };

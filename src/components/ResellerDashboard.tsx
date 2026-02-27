@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyDollarIcon, HistoryIcon, ArrowUpRightIcon } from './icons';
+import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, HistoryIcon, ArrowUpRightIcon } from './icons';
 import { SparklesIcon } from './icons';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -94,13 +94,13 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 await apiService.saveInstitution(newInst);
             } catch (instError: any) {
                 console.error("Institution Save Failed:", instError);
-                throw new Error(`Institution setup failed: ${instError.message || 'Database error'}`);
+                throw new Error(`Institution setup failed: ${instError.message || 'Database error'} `);
             }
 
             // Step 2: Prepare and Register Admin
             const newAdmin: Partial<User> = {
                 id: adminId,
-                name: `Admin - ${newTenantName}`,
+                name: `Admin - ${newTenantName} `,
                 email: newTenantEmail,
                 phoneNumber: newTenantPhone,
                 role: 'admin',
@@ -116,7 +116,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 console.error("Admin Registration Failed:", adminError);
                 // We don't rollback the institution here to avoid potential data loss if it partially worked,
                 // but we inform the user it was the user part that failed.
-                throw new Error(`Admin account setup failed: ${adminError.message || 'Registration error'}`);
+                throw new Error(`Admin account setup failed: ${adminError.message || 'Registration error'} `);
             }
 
             // Success
@@ -136,7 +136,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             alert('Congratulations! The tenant and admin account have been successfully created.');
         } catch (error: any) {
             console.error("Critical Failure in handleCreateTenant:", error);
-            alert(`detailed error report:\n\n${error.message}\n\nCheck the browser console (Inspect > Console) for full technical logs.`);
+            alert(`detailed error report: \n\n${error.message} \n\nCheck the browser console(Inspect > Console) for full technical logs.`);
         }
     };
 
@@ -159,7 +159,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             alert('Pricing updated successfully.');
         } catch (error: any) {
             console.error("Pricing Update Failed:", error);
-            alert(`Failed to update pricing: ${error.message}`);
+            alert(`Failed to update pricing: ${error.message} `);
         } finally {
             setIsUpdatingPricing(false);
         }
@@ -226,13 +226,13 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
                 <button
                     onClick={() => setActiveTab('clients')}
-                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'clients' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px - 6 py - 2 rounded - xl text - sm font - bold transition - all ${activeTab === 'clients' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'} `}
                 >
                     Client Portfolio
                 </button>
                 <button
                     onClick={() => setActiveTab('commissions')}
-                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'commissions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`px - 6 py - 2 rounded - xl text - sm font - bold transition - all ${activeTab === 'commissions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'} `}
                 >
                     Earnings & Commissions
                 </button>
@@ -318,7 +318,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     </div>
                     <div className="flex flex-col gap-3 w-full md:w-auto">
                         <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3 flex items-center justify-between gap-4 font-mono text-xs overflow-hidden">
-                            <span className="truncate opacity-80">{`${window.location.origin}/?resellerId=${currentInstitution.id}`}</span>
+                            <span className="truncate opacity-80">{`${window.location.origin} /?resellerId=${currentInstitution.id}`}</span >
                             <button
                                 onClick={() => {
                                     navigator.clipboard.writeText(`${window.location.origin}/?resellerId=${currentInstitution.id}`);
@@ -328,11 +328,11 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                             >
                                 Copy Link
                             </button>
-                        </div>
+                        </div >
                         <p className="text-[10px] font-black uppercase tracking-widest text-center md:text-right text-white/60">Recruit Unlimited Tenants</p>
-                    </div>
-                </div>
-            </div>
+                    </div >
+                </div >
+            </div >
 
             {activeTab === 'clients' ? (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -489,244 +489,248 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             )}
 
             {/* Add Tenant Modal */}
-            {isAddTenantModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="text-xl font-bold text-slate-800">Onboard New Client</h3>
-                            <button onClick={() => setIsAddTenantModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                                <span className="sr-only">Close</span>
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <form onSubmit={handleCreateTenant} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Client / Institution Name</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newTenantName}
-                                    onChange={(e) => setNewTenantName(e.target.value)}
-                                    className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                    placeholder="e.g. Greenwood High School"
-                                />
+            {
+                isAddTenantModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="text-xl font-bold text-slate-800">Onboard New Client</h3>
+                                <button onClick={() => setIsAddTenantModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                    <span className="sr-only">Close</span>
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Primary Email</label>
-                                <input
-                                    type="email"
-                                    required
-                                    value={newTenantEmail}
-                                    onChange={(e) => setNewTenantEmail(e.target.value)}
-                                    className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                    placeholder="admin@greenwood.com"
-                                />
-                                <p className="text-xs text-slate-500 mt-1">We will create a default admin account with this email.</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                                <input
-                                    type="tel"
-                                    required
-                                    value={newTenantPhone}
-                                    onChange={(e) => setNewTenantPhone(e.target.value)}
-                                    className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                    placeholder="e.g. 0712345678"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Institution Type</label>
-                                <select
-                                    value={newTenantType}
-                                    onChange={(e) => {
-                                        const val = e.target.value as any;
-                                        setNewTenantType(val);
-                                        if (val === 'Business') {
-                                            setNewTenantSubType('Agrovet');
-                                        } else {
-                                            setNewTenantSubType('');
-                                        }
-                                    }}
-                                    className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                >
-                                    <option value="Primary">Primary School</option>
-                                    <option value="Secondary">Secondary School</option>
-                                    <option value="University">University</option>
-                                    <option value="College">College</option>
-                                    <option value="Institute">Institute</option>
-                                    <option value="Polytechnic">Polytechnic</option>
-                                    <option value="Business">Business</option>
-                                </select>
-                            </div>
-
-                            {newTenantType === 'Business' && (
-                                <div className="animate-fade-in">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Business Category / Niche</label>
-                                    <select
-                                        value={newTenantSubType || 'General'}
-                                        onChange={(e) => setNewTenantSubType(e.target.value as any)}
-                                        className="w-full border border-indigo-200 bg-indigo-50/30 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium"
+                            <form onSubmit={handleCreateTenant} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Client / Institution Name</label>
+                                    <input
+                                        type="text"
                                         required
+                                        value={newTenantName}
+                                        onChange={(e) => setNewTenantName(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                        placeholder="e.g. Greenwood High School"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Primary Email</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={newTenantEmail}
+                                        onChange={(e) => setNewTenantEmail(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                        placeholder="admin@greenwood.com"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-1">We will create a default admin account with this email.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={newTenantPhone}
+                                        onChange={(e) => setNewTenantPhone(e.target.value)}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                        placeholder="e.g. 0712345678"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Institution Type</label>
+                                    <select
+                                        value={newTenantType}
+                                        onChange={(e) => {
+                                            const val = e.target.value as any;
+                                            setNewTenantType(val);
+                                            if (val === 'Business') {
+                                                setNewTenantSubType('Agrovet');
+                                            } else {
+                                                setNewTenantSubType('');
+                                            }
+                                        }}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                                     >
-                                        <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
-                                        <option value="Property Management">Property Management (Rent/Leases)</option>
-                                        <option value="Car Wash">Car Wash / Service Center</option>
-                                        <option value="Hardware">Hardware Store</option>
-                                        <option value="Pharmacy">Pharmacy / Chemist</option>
-                                        <option value="General">General Retail / Business</option>
+                                        <option value="Primary">Primary School</option>
+                                        <option value="Secondary">Secondary School</option>
+                                        <option value="University">University</option>
+                                        <option value="College">College</option>
+                                        <option value="Institute">Institute</option>
+                                        <option value="Polytechnic">Polytechnic</option>
+                                        <option value="Business">Business</option>
                                     </select>
                                 </div>
-                            )}
 
-                            <div className="pt-4 border-t border-slate-100">
-                                <h4 className="text-xs font-black uppercase text-indigo-500 mb-4 tracking-widest flex items-center gap-2">
-                                    <SparklesIcon className="w-4 h-4" /> Custom Subscription Pricing
-                                </h4>
+                                {newTenantType === 'Business' && (
+                                    <div className="animate-fade-in">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Business Category / Niche</label>
+                                        <select
+                                            value={newTenantSubType || 'General'}
+                                            onChange={(e) => setNewTenantSubType(e.target.value as any)}
+                                            className="w-full border border-indigo-200 bg-indigo-50/30 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium"
+                                            required
+                                        >
+                                            <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                                            <option value="Property Management">Property Management (Rent/Leases)</option>
+                                            <option value="Car Wash">Car Wash / Service Center</option>
+                                            <option value="Hardware">Hardware Store</option>
+                                            <option value="Pharmacy">Pharmacy / Chemist</option>
+                                            <option value="General">General Retail / Business</option>
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div className="pt-4 border-t border-slate-100">
+                                    <h4 className="text-xs font-black uppercase text-indigo-500 mb-4 tracking-widest flex items-center gap-2">
+                                        <SparklesIcon className="w-4 h-4" /> Custom Subscription Pricing
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly Price (KES)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min={companyDetails.subscriptionConfig.defaultMonthlyPrice}
+                                                value={newTenantMonthlyPrice}
+                                                onChange={(e) => setNewTenantMonthlyPrice(Number(e.target.value))}
+                                                className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                            />
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly Price (KES)</label>
+                                            <input
+                                                type="number"
+                                                required
+                                                min={companyDetails.subscriptionConfig.defaultYearlyPrice}
+                                                value={newTenantYearlyPrice}
+                                                onChange={(e) => setNewTenantYearlyPrice(Number(e.target.value))}
+                                                className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                            />
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    {(newTenantMonthlyPrice > companyDetails.subscriptionConfig.defaultMonthlyPrice || newTenantYearlyPrice > companyDetails.subscriptionConfig.defaultYearlyPrice) && (
+                                        <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Monthly)</p>
+                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Yearly)</p>
+                                                <p className="text-sm font-bold text-indigo-900">KES {(newTenantYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddTenantModalOpen(false)}
+                                        className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm"
+                                    >
+                                        Provision Account
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Edit Pricing Modal */}
+            {
+                isEditPricingModalOpen && selectedTenantForPricing && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in border border-indigo-100">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50/30">
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-800">Edit Subscription Pricing</h3>
+                                    <p className="text-xs text-indigo-600 font-medium">{selectedTenantForPricing.name}</p>
+                                </div>
+                                <button onClick={() => setIsEditPricingModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                    <span className="sr-only">Close</span>
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <form onSubmit={handleUpdatePricing} className="p-6 space-y-6">
+                                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+                                    <InformationCircleIcon className="w-5 h-5 text-amber-600 shrink-0" />
+                                    <p className="text-xs text-amber-800 leading-relaxed">
+                                        Adjusting prices will affect future invoices for this tenant. Pricing must not be lower than the system's base rate.
+                                    </p>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly Price (KES)</label>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly (KES)</label>
                                         <input
                                             type="number"
                                             required
                                             min={companyDetails.subscriptionConfig.defaultMonthlyPrice}
-                                            value={newTenantMonthlyPrice}
-                                            onChange={(e) => setNewTenantMonthlyPrice(Number(e.target.value))}
-                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                            value={editMonthlyPrice}
+                                            onChange={(e) => setEditMonthlyPrice(Number(e.target.value))}
+                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
                                         <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly Price (KES)</label>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly (KES)</label>
                                         <input
                                             type="number"
                                             required
                                             min={companyDetails.subscriptionConfig.defaultYearlyPrice}
-                                            value={newTenantYearlyPrice}
-                                            onChange={(e) => setNewTenantYearlyPrice(Number(e.target.value))}
-                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                            value={editYearlyPrice}
+                                            onChange={(e) => setEditYearlyPrice(Number(e.target.value))}
+                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
                                         />
                                         <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
                                     </div>
                                 </div>
-                                {(newTenantMonthlyPrice > companyDetails.subscriptionConfig.defaultMonthlyPrice || newTenantYearlyPrice > companyDetails.subscriptionConfig.defaultYearlyPrice) && (
-                                    <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Monthly)</p>
-                                            <p className="text-sm font-bold text-indigo-900">KES {(newTenantMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Yearly)</p>
-                                            <p className="text-sm font-bold text-indigo-900">KES {(newTenantYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}</p>
-                                        </div>
+
+                                <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-indigo-600">Pending Commission</p>
+                                        <p className="text-sm font-bold text-indigo-900">
+                                            Monthly: KES {(editMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}
+                                        </p>
                                     </div>
-                                )}
-                            </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase text-indigo-600">Yearly</p>
+                                        <p className="text-sm font-bold text-indigo-900">
+                                            KES {(editYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
 
-                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsAddTenantModalOpen(false)}
-                                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm"
-                                >
-                                    Provision Account
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Pricing Modal */}
-            {isEditPricingModalOpen && selectedTenantForPricing && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in border border-indigo-100">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50/30">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Edit Subscription Pricing</h3>
-                                <p className="text-xs text-indigo-600 font-medium">{selectedTenantForPricing.name}</p>
-                            </div>
-                            <button onClick={() => setIsEditPricingModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                                <span className="sr-only">Close</span>
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditPricingModalOpen(false)}
+                                        className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
+                                    >
+                                        Discard Changes
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isUpdatingPricing || editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice || editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice}
+                                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isUpdatingPricing ? 'Updating...' : 'Save New Rates'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                        <form onSubmit={handleUpdatePricing} className="p-6 space-y-6">
-                            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
-                                <InformationCircleIcon className="w-5 h-5 text-amber-600 shrink-0" />
-                                <p className="text-xs text-amber-800 leading-relaxed">
-                                    Adjusting prices will affect future invoices for this tenant. Pricing must not be lower than the system's base rate.
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly (KES)</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        min={companyDetails.subscriptionConfig.defaultMonthlyPrice}
-                                        value={editMonthlyPrice}
-                                        onChange={(e) => setEditMonthlyPrice(Number(e.target.value))}
-                                        className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
-                                    />
-                                    <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly (KES)</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        min={companyDetails.subscriptionConfig.defaultYearlyPrice}
-                                        value={editYearlyPrice}
-                                        onChange={(e) => setEditYearlyPrice(Number(e.target.value))}
-                                        className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
-                                    />
-                                    <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
-                                </div>
-                            </div>
-
-                            <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-indigo-600">Pending Commission</p>
-                                    <p className="text-sm font-bold text-indigo-900">
-                                        Monthly: KES {(editMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}
-                                    </p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-black uppercase text-indigo-600">Yearly</p>
-                                    <p className="text-sm font-bold text-indigo-900">
-                                        KES {(editYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEditPricingModalOpen(false)}
-                                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
-                                >
-                                    Discard Changes
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isUpdatingPricing || editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice || editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice}
-                                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50"
-                                >
-                                    {isUpdatingPricing ? 'Updating...' : 'Save New Rates'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

@@ -469,3 +469,15 @@ export const analyzeBookSpreadsheet = async (headers: string[]): Promise<Record<
         return {};
     }
 };
+
+export const analyzeCarWashCustomerSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    try {
+        checkAiAvailable();
+        const prompt = `Map these spreadsheet headers to car wash customer fields: name, phoneNumber, email, plateNumber, vehicleType, make, model, color. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        return sanitizeAndParseJson(response.text || "{}");
+    } catch (error) {
+        console.error("AI car wash customer map error:", error);
+        return {};
+    }
+};
