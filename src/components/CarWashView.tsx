@@ -168,7 +168,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     // ── Customer Form ──
-    const [custForm, setCustForm] = useState({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' as CarWashVehicleType });
+    const [custForm, setCustForm] = useState({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' as CarWashVehicleType, editingId: undefined as string | undefined, originalVehicleId: undefined as string | undefined });
 
     const handleBulkImport = async (newCustomers: any[], newVehicles: any[]) => {
         try {
@@ -184,6 +184,23 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
     };
 
+    const handleEditCustomer = (cust: CarWashCustomer) => {
+        const vehicle = vehicles.find(v => v.customerId === cust.id);
+        setCustForm({
+            name: cust.name,
+            phoneNumber: cust.phoneNumber,
+            email: cust.email || '',
+            plateNumber: vehicle?.plateNumber || '',
+            make: vehicle?.make || '',
+            model: vehicle?.model || '',
+            color: vehicle?.color || '',
+            vehicleType: vehicle?.vehicleType || 'Sedan',
+            editingId: cust.id,
+            originalVehicleId: vehicle?.id
+        });
+        setShowNewCustomerModal(true);
+    };
+
     const handleCreateCustomer = async () => {
         if (!custForm.name || !custForm.phoneNumber) {
             alert('Please provide at least a name and phone number');
@@ -191,18 +208,47 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
 
         try {
-            const customerId = `cwc_${Date.now()}`;
-            const cust: CarWashCustomer = { id: customerId, institutionId, name: custForm.name, phoneNumber: custForm.phoneNumber, email: custForm.email, loyaltyStamps: 0, stampsForFreeWash: 10, createdAt: new Date().toISOString() };
+            const customerId = custForm.editingId || `cwc_${Date.now()}`;
+            const cust: CarWashCustomer = {
+                id: customerId,
+                institutionId,
+                name: custForm.name,
+                phoneNumber: custForm.phoneNumber,
+                email: custForm.email,
+                loyaltyStamps: 0,
+                stampsForFreeWash: 10,
+                createdAt: new Date().toISOString()
+            };
+
+            // If editing, preserve the original creation date and stamps by finding the existing customer
+            if (custForm.editingId) {
+                const existing = customers.find(c => c.id === custForm.editingId);
+                if (existing) {
+                    cust.loyaltyStamps = existing.loyaltyStamps;
+                    cust.stampsForFreeWash = existing.stampsForFreeWash;
+                    cust.createdAt = existing.createdAt;
+                }
+            }
 
             await apiService.saveModuleRecord('carwash_customers', cust);
 
             if (custForm.plateNumber) {
-                const veh: CarWashVehicle = { id: `cwv_${Date.now()}`, institutionId, customerId: cust.id, plateNumber: custForm.plateNumber.toUpperCase(), make: custForm.make, model: custForm.model, color: custForm.color, vehicleType: custForm.vehicleType };
+                const vehicleId = custForm.originalVehicleId || `cwv_${Date.now()}`;
+                const veh: CarWashVehicle = {
+                    id: vehicleId,
+                    institutionId,
+                    customerId: cust.id,
+                    plateNumber: custForm.plateNumber.toUpperCase(),
+                    make: custForm.make,
+                    model: custForm.model,
+                    color: custForm.color,
+                    vehicleType: custForm.vehicleType
+                };
                 await apiService.saveModuleRecord('carwash_vehicles', veh);
             }
 
             // If we were adding from the job modal, auto-select this customer and plate
-            if (showNewJobModal) {
+            if (showNewJobModal && !custForm.editingId) {
                 setJobForm(prev => ({
                     ...prev,
                     customerId: customerId,
@@ -212,7 +258,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             }
 
             setShowNewCustomerModal(false);
-            setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' });
+            setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan', editingId: undefined, originalVehicleId: undefined });
             loadData();
         } catch (e: any) {
             console.error("Save Customer Error:", e);
@@ -433,7 +479,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <button onClick={() => setShowSmartImporter(true)} className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-sm uppercase shadow-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">
                                     <ArrowUpTrayIcon className="w-4 h-4" /> Import
                                 </button>
-                                <button onClick={() => setShowNewCustomerModal(true)} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all active:scale-95 animate-pulse-subtle">
+                                <button onClick={() => { setCustForm(prev => ({ ...prev, name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan', editingId: undefined, originalVehicleId: undefined })); setShowNewCustomerModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all active:scale-95 animate-pulse-subtle">
                                     <PlusIcon className="w-4 h-4" /> Add Customer
                                 </button>
                             </div>
@@ -445,12 +491,17 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 const custJobs = jobs.filter(j => j.customerId === cust.id);
                                 return (
                                     <div key={cust.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center text-white text-xl font-black">{cust.name.charAt(0)}</div>
-                                            <div>
-                                                <p className="font-black text-sm">{cust.name}</p>
-                                                <p className="text-xs text-slate-400">{cust.phoneNumber}</p>
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center text-white text-xl font-black">{cust.name.charAt(0)}</div>
+                                                <div>
+                                                    <p className="font-black text-sm">{cust.name}</p>
+                                                    <p className="text-xs text-slate-400">{cust.phoneNumber}</p>
+                                                </div>
                                             </div>
+                                            <button onClick={() => handleEditCustomer(cust)} className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-400 hover:text-cyan-600 transition-colors">
+                                                <Cog8ToothIcon className="w-4 h-4" />
+                                            </button>
                                         </div>
                                         <div className="flex justify-between text-[10px] font-black uppercase text-slate-400 mb-2">
                                             <span>{custVehicles.length} vehicle{custVehicles.length !== 1 ? 's' : ''}</span>
@@ -776,7 +827,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <label className={labelCls}>Customer (optional)</label>
                                     <button
                                         type="button"
-                                        onClick={() => setShowNewCustomerModal(true)}
+                                        onClick={() => { setCustForm(prev => ({ ...prev, editingId: undefined, originalVehicleId: undefined })); setShowNewCustomerModal(true); }}
                                         className="text-[10px] font-black text-cyan-600 uppercase hover:underline flex items-center gap-1"
                                     >
                                         <PlusIcon className="w-3 h-3" /> New Customer
@@ -800,7 +851,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {showNewCustomerModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">New Customer</h3><button onClick={() => setShowNewCustomerModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
+                        <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">{custForm.editingId ? 'Edit Customer' : 'New Customer'}</h3><button onClick={() => setShowNewCustomerModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                             <div><label className={labelCls}>Full Name</label><input className={inputCls} value={custForm.name} onChange={e => setCustForm({ ...custForm, name: e.target.value })} placeholder="John Doe" /></div>
                             <div className="grid grid-cols-2 gap-3">
@@ -816,7 +867,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div><label className={labelCls}>Color</label><input className={inputCls} value={custForm.color} onChange={e => setCustForm({ ...custForm, color: e.target.value })} placeholder="White" /></div>
                             </div>
                         </div>
-                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewCustomerModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateCustomer} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">Save Customer</button></div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewCustomerModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateCustomer} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">{custForm.editingId ? 'Save Changes' : 'Save Customer'}</button></div>
                     </div>
                 </div>
             )}
