@@ -16,6 +16,7 @@ interface CommunicationsManagerProps {
     mpesaConfig?: MpesaConfig;
     smsConfig?: SmsConfig;
     onRefreshData?: () => void;
+    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet';
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -44,7 +45,7 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school' }) => {
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
@@ -153,9 +154,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return user ? [user] : [];
             }
             case 'all_staff':
-                return baseUsers.filter(u => u.role !== 'student');
+                return moduleContext === 'school' ? baseUsers.filter(u => u.role !== 'student') : baseUsers.filter(u => String(u.role) !== 'customer');
             case 'all_students':
                 return baseUsers.filter(u => u.role === 'student');
+            case 'all_customers':
+                return baseUsers.filter(u => String(u.role) === 'customer');
             case 'department': {
                 if (!selectedId) return [];
                 // If HOD selects their dept, they get everyone in it
@@ -439,12 +442,28 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient Group</label>
                             <select value={recipientTarget} onChange={handleRecipientTargetChange} className="form-select mt-1" aria-label="Select recipient group">
-                                <option value="individual">Individual User</option>
-                                {isSuperAdminView && <option value="institution">By Institution</option>}
-                                <option value="all_staff">All Staff</option>
-                                <option value="all_students">All Students</option>
-                                <option value="department">By Department</option>
-                                <option value="course">By Course</option>
+                                {moduleContext === 'carwash' ? (
+                                    <>
+                                        <option value="individual">Individual Recipient</option>
+                                        <option value="all_staff">All Staff</option>
+                                        <option value="all_customers">All Customers</option>
+                                    </>
+                                ) : moduleContext === 'property' ? (
+                                    <>
+                                        <option value="individual">Individual Recipient</option>
+                                        <option value="all_staff">All Staff</option>
+                                        <option value="all_tenants">All Tenants</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="individual">Individual User</option>
+                                        {isSuperAdminView && <option value="institution">By Institution</option>}
+                                        <option value="all_staff">All Staff</option>
+                                        <option value="all_students">All Students</option>
+                                        <option value="department">By Department</option>
+                                        <option value="course">By Course</option>
+                                    </>
+                                )}
                             </select>
                         </div>
 

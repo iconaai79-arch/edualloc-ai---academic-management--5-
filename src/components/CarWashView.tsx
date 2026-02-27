@@ -661,7 +661,19 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 {!loading && activeTab === 'broadcast' && (
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                         <CommunicationsManager
-                            users={users}
+                            users={[
+                                ...attendants,
+                                ...customers.map(c => ({
+                                    id: c.id,
+                                    name: c.name,
+                                    email: c.email || '',
+                                    phoneNumber: c.phoneNumber,
+                                    role: 'customer' as any,
+                                    institutionId: c.institutionId,
+                                    isActive: true,
+                                    createdAt: c.createdAt
+                                }))
+                            ]}
                             departments={departments || []}
                             courses={courses || []}
                             smsConfig={smsConfig}
@@ -669,6 +681,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             onSendSms={onSendSms}
                             currentInstitution={currentInstitution}
                             currentUser={currentUser}
+                            moduleContext="carwash"
                         />
                     </div>
                 )}
