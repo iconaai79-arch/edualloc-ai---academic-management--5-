@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Institution, CompanyDetails } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon } from './icons';
+import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon } from './icons';
 import { SparklesIcon } from './icons';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -28,6 +28,13 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [newTenantSubType, setNewTenantSubType] = useState<Institution['businessSubType']>('');
     const [newTenantMonthlyPrice, setNewTenantMonthlyPrice] = useState(companyDetails.subscriptionConfig.defaultMonthlyPrice);
     const [newTenantYearlyPrice, setNewTenantYearlyPrice] = useState(companyDetails.subscriptionConfig.defaultYearlyPrice);
+
+    // Edit Pricing State
+    const [isEditPricingModalOpen, setIsEditPricingModalOpen] = useState(false);
+    const [selectedTenantForPricing, setSelectedTenantForPricing] = useState<Institution | null>(null);
+    const [editMonthlyPrice, setEditMonthlyPrice] = useState(0);
+    const [editYearlyPrice, setEditYearlyPrice] = useState(0);
+    const [isUpdatingPricing, setIsUpdatingPricing] = useState(false);
 
     useEffect(() => {
         const loadData = async () => {
@@ -128,6 +135,38 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             console.error("Critical Failure in handleCreateTenant:", error);
             alert(`detailed error report:\n\n${error.message}\n\nCheck the browser console (Inspect > Console) for full technical logs.`);
         }
+    };
+
+    const handleUpdatePricing = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedTenantForPricing) return;
+
+        setIsUpdatingPricing(true);
+        try {
+            const updatedInst = {
+                ...selectedTenantForPricing,
+                customSubscriptionPrice: {
+                    monthly: editMonthlyPrice,
+                    yearly: editYearlyPrice
+                }
+            };
+            await apiService.saveInstitution(updatedInst);
+            setTenants(prev => prev.map(t => t.id === updatedInst.id ? updatedInst : t));
+            setIsEditPricingModalOpen(false);
+            alert('Pricing updated successfully.');
+        } catch (error: any) {
+            console.error("Pricing Update Failed:", error);
+            alert(`Failed to update pricing: ${error.message}`);
+        } finally {
+            setIsUpdatingPricing(false);
+        }
+    };
+
+    const openEditPricing = (tenant: Institution) => {
+        setSelectedTenantForPricing(tenant);
+        setEditMonthlyPrice(tenant.customSubscriptionPrice?.monthly || companyDetails.subscriptionConfig.defaultMonthlyPrice);
+        setEditYearlyPrice(tenant.customSubscriptionPrice?.yearly || companyDetails.subscriptionConfig.defaultYearlyPrice);
+        setIsEditPricingModalOpen(true);
     };
 
     const filteredTenants = tenants.filter(t =>
@@ -256,14 +295,22 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                     <span className="font-medium">{tenantUsers}</span>
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-6 text-right">
+                                            <td className="py-4 px-6 text-right flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => openEditPricing(tenant)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                                    title="Adjust subscription pricing for this client"
+                                                >
+                                                    <CreditCardIcon className="w-4 h-4" />
+                                                    Pricing
+                                                </button>
                                                 <button
                                                     onClick={() => onImpersonate(tenant.id)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
                                                     title="Log in as this client to provide support"
                                                 >
                                                     <LockClosedIcon className="w-4 h-4" />
-                                                    Access Portal
+                                                    Access
                                                 </button>
                                             </td>
                                         </tr>
@@ -422,6 +469,91 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors shadow-sm"
                                 >
                                     Provision Account
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Pricing Modal */}
+            {isEditPricingModalOpen && selectedTenantForPricing && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in border border-indigo-100">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50/30">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Edit Subscription Pricing</h3>
+                                <p className="text-xs text-indigo-600 font-medium">{selectedTenantForPricing.name}</p>
+                            </div>
+                            <button onClick={() => setIsEditPricingModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                <span className="sr-only">Close</span>
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdatePricing} className="p-6 space-y-6">
+                            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+                                <InformationCircleIcon className="w-5 h-5 text-amber-600 shrink-0" />
+                                <p className="text-xs text-amber-800 leading-relaxed">
+                                    Adjusting prices will affect future invoices for this tenant. Pricing must not be lower than the system's base rate.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly (KES)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min={companyDetails.subscriptionConfig.defaultMonthlyPrice}
+                                        value={editMonthlyPrice}
+                                        onChange={(e) => setEditMonthlyPrice(Number(e.target.value))}
+                                        className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                    />
+                                    <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly (KES)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min={companyDetails.subscriptionConfig.defaultYearlyPrice}
+                                        value={editYearlyPrice}
+                                        onChange={(e) => setEditYearlyPrice(Number(e.target.value))}
+                                        className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                    />
+                                    <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-indigo-600">Pending Commission</p>
+                                    <p className="text-sm font-bold text-indigo-900">
+                                        Monthly: KES {(editMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black uppercase text-indigo-600">Yearly</p>
+                                    <p className="text-sm font-bold text-indigo-900">
+                                        KES {(editYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditPricingModalOpen(false)}
+                                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-medium transition-colors"
+                                >
+                                    Discard Changes
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isUpdatingPricing || editMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice || editYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice}
+                                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                                >
+                                    {isUpdatingPricing ? 'Updating...' : 'Save New Rates'}
                                 </button>
                             </div>
                         </form>
