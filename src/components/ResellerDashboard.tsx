@@ -24,6 +24,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [newTenantEmail, setNewTenantEmail] = useState('');
     const [newTenantPhone, setNewTenantPhone] = useState('');
     const [newTenantType, setNewTenantType] = useState<Institution['institutionType']>('Primary');
+    const [newTenantSubType, setNewTenantSubType] = useState<Institution['businessSubType']>('');
 
     useEffect(() => {
         const loadData = async () => {
@@ -62,6 +63,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 email: newTenantEmail,
                 phoneNumber: newTenantPhone,
                 institutionType: newTenantType,
+                businessSubType: newTenantSubType,
                 status: 'trial',
                 trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                 institutionCode: generateAlphanumericCode(6),
@@ -313,16 +315,45 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Institution Type</label>
                                 <select
                                     value={newTenantType}
-                                    onChange={(e) => setNewTenantType(e.target.value as any)}
+                                    onChange={(e) => {
+                                        const val = e.target.value as any;
+                                        setNewTenantType(val);
+                                        if (val === 'Business') {
+                                            setNewTenantSubType('Agrovet');
+                                        } else {
+                                            setNewTenantSubType('');
+                                        }
+                                    }}
                                     className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                                 >
                                     <option value="Primary">Primary School</option>
                                     <option value="Secondary">Secondary School</option>
                                     <option value="University">University</option>
                                     <option value="College">College</option>
-                                    <option value="Business">Business (Agrovet/Property)</option>
+                                    <option value="Institute">Institute</option>
+                                    <option value="Polytechnic">Polytechnic</option>
+                                    <option value="Business">Business</option>
                                 </select>
                             </div>
+
+                            {newTenantType === 'Business' && (
+                                <div className="animate-fade-in">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Business Category / Niche</label>
+                                    <select
+                                        value={newTenantSubType || 'General'}
+                                        onChange={(e) => setNewTenantSubType(e.target.value as any)}
+                                        className="w-full border border-indigo-200 bg-indigo-50/30 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium"
+                                        required
+                                    >
+                                        <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                                        <option value="Property Management">Property Management (Rent/Leases)</option>
+                                        <option value="Car Wash">Car Wash / Service Center</option>
+                                        <option value="Hardware">Hardware Store</option>
+                                        <option value="Pharmacy">Pharmacy / Chemist</option>
+                                        <option value="General">General Retail / Business</option>
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                                 <button
