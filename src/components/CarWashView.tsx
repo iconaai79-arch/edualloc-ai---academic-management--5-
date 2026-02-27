@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
 import { apiService } from '../services/apiService';
-import { PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon, ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, StarIcon, UserIcon, ArrowPathIcon, ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon, EnvelopeIcon } from './icons/index';
-import { CommunicationsManager } from './CommunicationsManager';
-import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
-import { ArrowUpTrayIcon } from './icons/index';
+import {
+    PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
+    WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
+    BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
+    EnvelopeIcon, ArrowUpTrayIcon
+} from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus'];
 const PAYMENT_METHODS: CarWashPaymentMethod[] = ['cash', 'mpesa', 'card', 'credit'];
@@ -30,13 +32,23 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses
 }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
     const [vehicles, setVehicles] = useState<CarWashVehicle[]>([]);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
     const [transactions, setTransactions] = useState<MpesaTransaction[]>([]);
+
+    // Accounting State
+    const [accounts, setAccounts] = useState<CarWashAccount[]>([]);
+    const [journalEntries, setJournalEntries] = useState<CarWashJournalEntry[]>([]);
+    const [journalLines, setJournalLines] = useState<CarWashJournalLine[]>([]);
+    const [expenses, setExpenses] = useState<CarWashExpense[]>([]);
+    const [payroll, setPayroll] = useState<CarWashPayroll[]>([]);
+
+    const [financeTab, setFinanceTab] = useState<'dashboard' | 'cashbook' | 'expenses' | 'payroll'>('dashboard');
+
     const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
@@ -50,6 +62,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showSmartImporter, setShowSmartImporter] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
+    const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
+    const [showNewPayrollModal, setShowNewPayrollModal] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
     const [search, setSearch] = useState('');
@@ -57,7 +71,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -66,6 +80,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<CarWashInventoryItem>('carwash_inventory', institutionId),
                 apiService.fetchModuleRecords<CarWashFeedback>('carwash_feedback', institutionId),
                 apiService.fetchModuleRecords<CarWashShiftLog>('carwash_shifts', institutionId),
+                apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId),
+                apiService.fetchModuleRecords<CarWashJournalEntry>('carwash_journal_entries', institutionId),
+                apiService.fetchModuleRecords<CarWashJournalLine>('carwash_journal_lines', institutionId),
+                apiService.fetchModuleRecords<CarWashExpense>('carwash_expenses', institutionId),
+                apiService.fetchModuleRecords<CarWashPayroll>('carwash_payroll', institutionId),
             ]);
             setPackages(pkgs || []);
             setCustomers(custs || []);
@@ -75,6 +94,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setInventory(inv || []);
             setFeedbacks(fbs || []);
             setShifts(shiftList || []);
+            setAccounts(accs || []);
+            setJournalEntries(jEntries || []);
+            setJournalLines(jLines || []);
+            setExpenses(exps || []);
+            setPayroll(pyrl || []);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -323,6 +347,45 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
     };
 
+    // -- Expense Form --
+    const [expForm, setExpForm] = useState({ description: '', amount: 0, category: 'supplies', paymentMethod: 'cash' as CarWashExpense['paymentMethod'], expenseDate: new Date().toISOString().split('T')[0] });
+    const handleCreateExpense = async () => {
+        if (!expForm.description || !expForm.amount) return alert('Description and amount are required');
+        try {
+            const exp: CarWashExpense = {
+                id: `cwe_${Date.now()}`,
+                institutionId,
+                ...expForm,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('carwash_expenses', exp);
+            setShowNewExpenseModal(false);
+            setExpForm({ description: '', amount: 0, category: 'supplies', paymentMethod: 'cash', expenseDate: new Date().toISOString().split('T')[0] });
+            loadData();
+        } catch (e: any) { alert(`Failed: ${e.message}`); }
+    };
+
+    // -- Payroll Form --
+    const [payrlForm, setPayrlForm] = useState({ staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0, periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0], periodEnd: new Date().toISOString().split('T')[0] });
+    const handleProcessPayroll = async () => {
+        if (!payrlForm.staffId) return alert('Select staff');
+        try {
+            const pyrl: CarWashPayroll = {
+                id: `cwp_${Date.now()}`,
+                institutionId,
+                ...payrlForm,
+                totalPay: payrlForm.baseSalary + payrlForm.commissionEarned - payrlForm.advancesTaken - payrlForm.deductions,
+                status: 'paid',
+                paymentDate: new Date().toISOString(),
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('carwash_payroll', pyrl);
+            setShowNewPayrollModal(false);
+            setPayrlForm({ staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0, periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0], periodEnd: new Date().toISOString().split('T')[0] });
+            loadData();
+        } catch (e: any) { alert(`Failed: ${e.message}`); }
+    };
+
     // ── Feedback Form ──
     const [fbRating, setFbRating] = useState(5); const [fbComment, setFbComment] = useState('');
     const handleSubmitFeedback = async () => {
@@ -354,6 +417,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'feedback', label: 'Feedback', icon: <StarIcon className="w-4 h-4" /> },
         { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
         { id: 'transactions', label: 'Bills & Payments', icon: <CurrencyIcon className="w-4 h-4" /> },
+        { id: 'finance', label: 'Finance', icon: <BanknotesIcon className="w-4 h-4" /> },
     ];
 
     return (
@@ -970,6 +1034,291 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     onImport={handleBulkImport}
                 />
             )}
+
+            {/* EXPENSE MODAL */}
+            {showNewExpenseModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="bg-rose-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">Record Expense</h3><button onClick={() => setShowNewExpenseModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
+                        <div className="p-6 space-y-4">
+                            <div><label className={labelCls}>Description</label><input className={inputCls} value={expForm.description} onChange={e => setExpForm({ ...expForm, description: e.target.value })} placeholder="e.g. Soap refill" /></div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className={labelCls}>Amount (KES)</label><input type="number" className={inputCls} value={expForm.amount} onChange={e => setExpForm({ ...expForm, amount: +e.target.value })} /></div>
+                                <div><label className={labelCls}>Category</label><select className={inputCls} value={expForm.category} onChange={e => setExpForm({ ...expForm, category: e.target.value })}><option value="supplies">Supplies</option><option value="utilities">Utilities</option><option value="maintenance">Maintenance</option><option value="rent">Rent</option><option value="marketing">Marketing</option><option value="other">Other</option></select></div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className={labelCls}>Date</label><input type="date" className={inputCls} value={expForm.expenseDate} onChange={e => setExpForm({ ...expForm, expenseDate: e.target.value })} /></div>
+                                <div><label className={labelCls}>Method</label><select className={inputCls} value={expForm.paymentMethod} onChange={e => setExpForm({ ...expForm, paymentMethod: e.target.value as any })}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option><option value="bank">Bank</option></select></div>
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewExpenseModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateExpense} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-sm uppercase shadow">Save Expense</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* PAYROLL MODAL */}
+            {showNewPayrollModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
+                        <div className="bg-blue-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">Process Payroll</h3><button onClick={() => setShowNewPayrollModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            <div><label className={labelCls}>Staff Member</label><select className={inputCls} value={payrlForm.staffId} onChange={e => setPayrlForm({ ...payrlForm, staffId: e.target.value })}><option value="">-- Select --</option>{attendants.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className={labelCls}>Base Salary</label><input type="number" className={inputCls} value={payrlForm.baseSalary} onChange={e => setPayrlForm({ ...payrlForm, baseSalary: +e.target.value })} /></div>
+                                <div><label className={labelCls}>Commission</label><input type="number" className={inputCls} value={payrlForm.commissionEarned} onChange={e => setPayrlForm({ ...payrlForm, commissionEarned: +e.target.value })} /></div>
+                                <div><label className={labelCls}>Advances</label><input type="number" className={inputCls} value={payrlForm.advancesTaken} onChange={e => setPayrlForm({ ...payrlForm, advancesTaken: +e.target.value })} /></div>
+                                <div><label className={labelCls}>Deductions</label><input type="number" className={inputCls} value={payrlForm.deductions} onChange={e => setPayrlForm({ ...payrlForm, deductions: +e.target.value })} /></div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className={labelCls}>From</label><input type="date" className={inputCls} value={payrlForm.periodStart} onChange={e => setPayrlForm({ ...payrlForm, periodStart: e.target.value })} /></div>
+                                <div><label className={labelCls}>To</label><input type="date" className={inputCls} value={payrlForm.periodEnd} onChange={e => setPayrlForm({ ...payrlForm, periodEnd: e.target.value })} /></div>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl flex justify-between items-center">
+                                <span className="text-xs font-black uppercase">Net Pay:</span>
+                                <span className="text-xl font-black text-blue-600">KES {(payrlForm.baseSalary + payrlForm.commissionEarned - payrlForm.advancesTaken - payrlForm.deductions).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPayrollModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleProcessPayroll} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-sm uppercase shadow">Pay Staff</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* FINANCE TAB */}
+            {!loading && activeTab === 'finance' && (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700">
+                        <h2 className="text-xl font-black uppercase tracking-wider text-slate-800 dark:text-white px-4">Financial Cockpit</h2>
+                        <div className="flex gap-2 bg-slate-50 dark:bg-slate-900 p-1.5 rounded-2xl">
+                            {['dashboard', 'cashbook', 'expenses', 'payroll'].map(ft => (
+                                <button key={ft} onClick={() => setFinanceTab(ft as any)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${financeTab === ft ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-800'}`}>
+                                    {ft}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {financeTab === 'dashboard' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Top Level Finance Metrics Dashboard */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {[
+                                    { title: 'Total Revenue', value: `KES ${journalLines.filter(l => l.accountName === 'Service Revenue' && l.type === 'credit').reduce((s, l) => s + l.amount, 0).toLocaleString()}`, icon: <CurrencyIcon className="w-6 h-6 text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                                    { title: 'Total Expenses', value: `KES ${expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}`, icon: <ChartPieIcon className="w-6 h-6 text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                                    { title: 'Payroll Disbursed', value: `KES ${payroll.filter(p => p.status === 'paid').reduce((s, p) => s + p.totalPay, 0).toLocaleString()}`, icon: <UserGroupIcon className="w-6 h-6 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                                    { title: 'Cash on Hand', value: `KES ${accounts.filter(a => a.type === 'asset' && a.name.includes('Cash')).reduce((s, a) => s + a.balance, 0).toLocaleString()}`, icon: <BanknotesIcon className="w-6 h-6 text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-900/20' }
+                                ].map((stat, idx) => (
+                                    <div key={idx} className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${stat.bg}`}>
+                                                {stat.icon}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.title}</p>
+                                                <p className="text-xl font-black tracking-tight">{stat.value}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Accounts Overview */}
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="font-black uppercase tracking-widest text-sm">Chart of Accounts Status</h3>
+                                    <button className="text-xs font-bold text-cyan-600 hover:text-cyan-700 bg-cyan-50 dark:bg-cyan-900/30 px-4 py-2 rounded-xl transition-colors">
+                                        View Trial Balance →
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {accounts.map(acc => (
+                                        <div key={acc.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex justify-between items-center group hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-500">{acc.code} <span className="uppercase text-[9px] ml-1 tracking-wider text-slate-400">({acc.type})</span></p>
+                                                <p className="font-black text-sm">{acc.name}</p>
+                                            </div>
+                                            <p className={`font-black ${acc.balance < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                                {acc.balance.toLocaleString()}
+                                            </p>
+                                        </div>
+                                    ))}
+                                    {accounts.length === 0 && (
+                                        <div className="col-span-full py-8 text-center text-slate-400">
+                                            <BanknotesIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                            <p className="font-bold text-sm">No accounts initialized yet.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {financeTab === 'cashbook' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                                <div>
+                                    <h3 className="font-black uppercase tracking-widest text-sm">General Journal / Cashbook</h3>
+                                    <p className="text-xs text-slate-400 mt-1">All standardized accounting entries across the module.</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="text-[10px] uppercase font-black text-slate-400 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th className="px-6 py-4">Date</th>
+                                            <th className="px-6 py-4">Reference/Description</th>
+                                            <th className="px-6 py-4">Account</th>
+                                            <th className="px-6 py-4 text-right text-emerald-600">Debit (KES)</th>
+                                            <th className="px-6 py-4 text-right text-rose-500">Credit (KES)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {journalEntries.flatMap(entry => {
+                                            const lines = journalLines.filter(l => l.entryId === entry.id);
+                                            return lines.map((line, idx) => (
+                                                <tr key={line.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group">
+                                                    {idx === 0 ? (
+                                                        <>
+                                                            <td className="px-6 py-4 text-xs font-bold text-slate-500 align-top" rowSpan={lines.length}>
+                                                                {new Date(entry.entryDate).toLocaleDateString()}
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top" rowSpan={lines.length}>
+                                                                <p className="font-black text-xs">{entry.entryNumber}</p>
+                                                                <p className="text-xs text-slate-400 italic max-w-xs truncate" title={entry.description}>{entry.description}</p>
+                                                            </td>
+                                                        </>
+                                                    ) : null}
+                                                    <td className={`px-6 py-3 font-semibold text-xs ${line.type === 'credit' ? 'pl-10 text-slate-500' : ''}`}>
+                                                        {line.accountName}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-black text-emerald-600">
+                                                        {line.type === 'debit' ? line.amount.toLocaleString() : ''}
+                                                    </td>
+                                                    <td className="px-6 py-3 text-right font-black text-rose-500">
+                                                        {line.type === 'credit' ? line.amount.toLocaleString() : ''}
+                                                    </td>
+                                                </tr>
+                                            ));
+                                        })}
+                                        {journalEntries.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                                    <ArchiveBoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                    <p className="font-bold">No journal entries found.</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {financeTab === 'expenses' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                                <div>
+                                    <h3 className="font-black uppercase tracking-widest text-sm">Operating Expenses</h3>
+                                    <p className="text-xs text-slate-400 mt-1">Record and manage daily car wash expenditures.</p>
+                                </div>
+                                <button onClick={() => setShowNewExpenseModal(true)} className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-rose-600 transition-all">
+                                    <PlusIcon className="w-4 h-4" /> Record Expense
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="text-[10px] uppercase font-black text-slate-400 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th className="px-6 py-4">Date</th>
+                                            <th className="px-6 py-4">Category</th>
+                                            <th className="px-6 py-4">Description</th>
+                                            <th className="px-6 py-4">Payment Method</th>
+                                            <th className="px-6 py-4 text-right">Amount (KES)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {expenses.map(exp => (
+                                            <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                                <td className="px-6 py-4 font-bold text-slate-500">{new Date(exp.expenseDate).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-black uppercase text-slate-500">{exp.category}</span></td>
+                                                <td className="px-6 py-4 font-semibold">{exp.description}</td>
+                                                <td className="px-6 py-4 capitalize text-slate-500 font-medium">{exp.paymentMethod.replace('_', ' ')}</td>
+                                                <td className="px-6 py-4 text-right font-black text-rose-500">{exp.amount.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                        {expenses.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                                    <ChartPieIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                    <p className="font-bold">No expenses recorded yet.</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {financeTab === 'payroll' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                                <div>
+                                    <h3 className="font-black uppercase tracking-widest text-sm">Staff Commissions & Payroll</h3>
+                                    <p className="text-xs text-slate-400 mt-1">Manage attendant commissions and salary disbursements.</p>
+                                </div>
+                                <button onClick={() => setShowNewPayrollModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-blue-700 transition-all">
+                                    <PlusIcon className="w-4 h-4" /> Process Payroll
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="text-[10px] uppercase font-black text-slate-400 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th className="px-6 py-4">Period</th>
+                                            <th className="px-6 py-4">Staff Member</th>
+                                            <th className="px-6 py-4 text-right">Base Salary</th>
+                                            <th className="px-6 py-4 text-right">Commission</th>
+                                            <th className="px-6 py-4 text-right">Deductions</th>
+                                            <th className="px-6 py-4 text-right">Net Pay (KES)</th>
+                                            <th className="px-6 py-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {payroll.map(pr => {
+                                            const staff = attendants.find(a => a.id === pr.staffId);
+                                            return (
+                                                <tr key={pr.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                                    <td className="px-6 py-4 font-bold text-slate-500">{new Date(pr.periodStart).toLocaleDateString()} - {new Date(pr.periodEnd).toLocaleDateString()}</td>
+                                                    <td className="px-6 py-4 font-black">{staff?.name || 'Unknown Staff'}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-slate-500">{pr.baseSalary.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{pr.commissionEarned.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-rose-500">-{pr.deductions.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-black text-blue-600">{pr.totalPay.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${pr.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                            {pr.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {payroll.length === 0 && (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                                                    <UserGroupIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                    <p className="font-bold">No payroll records found.</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            )}
+
 
             <style>{`
                 @keyframes pulse-subtle {

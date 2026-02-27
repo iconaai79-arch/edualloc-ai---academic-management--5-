@@ -1,6 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { User, Institution, BedAllocationWithDetails, BoardingCheckIn, BoardingCheckOut, ClearanceStatus } from '../types';
-import { CheckCircleIcon, XCircleIcon, SearchIcon, CameraIcon, UploadIcon, XIcon, ExclamationTriangleIcon } from './icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    User, Institution, BedAllocationWithDetails,
+    BoardingCheckIn, BoardingCheckOut, ClearanceStatus
+} from '../types';
+import {
+    PlusIcon, Edit2Icon, Trash2Icon, BedIcon, XIcon,
+    ChevronRightIcon, GridIcon, ListIcon, TrashIcon, CheckCircleIcon,
+    HomeIcon, InformationCircleIcon, ArrowPathIcon, CalendarDaysIcon,
+    ShieldIcon, AlertTriangleIcon, SearchIcon, ClockIcon, UserIcon, ArrowRightOnRectangleIcon as DepartureIcon, ArrowTrendingUpIcon as ArrivalIcon,
+    CameraIcon, UploadIcon, ClipboardListIcon, XCircleIcon, ArrowRightIcon
+} from './icons';
 import { apiService } from '../services/apiService';
 
 interface CheckInOutManagerProps {
@@ -16,14 +25,15 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
     onLogAction,
     onDataChange
 }) => {
-    const [activeTab, setActiveTab] = useState<'checkin' | 'checkout'>('checkin');
+    const [activeView, setActiveView] = useState<'arrival' | 'departure'>('arrival');
     const [allocations, setAllocations] = useState<BedAllocationWithDetails[]>([]);
     const [checkIns, setCheckIns] = useState<BoardingCheckIn[]>([]);
     const [checkOuts, setCheckOuts] = useState<BoardingCheckOut[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [showCheckInModal, setShowCheckInModal] = useState(false);
-    const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+
+    // Modal State
+    const [showProcessModal, setShowProcessModal] = useState(false);
     const [selectedAllocation, setSelectedAllocation] = useState<BedAllocationWithDetails | null>(null);
 
     const [checkInForm, setCheckInForm] = useState({
@@ -58,79 +68,62 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
                 loadCheckIns(),
                 loadCheckOuts()
             ]);
-            await onLogAction('Viewed check-in/out manager');
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('Error synchronizing logistics:', error);
         } finally {
             setLoading(false);
         }
     };
 
     const loadAllocations = async () => {
-        try {
-            const data = await apiService.fetchBedAllocations(currentInstitution.id);
-
-            const transformed = data?.map((a: any) => ({
-                ...a,
-                studentName: a.usersStudentIdFkey.name,
-                allocatedByName: a.usersAllocatedByFkey.name,
-                bedNumber: a.boardingBeds.bedNumber,
-                roomNumber: a.boardingBeds.boardingRooms.roomNumber,
-                houseName: a.boardingBeds.boardingRooms.boardingHouses.name,
-                hasCheckedIn: a.boardingCheckins && a.boardingCheckins.length > 0,
-                hasCheckedOut: a.boardingCheckouts && a.boardingCheckouts.length > 0
-            })) || [];
-
-            setAllocations(transformed);
-        } catch (error) {
-            console.error('Error loading allocations:', error);
-        }
+        const data = await apiService.fetchBedAllocations(currentInstitution.id);
+        const transformed = (data || []).map((a: any) => ({
+            ...a,
+            studentName: a.usersStudentIdFkey?.name || 'Anonymous Student',
+            allocatedByName: a.usersAllocatedByFkey?.name || 'System Admin',
+            bedNumber: a.boardingBeds?.bedNumber || 'N/A',
+            roomNumber: a.boardingBeds?.boardingRooms?.roomNumber || 'N/A',
+            houseName: a.boardingBeds?.boardingRooms?.boardingHouses?.name || 'N/A',
+            hasCheckedIn: (a.boardingCheckins?.length || 0) > 0,
+            hasCheckedOut: (a.boardingCheckouts?.length || 0) > 0
+        }));
+        setAllocations(transformed);
     };
 
     const loadCheckIns = async () => {
-        try {
-            const data = await apiService.fetchBoardingCheckIns(currentInstitution.id);
-            setCheckIns(data || []);
-        } catch (error) {
-            console.error('Error loading check-ins:', error);
-        }
+        const data = await apiService.fetchBoardingCheckIns(currentInstitution.id);
+        setCheckIns(data || []);
     };
 
     const loadCheckOuts = async () => {
-        try {
-            const data = await apiService.fetchBoardingCheckOuts(currentInstitution.id);
-            setCheckOuts(data || []);
-        } catch (error) {
-            console.error('Error loading check-outs:', error);
+        const data = await apiService.fetchBoardingCheckOuts(currentInstitution.id);
+        setCheckOuts(data || []);
+    };
+
+    const handleOpenProcessModal = (allocation: BedAllocationWithDetails) => {
+        setSelectedAllocation(allocation);
+        if (activeView === 'arrival') {
+            setCheckInForm({
+                conditionNotes: '',
+                itemsInventory: {
+                    mattress: 'Good',
+                    pillow: 'Present',
+                    blanket: 'Present',
+                    bedsheet: 'Present',
+                    desk: 'Good',
+                    chair: 'Good'
+                },
+                photoUrl: ''
+            });
+        } else {
+            setCheckOutForm({
+                conditionNotes: '',
+                damageReport: '',
+                clearanceStatus: 'Pending',
+                photoUrl: ''
+            });
         }
-    };
-
-    const handleOpenCheckInModal = (allocation: BedAllocationWithDetails) => {
-        setSelectedAllocation(allocation);
-        setCheckInForm({
-            conditionNotes: '',
-            itemsInventory: {
-                mattress: 'Good',
-                pillow: 'Present',
-                blanket: 'Present',
-                bedsheet: 'Present',
-                desk: 'Good',
-                chair: 'Good'
-            },
-            photoUrl: ''
-        });
-        setShowCheckInModal(true);
-    };
-
-    const handleOpenCheckOutModal = (allocation: BedAllocationWithDetails) => {
-        setSelectedAllocation(allocation);
-        setCheckOutForm({
-            conditionNotes: '',
-            damageReport: '',
-            clearanceStatus: 'Pending',
-            photoUrl: ''
-        });
-        setShowCheckOutModal(true);
+        setShowProcessModal(true);
     };
 
     const handleCheckIn = async (e: React.FormEvent) => {
@@ -148,20 +141,17 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
                 conditionNotes: checkInForm.conditionNotes,
                 itemsInventory: checkInForm.itemsInventory,
                 photoUrl: checkInForm.photoUrl,
-                id: `checkin_${Date.now()}`
+                id: `checkin_${Date.now()} `
             };
 
             await apiService.saveModuleRecord('boarding_checkins', payload);
+            await onLogAction(`Security: Confirmed check -in for ${selectedAllocation.studentName}`);
 
-            await onLogAction(`Checked in ${selectedAllocation.studentName} to bed ${selectedAllocation.bedNumber}`);
-            alert('Student checked in successfully!');
-
-            setShowCheckInModal(false);
+            setShowProcessModal(false);
             loadData();
             onDataChange();
-        } catch (error: any) {
-            console.error('Error checking in:', error);
-            alert(`Failed to check in student: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            alert('Logistics failure: Unable to commit check-in record.');
         }
     };
 
@@ -181,372 +171,344 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
                 damageReport: checkOutForm.damageReport,
                 clearanceStatus: checkOutForm.clearanceStatus,
                 photoUrl: checkOutForm.photoUrl,
-                id: `checkout_${Date.now()}`
+                id: `checkout_${Date.now()} `
             };
 
             await apiService.saveModuleRecord('boarding_checkouts', payload);
 
-            // Update allocation status to Completed
+            // Auto-complete allocation
             await apiService.saveModuleRecord('bed_allocations', {
                 ...selectedAllocation,
-                status: 'Completed'
+                status: 'Completed' as const
             } as any);
 
-            await onLogAction(`Checked out ${selectedAllocation.studentName} from bed ${selectedAllocation.bedNumber}`);
-            alert('Student checked out successfully!');
+            await onLogAction(`Security: Confirmed check - out for ${selectedAllocation.studentName}`);
 
-            setShowCheckOutModal(false);
+            setShowProcessModal(false);
             loadData();
             onDataChange();
-        } catch (error: any) {
-            console.error('Error checking out:', error);
-            alert(`Failed to check out student: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            alert('Logistics failure: Unable to commit check-out record.');
         }
     };
 
-    const filteredAllocations = allocations.filter(allocation =>
-        allocation.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        allocation.bedNumber.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredRecords = useMemo(() => {
+        return allocations.filter(a => {
+            const matchesSearch = a.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                a.bedNumber.toLowerCase().includes(searchTerm.toLowerCase());
+            if (activeView === 'arrival') return matchesSearch && !a.hasCheckedIn;
+            return matchesSearch && a.hasCheckedIn && !a.hasCheckedOut;
+        });
+    }, [allocations, activeView, searchTerm]);
 
-    const pendingCheckIns = filteredAllocations.filter(a => !a.hasCheckedIn);
-    const pendingCheckOuts = filteredAllocations.filter(a => a.hasCheckedIn && !a.hasCheckedOut);
+    const stats = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        return {
+            pendingArrivals: allocations.filter(a => !a.hasCheckedIn).length,
+            pendingDepartures: allocations.filter(a => a.hasCheckedIn && !a.hasCheckedOut).length,
+            completedToday: checkIns.filter(c => c.checkInDate === today).length +
+                checkOuts.filter(c => c.checkOutDate === today).length
+        };
+    }, [allocations, checkIns, checkOuts]);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading...</p>
-                </div>
+            <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                <div className="animate-spin rounded-full h-14 w-14 border-b-2 border-emerald-600"></div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Synchronizing Logistics Gateway...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Check-In / Check-Out</h2>
-                    <p className="text-gray-600 mt-1">Process student check-ins and check-outs</p>
+        <div className="space-y-10 animate-fade-in">
+            {/* Mission Control Header */}
+            <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10">
+                    <div className="flex items-center gap-8">
+                        <div className="w-20 h-20 bg-emerald-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-200 dark:shadow-none">
+                            <ShieldIcon className="w-10 h-10 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Security Gateway</h3>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-black mt-2">Occupancy Arrival & Departure Logistics</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-8 items-center bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem]">
+                        <div className="flex items-center gap-4 border-r border-slate-200 dark:border-slate-700 pr-8">
+                            <div className="w-10 h-10 bg-amber-100 rounded-2xl flex items-center justify-center">
+                                <ArrowRightIcon className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Pend. Arrival</p>
+                                <p className="text-xl font-black text-slate-900 dark:text-white">{stats.pendingArrivals}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4 border-r border-slate-200 dark:border-slate-700 pr-8">
+                            <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center">
+                                <ArrowPathIcon className="w-5 h-5 text-indigo-600" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Pend. Departure</p>
+                                <p className="text-xl font-black text-slate-900 dark:text-white">{stats.pendingDepartures}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-emerald-100 rounded-2xl flex items-center justify-center">
+                                <CheckCircleIcon className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Session Flux</p>
+                                <p className="text-xl font-black text-emerald-600">+{stats.completedToday}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow-md p-4">
-                    <p className="text-sm text-gray-600">Pending Check-Ins</p>
-                    <p className="text-2xl font-bold text-orange-600 mt-1">{pendingCheckIns.length}</p>
-                </div>
-                <div className="bg-white rounded-lg shadow-md p-4">
-                    <p className="text-sm text-gray-600">Pending Check-Outs</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-1">{pendingCheckOuts.length}</p>
-                </div>
-                <div className="bg-white rounded-lg shadow-md p-4">
-                    <p className="text-sm text-gray-600">Completed Today</p>
-                    <p className="text-2xl font-bold text-green-600 mt-1">
-                        {checkIns.filter(c => c.checkInDate === new Date().toISOString().split('T')[0]).length}
-                    </p>
-                </div>
-            </div>
+            {/* View Architecture */}
+            <div className="flex flex-col lg:flex-row gap-8">
+                <div className="w-full lg:w-80 space-y-4">
+                    <button
+                        onClick={() => setActiveView('arrival')}
+                        className={`w-full p-8 rounded-[2.5rem] flex flex-col items-center gap-4 transition-all ${activeView === 'arrival'
+                            ? 'bg-emerald-600 text-white shadow-2xl shadow-emerald-200 dark:shadow-none translate-x-2'
+                            : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                            } `}
+                    >
+                        <ArrowRightIcon className={`w - 8 h - 8 ${activeView === 'arrival' ? 'text-white' : 'text-emerald-500'} `} />
+                        <span className="text-xs font-black uppercase tracking-[0.25em]">Arrival Control</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveView('departure')}
+                        className={`w-full p-8 rounded-[2.5rem] flex flex-col items-center gap-4 transition-all ${activeView === 'departure'
+                            ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-200 dark:shadow-none translate-x-2'
+                            : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                            } `}
+                    >
+                        <ArrowPathIcon className={`w - 8 h - 8 ${activeView === 'departure' ? 'text-white' : 'text-indigo-500'} `} />
+                        <span className="text-xs font-black uppercase tracking-[0.25em]">Departure Control</span>
+                    </button>
 
-            {/* Tabs */}
-            <div className="bg-white rounded-lg shadow-md">
-                <div className="border-b border-gray-200">
-                    <nav className="flex -mb-px">
-                        <button
-                            onClick={() => setActiveTab('checkin')}
-                            className={`px-6 py-4 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'checkin'
-                                ? 'border-green-500 text-green-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            <CheckCircleIcon className="w-4 h-4" />
-                            Check-In ({pendingCheckIns.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('checkout')}
-                            className={`px-6 py-4 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'checkout'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                        >
-                            <XCircleIcon className="w-4 h-4" />
-                            Check-Out ({pendingCheckOuts.length})
-                        </button>
-                    </nav>
+                    <div className="bg-amber-50 dark:bg-amber-900/10 p-8 rounded-[2.5rem] border border-amber-100 dark:border-amber-900/20">
+                        <div className="flex items-center gap-3 mb-4">
+                            <InformationCircleIcon className="w-5 h-5 text-amber-600" />
+                            <h5 className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Protocol Notice</h5>
+                        </div>
+                        <p className="text-[10px] text-amber-800 dark:text-amber-200 font-bold leading-relaxed uppercase tracking-widest">
+                            Ensure all inventory items are verified before committing a check-in or check-out record.
+                        </p>
+                    </div>
                 </div>
 
-                {/* Search */}
-                <div className="p-4 border-b">
-                    <div className="relative">
-                        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <div className="flex-grow space-y-6">
+                    <div className="relative mb-8">
+                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
                         <input
                             type="text"
-                            placeholder="Search by student name or bed number..."
+                            placeholder="SEARCH BY STUDENT NAME OR BED IDENTIFIER..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full pl-16 pr-8 py-6 bg-white dark:bg-slate-800 border-none rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl shadow-slate-100/50 dark:shadow-none focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                     </div>
-                </div>
 
-                {/* Content */}
-                <div className="p-4">
-                    {activeTab === 'checkin' && (
-                        <div className="space-y-3">
-                            {pendingCheckIns.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <CheckCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                                    <p className="text-gray-600">No pending check-ins</p>
-                                </div>
-                            ) : (
-                                pendingCheckIns.map((allocation) => (
-                                    <div key={allocation.id} className="p-4 border border-gray-200 rounded-lg bg-white hover:shadow-md transition-shadow">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <p className="font-semibold text-gray-900">{allocation.studentName}</p>
-                                                <p className="text-sm text-gray-600">
-                                                    {allocation.houseName} • Room {allocation.roomNumber} • Bed {allocation.bedNumber}
-                                                </p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    Allocated: {new Date(allocation.allocationDate).toLocaleDateString()}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() => handleOpenCheckInModal(allocation)}
-                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                                            >
-                                                <CheckCircleIcon className="w-4 h-4" />
-                                                Check In
-                                            </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {filteredRecords.map((allocation) => (
+                            <div key={allocation.id} className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700 group hover:-translate-y-2 transition-all flex flex-col">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-3xl flex items-center justify-center font-black text-xl text-slate-900 dark:text-white">
+                                            {allocation.studentName.split(' ').map(n => n[0]).join('')}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{allocation.studentName}</h4>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{allocation.houseName} • ROOM {allocation.roomNumber}</p>
                                         </div>
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'checkout' && (
-                        <div className="space-y-3">
-                            {pendingCheckOuts.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <XCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                                    <p className="text-gray-600">No pending check-outs</p>
-                                </div>
-                            ) : (
-                                pendingCheckOuts.map((allocation) => (
-                                    <div key={allocation.id} className="p-4 border border-gray-200 rounded-lg bg-white hover:shadow-md transition-shadow">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <p className="font-semibold text-gray-900">{allocation.studentName}</p>
-                                                <p className="text-sm text-gray-600">
-                                                    {allocation.houseName} • Room {allocation.roomNumber} • Bed {allocation.bedNumber}
-                                                </p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    Checked in: {allocation.hasCheckedIn ? 'Yes' : 'No'}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={() => handleOpenCheckOutModal(allocation)}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                                            >
-                                                <XCircleIcon className="w-4 h-4" />
-                                                Check Out
-                                            </button>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <div className="px-3 py-1 bg-slate-50 dark:bg-slate-900 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-widest border border-slate-100 dark:border-slate-800">
+                                            BED {allocation.bedNumber}
                                         </div>
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-8">
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w - 2 h - 2 rounded - full ${allocation.hasCheckedIn ? 'bg-emerald-500' : 'bg-amber-500'} `}></span>
+                                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">{allocation.hasCheckedIn ? 'IN' : 'PENDING'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Clearance</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">{allocation.hasCheckedOut ? 'CLEARED' : 'PENDING'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => handleOpenProcessModal(allocation)}
+                                    className={`w-full py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 shadow-lg ${activeView === 'arrival'
+                                        ? 'bg-emerald-600 text-white shadow-emerald-100 dark:shadow-none hover:bg-emerald-700'
+                                        : 'bg-indigo-600 text-white shadow-indigo-100 dark:shadow-none hover:bg-indigo-700'
+                                        } `}
+                                >
+                                    {activeView === 'arrival' ? (
+                                        <>START ARRIVAL <ArrowRightIcon className="w-5 h-5" /></>
+                                    ) : (
+                                        <>START DEPARTURE <ArrowPathIcon className="w-5 h-5" /></>
+                                    )}
+                                </button>
+                            </div>
+                        ))}
+                        {filteredRecords.length === 0 && (
+                            <div className="col-span-full py-40 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                <ClipboardListIcon className="w-20 h-20 text-slate-200 mx-auto mb-8" />
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No pending logistics matching current state filters</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Check-In Modal */}
-            {showCheckInModal && selectedAllocation && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between p-6 border-b">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-900">Check-In Student</h3>
-                                <p className="text-sm text-gray-600 mt-1">{selectedAllocation.studentName}</p>
-                            </div>
-                            <button onClick={() => setShowCheckInModal(false)} className="text-gray-400 hover:text-gray-600">
-                                <XIcon className="w-6 h-6" />
-                            </button>
-                        </div>
+            {/* Logistics Execution Modal */}
+            {showProcessModal && selectedAllocation && (
+                <div className="fixed inset-0 bg-slate-900/98 backdrop-blur-3xl z-[600] flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300" onClick={() => setShowProcessModal(false)}>
+                    <div className="bg-white dark:bg-slate-950 rounded-[4rem] shadow-2xl w-full max-w-5xl overflow-hidden border border-white/5" onClick={e => e.stopPropagation()}>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 max-h-[90vh]">
+                            {/* Identity Pillar */}
+                            <div className={`lg: col - span - 4 p - 16 text - white flex flex - col items - center justify - center text - center ${activeView === 'arrival' ? 'bg-emerald-600' : 'bg-indigo-600'} `}>
+                                <div className="w-32 h-32 bg-white/20 rounded-[3.5rem] flex items-center justify-center mb-10 backdrop-blur-2xl">
+                                    {activeView === 'arrival' ? <ArrowRightIcon className="w-16 h-16" /> : <ArrowPathIcon className="w-16 h-16" />}
+                                </div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight mb-4">{selectedAllocation.studentName}</h3>
+                                <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.4em] mb-12">Logistics Gateway Phase</p>
 
-                        <form onSubmit={handleCheckIn} className="p-6 space-y-4">
-                            {/* Room Details */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <p className="text-sm font-medium text-blue-900">
-                                    {selectedAllocation.houseName} • Room {selectedAllocation.roomNumber} • Bed {selectedAllocation.bedNumber}
-                                </p>
+                                <div className="w-full space-y-6 pt-10 border-t border-white/10 text-left">
+                                    <div>
+                                        <p className="text-[9px] font-black opacity-40 uppercase tracking-widest mb-1">House Station</p>
+                                        <p className="text-xs font-black uppercase">{selectedAllocation.houseName}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black opacity-40 uppercase tracking-widest mb-1">Grid Coordinates</p>
+                                        <p className="text-xs font-black uppercase">ROOM {selectedAllocation.roomNumber} • BED {selectedAllocation.bedNumber}</p>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Items Inventory */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Items Inventory</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {Object.entries(checkInForm.itemsInventory).map(([item, status]) => (
-                                        <div key={item} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <span className="text-sm font-medium text-gray-700 capitalize">{item}</span>
-                                            <select
-                                                value={status}
-                                                onChange={(e) => setCheckInForm({
-                                                    ...checkInForm,
-                                                    itemsInventory: { ...checkInForm.itemsInventory, [item]: e.target.value }
-                                                })}
-                                                className="px-3 py-1 border border-gray-300 rounded text-sm"
-                                            >
-                                                <option value="Present">Present</option>
-                                                <option value="Good">Good</option>
-                                                <option value="Fair">Fair</option>
-                                                <option value="Poor">Poor</option>
-                                                <option value="Missing">Missing</option>
-                                            </select>
+                            {/* Logistics Form */}
+                            <div className="lg:col-span-8 p-16 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900">
+                                <div className="flex justify-between items-center mb-12">
+                                    <div>
+                                        <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{activeView === 'arrival' ? 'Arrival Inventory' : 'Departure Audit'}</h4>
+                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] mt-2">Comprehensive Unit Status Confirmation</p>
+                                    </div>
+                                    <button onClick={() => setShowProcessModal(false)} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl hover:bg-slate-100 transition-all text-slate-400">
+                                        <XIcon className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={activeView === 'arrival' ? handleCheckIn : handleCheckOut} className="space-y-10">
+                                    {activeView === 'arrival' && (
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {Object.entries(checkInForm.itemsInventory).map(([item, status]) => (
+                                                <div key={item} className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 flex flex-col gap-3 group hover:border-emerald-200 transition-all">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.replace('_', ' ')}</label>
+                                                    <select
+                                                        value={status}
+                                                        onChange={(e) => setCheckInForm({
+                                                            ...checkInForm,
+                                                            itemsInventory: { ...checkInForm.itemsInventory, [item]: e.target.value }
+                                                        })}
+                                                        className="bg-transparent border-none p-0 text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight outline-none"
+                                                    >
+                                                        <option value="Good">In Good Condition</option>
+                                                        <option value="Present">Present</option>
+                                                        <option value="Fair">Fair</option>
+                                                        <option value="Missing">Missing / Damaged</option>
+                                                    </select>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
+                                    )}
 
-                            {/* Condition Notes */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Condition Notes</label>
-                                <textarea
-                                    value={checkInForm.conditionNotes}
-                                    onChange={(e) => setCheckInForm({ ...checkInForm, conditionNotes: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    rows={3}
-                                    placeholder="Note any existing damage or issues..."
-                                />
-                            </div>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">General Condition Assessment</label>
+                                        <textarea
+                                            value={activeView === 'arrival' ? checkInForm.conditionNotes : checkOutForm.conditionNotes}
+                                            onChange={(e) => activeView === 'arrival'
+                                                ? setCheckInForm({ ...checkInForm, conditionNotes: e.target.value })
+                                                : setCheckOutForm({ ...checkOutForm, conditionNotes: e.target.value })}
+                                            className="w-full p-8 bg-slate-50 dark:bg-slate-950 rounded-3xl border-none text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-emerald-500 min-h-[140px]"
+                                            placeholder="Enter comprehensive unit state notes..."
+                                        />
+                                    </div>
 
-                            {/* Photo Upload */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Photo (Optional)</label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    <CameraIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-600">Click to upload photo</p>
-                                    <p className="text-xs text-gray-500 mt-1">Photo upload functionality to be implemented</p>
-                                </div>
-                            </div>
+                                    {activeView === 'departure' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Clearance Protocol</label>
+                                                <select
+                                                    value={checkOutForm.clearanceStatus}
+                                                    onChange={(e) => setCheckOutForm({ ...checkOutForm, clearanceStatus: e.target.value as ClearanceStatus })}
+                                                    className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                                                >
+                                                    <option value="Pending">Awaiting System Audit</option>
+                                                    <option value="Cleared">Full Security Clearance</option>
+                                                    <option value="Issues Reported">Flagged for Audit</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Damage Vector Report</label>
+                                                <input
+                                                    type="text"
+                                                    value={checkOutForm.damageReport}
+                                                    onChange={(e) => setCheckOutForm({ ...checkOutForm, damageReport: e.target.value })}
+                                                    placeholder="NIL / IDENTIFIED AS..."
+                                                    className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
 
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-4 border-t">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCheckInModal(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircleIcon className="w-4 h-4" />
-                                    Complete Check-In
-                                </button>
+                                    <div className="flex flex-col sm:flex-row gap-6 pt-10 border-t border-slate-50 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowProcessModal(false)}
+                                            className="flex-1 py-6 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-3xl text-[10px] font-black uppercase tracking-[0.4em] tracking-widest"
+                                        >
+                                            CANCEL
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className={`flex-[2] py-6 text-white rounded-3xl text-[10px] font-black uppercase tracking-[0.4em] shadow-2xl transition-all flex items-center justify-center gap-4 ${activeView === 'arrival'
+                                                ? 'bg-emerald-600 shadow-emerald-100 dark:shadow-none hover:bg-emerald-700'
+                                                : 'bg-indigo-600 shadow-indigo-100 dark:shadow-none hover:bg-indigo-700'
+                                                } `}
+                                        >
+                                            <ShieldIcon className="w-6 h-6" />
+                                            COMMIT GATEWAY ACTION
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Check-Out Modal */}
-            {showCheckOutModal && selectedAllocation && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between p-6 border-b">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-900">Check-Out Student</h3>
-                                <p className="text-sm text-gray-600 mt-1">{selectedAllocation.studentName}</p>
-                            </div>
-                            <button onClick={() => setShowCheckOutModal(false)} className="text-gray-400 hover:text-gray-600">
-                                <XIcon className="w-6 h-6" />
-                            </button>
                         </div>
-
-                        <form onSubmit={handleCheckOut} className="p-6 space-y-4">
-                            {/* Room Details */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <p className="text-sm font-medium text-blue-900">
-                                    {selectedAllocation.houseName} • Room {selectedAllocation.roomNumber} • Bed {selectedAllocation.bedNumber}
-                                </p>
-                            </div>
-
-                            {/* Condition Notes */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Condition Notes</label>
-                                <textarea
-                                    value={checkOutForm.conditionNotes}
-                                    onChange={(e) => setCheckOutForm({ ...checkOutForm, conditionNotes: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    rows={2}
-                                    placeholder="Note the condition of the room and items..."
-                                />
-                            </div>
-
-                            {/* Damage Report */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Damage Report</label>
-                                <textarea
-                                    value={checkOutForm.damageReport}
-                                    onChange={(e) => setCheckOutForm({ ...checkOutForm, damageReport: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    rows={3}
-                                    placeholder="Report any damage or missing items..."
-                                />
-                            </div>
-
-                            {/* Clearance Status */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Clearance Status</label>
-                                <select
-                                    value={checkOutForm.clearanceStatus}
-                                    onChange={(e) => setCheckOutForm({ ...checkOutForm, clearanceStatus: e.target.value as ClearanceStatus })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                >
-                                    <option value="Pending">Pending</option>
-                                    <option value="Cleared">Cleared</option>
-                                    <option value="Issues Reported">Issues Reported</option>
-                                </select>
-                            </div>
-
-                            {/* Photo Upload */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Photo (Optional)</label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                                    <CameraIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                    <p className="text-sm text-gray-600">Click to upload photo</p>
-                                    <p className="text-xs text-gray-500 mt-1">Photo upload functionality to be implemented</p>
-                                </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-4 border-t">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCheckOutModal(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                >
-                                    <XCircleIcon className="w-4 h-4" />
-                                    Complete Check-Out
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}
+
+            <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                @keyframes fade-in {
+                    from { opacity: 0; transform: translateY(15px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+`}</style>
         </div>
     );
 };

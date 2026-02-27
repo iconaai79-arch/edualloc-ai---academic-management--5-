@@ -1,6 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { User, Institution, BoardingMaintenanceLog, BoardingHouse, MaintenancePriority, MaintenanceStatus } from '../types';
-import { SettingsIcon, PlusIcon, SearchIcon, FilterIcon, XIcon, AlertTriangleIcon, CheckCircleIcon, ClockIcon } from './icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    User, Institution, BoardingMaintenanceLog, BoardingHouse,
+    MaintenancePriority, MaintenanceStatus
+} from '../types';
+import {
+    SettingsIcon, PlusIcon, SearchIcon, FilterIcon, XIcon,
+    AlertTriangleIcon, CheckCircleIcon, ClockIcon,
+    Cog8ToothIcon, ClipboardListIcon, HomeIcon, BedIcon,
+    CalendarDaysIcon, TrashIcon, InformationCircleIcon,
+    ArrowPathIcon, TrendingUpIcon, ShieldIcon
+} from './icons';
 import { apiService } from '../services/apiService';
 
 interface BoardingMaintenanceManagerProps {
@@ -17,6 +26,8 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
     const [maintenanceLogs, setMaintenanceLogs] = useState<BoardingMaintenanceLog[]>([]);
     const [houses, setHouses] = useState<BoardingHouse[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // UI State
     const [showModal, setShowModal] = useState(false);
     const [editingLog, setEditingLog] = useState<BoardingMaintenanceLog | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,8 +38,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
         houseId: '',
         roomId: '',
         bedId: '',
-        issueType: '',
-        description: '',
+        issueDescription: '',
         priority: 'Medium' as MaintenancePriority,
         status: 'Pending' as MaintenanceStatus,
         resolutionNotes: ''
@@ -45,30 +55,29 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 loadMaintenanceLogs(),
                 loadHouses()
             ]);
-            await onLogAction('Viewed maintenance logs');
         } catch (error) {
-            console.error('Error loading data:', error);
+            console.error('Error synchronizing maintenance vector:', error);
         } finally {
             setLoading(false);
         }
     };
 
     const loadMaintenanceLogs = async () => {
-        try {
-            const data = await apiService.fetchMaintenanceLogs(currentInstitution.id);
-            setMaintenanceLogs(data || []);
-        } catch (error) {
-            console.error('Error loading maintenance logs:', error);
-        }
+        const data = await apiService.fetchMaintenanceLogs(currentInstitution.id);
+        const transformed = (data || []).map((l: any) => ({
+            ...l,
+            houseName: l.boardingHouses?.name || 'Common Area',
+            roomNumber: l.boardingRooms?.roomNumber || 'N/A',
+            bedNumber: l.boardingBeds?.bedNumber || 'N/A',
+            reportedByName: l.usersBoardingMaintenanceLogsReportedByFkey?.name || 'Anonymous',
+            resolvedByName: l.usersBoardingMaintenanceLogsResolvedByFkey?.name || 'Unassigned'
+        }));
+        setMaintenanceLogs(transformed);
     };
 
     const loadHouses = async () => {
-        try {
-            const data = await apiService.fetchModuleRecords<BoardingHouse>('boarding_houses', currentInstitution.id);
-            setHouses(data || []);
-        } catch (error) {
-            console.error('Error loading houses:', error);
-        }
+        const data = await apiService.fetchModuleRecords<BoardingHouse>('boarding_houses', currentInstitution.id);
+        setHouses(data || []);
     };
 
     const handleOpenModal = (log?: BoardingMaintenanceLog) => {
@@ -78,8 +87,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 houseId: log.houseId || '',
                 roomId: log.roomId || '',
                 bedId: log.bedId || '',
-                issueType: log.issueType,
-                description: log.description,
+                issueDescription: log.issueDescription,
                 priority: log.priority,
                 status: log.status,
                 resolutionNotes: log.resolutionNotes || ''
@@ -90,8 +98,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 houseId: '',
                 roomId: '',
                 bedId: '',
-                issueType: '',
-                description: '',
+                issueDescription: '',
                 priority: 'Medium',
                 status: 'Pending',
                 resolutionNotes: ''
@@ -102,15 +109,10 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!formData.issueType.trim() || !formData.description.trim()) {
-            alert('Please fill in all required fields');
-            return;
-        }
+        if (!formData.issueDescription.trim() || !formData.issueDescription.trim()) return;
 
         try {
             if (editingLog) {
-                // Update existing log
                 const payload: any = {
                     ...formData,
                     houseId: formData.houseId || null,
@@ -120,17 +122,14 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                     id: editingLog.id
                 };
 
-                // If marking as completed, add resolved date and user
-                if (formData.status === 'Completed' && editingLog.status !== 'Completed') {
+                if (formData.status === 'Resolved' && editingLog.status !== 'Resolved') {
                     payload.resolvedDate = new Date().toISOString().split('T')[0];
                     payload.resolvedBy = currentUser.id;
                 }
 
                 await apiService.saveModuleRecord('boarding_maintenance_logs', payload);
-                await onLogAction(`Updated maintenance log: ${formData.issueType}`);
-                alert('Maintenance log updated successfully!');
+                await onLogAction(`Maintenance: Updated Ticket #${editingLog.id.substring(0, 8)}`);
             } else {
-                // Create new log
                 const payload = {
                     ...formData,
                     houseId: formData.houseId || null,
@@ -142,317 +141,376 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
                 };
 
                 await apiService.saveModuleRecord('boarding_maintenance_logs', payload);
-                await onLogAction(`Created maintenance log: ${formData.issueType}`);
-                alert('Maintenance issue reported successfully!');
+                await onLogAction(`Maintenance: Created New Ticket - ${formData.issueDescription}`);
             }
 
             setShowModal(false);
             loadData();
-        } catch (error: any) {
-            console.error('Error saving maintenance log:', error);
-            alert(`Failed to save maintenance log: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            alert('Protocol Violation: Maintenance log synchronization failed.');
         }
     };
 
     const handleDelete = async (log: BoardingMaintenanceLog) => {
-        if (!confirm('Delete this maintenance log?')) return;
-
+        if (!confirm('Permanently purge maintenance record?')) return;
         try {
             await apiService.deleteModuleRecord('boarding_maintenance_logs', log.id);
-            await onLogAction(`Deleted maintenance log: ${log.issueType}`);
-            alert('Maintenance log deleted successfully!');
+            await onLogAction(`Maintenance: Purged Ticket #${log.id.substring(0, 8)}`);
             loadData();
-        } catch (error: any) {
-            console.error('Error deleting maintenance log:', error);
-            alert(`Failed to delete maintenance log: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            alert('Purge Failure: Unable to delete record from cluster.');
         }
     };
 
-    const getPriorityColor = (priority: MaintenancePriority) => {
-        switch (priority) {
-            case 'Urgent': return 'bg-red-100 text-red-800 border-red-200';
-            case 'High': return 'bg-orange-100 text-orange-800 border-orange-200';
-            case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-            case 'Low': return 'bg-green-100 text-green-800 border-green-200';
-            default: return 'bg-gray-100 text-gray-800 border-gray-200';
-        }
-    };
+    const filteredLogs = useMemo(() => {
+        return maintenanceLogs.filter(log => {
+            const matchesSearch = log.issueDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.issueDescription.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
+            const matchesPriority = priorityFilter === 'all' || log.priority === priorityFilter;
+            return matchesSearch && matchesStatus && matchesPriority;
+        });
+    }, [maintenanceLogs, searchTerm, statusFilter, priorityFilter]);
 
-    const getStatusColor = (status: MaintenanceStatus) => {
-        switch (status) {
-            case 'Pending': return 'bg-yellow-100 text-yellow-800';
-            case 'In Progress': return 'bg-blue-100 text-blue-800';
-            case 'Completed': return 'bg-green-100 text-green-800';
-            case 'Cancelled': return 'bg-gray-100 text-gray-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const filteredLogs = maintenanceLogs.filter(log => {
-        const matchesSearch = log.issueType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.description.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || log.status === statusFilter;
-        const matchesPriority = priorityFilter === 'all' || log.priority === priorityFilter;
-        return matchesSearch && matchesStatus && matchesPriority;
-    });
-
-    const stats = {
-        pending: maintenanceLogs.filter(l => l.status === 'Pending').length,
-        inProgress: maintenanceLogs.filter(l => l.status === 'In Progress').length,
-        completed: maintenanceLogs.filter(l => l.status === 'Completed').length,
-        urgent: maintenanceLogs.filter(l => l.priority === 'Urgent' && l.status !== 'Completed').length
-    };
+    const stats = useMemo(() => {
+        return {
+            pending: maintenanceLogs.filter(l => l.status === 'Pending').length,
+            inProgress: maintenanceLogs.filter(l => l.status === 'In Progress').length,
+            completedToday: maintenanceLogs.filter(l => l.status === 'Resolved' && l.resolvedDate === new Date().toISOString().split('T')[0]).length,
+            criticalAlerts: maintenanceLogs.filter(l => l.priority === 'Critical' && l.status !== 'Resolved').length
+        };
+    }, [maintenanceLogs]);
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading maintenance logs...</p>
-                </div>
+            <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                <div className="animate-spin rounded-full h-14 w-14 border-b-2 border-amber-600"></div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Archiving Infrastructure Stability...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Maintenance Management</h2>
-                    <p className="text-gray-600 mt-1">Track and manage maintenance issues</p>
+        <div className="space-y-10 animate-fade-in">
+            {/* Infrastructure Intelligence Header */}
+            <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10">
+                    <div className="flex items-center gap-8">
+                        <div className="w-20 h-20 bg-amber-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-amber-200 dark:shadow-none">
+                            <Cog8ToothIcon className="w-10 h-10 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Facilities Audit</h3>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-black mt-2">Institutional Maintenance & Repair Logistics</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-8 items-center bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2.2rem]">
+                        <div className="text-center px-6 border-r border-slate-200 dark:border-slate-700">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 font-black">Open Issues</p>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{stats.pending + stats.inProgress}</p>
+                        </div>
+                        <div className="text-center px-6 border-r border-slate-200 dark:border-slate-700">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 font-black">Critical</p>
+                            <p className="text-2xl font-black text-rose-600 leading-none">{stats.criticalAlerts}</p>
+                        </div>
+                        <div className="text-center px-6">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 font-black">MTTR Performance</p>
+                            <p className="text-2xl font-black text-emerald-600 leading-none">Optimal</p>
+                        </div>
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-5 rounded-3xl text-[10px] font-black uppercase tracking-[0.25em] shadow-xl hover:scale-105 transition-all"
+                        >
+                            INITIATE TICKET
+                        </button>
+                    </div>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    <PlusIcon className="w-5 h-5" />
-                    Report Issue
-                </button>
             </div>
 
-            {/* Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-yellow-500">
-                    <p className="text-sm text-gray-600">Pending</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stats.pending}</p>
-                </div>
-                <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
-                    <p className="text-sm text-gray-600">In Progress</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stats.inProgress}</p>
-                </div>
-                <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-500">
-                    <p className="text-sm text-gray-600">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stats.completed}</p>
-                </div>
-                <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-red-500">
-                    <p className="text-sm text-gray-600">Urgent Issues</p>
-                    <p className="text-2xl font-bold text-red-600 mt-1">{stats.urgent}</p>
-                </div>
-            </div>
+            {/* Tactical Grid Architecture */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                {/* Sidebars Component */}
+                <div className="lg:col-span-3 space-y-6">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-50 dark:border-slate-700 shadow-sm">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Status Vector</h4>
+                        <div className="space-y-3">
+                            {['all', 'Pending', 'In Progress', 'Resolved'].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilter(s as any)}
+                                    className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all ${statusFilter === s ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'
+                                        }`}
+                                >
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{s}</span>
+                                    {statusFilter === s && <CheckCircleIcon className="w-4 h-4" />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            {/* Filters */}
-            <div className="bg-white rounded-lg shadow-md p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-50 dark:border-slate-700 shadow-sm">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Priority Tier</h4>
+                        <div className="space-y-3">
+                            {['all', 'Critical', 'High', 'Medium', 'Low'].map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setPriorityFilter(p as any)}
+                                    className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all ${priorityFilter === p ? 'bg-amber-600 text-white shadow-xl shadow-amber-100' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'
+                                        }`}
+                                >
+                                    <span className="text-[10px] font-black uppercase tracking-widest">{p}</span>
+                                    {priorityFilter === p && <AlertTriangleIcon className="w-4 h-4" />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Log Control Center */}
+                <div className="lg:col-span-9 space-y-8">
                     <div className="relative">
-                        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
                         <input
                             type="text"
-                            placeholder="Search issues..."
+                            placeholder="SCAN INFRASTRUCTURE LOGS..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full pl-16 pr-8 py-6 bg-white dark:bg-slate-800 border-none rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl shadow-slate-100/50 dark:shadow-none focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                         />
                     </div>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as any)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                        <option value="all">All Status</option>
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Completed">Completed</option>
-                        <option value="Cancelled">Cancelled</option>
-                    </select>
-                    <select
-                        value={priorityFilter}
-                        onChange={(e) => setPriorityFilter(e.target.value as any)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                        <option value="all">All Priorities</option>
-                        <option value="Urgent">Urgent</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                    </select>
+
+                    <div className="space-y-6">
+                        {filteredLogs.map((log) => (
+                            <div key={log.id} className="bg-white dark:bg-slate-800 p-10 rounded-[3.5rem] shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700 group hover:-translate-y-1 transition-all">
+                                <div className="flex flex-col md:flex-row justify-between items-start gap-8">
+                                    <div className="flex-grow">
+                                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                                            <span className={`px-4 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest border ${log.priority === 'Critical' ? 'bg-rose-50 border-rose-100 text-rose-600' :
+                                                log.priority === 'High' ? 'bg-amber-50 border-amber-100 text-amber-600' :
+                                                    'bg-slate-50 border-slate-100 dark:bg-slate-900 text-slate-500'
+                                                }`}>
+                                                {log.priority} PRIORITY
+                                            </span>
+                                            <span className={`px-4 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest ${log.status === 'Resolved' ? 'bg-emerald-50 text-emerald-600' :
+                                                log.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600' :
+                                                    'bg-amber-50 text-amber-600'
+                                                }`}>
+                                                {log.status}
+                                            </span>
+                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-auto">
+                                                TKT-{log.id.substring(log.id.length - 6).toUpperCase()}
+                                            </span>
+                                        </div>
+
+                                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">{log.issueDescription}</h4>
+                                        <p className="text-xs text-slate-500 font-bold leading-relaxed uppercase tracking-widest mb-8">{log.issueDescription}</p>
+
+                                        <div className="flex flex-wrap gap-8">
+                                            <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900/50 px-5 py-3 rounded-2xl">
+                                                <HomeIcon className="w-4 h-4 text-slate-400" />
+                                                <div>
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase">Station</p>
+                                                    <p className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">{log.houseName} • {log.roomNumber}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900/50 px-5 py-3 rounded-2xl">
+                                                <CalendarDaysIcon className="w-4 h-4 text-slate-400" />
+                                                <div>
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase">Reported</p>
+                                                    <p className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">{new Date(log.reportedDate).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-row md:flex-col gap-3 ml-auto opacity-0 group-hover:opacity-100 transition-all">
+                                        <button
+                                            onClick={() => handleOpenModal(log)}
+                                            className="p-5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-[2rem] hover:scale-110 transition-all"
+                                        >
+                                            <SettingsIcon className="w-6 h-6" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(log)}
+                                            className="p-5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-[2rem] hover:scale-110 transition-all"
+                                        >
+                                            <TrashIcon className="w-6 h-6" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {log.resolutionNotes && (
+                                    <div className="mt-10 p-8 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/20">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <CheckCircleIcon className="w-5 h-5 text-emerald-600" />
+                                            <h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Post-Audit Resolution</h5>
+                                        </div>
+                                        <p className="text-[10px] text-emerald-800 dark:text-emerald-300 font-bold leading-relaxed uppercase tracking-widest">
+                                            {log.resolutionNotes}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {filteredLogs.length === 0 && (
+                            <div className="col-span-full py-40 text-center bg-slate-50 dark:bg-slate-900/30 rounded-[4rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                <TrendingUpIcon className="w-20 h-20 text-slate-200 mx-auto mb-8" />
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No maintenance vectors detected in current sector</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Maintenance Logs */}
-            {filteredLogs.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                    <SettingsIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Maintenance Issues</h3>
-                    <p className="text-gray-600 mb-6">No issues match your current filters</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {filteredLogs.map((log) => (
-                        <div key={log.id} className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <h3 className="font-semibold text-gray-900">{log.issueType}</h3>
-                                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(log.priority)}`}>
-                                            {log.priority}
-                                        </span>
-                                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(log.status)}`}>
-                                            {log.status}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-gray-600 mb-2">{log.description}</p>
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                        <span className="flex items-center gap-1">
-                                            <ClockIcon className="w-3 h-3" />
-                                            Reported: {new Date(log.reportedDate).toLocaleDateString()}
-                                        </span>
-                                        {log.resolvedDate && (
-                                            <span className="flex items-center gap-1 text-green-600">
-                                                <CheckCircleIcon className="w-3 h-3" />
-                                                Resolved: {new Date(log.resolvedDate).toLocaleDateString()}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {log.resolutionNotes && (
-                                        <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
-                                            <p className="font-medium text-green-900">Resolution:</p>
-                                            <p className="text-green-800">{log.resolutionNotes}</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-2 ml-4">
-                                    <button
-                                        onClick={() => handleOpenModal(log)}
-                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                    >
-                                        <SettingsIcon className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDelete(log)}
-                                        className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    >
-                                        <XIcon className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Modal */}
+            {/* Tactical Input Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between p-6 border-b">
-                            <h3 className="text-xl font-bold text-gray-900">
-                                {editingLog ? 'Update Maintenance Issue' : 'Report Maintenance Issue'}
-                            </h3>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                                <XIcon className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Issue Type *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.issueType}
-                                        onChange={(e) => setFormData({ ...formData, issueType: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="e.g., Broken bed, Leaking pipe"
-                                        required
-                                    />
+                <div className="fixed inset-0 bg-slate-900/98 backdrop-blur-3xl z-[600] flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowModal(false)}>
+                    <div className="bg-white dark:bg-slate-950 rounded-[4.5rem] shadow-2xl w-full max-w-4xl overflow-hidden border border-white/5" onClick={e => e.stopPropagation()}>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 max-h-[90vh]">
+                            {/* Mission Identity Pillar */}
+                            <div className={`lg:col-span-4 p-16 text-white flex flex-col items-center justify-center text-center ${editingLog ? 'bg-indigo-600' : 'bg-amber-600'}`}>
+                                <div className="w-32 h-32 bg-white/20 rounded-[3.5rem] flex items-center justify-center mb-10 backdrop-blur-2xl">
+                                    <Cog8ToothIcon className="w-16 h-16" />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Priority *</label>
-                                    <select
-                                        value={formData.priority}
-                                        onChange={(e) => setFormData({ ...formData, priority: e.target.value as MaintenancePriority })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        required
-                                    >
-                                        <option value="Low">Low</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="High">High</option>
-                                        <option value="Urgent">Urgent</option>
-                                    </select>
+                                <h3 className="text-2xl font-black uppercase tracking-tight mb-4">{editingLog ? 'Update Protocol' : 'New Incident'}</h3>
+                                <p className="text-[10px] font-black opacity-60 uppercase tracking-[0.4em] mb-12">Infrastructure Safety Audit</p>
+
+                                <div className="w-full space-y-6 pt-10 border-t border-white/10 text-left">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black opacity-40 uppercase tracking-widest">Authorized By</span>
+                                        <span className="text-[10px] font-black uppercase">{currentUser.name.split(' ')[0]}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-black opacity-40 uppercase tracking-widest">Encryption</span>
+                                        <span className="text-[10px] font-black uppercase">AES-256</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    rows={3}
-                                    placeholder="Describe the issue in detail..."
-                                    required
-                                />
-                            </div>
-
-                            {editingLog && (
-                                <>
+                            {/* Tactical Form */}
+                            <div className="lg:col-span-8 p-16 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900">
+                                <div className="flex justify-between items-center mb-12">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                                        <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Audit Parameters</h4>
+                                        <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.25em] mt-2">Logistical Issue Definition Phase</p>
+                                    </div>
+                                    <button onClick={() => setShowModal(false)} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl hover:bg-slate-100 transition-all text-slate-400">
+                                        <XIcon className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleSubmit} className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Incident Classifier</label>
+                                            <input
+                                                type="text"
+                                                value={formData.issueDescription}
+                                                onChange={(e) => setFormData({ ...formData, issueDescription: e.target.value })}
+                                                placeholder="e.g. GRID-4 FAILURE"
+                                                required
+                                                className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Response Priority</label>
+                                            <select
+                                                value={formData.priority}
+                                                onChange={(e) => setFormData({ ...formData, priority: e.target.value as MaintenancePriority })}
+                                                className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-amber-500"
+                                            >
+                                                <option value="Low">Low Frequency</option>
+                                                <option value="Medium">Standard Response</option>
+                                                <option value="High">Tactical Priority</option>
+                                                <option value="Urgent">Critical Security Risk</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vector Location (Optional)</label>
                                         <select
-                                            value={formData.status}
-                                            onChange={(e) => setFormData({ ...formData, status: e.target.value as MaintenanceStatus })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            value={formData.houseId}
+                                            onChange={(e) => setFormData({ ...formData, houseId: e.target.value })}
+                                            className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-amber-500"
                                         >
-                                            <option value="Pending">Pending</option>
-                                            <option value="In Progress">In Progress</option>
-                                            <option value="Completed">Completed</option>
-                                            <option value="Cancelled">Cancelled</option>
+                                            <option value="">Common Institutional Areas</option>
+                                            {houses.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                                         </select>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Resolution Notes</label>
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Log Detail</label>
                                         <textarea
-                                            value={formData.resolutionNotes}
-                                            onChange={(e) => setFormData({ ...formData, resolutionNotes: e.target.value })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            rows={2}
-                                            placeholder="Describe how the issue was resolved..."
+                                            value={formData.issueDescription}
+                                            onChange={(e) => setFormData({ ...formData, issueDescription: e.target.value })}
+                                            className="w-full p-8 bg-slate-50 dark:bg-slate-950 rounded-[2rem] border-none text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest outline-none focus:ring-2 focus:ring-amber-500 min-h-[140px]"
+                                            placeholder="Provide technical issueDescription of the detected anomaly..."
+                                            required
                                         />
                                     </div>
-                                </>
-                            )}
 
-                            <div className="flex gap-3 pt-4 border-t">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowModal(false)}
-                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                                >
-                                    {editingLog ? 'Update Issue' : 'Report Issue'}
-                                </button>
+                                    {editingLog && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-50 dark:border-slate-800">
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Execution Status</label>
+                                                <select
+                                                    value={formData.status}
+                                                    onChange={(e) => setFormData({ ...formData, status: e.target.value as MaintenanceStatus })}
+                                                    className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                                                >
+                                                    <option value="Pending">Awaiting Assignment</option>
+                                                    <option value="In Progress">Tactical Deployment</option>
+                                                    <option value="Completed">Objective Resolved</option>
+                                                    <option value="Cancelled">Mission Aborted</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resolution Vector</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.resolutionNotes}
+                                                    onChange={(e) => setFormData({ ...formData, resolutionNotes: e.target.value })}
+                                                    placeholder="ANOMALY CORRECTED BY..."
+                                                    className="w-full p-6 bg-slate-50 dark:bg-slate-950 rounded-2xl border-none text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col sm:flex-row gap-6 pt-10">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowModal(false)}
+                                            className="flex-1 py-6 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-[2.5rem] text-[10px] font-black uppercase tracking-[0.4em]"
+                                        >
+                                            TERMINATE
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className={`flex-[2] py-6 text-white rounded-[2.5rem] text-[10px] font-black uppercase tracking-[0.4em] shadow-2xl transition-all ${editingLog ? 'bg-indigo-600 shadow-indigo-100 dark:shadow-none' : 'bg-amber-600 shadow-amber-100 dark:shadow-none'
+                                                }`}
+                                        >
+                                            COMMIT RECORD
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}
+
+            <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                @keyframes fade-in {
+                    from { opacity: 0; transform: translateY(40px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in { animation: fade-in 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+            `}</style>
         </div>
     );
 };

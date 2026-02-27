@@ -80,3 +80,5 @@ export { XCircleIcon } from './XCircleIcon';
 export { AlertTriangleIcon } from './AlertTriangleIcon';
 export { ShoppingCartIcon } from './ShoppingCartIcon';
 export { TagIcon } from './TagIcon';
+export { BanknotesIcon } from './BanknotesIcon';
+export { CurrencyEuroIcon } from './CurrencyEuroIcon';

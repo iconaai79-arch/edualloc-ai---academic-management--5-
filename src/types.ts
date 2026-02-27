@@ -1276,8 +1276,8 @@ export type BedStatus = 'Available' | 'Occupied' | 'Reserved' | 'Under Maintenan
 export type BedCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Needs Replacement';
 export type AllocationStatus = 'Active' | 'Completed' | 'Transferred' | 'Cancelled';
 export type ClearanceStatus = 'Pending' | 'Cleared' | 'Issues Reported';
-export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type MaintenanceStatus = 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export type MaintenanceStatus = 'Pending' | 'In Progress' | 'Resolved' | 'Cancelled';
 
 export interface BoardingHouse {
     id: string;
@@ -1360,18 +1360,21 @@ export interface BoardingCheckOut {
 
 export interface BoardingMaintenanceLog {
     id: string;
-    houseId?: string;
-    roomId?: string;
+    institutionId: string;
+    houseId: string;
+    roomId: string;
     bedId?: string;
-    issueType: string;
-    description: string;
-    priority: MaintenancePriority;
     reportedBy: string;
     reportedDate: string;
+    issueDescription: string;
+    priority: MaintenancePriority;
     status: MaintenanceStatus;
-    resolvedDate?: string;
     resolvedBy?: string;
+    resolvedDate?: string;
     resolutionNotes?: string;
+    attachmentUrl?: string;
+    houseName?: string;
+    roomNumber?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -1427,10 +1430,11 @@ export interface BoardingCheckOutWithDetails extends BoardingCheckOut {
 export interface CarWashAccount {
     id: string;
     institutionId: string;
-    accountCode: string;
+    code: string;
     name: string;
-    type: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
+    type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
     description?: string;
+    balance: number;
     isActive: boolean;
     createdAt: string;
 }
@@ -1453,8 +1457,8 @@ export interface CarWashJournalLine {
     entryId: string;
     accountId: string;
     description?: string;
-    debit: number;
-    credit: number;
+    type: 'debit' | 'credit';
+    amount: number;
     createdAt: string;
     // Joined field for display
     accountName?: string;
@@ -1481,10 +1485,10 @@ export interface CarWashPayroll {
     periodStart: string;
     periodEnd: string;
     baseSalary: number;
-    commissions: number;
+    commissionEarned: number;
     advancesTaken: number;
     deductions: number;
-    netPay: number;
+    totalPay: number;
     status: 'draft' | 'approved' | 'paid';
     paymentMethod?: string;
     paymentDate?: string;
