@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Institution } from '../types';
+import type { User, Institution, CompanyDetails } from '../types';
 import { apiService } from '../services/apiService';
 import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon } from './icons';
 import { SparklesIcon } from './icons';
@@ -10,9 +10,10 @@ interface ResellerDashboardProps {
     currentUser: User;
     currentInstitution: Institution;
     onImpersonate: (tenantId: string) => void;
+    companyDetails: CompanyDetails;
 }
 
-const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, currentInstitution, onImpersonate }) => {
+const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, currentInstitution, onImpersonate, companyDetails }) => {
     const [tenants, setTenants] = useState<Institution[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -25,6 +26,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [newTenantPhone, setNewTenantPhone] = useState('');
     const [newTenantType, setNewTenantType] = useState<Institution['institutionType']>('Primary');
     const [newTenantSubType, setNewTenantSubType] = useState<Institution['businessSubType']>('');
+    const [newTenantMonthlyPrice, setNewTenantMonthlyPrice] = useState(companyDetails.subscriptionConfig.defaultMonthlyPrice);
+    const [newTenantYearlyPrice, setNewTenantYearlyPrice] = useState(companyDetails.subscriptionConfig.defaultYearlyPrice);
 
     useEffect(() => {
         const loadData = async () => {
@@ -70,6 +73,10 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 resellerId: currentInstitution.id,
                 isOtpEnabled: false,
                 useAllocationRequests: true,
+                customSubscriptionPrice: {
+                    monthly: newTenantMonthlyPrice,
+                    yearly: newTenantYearlyPrice
+                }
             };
 
             console.log("Step 1: Saving Institution...", newInst);
@@ -112,6 +119,9 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             setNewTenantEmail('');
             setNewTenantPhone('');
             setNewTenantType('Primary');
+            setNewTenantSubType('');
+            setNewTenantMonthlyPrice(companyDetails.subscriptionConfig.defaultMonthlyPrice);
+            setNewTenantYearlyPrice(companyDetails.subscriptionConfig.defaultYearlyPrice);
 
             alert('Congratulations! The tenant and admin account have been successfully created.');
         } catch (error: any) {
@@ -354,6 +364,50 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     </select>
                                 </div>
                             )}
+
+                            <div className="pt-4 border-t border-slate-100">
+                                <h4 className="text-xs font-black uppercase text-indigo-500 mb-4 tracking-widest flex items-center gap-2">
+                                    <SparklesIcon className="w-4 h-4" /> Custom Subscription Pricing
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Monthly Price (KES)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min={companyDetails.subscriptionConfig.defaultMonthlyPrice}
+                                            value={newTenantMonthlyPrice}
+                                            onChange={(e) => setNewTenantMonthlyPrice(Number(e.target.value))}
+                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantMonthlyPrice < companyDetails.subscriptionConfig.defaultMonthlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                        />
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultMonthlyPrice.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Yearly Price (KES)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min={companyDetails.subscriptionConfig.defaultYearlyPrice}
+                                            value={newTenantYearlyPrice}
+                                            onChange={(e) => setNewTenantYearlyPrice(Number(e.target.value))}
+                                            className={`w-full border rounded-xl px-4 py-2 outline-none transition-all ${newTenantYearlyPrice < companyDetails.subscriptionConfig.defaultYearlyPrice ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-300 focus:ring-2 focus:ring-indigo-500'}`}
+                                        />
+                                        <p className="text-[9px] text-slate-400 mt-1 ml-1">Min: KES {companyDetails.subscriptionConfig.defaultYearlyPrice.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                {(newTenantMonthlyPrice > companyDetails.subscriptionConfig.defaultMonthlyPrice || newTenantYearlyPrice > companyDetails.subscriptionConfig.defaultYearlyPrice) && (
+                                    <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Monthly)</p>
+                                            <p className="text-sm font-bold text-indigo-900">KES {(newTenantMonthlyPrice - companyDetails.subscriptionConfig.defaultMonthlyPrice).toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black uppercase text-indigo-600">Reseller Commission (Yearly)</p>
+                                            <p className="text-sm font-bold text-indigo-900">KES {(newTenantYearlyPrice - companyDetails.subscriptionConfig.defaultYearlyPrice).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                                 <button

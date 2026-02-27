@@ -1712,6 +1712,7 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     onImpersonate={onLoginAsAdmin}
+                                    companyDetails={companyDetails}
                                 />
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                 <CountyAdminView
