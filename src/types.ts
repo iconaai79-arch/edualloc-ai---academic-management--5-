@@ -1107,6 +1107,7 @@ export interface InstitutionRegistrationData {
     loadDemoData: boolean;
     businessSubType?: string;
     resellerId?: string;
+    termsAccepted: boolean;
     name?: string;
     email?: string;
     phoneNumber?: string;
@@ -1225,6 +1226,7 @@ export interface CountyRegistrationData {
     countyPhone: string;
     adminName: string;
     adminEmail: string;
+    termsAccepted: boolean;
 }
 
 export type BursaryStatus = 'pending' | 'vetted' | 'approved' | 'disbursed' | 'rejected';

@@ -56,6 +56,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         adminEmail: '',
         loadDemoData: false,
         businessSubType: '',
+        termsAccepted: false,
     });
 
     const [countyRegData, setCountyRegData] = useState<CountyRegistrationData>({
@@ -64,7 +65,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
         countyEmail: '',
         countyPhone: '',
         adminName: '',
-        adminEmail: ''
+        adminEmail: '',
+        termsAccepted: false,
     });
 
     // Check for reset token and reseller ID on mount
@@ -417,6 +419,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="ECD">ECD Center</option>
                                                 <option value="International">International School</option>
                                                 <option value="Business">Business</option>
+                                                <option value="Reseller">Reseller</option>
                                             </select>
                                             {regData.institutionType === 'Business' && (
                                                 <div className="mt-3 animate-fade-in">
@@ -510,7 +513,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                         </div>
                                     </div>
                                 )}
-                                <button type="submit" disabled={isRegistering} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50 mt-4">
+
+                                <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={regType === 'institution' ? regData.termsAccepted : countyRegData.termsAccepted}
+                                                onChange={e => {
+                                                    if (regType === 'institution') setRegData({ ...regData, termsAccepted: e.target.checked });
+                                                    else setCountyRegData({ ...countyRegData, termsAccepted: e.target.checked });
+                                                }}
+                                                className="peer h-5 w-5 rounded-lg border-2 border-indigo-200 dark:border-indigo-800 text-indigo-600 focus:ring-4 focus:ring-indigo-500/10 appearance-none bg-white dark:bg-slate-800 transition-all checked:bg-indigo-600 checked:border-indigo-600"
+                                            />
+                                            <CheckIcon className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Accept Terms & Conditions</span>
+                                            <p className="text-[10px] text-slate-500 leading-tight mt-0.5">I agree to the platform usage policies and data processing terms.</p>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isRegistering || (regType === 'institution' ? !regData.termsAccepted : !countyRegData.termsAccepted)}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50 mt-4"
+                                >
                                     {isRegistering ? 'Provisioning Infrastructure...' : (regType === 'institution' ? 'Register Institution' : 'Register County Portal')}
                                 </button>
                             </form>
