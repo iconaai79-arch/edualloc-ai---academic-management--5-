@@ -3,6 +3,8 @@ import type { User, Institution } from '../types';
 import { apiService } from '../services/apiService';
 import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon } from './icons';
 import { SparklesIcon } from './icons';
+import { generateAlphanumericCode } from '../utils/stringUtils';
+import { generateId, generateUserId } from '../utils/idGenerator';
 
 interface ResellerDashboardProps {
     currentUser: User;
@@ -47,7 +49,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const handleCreateTenant = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const tenantId = `inst_sub_${Date.now()}`;
+            const tenantId = generateId('inst');
             const newInst: Institution = {
                 id: tenantId,
                 name: newTenantName,
@@ -55,25 +57,28 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 phoneNumber: '',
                 institutionType: newTenantType,
                 status: 'trial',
-                subscriptionEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                institutionCode: generateAlphanumericCode(6),
                 resellerId: currentInstitution.id,
+                isOtpEnabled: false,
+                useAllocationRequests: true,
             };
 
             await apiService.saveInstitution(newInst);
 
             // Create default admin for the tenant
-            const adminId = `u_${Date.now()}_admin`;
-            const newAdmin: User = {
+            const adminId = generateUserId();
+            const newAdmin: Partial<User> = {
                 id: adminId,
                 name: `Admin - ${newTenantName}`,
                 email: newTenantEmail,
                 phoneNumber: '',
                 role: 'admin',
+                roles: ['admin'],
                 institutionId: tenantId,
                 expertise: [],
-                password: 'password123'
             };
-            await apiService.saveUser(newAdmin);
+            await apiService.registerUser(newAdmin, newTenantName);
 
             const updatedTenants = [...tenants, newInst];
             setTenants(updatedTenants);
