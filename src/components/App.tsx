@@ -1397,7 +1397,19 @@ export const App: React.FC = () => {
                 const instId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
                 const adminId = `u_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
                 const generatedPassword = Math.random().toString(36).slice(-8);
-                const newInstitution: Institution = { id: instId, name: data.institutionName, email: data.institutionEmail, phoneNumber: data.institutionPhone, institutionType: data.institutionType as any, businessSubType: (data as any).businessSubType, status: 'trial', trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), institutionCode: generateAlphanumericCode(8), useAllocationRequests: true };
+                const newInstitution: Institution = {
+                    id: instId,
+                    name: data.institutionName,
+                    email: data.institutionEmail,
+                    phoneNumber: data.institutionPhone,
+                    institutionType: data.institutionType as any,
+                    businessSubType: (data as any).businessSubType,
+                    status: 'trial',
+                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    institutionCode: generateAlphanumericCode(8),
+                    useAllocationRequests: true,
+                    resellerId: data.resellerId
+                };
                 const adminRole: Role = data.institutionType === 'Reseller' ? 'reseller' : ((data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher');
                 const newAdmin: User = { id: adminId, name: data.adminName, email: data.adminEmail, phoneNumber: data.institutionPhone, role: adminRole, institutionId: instId, password: generatedPassword, expertise: ['Administration'], staffId: 'ADMIN-01' };
                 await apiService.saveInstitution(newInstitution);

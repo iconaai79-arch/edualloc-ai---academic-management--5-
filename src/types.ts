@@ -1106,6 +1106,7 @@ export interface InstitutionRegistrationData {
     adminEmail: string;
     loadDemoData: boolean;
     businessSubType?: string;
+    resellerId?: string;
     name?: string;
     email?: string;
     phoneNumber?: string;

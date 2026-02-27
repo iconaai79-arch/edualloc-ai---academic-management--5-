@@ -67,12 +67,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
         adminEmail: ''
     });
 
-    // Check for reset token on mount
+    // Check for reset token and reseller ID on mount
     React.useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('resetToken');
         if (token) {
             setView('reset_password');
+        }
+
+        const resellerId = urlParams.get('resellerId');
+        if (resellerId) {
+            setRegData(prev => ({ ...prev, resellerId }));
+            // Automatically switch to register view if invited
+            setView('register');
         }
     }, []);
 

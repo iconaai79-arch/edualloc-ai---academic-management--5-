@@ -236,6 +236,37 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 </div>
             </div>
 
+            {/* Agency Invite Link */}
+            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl p-8 mb-8 text-white shadow-xl shadow-indigo-200/50 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                                <SparklesIcon className="w-5 h-5 text-indigo-100" />
+                            </div>
+                            <h2 className="text-xl font-black uppercase tracking-tight italic">Agency Expansion Link</h2>
+                        </div>
+                        <p className="text-indigo-100 font-medium">Share this unique link with potential clients. When they register using this link, they will be automatically associated with your agency portfolio for commission tracking.</p>
+                    </div>
+                    <div className="flex flex-col gap-3 w-full md:w-auto">
+                        <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3 flex items-center justify-between gap-4 font-mono text-xs overflow-hidden">
+                            <span className="truncate opacity-80">{`${window.location.origin}/?resellerId=${currentInstitution.id}`}</span>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`${window.location.origin}/?resellerId=${currentInstitution.id}`);
+                                    alert("Magic link copied to clipboard! Share it to start growing your agency.");
+                                }}
+                                className="bg-white text-indigo-600 px-4 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-indigo-50 transition-colors shadow-lg active:scale-95 flex-shrink-0"
+                            >
+                                Copy Link
+                            </button>
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-center md:text-right text-white/60">Recruit Unlimited Tenants</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Client List */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
