@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, HistoryIcon, ArrowUpRightIcon } from './icons';
+import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, ArrowRightIcon, ArrowPathIcon } from './icons';
 import { SparklesIcon } from './icons';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -275,7 +275,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-indigo-500">
                         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
-                            <CurrencyDollarIcon className="w-8 h-8" />
+                            <CurrencyIcon className="w-8 h-8" />
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Total Earned</p>
@@ -284,7 +284,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     </div>
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-emerald-500">
                         <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl">
-                            <ArrowUpRightIcon className="w-8 h-8" />
+                            <ArrowRightIcon className="w-8 h-8" />
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Pending Payout</p>
@@ -293,7 +293,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     </div>
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-amber-500">
                         <div className="p-4 bg-amber-50 text-amber-600 rounded-xl">
-                            <HistoryIcon className="w-8 h-8" />
+                            <ArrowPathIcon className="w-8 h-8" />
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Disbursed to Date</p>
@@ -389,7 +389,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-1 text-slate-600">
-                                                        <UserGroupIcon className="w-4 h-4 text-slate-400" />
+                                                        <CurrencyIcon className="w-6 h-6 text-emerald-600 mb-2" />
                                                         <span className="font-medium">{tenantUsers}</span>
                                                     </div>
                                                 </td>
@@ -437,7 +437,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
                     {commissionTransactions.length === 0 ? (
                         <div className="p-12 text-center text-slate-500">
-                            <CurrencyDollarIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                            <CurrencyIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                             <p className="text-lg font-medium text-slate-700">No earnings yet</p>
                             <p className="text-sm">When your clients make subscription payments, your commissions will appear here.</p>
                         </div>
