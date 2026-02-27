@@ -22,6 +22,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     // New Tenant Form State
     const [newTenantName, setNewTenantName] = useState('');
     const [newTenantEmail, setNewTenantEmail] = useState('');
+    const [newTenantPhone, setNewTenantPhone] = useState('');
     const [newTenantType, setNewTenantType] = useState<Institution['institutionType']>('Primary');
 
     useEffect(() => {
@@ -59,7 +60,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 id: tenantId,
                 name: newTenantName,
                 email: newTenantEmail,
-                phoneNumber: '',
+                phoneNumber: newTenantPhone,
                 institutionType: newTenantType,
                 status: 'trial',
                 trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -82,7 +83,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 id: adminId,
                 name: `Admin - ${newTenantName}`,
                 email: newTenantEmail,
-                phoneNumber: '',
+                phoneNumber: newTenantPhone,
                 role: 'admin',
                 roles: ['admin'],
                 institutionId: tenantId,
@@ -107,6 +108,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             // Reset form
             setNewTenantName('');
             setNewTenantEmail('');
+            setNewTenantPhone('');
             setNewTenantType('Primary');
 
             alert('Congratulations! The tenant and admin account have been successfully created.');
@@ -295,6 +297,17 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                     placeholder="admin@greenwood.com"
                                 />
                                 <p className="text-xs text-slate-500 mt-1">We will create a default admin account with this email.</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                                <input
+                                    type="tel"
+                                    required
+                                    value={newTenantPhone}
+                                    onChange={(e) => setNewTenantPhone(e.target.value)}
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                    placeholder="e.g. 0712345678"
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Institution Type</label>
