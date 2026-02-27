@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, CompanyDetails, MpesaTransaction, TransactionStatus, Invoice, Receipt, InvoiceItem, ExtensionRequest, SmsConfig } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { MpesaIcon } from './icons/MpesaIcon';
+import { SparklesIcon } from './icons';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 
 interface SubscriptionManagerProps {
@@ -127,6 +128,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
 
     const isSubscriptionExpired = useMemo(() => {
         if (!institution) return false;
+        if (institution.institutionType === 'Reseller') return false;
         const now = new Date();
         if (institution.status === 'trial' && institution.trialEndsAt) {
             return new Date(institution.trialEndsAt) < now;
@@ -193,64 +195,82 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 />
             )}
 
-
-            <section>
-                <h3 className="text-xl font-semibold mb-4">Subscription Pricing</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-                        <h4 className="text-lg font-medium text-slate-900 dark:text-white">Monthly Plan</h4>
-                        <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
-                            KES {monthlyPrice.toLocaleString()}
-                            <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
-                        </p>
-                        {hasCustomMonthly ? (
-                            <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
-                        ) : (
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
-                        )}
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-                        <h4 className="text-lg font-medium text-slate-900 dark:text-white">Yearly Plan</h4>
-                        <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
-                            KES {yearlyPrice.toLocaleString()}
-                            <span className="text-base font-normal text-slate-500 dark:text-slate-400">/year</span>
-                        </p>
-                        {hasCustomYearly ? (
-                            <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
-                        ) : (
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
-                        )}
-                        <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
-                    </div>
-                </div>
-            </section>
-
-            <section>
-                <h3 className="text-xl font-semibold mb-4">How to Pay</h3>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                    <p className="text-slate-600 dark:text-slate-300 mb-4">To subscribe or renew, please make a payment via M-Pesa using the details below, or use the quick payment button.</p>
-                    <div className="flex flex-col md:flex-row gap-6">
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Paybill Number</p>
-                            <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{mpesaConfig.paybillNumber || 'Not Configured'}</p>
+            {institution.institutionType === 'Reseller' && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/30 border-l-4 border-emerald-500 p-6 rounded-r-2xl shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
+                            <SparklesIcon className="w-8 h-8 text-emerald-500" />
                         </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Account Number</p>
-                            <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{institution.institutionCode || institution.id}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">(Use your unique alphanumeric institution code)</p>
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-emerald-900 dark:text-emerald-100 italic">Portfolio Activated</h3>
+                            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">This Reseller Agency account is permanently activated and exempt from platform subscription charges.</p>
                         </div>
                     </div>
-                    <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
-                        <button
-                            onClick={() => setIsPayModalOpen(true)}
-                            className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                        >
-                            <MpesaIcon className="w-6 h-6 mr-3" />
-                            Pay Now with M-Pesa
-                        </button>
-                    </div>
                 </div>
-            </section>
+            )}
+
+
+            {institution.institutionType !== 'Reseller' && (
+                <>
+                    <section>
+                        <h3 className="text-xl font-semibold mb-4">Subscription Pricing</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h4 className="text-lg font-medium text-slate-900 dark:text-white">Monthly Plan</h4>
+                                <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
+                                    KES {monthlyPrice.toLocaleString()}
+                                    <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
+                                </p>
+                                {hasCustomMonthly ? (
+                                    <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                                ) : (
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                                )}
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h4 className="text-lg font-medium text-slate-900 dark:text-white">Yearly Plan</h4>
+                                <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
+                                    KES {yearlyPrice.toLocaleString()}
+                                    <span className="text-base font-normal text-slate-500 dark:text-slate-400">/year</span>
+                                </p>
+                                {hasCustomYearly ? (
+                                    <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                                ) : (
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                                )}
+                                <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3 className="text-xl font-semibold mb-4">How to Pay</h3>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
+                            <p className="text-slate-600 dark:text-slate-300 mb-4">To subscribe or renew, please make a payment via M-Pesa using the details below, or use the quick payment button.</p>
+                            <div className="flex flex-col md:flex-row gap-6">
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Paybill Number</p>
+                                    <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{mpesaConfig.paybillNumber || 'Not Configured'}</p>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Account Number</p>
+                                    <p className="text-xl font-semibold text-slate-800 dark:text-slate-100">{institution.institutionCode || institution.id}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">(Use your unique alphanumeric institution code)</p>
+                                </div>
+                            </div>
+                            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
+                                <button
+                                    onClick={() => setIsPayModalOpen(true)}
+                                    className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                    <MpesaIcon className="w-6 h-6 mr-3" />
+                                    Pay Now with M-Pesa
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </>
+            )}
 
             {isSubscriptionExpired && onAddExtensionRequest && extensionRequests && (
                 <section>

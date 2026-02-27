@@ -351,7 +351,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     } = props;
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'requests' | 'transactions'>('list'); // Modified for Counties
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'requests' | 'transactions'>('list'); // Modified for Counties & Resellers
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -688,7 +688,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             setDisbursementAmount(0);
             setDisbursementRef('');
             setDisbursementNotes('');
-            onRefreshData?.();
         } catch (error: any) {
             console.error("Disbursement Failed:", error);
             alert(`Disbursement failed: ${error.message}`);
@@ -702,14 +701,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (newInstData.name && newInstData.email && newInstData.phoneNumber) {
             try {
                 // Basic validation
+                const isReseller = newInstData.institutionType === 'Reseller';
                 await props.onAddInstitution({
                     name: newInstData.name,
                     email: newInstData.email,
                     phoneNumber: newInstData.phoneNumber,
                     institutionType: newInstData.institutionType,
                     businessSubType: newInstData.businessSubType,
-                    status: 'trial',
-                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    status: isReseller ? 'active' : 'trial',
+                    trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                     institutionCode: `INST-${Date.now().toString().slice(-4)}`,
                     themeColor: '#4f46e5',
                     logoUrl: null,
@@ -2659,7 +2659,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 <h3 className="text-lg font-black uppercase tracking-tight text-sky-900 dark:text-sky-200">SMS Units</h3>
                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingSmsUnitsFor.name}</p>
                             </div>
-                            <button onClick={() => setManagingSmsUnitsFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
+                            <button onClick={() => setManagingSmsUnitsFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
@@ -2674,9 +2674,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Adjust Units (use negative to deduct)</label>
                                 <input
                                     type="number"
-                                    value={tenantSmsAdjustment.amount}
+                                    value={tenantSmsAdjustment.amount || ''}
                                     onChange={e => setTenantSmsAdjustment(prev => ({ ...prev, amount: Number(e.target.value) }))}
-                                    className="form-input text-xl font-black"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-0 focus:ring-2 focus:ring-sky-500 rounded-2xl px-5 py-4 text-sm font-bold transition-all"
                                     placeholder="e.g. 500 or -100"
                                 />
                             </div>
@@ -2686,7 +2686,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     type="text"
                                     value={tenantSmsAdjustment.reason}
                                     onChange={e => setTenantSmsAdjustment(prev => ({ ...prev, reason: e.target.value }))}
-                                    className="form-input"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border-0 focus:ring-2 focus:ring-sky-500 rounded-2xl px-5 py-4 text-sm font-bold transition-all"
                                     placeholder="e.g. Manual top-up, correction…"
                                 />
                             </div>
@@ -2697,7 +2697,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             )}
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
-                            <button onClick={() => setManagingSmsUnitsFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
+                            <button onClick={() => setManagingSmsUnitsFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
                             <button
                                 disabled={isSavingTenantConfig || tenantSmsAdjustment.amount === 0}
                                 onClick={async () => {
@@ -2711,11 +2711,117 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         setIsSavingTenantConfig(false);
                                     }
                                 }}
-                                className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-100"
+                                className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-100 transition-all active:scale-95"
                             >
                                 {isSavingTenantConfig ? 'Saving…' : 'Apply Adjustment'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Commission Disbursement Modal ── */}
+            {disburseReseller && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setDisburseReseller(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/50 dark:bg-emerald-900/10">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl text-emerald-600">
+                                    <CurrencyIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-emerald-900 dark:text-emerald-200">Disburse Commission</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{disburseReseller.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setDisburseReseller(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+
+                        <form onSubmit={handleDisburseCommission} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 gap-6">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 ml-1">Managed Portfolio Statistics</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Total Tenants</p>
+                                            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                                {institutions.filter(i => i.resellerId === disburseReseller.id).length}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Base Rate (Monthly)</p>
+                                            <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                                KES {localSubConfig.defaultMonthlyPrice.toLocaleString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Payout Amount (KES)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            value={disbursementAmount}
+                                            onChange={(e) => setDisbursementAmount(Number(e.target.value))}
+                                            placeholder="Enter amount to disburse"
+                                            className="w-full bg-slate-50 dark:bg-slate-800/80 border-0 focus:ring-2 focus:ring-emerald-500 rounded-2xl px-5 py-4 text-sm font-bold transition-all"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Transaction Reference (e.g. M-Pesa Code)</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={disbursementRef}
+                                            onChange={(e) => setDisbursementRef(e.target.value.toUpperCase())}
+                                            placeholder="BPG2X8JK9R"
+                                            className="w-full bg-slate-50 dark:bg-slate-800/80 border-0 focus:ring-2 focus:ring-emerald-500 rounded-2xl px-5 py-4 text-sm font-mono font-bold transition-all"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Optional Notes</label>
+                                        <textarea
+                                            value={disbursementNotes}
+                                            onChange={(e) => setDisbursementNotes(e.target.value)}
+                                            placeholder="January 2024 Commission Payout"
+                                            className="w-full bg-slate-50 dark:bg-slate-800/80 border-0 focus:ring-2 focus:ring-emerald-500 rounded-2xl px-5 py-4 text-sm font-bold transition-all min-h-[100px]"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setDisburseReseller(null)}
+                                    className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-600 hover:bg-slate-50 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isDisbursing || !disbursementAmount || !disbursementRef}
+                                    className="flex-[2] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-200/50 flex items-center justify-center gap-2 transition-all"
+                                >
+                                    {isDisbursing ? (
+                                        <>
+                                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                            Processing Payout…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <PaperAirplaneIcon className="w-4 h-4" />
+                                            Disburse & Notify Reseller
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

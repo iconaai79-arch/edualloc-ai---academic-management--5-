@@ -25,8 +25,8 @@ const InvoiceStatusBadge: React.FC<{ status: Invoice['status'] }> = ({ status })
     );
 };
 
-export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({ 
-    invoices, institutions, companyDetails, logoUrl, onCreateInvoice 
+export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
+    invoices, institutions, companyDetails, logoUrl, onCreateInvoice
 }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [selectedInstId, setSelectedInstId] = useState('');
@@ -38,11 +38,11 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const handleItemChange = (index: number, field: keyof InvoiceItem, value: string | number) => {
         const newItems = [...items];
         const item = { ...newItems[index], [field]: value };
-        
+
         if (field === 'quantity' || field === 'unitPrice') {
             item.amount = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
         }
-        
+
         newItems[index] = item;
         setItems(newItems);
     };
@@ -83,8 +83,8 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Tenant Invoicing</h3>
                     <p className="text-sm text-slate-500">Generate and manage subscription billing for institutions.</p>
                 </div>
-                <button 
-                    onClick={() => setIsCreating(true)} 
+                <button
+                    onClick={() => setIsCreating(true)}
                     className="btn-primary flex items-center gap-2 h-11 px-6 shadow-lg shadow-indigo-100"
                 >
                     <PlusIcon className="w-5 h-5" /> Create Invoice
@@ -104,26 +104,26 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Bill To (Institution)</label>
-                                <select 
-                                    value={selectedInstId} 
-                                    onChange={e => setSelectedInstId(e.target.value)} 
+                                <select
+                                    value={selectedInstId}
+                                    onChange={e => setSelectedInstId(e.target.value)}
                                     className="form-select w-full"
                                     required
                                 >
                                     <option value="">-- Select Tenant --</option>
-                                    {institutions.map(inst => (
+                                    {institutions.filter(inst => inst.institutionType !== 'Reseller').map(inst => (
                                         <option key={inst.id} value={inst.id}>{inst.name} ({inst.institutionCode})</option>
                                     ))}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Payment Due Date</label>
-                                <input 
-                                    type="date" 
-                                    value={dueDate} 
-                                    onChange={e => setDueDate(e.target.value)} 
-                                    className="form-input w-full" 
-                                    required 
+                                <input
+                                    type="date"
+                                    value={dueDate}
+                                    onChange={e => setDueDate(e.target.value)}
+                                    className="form-input w-full"
+                                    required
                                 />
                             </div>
                         </div>
@@ -138,33 +138,33 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     <div key={index} className="flex gap-3 items-start">
                                         <div className="flex-grow grid grid-cols-12 gap-3">
                                             <div className="col-span-6">
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Description" 
-                                                    value={item.description} 
-                                                    onChange={e => handleItemChange(index, 'description', e.target.value)} 
-                                                    className="form-input text-xs" 
+                                                <input
+                                                    type="text"
+                                                    placeholder="Description"
+                                                    value={item.description}
+                                                    onChange={e => handleItemChange(index, 'description', e.target.value)}
+                                                    className="form-input text-xs"
                                                     required
                                                 />
                                             </div>
                                             <div className="col-span-2">
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="Qty" 
-                                                    value={item.quantity} 
-                                                    onChange={e => handleItemChange(index, 'quantity', e.target.value)} 
-                                                    className="form-input text-xs text-center" 
+                                                <input
+                                                    type="number"
+                                                    placeholder="Qty"
+                                                    value={item.quantity}
+                                                    onChange={e => handleItemChange(index, 'quantity', e.target.value)}
+                                                    className="form-input text-xs text-center"
                                                     min="1"
                                                     required
                                                 />
                                             </div>
                                             <div className="col-span-4">
-                                                <input 
-                                                    type="number" 
-                                                    placeholder="Unit Price" 
-                                                    value={item.unitPrice} 
-                                                    onChange={e => handleItemChange(index, 'unitPrice', e.target.value)} 
-                                                    className="form-input text-xs" 
+                                                <input
+                                                    type="number"
+                                                    placeholder="Unit Price"
+                                                    value={item.unitPrice}
+                                                    onChange={e => handleItemChange(index, 'unitPrice', e.target.value)}
+                                                    className="form-input text-xs"
                                                     min="0"
                                                     required
                                                 />
@@ -240,7 +240,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <div className="flex justify-end gap-3">
                                             {inst && (
-                                                <button 
+                                                <button
                                                     onClick={() => downloadInvoicePdf(inv, inst, companyDetails, logoUrl)}
                                                     className="text-slate-400 hover:text-indigo-600 transition-colors"
                                                     title="Download PDF"
