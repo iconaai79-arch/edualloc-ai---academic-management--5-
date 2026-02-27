@@ -259,7 +259,7 @@ export interface SuperAdminViewProps {
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
     onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string) => void;
     onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
-    onAddInstitution: (data: Omit<Institution, 'id'>) => void;
+    onAddInstitution: (data: Omit<Institution, 'id'>) => Promise<void>;
     onDeleteInstitution: (institutionId: string) => void;
     onToggleInstitutionStatus: (institutionId: string) => void;
     onLoginAsAdmin: (institutionId: string) => void;
@@ -647,26 +647,31 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
-    const handleAddInstitutionSubmit = (e: React.FormEvent) => {
+    const handleAddInstitutionSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newInstData.name && newInstData.email && newInstData.phoneNumber) {
-            // Basic validation
-            props.onAddInstitution({
-                name: newInstData.name,
-                email: newInstData.email,
-                phoneNumber: newInstData.phoneNumber,
-                institutionType: newInstData.institutionType,
-                status: 'trial',
-                trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-                institutionCode: `INST-${Date.now().toString().slice(-4)}`,
-                themeColor: '#4f46e5',
-                logoUrl: null,
-                useAllocationRequests: true,
-                smsConfig: props.smsConfig
-            });
-            setIsAddingInstitution(false);
-            setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University' });
-            alert("New institution tenant created successfully.");
+            try {
+                // Basic validation
+                await props.onAddInstitution({
+                    name: newInstData.name,
+                    email: newInstData.email,
+                    phoneNumber: newInstData.phoneNumber,
+                    institutionType: newInstData.institutionType,
+                    status: 'trial',
+                    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    institutionCode: `INST-${Date.now().toString().slice(-4)}`,
+                    themeColor: '#4f46e5',
+                    logoUrl: null,
+                    useAllocationRequests: true,
+                    smsConfig: props.smsConfig
+                });
+                setIsAddingInstitution(false);
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University' });
+                alert("New institution tenant created successfully.");
+            } catch (err: any) {
+                console.error("Failed to add institution:", err);
+                alert(`Failed to add institution: ${err.message || 'Unknown error'}`);
+            }
         } else {
             alert("Please fill in all required fields.");
         }
