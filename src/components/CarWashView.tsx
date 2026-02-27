@@ -46,6 +46,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
     const [showNewPackageModal, setShowNewPackageModal] = useState(false);
     const [showNewInventoryModal, setShowNewInventoryModal] = useState(false);
+    const [showNewStaffModal, setShowNewStaffModal] = useState(false);
     const [showSmartImporter, setShowSmartImporter] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
@@ -86,7 +87,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
     const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
 
-    const attendants = users.filter(u => u.role === 'admin' || u.role === 'lecturer' || u.role === 'head_teacher');
+    const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
 
     // ── New Job Modal State ──
     const [jobForm, setJobForm] = useState({ vehiclePlate: '', vehicleType: 'Sedan' as CarWashVehicleType, packageId: '', addOns: [] as string[], attendantId: '', bayNumber: 1, paymentMethod: 'cash' as CarWashPaymentMethod, customerId: '' });
@@ -246,6 +247,33 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         } catch (e: any) {
             console.error("Save Inventory Error:", e);
             alert(`Failed to save inventory item: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
+        }
+    };
+
+    // ── Staff Form ──
+    const [staffForm, setStaffForm] = useState({ name: '', phoneNumber: '', email: '', role: 'carwash_attendant', password: '' });
+    const handleCreateStaff = async () => {
+        if (!staffForm.name || !staffForm.phoneNumber || !staffForm.password) {
+            alert('Name, phone, and password are required'); return;
+        }
+        try {
+            const newUser: User = {
+                id: `u_${Date.now()}`,
+                institutionId,
+                name: staffForm.name,
+                phoneNumber: staffForm.phoneNumber,
+                email: staffForm.email,
+                role: staffForm.role as any,
+                password: staffForm.password,
+                expertise: []
+            };
+            await apiService.saveModuleRecord('users', newUser);
+            setShowNewStaffModal(false);
+            setStaffForm({ name: '', phoneNumber: '', email: '', role: 'carwash_attendant', password: '' });
+            onDataChange(); // notify parent to reload users
+        } catch (e: any) {
+            console.error("Save Staff Error:", e);
+            alert(`Failed to save staff: ${e.message || 'Unknown error'}`);
         }
     };
 
@@ -499,7 +527,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 {/* STAFF */}
                 {!loading && activeTab === 'staff' && (
                     <div className="space-y-4">
-                        <h2 className="text-lg font-black uppercase">Attendant Performance</h2>
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-black uppercase">Attendant Performance & Staff</h2>
+                            <button onClick={() => setShowNewStaffModal(true)} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> Add Staff</button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {attendants.map(att => {
                                 const attJobs = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
@@ -840,6 +871,28 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <textarea className={inputCls + ' h-24 resize-none'} placeholder="Any comments? (optional)" value={fbComment} onChange={e => setFbComment(e.target.value)} />
                         </div>
                         <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowFeedbackModal(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Skip</button><button onClick={handleSubmitFeedback} className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-black text-sm uppercase shadow">Submit ★</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* NEW STAFF MODAL */}
+            {showNewStaffModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                            <h3 className="text-lg font-black uppercase">Add Staff Member</h3>
+                            <button onClick={() => setShowNewStaffModal(false)} className="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full hover:bg-slate-50 transition-all shadow-sm"><XIcon className="w-4 h-4" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div><label className={labelCls}>Name</label><input value={staffForm.name} onChange={e => setStaffForm({ ...staffForm, name: e.target.value })} className={inputCls} placeholder="e.g. John Doe" /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className={labelCls}>Phone</label><input value={staffForm.phoneNumber} onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })} className={inputCls} placeholder="07XX..." /></div>
+                                <div><label className={labelCls}>Role</label><select value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })} className={inputCls}><option value="carwash_attendant">Attendant</option><option value="carwash_admin">Admin</option></select></div>
+                            </div>
+                            <div><label className={labelCls}>Email (Optional)</label><input value={staffForm.email} onChange={e => setStaffForm({ ...staffForm, email: e.target.value })} className={inputCls} placeholder="john@example.com" /></div>
+                            <div><label className={labelCls}>Initial Password</label><input value={staffForm.password} onChange={e => setStaffForm({ ...staffForm, password: e.target.value })} className={inputCls} placeholder="Required" /></div>
+                            <button onClick={handleCreateStaff} className="w-full py-4 bg-cyan-600 text-white rounded-xl font-black uppercase tracking-widest hover:bg-cyan-700 transition-all mt-2 active:scale-95 shadow-md shadow-cyan-600/20">Create Staff</button>
+                        </div>
                     </div>
                 </div>
             )}
