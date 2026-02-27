@@ -939,6 +939,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 Counties
                             </button>
                             <button
+                                onClick={() => setInstitutionsSubTab('resellers')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'resellers' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Resellers
+                            </button>
+                            <button
                                 onClick={() => setInstitutionsSubTab('requests')}
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'requests' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
@@ -1135,6 +1141,70 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                     }
                                 }}
                             />
+                        )}
+                        
+                        {institutionsSubTab === 'resellers' && (
+                            <div className="space-y-6 animate-fade-in-up">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xl font-black uppercase tracking-tighter">Reseller Agencies</h3>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 shadow-sm rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
+                                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                        <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Agency Name</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Code</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Sub-Tenants</th>
+                                                <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {institutions.filter(i => i.institutionType === 'Reseller').map((inst: Institution) => {
+                                                const subTenantsCount = institutions.filter(i => i.resellerId === inst.id).length;
+                                                return (
+                                                <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
+                                                        {inst.name}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-slate-500">
+                                                        {inst.institutionCode}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
+                                                            inst.status === 'trial' ? 'bg-blue-100 text-blue-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {inst.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-bold">
+                                                        {subTenantsCount} Managed
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                <ArrowRightOnRectangleIcon className="w-3 h-3" />
+                                                                Portal
+                                                            </button>
+                                                            <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
+                                                                Edit
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )})}
+                                            {institutions.filter(i => i.institutionType === 'Reseller').length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">
+                                                        No Reseller Agencies found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         )}
 
                         {institutionsSubTab === 'requests' && (
