@@ -26,10 +26,10 @@ DROP POLICY IF EXISTS "Enable insert access for all" ON carwash_inventory;
 DROP POLICY IF EXISTS "Enable update access for all" ON carwash_inventory;
 DROP POLICY IF EXISTS "Enable delete access for all" ON carwash_inventory;
 
-DROP POLICY IF EXISTS "Enable read access for all" ON carwash_shift_logs;
-DROP POLICY IF EXISTS "Enable insert access for all" ON carwash_shift_logs;
-DROP POLICY IF EXISTS "Enable update access for all" ON carwash_shift_logs;
-DROP POLICY IF EXISTS "Enable delete access for all" ON carwash_shift_logs;
+DROP POLICY IF EXISTS "Enable read access for all" ON carwash_shifts;
+DROP POLICY IF EXISTS "Enable insert access for all" ON carwash_shifts;
+DROP POLICY IF EXISTS "Enable update access for all" ON carwash_shifts;
+DROP POLICY IF EXISTS "Enable delete access for all" ON carwash_shifts;
 
 DROP POLICY IF EXISTS "Enable read access for all" ON carwash_feedback;
 DROP POLICY IF EXISTS "Enable insert access for all" ON carwash_feedback;
@@ -66,11 +66,11 @@ CREATE POLICY "Enable insert access for all" ON carwash_inventory FOR INSERT WIT
 CREATE POLICY "Enable update access for all" ON carwash_inventory FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable delete access for all" ON carwash_inventory FOR DELETE USING (true);
 
--- Create generic policies for carwash_shift_logs
-CREATE POLICY "Enable read access for all" ON carwash_shift_logs FOR SELECT USING (true);
-CREATE POLICY "Enable insert access for all" ON carwash_shift_logs FOR INSERT WITH CHECK (true);
-CREATE POLICY "Enable update access for all" ON carwash_shift_logs FOR UPDATE USING (true) WITH CHECK (true);
-CREATE POLICY "Enable delete access for all" ON carwash_shift_logs FOR DELETE USING (true);
+-- Create generic policies for carwash_shifts
+CREATE POLICY "Enable read access for all" ON carwash_shifts FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all" ON carwash_shifts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all" ON carwash_shifts FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Enable delete access for all" ON carwash_shifts FOR DELETE USING (true);
 
 -- Create generic policies for carwash_feedback
 CREATE POLICY "Enable read access for all" ON carwash_feedback FOR SELECT USING (true);

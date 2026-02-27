@@ -189,59 +189,79 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             return;
         }
 
-        const customerId = `cwc_${Date.now()}`;
-        const cust: CarWashCustomer = { id: customerId, institutionId, name: custForm.name, phoneNumber: custForm.phoneNumber, email: custForm.email, loyaltyStamps: 0, stampsForFreeWash: 10, createdAt: new Date().toISOString() };
+        try {
+            const customerId = `cwc_${Date.now()}`;
+            const cust: CarWashCustomer = { id: customerId, institutionId, name: custForm.name, phoneNumber: custForm.phoneNumber, email: custForm.email, loyaltyStamps: 0, stampsForFreeWash: 10, createdAt: new Date().toISOString() };
 
-        await apiService.saveModuleRecord('carwash_customers', cust);
+            await apiService.saveModuleRecord('carwash_customers', cust);
 
-        if (custForm.plateNumber) {
-            const veh: CarWashVehicle = { id: `cwv_${Date.now()}`, institutionId, customerId: cust.id, plateNumber: custForm.plateNumber.toUpperCase(), make: custForm.make, model: custForm.model, color: custForm.color, vehicleType: custForm.vehicleType };
-            await apiService.saveModuleRecord('carwash_vehicles', veh);
+            if (custForm.plateNumber) {
+                const veh: CarWashVehicle = { id: `cwv_${Date.now()}`, institutionId, customerId: cust.id, plateNumber: custForm.plateNumber.toUpperCase(), make: custForm.make, model: custForm.model, color: custForm.color, vehicleType: custForm.vehicleType };
+                await apiService.saveModuleRecord('carwash_vehicles', veh);
+            }
+
+            // If we were adding from the job modal, auto-select this customer and plate
+            if (showNewJobModal) {
+                setJobForm(prev => ({
+                    ...prev,
+                    customerId: customerId,
+                    vehiclePlate: custForm.plateNumber || prev.vehiclePlate,
+                    vehicleType: custForm.vehicleType || prev.vehicleType
+                }));
+            }
+
+            setShowNewCustomerModal(false);
+            setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' });
+            loadData();
+        } catch (e: any) {
+            console.error("Save Customer Error:", e);
+            alert(`Failed to save customer: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
         }
-
-        // If we were adding from the job modal, auto-select this customer and plate
-        if (showNewJobModal) {
-            setJobForm(prev => ({
-                ...prev,
-                customerId: customerId,
-                vehiclePlate: custForm.plateNumber || prev.vehiclePlate,
-                vehicleType: custForm.vehicleType || prev.vehicleType
-            }));
-        }
-
-        setShowNewCustomerModal(false);
-        setCustForm({ name: '', phoneNumber: '', email: '', plateNumber: '', make: '', model: '', color: '', vehicleType: 'Sedan' });
-        loadData();
     };
 
     // ── Package Form ──
     const [pkgForm, setPkgForm] = useState({ name: '', description: '', pricing: {} as Partial<Record<CarWashVehicleType, number>>, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0] });
     const handleCreatePackage = async () => {
         if (!pkgForm.name) return;
-        const pkg: CarWashPackage = { id: `cwp_${Date.now()}`, institutionId, name: pkgForm.name, description: pkgForm.description, pricing: pkgForm.pricing, estimatedMinutes: pkgForm.estimatedMinutes, includesInterior: pkgForm.includesInterior, isActive: true, color: pkgForm.color };
-        await apiService.saveModuleRecord('carwash_packages', pkg);
-        setShowNewPackageModal(false); setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0] });
-        loadData();
+        try {
+            const pkg: CarWashPackage = { id: `cwp_${Date.now()}`, institutionId, name: pkgForm.name, description: pkgForm.description, pricing: pkgForm.pricing, estimatedMinutes: pkgForm.estimatedMinutes, includesInterior: pkgForm.includesInterior, isActive: true, color: pkgForm.color };
+            await apiService.saveModuleRecord('carwash_packages', pkg);
+            setShowNewPackageModal(false); setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0] });
+            loadData();
+        } catch (e: any) {
+            console.error("Save Package Error:", e);
+            alert(`Failed to save package: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
+        }
     };
 
     // ── Inventory Form ──
     const [invForm, setInvForm] = useState({ name: '', unit: 'litres', currentStock: 0, reorderLevel: 5, costPerUnit: 0, category: 'chemical' as CarWashInventoryItem['category'] });
     const handleCreateInventory = async () => {
         if (!invForm.name) return;
-        const item: CarWashInventoryItem = { id: `cwi_${Date.now()}`, institutionId, ...invForm };
-        await apiService.saveModuleRecord('carwash_inventory', item);
-        setShowNewInventoryModal(false); setInvForm({ name: '', unit: 'litres', currentStock: 0, reorderLevel: 5, costPerUnit: 0, category: 'chemical' });
-        loadData();
+        try {
+            const item: CarWashInventoryItem = { id: `cwi_${Date.now()}`, institutionId, ...invForm };
+            await apiService.saveModuleRecord('carwash_inventory', item);
+            setShowNewInventoryModal(false); setInvForm({ name: '', unit: 'litres', currentStock: 0, reorderLevel: 5, costPerUnit: 0, category: 'chemical' });
+            loadData();
+        } catch (e: any) {
+            console.error("Save Inventory Error:", e);
+            alert(`Failed to save inventory item: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
+        }
     };
 
     // ── Feedback Form ──
     const [fbRating, setFbRating] = useState(5); const [fbComment, setFbComment] = useState('');
     const handleSubmitFeedback = async () => {
         if (!showFeedbackModal) return;
-        const fb: CarWashFeedback = { id: `cwf_${Date.now()}`, institutionId, jobId: showFeedbackModal.id, customerId: showFeedbackModal.customerId, rating: fbRating, comment: fbComment, submittedAt: new Date().toISOString() };
-        await apiService.saveModuleRecord('carwash_feedback', fb);
-        setShowFeedbackModal(null); setFbRating(5); setFbComment('');
-        loadData();
+        try {
+            const fb: CarWashFeedback = { id: `cwf_${Date.now()}`, institutionId, jobId: showFeedbackModal.id, customerId: showFeedbackModal.customerId, rating: fbRating, comment: fbComment, submittedAt: new Date().toISOString() };
+            await apiService.saveModuleRecord('carwash_feedback', fb);
+            setShowFeedbackModal(null); setFbRating(5); setFbComment('');
+            loadData();
+        } catch (e: any) {
+            console.error("Submit Feedback Error:", e);
+            alert(`Failed to submit feedback: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
+        }
     };
 
     const inputCls = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-semibold outline-none transition-all';
