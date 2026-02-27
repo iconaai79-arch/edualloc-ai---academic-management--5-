@@ -25,6 +25,7 @@ import { CarWashView } from './CarWashView';
 import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
+import ResellerDashboard from './ResellerDashboard';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { generateAlphanumericCode } from '../utils/stringUtils';
@@ -1684,6 +1685,12 @@ export const App: React.FC = () => {
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
                                     studentAttendances={studentAttendances}
+                                />
+                            ) : activeRole === 'reseller' ? (
+                                <ResellerDashboard
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    onImpersonate={onLoginAsAdmin}
                                 />
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                 <CountyAdminView

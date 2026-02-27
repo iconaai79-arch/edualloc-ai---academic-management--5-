@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS institutions (
     use_allocation_requests BOOLEAN DEFAULT TRUE,
     schedule_profiles JSONB DEFAULT '[]'::jsonb,
     county_id TEXT REFERENCES counties(id) ON DELETE SET NULL,
+    reseller_id TEXT REFERENCES institutions(id) ON DELETE SET NULL,
     is_otp_enabled BOOLEAN DEFAULT FALSE
 );
 
