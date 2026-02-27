@@ -809,7 +809,25 @@ export const App: React.FC = () => {
 
     const onLoginAsAdmin = (institutionId: string) => {
         const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'reseller'];
-        const admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+        let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+
+        if (!admin) {
+            console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to any user.`);
+            admin = users.find(u => u.institutionId === institutionId);
+        }
+
+        if (!admin) {
+            console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
+            admin = {
+                id: `temp_admin_${institutionId}`,
+                name: 'System Admin (Fallback)',
+                email: 'admin@system.local',
+                phoneNumber: '',
+                role: 'admin',
+                institutionId: institutionId,
+                expertise: ['Administration']
+            };
+        }
 
         if (admin) {
             // If the current user is a super admin, save them as the original session
@@ -1523,7 +1541,7 @@ export const App: React.FC = () => {
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
                             {activeRole === 'super_admin' ? (
                                 <SuperAdminView
-                                    currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { const newId = d.id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, status: 'active' }, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)} onAddInstitution={async (d) => { const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, status: 'active' } as any, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
                                     onRefreshData={() => loadData()}
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
@@ -2235,7 +2253,7 @@ export const App: React.FC = () => {
                                     onWithdrawRequestStatus={async (id) => { }}
                                     onManualInvoice={() => { }}
                                     onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)}
-                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: d.id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` } as any); loadData(); }}
+                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` } as any); loadData(); }}
                                     onDeleteInstitution={onDeleteInstitution}
                                     onToggleInstitutionStatus={onToggleInstitutionStatus}
                                     onLoginAsAdmin={onLoginAsAdmin}
