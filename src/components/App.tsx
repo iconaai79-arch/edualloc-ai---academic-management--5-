@@ -404,6 +404,12 @@ export const App: React.FC = () => {
             }
             setUsers(finalUsers);
 
+            // Ensure current user is persisted in the database to avoid foreign key violations in secondary tables (like carwash_expenses)
+            if (currentUser && !finalUsers.some(u => u.id === currentUser.id)) {
+                console.log("Persisting current user to database to maintain referential integrity...");
+                apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
+            }
+
             setDepartments(d || []);
             setSubjects(s || []);
             setCourses(c || []);

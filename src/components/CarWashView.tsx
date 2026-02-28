@@ -127,7 +127,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         const job: CarWashJob = {
             id: `cwj_${Date.now()}`, institutionId, vehiclePlate: jobForm.vehiclePlate.toUpperCase(), vehicleType: jobForm.vehicleType,
             packageId: jobForm.packageId, packageName: pkg.name, addOns: jobForm.addOns,
-            attendantId: jobForm.attendantId, attendantName: attendants.find(a => a.id === jobForm.attendantId)?.name,
+            attendantId: users.some(u => u.id === jobForm.attendantId) ? jobForm.attendantId : null,
+            attendantName: attendants.find(a => a.id === jobForm.attendantId)?.name,
             bayNumber: jobForm.bayNumber, status: 'queued', paymentMethod: jobForm.paymentMethod,
             amountCharged: price, amountPaid: 0, isLoyaltyRedemption: false, createdAt: new Date().toISOString(),
             customerId: jobForm.customerId || undefined,
@@ -160,7 +161,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     phoneNumber: customer?.phoneNumber || '',
                     description: `Car Wash: ${job.packageName} - ${job.vehiclePlate}`,
                     institutionId,
-                    userId: currentUser.id
+                    userId: users.some(u => u.id === currentUser.id) ? currentUser.id : null
                 }, [
                     { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged }
                 ]);
@@ -372,7 +373,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 id: editingExpense?.id || `cwe_${Date.now()}`,
                 institutionId,
                 ...expForm,
-                recordedBy: currentUser.id,
+                recordedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
                 createdAt: editingExpense?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_expenses', exp);
@@ -468,7 +469,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 totalPay,
                 status: 'paid',
                 paymentDate: new Date().toISOString(),
-                processedBy: currentUser.id,
+                processedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
@@ -548,7 +549,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             description,
             referenceType: refType,
             referenceId: refId,
-            createdBy: currentUser.id,
+            createdBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
