@@ -384,13 +384,36 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     // ── Package Form ──
-    const [pkgForm, setPkgForm] = useState({ name: '', description: '', pricing: {} as Partial<Record<CarWashVehicleType, number>>, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0] });
+    const [pkgForm, setPkgForm] = useState({ name: '', description: '', pricing: {} as Partial<Record<CarWashVehicleType, number>>, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined as string | undefined });
+    const handleEditPackage = (pkg: CarWashPackage) => {
+        setPkgForm({
+            name: pkg.name,
+            description: pkg.description || '',
+            pricing: pkg.pricing,
+            estimatedMinutes: pkg.estimatedMinutes,
+            includesInterior: pkg.includesInterior || false,
+            color: pkg.color || PACKAGE_COLORS[0],
+            editingId: pkg.id
+        });
+        setShowNewPackageModal(true);
+    };
     const handleCreatePackage = async () => {
         if (!pkgForm.name) return;
         try {
-            const pkg: CarWashPackage = { id: `cwp_${Date.now()}`, institutionId, name: pkgForm.name, description: pkgForm.description, pricing: pkgForm.pricing, estimatedMinutes: pkgForm.estimatedMinutes, includesInterior: pkgForm.includesInterior, isActive: true, color: pkgForm.color };
+            const pkg: CarWashPackage = {
+                id: pkgForm.editingId || `cwp_${Date.now()}`,
+                institutionId,
+                name: pkgForm.name,
+                description: pkgForm.description,
+                pricing: pkgForm.pricing as Record<CarWashVehicleType, number>,
+                estimatedMinutes: pkgForm.estimatedMinutes,
+                includesInterior: pkgForm.includesInterior,
+                isActive: true,
+                color: pkgForm.color
+            };
             await apiService.saveModuleRecord('carwash_packages', pkg);
-            setShowNewPackageModal(false); setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0] });
+            setShowNewPackageModal(false);
+            setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined });
             loadData();
         } catch (e: any) {
             console.error("Save Package Error:", e);
@@ -858,7 +881,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-black uppercase">Service Packages</h2>
-                            <button onClick={() => setShowNewPackageModal(true)} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
+                            <button onClick={() => { setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined }); setShowNewPackageModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {packages.map(pkg => (
@@ -867,7 +890,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <div className="p-5">
                                         <div className="flex justify-between items-start mb-2">
                                             <h3 className="font-black text-base">{pkg.name}</h3>
-                                            <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">{pkg.estimatedMinutes} min</span>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleEditPackage(pkg)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-cyan-600 transition-all" title="Edit Package">
+                                                    <Cog8ToothIcon className="w-4 h-4" />
+                                                </button>
+                                                <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">{pkg.estimatedMinutes} min</span>
+                                            </div>
                                         </div>
                                         <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
                                         <div className="space-y-1">
@@ -1226,7 +1254,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {showNewPackageModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">New Package</h3><button onClick={() => setShowNewPackageModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
+                        <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">{pkgForm.editingId ? 'Edit Package' : 'New Package'}</h3><button onClick={() => setShowNewPackageModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                             <div><label className={labelCls}>Package Name</label><input className={inputCls} value={pkgForm.name} onChange={e => setPkgForm({ ...pkgForm, name: e.target.value })} placeholder="e.g. Premium Wash" /></div>
                             <div><label className={labelCls}>Description</label><input className={inputCls} value={pkgForm.description} onChange={e => setPkgForm({ ...pkgForm, description: e.target.value })} placeholder="What's included..." /></div>
@@ -1237,7 +1265,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div><label className={labelCls}>Pricing by Vehicle Type (KES)</label><div className="space-y-2">{VEHICLE_TYPES.map(vt => <div key={vt} className="flex items-center gap-3"><span className="text-xs font-bold w-20">{vt}</span><input type="number" className={inputCls} placeholder="0" value={pkgForm.pricing[vt] || ''} onChange={e => setPkgForm(prev => ({ ...prev, pricing: { ...prev.pricing, [vt]: +e.target.value } }))} /></div>)}</div></div>
                             <div><label className={labelCls}>Accent Color</label><div className="flex gap-2">{PACKAGE_COLORS.map(c => <button key={c} type="button" onClick={() => setPkgForm({ ...pkgForm, color: c })} className={`w-8 h-8 rounded-full border-2 transition-all ${pkgForm.color === c ? 'border-slate-900 scale-110' : 'border-transparent'}`} style={{ background: c }} />)}</div></div>
                         </div>
-                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPackageModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreatePackage} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">Save Package</button></div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPackageModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreatePackage} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">{pkgForm.editingId ? 'Save Changes' : 'Save Package'}</button></div>
                     </div>
                 </div>
             )}
