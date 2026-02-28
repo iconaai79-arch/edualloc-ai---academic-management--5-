@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, Invoice, Receipt } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
+import type { Invoice, Receipt } from '../types';
 import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
 import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
@@ -127,7 +128,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         const job: CarWashJob = {
             id: `cwj_${Date.now()}`, institutionId, vehiclePlate: jobForm.vehiclePlate.toUpperCase(), vehicleType: jobForm.vehicleType,
             packageId: jobForm.packageId, packageName: pkg.name, addOns: jobForm.addOns,
-            attendantId: users.some(u => u.id === jobForm.attendantId) ? jobForm.attendantId : null,
+            attendantId: users.some(u => u.id === jobForm.attendantId) ? jobForm.attendantId : undefined,
             attendantName: attendants.find(a => a.id === jobForm.attendantId)?.name,
             bayNumber: jobForm.bayNumber, status: 'queued', paymentMethod: jobForm.paymentMethod,
             amountCharged: price, amountPaid: 0, isLoyaltyRedemption: false, createdAt: new Date().toISOString(),
@@ -141,14 +142,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
         if (status === 'completed') {
             setShowCheckoutModal(job);
-            return;
-        }
 
-        const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}) };
-        await apiService.saveModuleRecord('carwash_jobs', updated);
-
-        // Notify customer when car is ready
-        if (status === 'completed') {
+            // Notify customer when car is ready
             const customer = customers.find(c => c.id === job.customerId);
             if (customer && customer.phoneNumber) {
                 const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready for pickup! Amount due: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
@@ -158,8 +153,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     console.error('Failed to send readiness SMS', e);
                 }
             }
+            return;
         }
 
+        const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}) };
+        await apiService.saveModuleRecord('carwash_jobs', updated);
         loadData();
     };
 
@@ -175,7 +173,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     phoneNumber: customer?.phoneNumber || '',
                     description: `Car Wash: ${job.packageName} - ${job.vehiclePlate}`,
                     institutionId,
-                    userId: users.some(u => u.id === currentUser.id) ? currentUser.id : null
+                    userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
                 }, [
                     { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged }
                 ]);
@@ -451,7 +449,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 id: editingExpense?.id || `cwe_${Date.now()}`,
                 institutionId,
                 ...expForm,
-                recordedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
+                recordedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
                 createdAt: editingExpense?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_expenses', exp);
@@ -547,7 +545,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 totalPay,
                 status: 'paid',
                 paymentDate: new Date().toISOString(),
-                processedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
+                processedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
@@ -627,7 +625,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             description,
             referenceType: refType,
             referenceId: refId,
-            createdBy: users.some(u => u.id === currentUser.id) ? currentUser.id : null,
+            createdBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
