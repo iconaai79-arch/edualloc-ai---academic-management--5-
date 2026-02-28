@@ -22,6 +22,7 @@ import BoardingMasterView from './BoardingMasterView';
 import { ParentView } from './ParentView';
 import { PracticeTeacherView } from './PracticeTeacherView';
 import { CarWashView } from './CarWashView';
+import { CarWashCustomerPortal } from './CarWashCustomerPortal';
 import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
@@ -2064,7 +2065,13 @@ export const App: React.FC = () => {
                                     mpesaConfig={activeInstitution?.mpesaConfig || companyDetails.mpesaConfig}
                                     departments={departments}
                                     courses={courses}
+                                    onRegisterUser={async (userData) => {
+                                        await apiService.registerUser(userData, activeInstitution?.name);
+                                        loadData();
+                                    }}
                                 />
+                            ) : activeRole === 'carwash_customer' ? (
+                                <CarWashCustomerPortal currentUser={currentUser} />
                             ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}

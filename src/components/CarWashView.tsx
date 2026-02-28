@@ -28,11 +28,12 @@ interface CarWashViewProps {
     mpesaConfig?: any;
     departments?: any[];
     courses?: any[];
+    onRegisterUser?: (userData: Partial<User>) => Promise<void>;
 }
 
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, users, onDataChange,
-    onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses
+    onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
 }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance'>('dashboard');
@@ -355,6 +356,25 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             }
 
             await apiService.saveModuleRecord('carwash_customers', cust);
+
+            // Auto-register customer as a user if they have an email
+            if (cust.email && onRegisterUser) {
+                const existingUser = users.find(u => u.email?.toLowerCase() === cust.email?.toLowerCase());
+                if (!existingUser) {
+                    try {
+                        await onRegisterUser({
+                            name: cust.name,
+                            email: cust.email,
+                            phoneNumber: cust.phoneNumber,
+                            role: 'carwash_customer',
+                            institutionId: institutionId,
+                            expertise: ['Car Wash Customer']
+                        });
+                    } catch (e) {
+                        console.error("Auto-registration failed:", e);
+                    }
+                }
+            }
 
             if (custForm.plateNumber) {
                 const vehicleId = custForm.originalVehicleId || `cwv_${Date.now()}`;
