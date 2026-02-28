@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
 import { apiService } from '../services/apiService';
+import { CommunicationsManager } from './CommunicationsManager';
+import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
 import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,

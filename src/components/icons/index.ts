@@ -82,3 +82,6 @@ export { ShoppingCartIcon } from './ShoppingCartIcon';
 export { TagIcon } from './TagIcon';
 export { BanknotesIcon } from './BanknotesIcon';
 export { CurrencyEuroIcon } from './CurrencyEuroIcon';
+export { WrenchIcon } from './WrenchIcon';
+export { DocumentTextIcon } from './DocumentTextIcon';
+
