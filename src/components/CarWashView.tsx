@@ -356,6 +356,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 id: `cwe_${Date.now()}`,
                 institutionId,
                 ...expForm,
+                recordedBy: currentUser.id,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_expenses', exp);
@@ -377,6 +378,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 totalPay: payrlForm.baseSalary + payrlForm.commissionEarned - payrlForm.advancesTaken - payrlForm.deductions,
                 status: 'paid',
                 paymentDate: new Date().toISOString(),
+                processedBy: currentUser.id,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
