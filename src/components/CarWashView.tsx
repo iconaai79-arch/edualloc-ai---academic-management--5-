@@ -750,6 +750,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             onSendSms={onSendSms}
                             currentInstitution={currentInstitution}
                             currentUser={currentUser}
+                            mpesaConfig={mpesaConfig}
+                            onRefreshData={onDataChange}
                             moduleContext="carwash"
                         />
                     </div>
