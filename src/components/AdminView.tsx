@@ -49,7 +49,8 @@ import {
     PlusIcon,
     BedIcon,
     CreditCardIcon,
-    MapPinIcon
+    MapPinIcon,
+    HomeIcon
 } from './icons/index';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
