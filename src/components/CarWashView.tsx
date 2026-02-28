@@ -46,6 +46,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [accounts, setAccounts] = useState<CarWashAccount[]>([]);
     const [journalEntries, setJournalEntries] = useState<CarWashJournalEntry[]>([]);
     const [journalLines, setJournalLines] = useState<CarWashJournalLine[]>([]);
+    const [isSeedingAccounts, setIsSeedingAccounts] = useState(false);
     const [expenses, setExpenses] = useState<CarWashExpense[]>([]);
     const [payroll, setPayroll] = useState<CarWashPayroll[]>([]);
 
@@ -174,6 +175,18 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             };
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
+
+            // ── Accounting Integration: Income ──
+            const incomeAcc = method === 'mpesa' ? '1010' : '1000';
+            await recordJournalEntry(
+                `Wash Revenue: ${job.packageName} - ${job.vehiclePlate}`,
+                job.amountCharged,
+                incomeAcc, // Debit: Cash/Mpesa
+                '4000',    // Credit: Wash Revenue
+                'Job',
+                job.id
+            );
+
             setShowCheckoutModal(null);
             setShowFeedbackModal(updated);
 
@@ -363,6 +376,22 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 createdAt: editingExpense?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_expenses', exp);
+
+            // ── Accounting Integration: Expense ──
+            const contraAcc = exp.paymentMethod === 'mpesa' ? '1010' : '1000';
+            let expenseAcc = '5000'; // Default Supplies
+            if (exp.category.toLowerCase().includes('utility')) expenseAcc = '5020';
+            if (exp.category.toLowerCase().includes('maintenance')) expenseAcc = '5030';
+
+            await recordJournalEntry(
+                `Expense: ${exp.description} (${exp.category})`,
+                exp.amount,
+                expenseAcc, // Debit: Expense
+                contraAcc,  // Credit: Cash/Mpesa
+                'Expense',
+                exp.id
+            );
+
             setShowNewExpenseModal(false);
             setEditingExpense(null);
             setExpForm({ description: '', amount: 0, category: 'supplies', paymentMethod: 'cash', expenseDate: new Date().toISOString().split('T')[0] });
@@ -443,6 +472,16 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
+
+            // ── Accounting Integration: Payroll ──
+            await recordJournalEntry(
+                `Payroll: ${attendants.find(a => a.id === pyrl.staffId)?.name || 'Staff'} - ${pyrl.periodStart}`,
+                pyrl.totalPay,
+                '5010', // Debit: Wages & Salary Expense
+                '1000', // Credit: Cash on Hand
+                'Payroll',
+                pyrl.id
+            );
             setShowNewPayrollModal(false);
             setPayrlForm({
                 staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
@@ -453,6 +492,91 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             loadData();
         } catch (e: any) { alert(`Failed: ${e.message}`); }
     };
+
+    // ── Accounting Helpers ──
+    const handleSeedAccounts = async () => {
+        setIsSeedingAccounts(true);
+        try {
+            const defaultAccounts: Partial<CarWashAccount>[] = [
+                { id: `acc_${institutionId}_1000`, accountCode: '1000', name: 'Cash on Hand', type: 'Asset', description: 'Physical cash in till', isActive: true },
+                { id: `acc_${institutionId}_1010`, accountCode: '1010', name: 'M-Pesa Till', type: 'Asset', description: 'Digital payments via M-Pesa', isActive: true },
+                { id: `acc_${institutionId}_2000`, accountCode: '2000', name: 'Accounts Payable', type: 'Liability', description: 'Money owed to suppliers', isActive: true },
+                { id: `acc_${institutionId}_3000`, accountCode: '3000', name: 'Owner Equity', type: 'Equity', description: 'Owner investments / Retained earnings', isActive: true },
+                { id: `acc_${institutionId}_4000`, accountCode: '4000', name: 'Wash Revenue', type: 'Revenue', description: 'Income from car washes', isActive: true },
+                { id: `acc_${institutionId}_5000`, accountCode: '5000', name: 'Supplies Expense', type: 'Expense', description: 'Soap, wax, rags, etc', isActive: true },
+                { id: `acc_${institutionId}_5010`, accountCode: '5010', name: 'Wages & Salary Expense', type: 'Expense', description: 'Staff payroll and commissions', isActive: true },
+                { id: `acc_${institutionId}_5020`, accountCode: '5020', name: 'Utilities Expense', type: 'Expense', description: 'Water and electricity bills', isActive: true },
+            ];
+
+            for (const acc of defaultAccounts) {
+                await apiService.saveModuleRecord('carwash_accounts', { ...acc, institutionId, createdAt: new Date().toISOString() });
+            }
+            alert('Accounting structure initialized successfully!');
+            await loadData();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to initialize accounting');
+        } finally {
+            setIsSeedingAccounts(false);
+        }
+    };
+
+    const recordJournalEntry = async (description: string, amount: number, debitAccCode: string, creditAccCode: string, refType?: string, refId?: string) => {
+        const availableAccounts = accounts.length > 0 ? accounts : (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
+
+        let debitAcc = availableAccounts.find(a => a.accountCode === debitAccCode);
+        let creditAcc = availableAccounts.find(a => a.accountCode === creditAccCode);
+
+        // Auto-seed if accounts are missing
+        if (!debitAcc || !creditAcc) {
+            await handleSeedAccounts();
+            const freshAccounts = (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
+            debitAcc = freshAccounts.find(a => a.accountCode === debitAccCode);
+            creditAcc = freshAccounts.find(a => a.accountCode === creditAccCode);
+        }
+
+        const debitAccId = debitAcc?.id || `acc_${institutionId}_${debitAccCode}`;
+        const creditAccId = creditAcc?.id || `acc_${institutionId}_${creditAccCode}`;
+
+        const entryId = `je_${Date.now()}`;
+        const journalEntry: CarWashJournalEntry = {
+            id: entryId,
+            institutionId,
+            entryNumber: `JE-${Date.now().toString().slice(-6)}`,
+            entryDate: new Date().toISOString().split('T')[0],
+            description,
+            referenceType: refType,
+            referenceId: refId,
+            createdBy: currentUser.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        const debitLine: CarWashJournalLine = {
+            id: `jl_${Date.now()}_1`,
+            institutionId,
+            entryId,
+            accountId: debitAccId,
+            debit: amount,
+            credit: 0,
+            createdAt: new Date().toISOString()
+        };
+
+        const creditLine: CarWashJournalLine = {
+            id: `jl_${Date.now()}_2`,
+            institutionId,
+            entryId,
+            accountId: creditAccId,
+            debit: 0,
+            credit: amount,
+            createdAt: new Date().toISOString()
+        };
+
+        await apiService.saveModuleRecord('carwash_journal_entries', journalEntry);
+        await apiService.saveModuleRecord('carwash_journal_lines', debitLine);
+        await apiService.saveModuleRecord('carwash_journal_lines', creditLine);
+    };
+
 
     // ── Feedback Form ──
     const [fbRating, setFbRating] = useState(5); const [fbComment, setFbComment] = useState('');
@@ -781,7 +905,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div key={fb.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
                                     <div className="flex items-center gap-1 mb-2">{Array.from({ length: 5 }).map((_, i) => <span key={i} className={`text-lg ${i < fb.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>)}</div>
                                     {fb.comment && <p className="text-sm text-slate-600 dark:text-slate-300 italic">"{fb.comment}"</p>}
-                                    <p className="text-[10px] text-slate-400 mt-2">{new Date(fb.submittedAt).toLocaleDateString()}</p>
+                                    <p className="text-[10px] text-slate-400 mt-2">{new Date(fb.createdAt).toLocaleDateString()}</p>
                                 </div>
                             ))}
                             {feedbacks.length === 0 && <div className="col-span-2 text-center py-16 text-slate-400"><StarIcon className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-bold">No feedback collected yet.</p></div>}
@@ -1202,10 +1326,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             {/* Top Level Finance Metrics Dashboard */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {[
-                                    { title: 'Total Revenue', value: `KES ${journalLines.filter(l => l.accountName === 'Service Revenue' && l.type === 'credit').reduce((s, l) => s + l.amount, 0).toLocaleString()}`, icon: <CurrencyIcon className="w-6 h-6 text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-                                    { title: 'Total Expenses', value: `KES ${expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}`, icon: <ChartPieIcon className="w-6 h-6 text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                                    { title: 'Total Revenue', value: `KES ${journalLines.filter(l => l.credit > 0 && accounts.find(a => a.id === l.accountId)?.accountCode === '4000').reduce((s, l) => s + l.credit, 0).toLocaleString()}`, icon: <CurrencyIcon className="w-6 h-6 text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                                    { title: 'Total Expenses', value: `KES ${journalLines.filter(l => l.debit > 0 && accounts.find(a => a.id === l.accountId)?.type === 'Expense').reduce((s, l) => s + l.debit, 0).toLocaleString()}`, icon: <ChartPieIcon className="w-6 h-6 text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-900/20' },
                                     { title: 'Payroll Disbursed', value: `KES ${payroll.filter(p => p.status === 'paid').reduce((s, p) => s + p.totalPay, 0).toLocaleString()}`, icon: <UserGroupIcon className="w-6 h-6 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-900/20' },
-                                    { title: 'Cash on Hand', value: `KES ${accounts.filter(a => a.type === 'asset' && a.name.includes('Cash')).reduce((s, a) => s + a.balance, 0).toLocaleString()}`, icon: <BanknotesIcon className="w-6 h-6 text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-900/20' }
+                                    { title: 'Cash on Hand', value: `KES ${journalLines.filter(l => accounts.find(a => a.id === l.accountId)?.accountCode === '1000').reduce((s, l) => s + (l.debit - l.credit), 0).toLocaleString()}`, icon: <BanknotesIcon className="w-6 h-6 text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-900/20' }
                                 ].map((stat, idx) => (
                                     <div key={idx} className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700 hover:shadow-lg transition-all">
                                         <div className="flex items-center gap-4">
@@ -1220,6 +1344,24 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     </div>
                                 ))}
                             </div>
+
+                            {accounts.length === 0 && (
+                                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-3xl p-8 text-center">
+                                    <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                                        <Cog8ToothIcon className={`w-8 h-8 text-amber-500 ${isSeedingAccounts ? 'animate-spin' : ''}`} />
+                                    </div>
+                                    <h3 className="text-lg font-black uppercase text-amber-800 dark:text-amber-400">Accounting Not Initialized</h3>
+                                    <p className="max-w-md mx-auto text-sm text-amber-700 dark:text-amber-500 mt-2 mb-6">The standardized chart of accounts needs to be set up to enable formal bookkeeping and the cashbook view.</p>
+                                    <button
+                                        onClick={handleSeedAccounts}
+                                        disabled={isSeedingAccounts}
+                                        className="px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-600/20 disabled:opacity-50 transition-all active:scale-95"
+                                    >
+                                        {isSeedingAccounts ? 'Initializing...' : 'Initialize Accounting Structure'}
+                                    </button>
+                                </div>
+                            )}
+
 
                             {/* Accounts Overview */}
                             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700">
@@ -1287,14 +1429,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                             </td>
                                                         </>
                                                     ) : null}
-                                                    <td className={`px-6 py-3 font-semibold text-xs ${line.type === 'credit' ? 'pl-10 text-slate-500' : ''}`}>
-                                                        {line.accountName}
+                                                    <td className={`px-6 py-3 font-semibold text-xs ${line.credit > 0 ? 'pl-10 text-slate-500' : ''}`}>
+                                                        {accounts.find(a => a.id === line.accountId)?.name || 'Unknown Account'}
                                                     </td>
                                                     <td className="px-6 py-3 text-right font-black text-emerald-600">
-                                                        {line.type === 'debit' ? line.amount.toLocaleString() : ''}
+                                                        {line.debit > 0 ? line.debit.toLocaleString() : ''}
                                                     </td>
                                                     <td className="px-6 py-3 text-right font-black text-rose-500">
-                                                        {line.type === 'credit' ? line.amount.toLocaleString() : ''}
+                                                        {line.credit > 0 ? line.credit.toLocaleString() : ''}
                                                     </td>
                                                 </tr>
                                             ));

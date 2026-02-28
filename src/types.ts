@@ -1430,11 +1430,10 @@ export interface BoardingCheckOutWithDetails extends BoardingCheckOut {
 export interface CarWashAccount {
     id: string;
     institutionId: string;
-    code: string;
+    accountCode: string;
     name: string;
-    type: 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+    type: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
     description?: string;
-    balance: number;
     isActive: boolean;
     createdAt: string;
 }
@@ -1457,8 +1456,8 @@ export interface CarWashJournalLine {
     entryId: string;
     accountId: string;
     description?: string;
-    type: 'debit' | 'credit';
-    amount: number;
+    debit: number;
+    credit: number;
     createdAt: string;
     // Joined field for display
     accountName?: string;
