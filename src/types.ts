@@ -1758,7 +1758,7 @@ export interface CarWashFeedback {
     customerId?: string;
     rating: number; // 1-5
     comment?: string;
-    submittedAt: string;
+    createdAt: string;
 }
 
 export interface CarWashShiftLog {

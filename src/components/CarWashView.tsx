@@ -459,7 +459,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const handleSubmitFeedback = async () => {
         if (!showFeedbackModal) return;
         try {
-            const fb: CarWashFeedback = { id: `cwf_${Date.now()}`, institutionId, jobId: showFeedbackModal.id, customerId: showFeedbackModal.customerId, rating: fbRating, comment: fbComment, submittedAt: new Date().toISOString() };
+            const fb: CarWashFeedback = { id: `cwf_${Date.now()}`, institutionId, jobId: showFeedbackModal.id, customerId: showFeedbackModal.customerId, rating: fbRating, comment: fbComment, createdAt: new Date().toISOString() };
             await apiService.saveModuleRecord('carwash_feedback', fb);
             setShowFeedbackModal(null); setFbRating(5); setFbComment('');
             loadData();
