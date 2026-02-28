@@ -424,7 +424,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     };
 
     const confirmDispatch = async () => {
-        if (!showDispatchModal || !onUpdateInventoryItem) return;
+        if (!showDispatchModal || !onUpdateInventoryItem || !myCounty) return;
 
         const canvas = canvasRef.current;
         const signature = canvas ? canvas.toDataURL() : undefined;

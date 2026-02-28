@@ -129,7 +129,8 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                     countyId,
                     subCounty: subCounty.trim(),
                     constituency: constituency.trim(),
-                    ward: ward.trim()
+                    ward: ward.trim(),
+                    termsAccepted: true
                 });
 
             } catch (e: any) {
