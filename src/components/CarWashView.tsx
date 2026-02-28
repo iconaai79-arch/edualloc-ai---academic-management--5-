@@ -192,7 +192,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             // Automated SMS Notification
             if (customer && customer.phoneNumber) {
-                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Amount: KES ${job.amountCharged.toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Amount: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
                 try {
                     await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
                 } catch (e) {
@@ -513,6 +513,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             }
             alert('Accounting structure initialized successfully!');
             await loadData();
+            window.location.reload();
         } catch (e) {
             console.error(e);
             alert('Failed to initialize accounting');
@@ -709,7 +710,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                         <p className="text-[10px] text-slate-400">{job.packageName} · Bay {job.bayNumber}</p>
                                                         <p className="text-[10px] text-slate-400">{job.attendantName || 'Unassigned'}</p>
                                                     </div>
-                                                    <p className="font-black text-emerald-600 text-sm">KES {job.amountCharged}</p>
+                                                    <p className="font-black text-emerald-600 text-sm">KES {job.amountCharged.toLocaleString()}</p>
                                                 </div>
                                                 <div className="flex gap-1 mt-2">
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'in_progress')} className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase">Start</button>}
@@ -794,7 +795,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
                                         <div className="space-y-1">
                                             {Object.entries(pkg.pricing).map(([type, price]) => (
-                                                <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {price}</span></div>
+                                                <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {price.toLocaleString()}</span></div>
                                             ))}
                                         </div>
                                         {pkg.includesInterior && <p className="text-[9px] font-black text-cyan-600 mt-2 uppercase">✓ Includes Interior Cleaning</p>}
@@ -871,7 +872,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             ].map(period => (
                                 <div key={period.label} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
                                     <p className="text-[10px] font-black uppercase text-slate-400">{period.label}</p>
-                                    <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + j.amountPaid, 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}</p>
                                     <p className="text-xs font-bold text-slate-400 mt-1">{period.jobs.length} washes completed</p>
                                 </div>
                             ))}
@@ -880,8 +881,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <h3 className="font-black uppercase text-sm mb-4">Revenue by Package</h3>
                             {packages.map(pkg => {
                                 const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
-                                const rev = pkgJobs.reduce((s, j) => s + j.amountPaid, 0);
-                                const maxRev = Math.max(...packages.map(p => jobs.filter(j => j.packageId === p.id && j.status === 'completed').reduce((s, j) => s + j.amountPaid, 0)), 1);
+                                const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+                                const maxRev = Math.max(...packages.map(p => jobs.filter(j => j.packageId === p.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0)), 1);
                                 return (
                                     <div key={pkg.id} className="mb-3">
                                         <div className="flex justify-between text-xs font-bold mb-1"><span>{pkg.name}</span><span className="text-emerald-600">KES {rev.toLocaleString()}</span></div>
@@ -956,12 +957,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div className="flex gap-4 items-center">
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Collected</p>
-                                    <p className="text-2xl font-black text-emerald-600">KES {transactions.filter(t => t.status === 'completed').reduce((s, t) => s + t.amount, 0).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-emerald-600">KES {transactions.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0).toLocaleString()}</p>
                                 </div>
                                 <div className="w-px h-10 bg-slate-200 dark:bg-slate-700"></div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending</p>
-                                    <p className="text-2xl font-black text-amber-500">KES {transactions.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0).toLocaleString()}</p>
+                                    <p className="text-2xl font-black text-amber-500">KES {transactions.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
@@ -984,7 +985,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <p className="font-black text-slate-700 dark:text-slate-200">{t.phoneNumber}</p>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.description}</p>
                                             </td>
-                                            <td className="px-8 py-5 font-black text-emerald-600">KES {t.amount.toLocaleString()}</td>
+                                            <td className="px-8 py-5 font-black text-emerald-600">KES {(t.amount || 0).toLocaleString()}</td>
                                             <td className="px-8 py-5">
                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                                                     t.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
@@ -1027,7 +1028,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm font-bold">
                                         <span className="text-slate-500">{showCheckoutModal.packageName} ({showCheckoutModal.vehicleType})</span>
-                                        <span className="text-slate-700 dark:text-white">KES {showCheckoutModal.amountCharged.toLocaleString()}</span>
+                                        <span className="text-slate-700 dark:text-white">KES {(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
                                     </div>
                                     {showCheckoutModal.addOns.map(ao => (
                                         <div key={ao} className="flex justify-between text-xs font-bold text-slate-400">
@@ -1037,7 +1038,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     ))}
                                     <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Total Payable</span>
-                                        <span className="text-2xl font-black text-emerald-600">KES {showCheckoutModal.amountCharged.toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-emerald-600">KES {(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1112,7 +1113,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             </div>
                             <div><label className={labelCls}>Attendant</label><select className={inputCls} value={jobForm.attendantId} onChange={e => setJobForm({ ...jobForm, attendantId: e.target.value })}><option value="">-- Unassigned --</option>{attendants.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
                             <div><label className={labelCls}>Payment Method</label><select className={inputCls} value={jobForm.paymentMethod} onChange={e => setJobForm({ ...jobForm, paymentMethod: e.target.value as CarWashPaymentMethod })}>{PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
-                            <div><label className={labelCls}>Add-ons</label><div className="flex flex-wrap gap-2">{ADD_ONS.map(ao => <button key={ao} type="button" onClick={() => setJobForm(prev => ({ ...prev, addOns: prev.addOns.includes(ao) ? prev.addOns.filter(x => x !== ao) : [...prev.addOns, ao] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${jobForm.addOns.includes(ao) ? 'bg-cyan-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>{ao}</button>)}</div></div>
+                            <div><label className={labelCls}>Add-ons</label><div className="flex flex-wrap gap-2">{ADD_ONS.map(ao => <button key={ao} type="button" onClick={() => setJobForm(prev => ({ ...prev.addOns, addOns: prev.addOns.includes(ao) ? prev.addOns.filter(x => x !== ao) : [...prev.addOns, ao] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${jobForm.addOns.includes(ao) ? 'bg-cyan-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>{ao}</button>)}</div></div>
                         </div>
                         <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewJobModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateJob} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">Add to Queue</button></div>
                     </div>
@@ -1156,7 +1157,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div><label className={labelCls}>Est. Minutes</label><input type="number" className={inputCls} value={pkgForm.estimatedMinutes} onChange={e => setPkgForm({ ...pkgForm, estimatedMinutes: +e.target.value })} /></div>
                                 <div className="flex items-center gap-3 pt-5"><input type="checkbox" id="interior" checked={pkgForm.includesInterior} onChange={e => setPkgForm({ ...pkgForm, includesInterior: e.target.checked })} className="w-5 h-5" /><label htmlFor="interior" className="text-xs font-bold">Includes Interior</label></div>
                             </div>
-                            <div><label className={labelCls}>Pricing by Vehicle Type (KES)</label><div className="space-y-2">{VEHICLE_TYPES.map(vt => <div key={vt} className="flex items-center gap-3"><span className="text-xs font-bold w-20">{vt}</span><input type="number" className={inputCls} placeholder="0" value={pkgForm.pricing[vt] || ''} onChange={e => setPkgForm(prev => ({ ...prev, pricing: { ...prev.pricing, [vt]: +e.target.value } }))} /></div>)}</div></div>
+                            <div><label className={labelCls}>Pricing by Vehicle Type (KES)</label><div className="space-y-2">{VEHICLE_TYPES.map(vt => <div key={vt} className="flex items-center gap-3"><span className="text-xs font-bold w-20">{vt}</span><input type="number" className={inputCls} placeholder="0" value={pkgForm.pricing[vt] || ''} onChange={e => setPkgForm(prev => ({ ...prev.pricing, pricing: { ...prev.pricing, [vt]: +e.target.value } }))} /></div>)}</div></div>
                             <div><label className={labelCls}>Accent Color</label><div className="flex gap-2">{PACKAGE_COLORS.map(c => <button key={c} type="button" onClick={() => setPkgForm({ ...pkgForm, color: c })} className={`w-8 h-8 rounded-full border-2 transition-all ${pkgForm.color === c ? 'border-slate-900 scale-110' : 'border-transparent'}`} style={{ background: c }} />)}</div></div>
                         </div>
                         <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPackageModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreatePackage} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">Save Package</button></div>
@@ -1275,27 +1276,27 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
                                                 <span>Gross Pay:</span>
-                                                <span className="text-slate-600 dark:text-slate-200">KES {gross.toLocaleString()}</span>
+                                                <span className="text-slate-600 dark:text-slate-200">KES {(gross || 0).toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>NSSF Deduction:</span>
-                                                <span>-KES {nssf.toLocaleString()}</span>
+                                                <span>-KES {(nssf || 0).toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>SHIF Deduction (2.75%):</span>
-                                                <span>-KES {shif.toLocaleString()}</span>
+                                                <span>-KES {(shif || 0).toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>Housing Levy (1.5%):</span>
-                                                <span>-KES {housingLevy.toLocaleString()}</span>
+                                                <span>-KES {(housingLevy || 0).toLocaleString()}</span>
                                             </div>
                                             <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
                                                 <span>PAYE (Net of Relief):</span>
-                                                <span>-KES {paye.toLocaleString()}</span>
+                                                <span>-KES {(paye || 0).toLocaleString()}</span>
                                             </div>
                                             <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                                 <span className="text-xs font-black uppercase">Net Take-Home:</span>
-                                                <span className="text-xl font-black text-blue-600">KES {net.toLocaleString()}</span>
+                                                <span className="text-xl font-black text-blue-600">KES {(net || 0).toLocaleString()}</span>
                                             </div>
                                         </>
                                     );
@@ -1375,11 +1376,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     {accounts.map(acc => (
                                         <div key={acc.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex justify-between items-center group hover:bg-white dark:hover:bg-slate-800 transition-colors">
                                             <div>
-                                                <p className="text-xs font-bold text-slate-500">{acc.code} <span className="uppercase text-[9px] ml-1 tracking-wider text-slate-400">({acc.type})</span></p>
+                                                <p className="text-xs font-bold text-slate-500">{acc.accountCode} <span className="uppercase text-[9px] ml-1 tracking-wider text-slate-400">({acc.type})</span></p>
                                                 <p className="font-black text-sm">{acc.name}</p>
                                             </div>
-                                            <p className={`font-black ${acc.balance < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
-                                                {acc.balance.toLocaleString()}
+                                            <p className={`font-black ${(acc.balance || 0) < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                                {(acc.balance || 0).toLocaleString()}
                                             </p>
                                         </div>
                                     ))}
@@ -1485,7 +1486,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <td className="px-6 py-4"><span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-black uppercase text-slate-500">{exp.category}</span></td>
                                                 <td className="px-6 py-4 font-semibold">{exp.description}</td>
                                                 <td className="px-6 py-4 capitalize text-slate-500 font-medium">{exp.paymentMethod.replace('_', ' ')}</td>
-                                                <td className="px-6 py-4 text-right font-black text-rose-500">{exp.amount.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right font-black text-rose-500">{(exp.amount || 0).toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-2 text-slate-400">
                                                         <button onClick={() => handleEditExpense(exp)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:text-indigo-600 transition-all" title="Edit Expense">
@@ -1543,10 +1544,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <tr key={pr.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                                                     <td className="px-6 py-4 font-bold text-slate-500">{new Date(pr.periodStart).toLocaleDateString()} - {new Date(pr.periodEnd).toLocaleDateString()}</td>
                                                     <td className="px-6 py-4 font-black">{staff?.name || 'Unknown Staff'}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-slate-500">{pr.baseSalary.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{pr.commissionEarned.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-medium text-rose-500">-{pr.deductions.toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-right font-black text-blue-600">{pr.totalPay.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-slate-500">{(pr.baseSalary || 0).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{(pr.commissionEarned || 0).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-rose-500">-{(pr.deductions || 0).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right font-black text-blue-600">{(pr.totalPay || 0).toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-center">
                                                         <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${pr.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                             {pr.status}

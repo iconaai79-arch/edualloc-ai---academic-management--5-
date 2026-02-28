@@ -1434,6 +1434,7 @@ export interface CarWashAccount {
     name: string;
     type: 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
     description?: string;
+    balance: number;
     isActive: boolean;
     createdAt: string;
 }
@@ -1448,6 +1449,7 @@ export interface CarWashJournalEntry {
     referenceId?: string;
     createdBy?: string;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface CarWashJournalLine {
