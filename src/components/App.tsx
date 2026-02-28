@@ -2041,7 +2041,7 @@ export const App: React.FC = () => {
                                     footerImageUrl={activeFooterImageUrl}
                                 />
 
-                            ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
+                            ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
                                 <CarWashView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
@@ -2059,14 +2059,14 @@ export const App: React.FC = () => {
                                     departments={departments}
                                     courses={courses}
                                 />
-                            ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
+                            ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                 />
-                            ) : (activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.institutionType === 'Business' && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
+                            ) : (activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
                                 <PropertyManagementView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
