@@ -1677,7 +1677,7 @@ export interface MaintenanceRequest {
 // ============================================================================
 
 export type CarWashVehicleType = 'Sedan' | 'SUV' | 'Truck' | 'Matatu' | 'Motorbike' | 'Van' | 'Bus';
-export type CarWashJobStatus = 'queued' | 'in_progress' | 'completed' | 'cancelled';
+export type CarWashJobStatus = 'queued' | 'in_progress' | 'ready' | 'completed' | 'cancelled';
 export type CarWashPaymentMethod = 'cash' | 'mpesa' | 'card' | 'credit';
 
 export interface CarWashPackage {

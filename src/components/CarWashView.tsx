@@ -112,7 +112,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     const todayJobs = jobs.filter(j => j.createdAt?.startsWith(new Date().toISOString().split('T')[0]));
     const todayRevenue = todayJobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0);
-    const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'in_progress');
+    const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'in_progress' || j.status === 'ready');
     const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
     const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
 
@@ -142,21 +142,28 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
         if (status === 'completed') {
             setShowCheckoutModal(job);
+            return;
+        }
 
-            // Notify customer when car is ready
+        if (status === 'ready') {
+            // Notify customer when car is ready and in waiting bay
             const customer = customers.find(c => c.id === job.customerId);
             if (customer && customer.phoneNumber) {
-                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready for pickup! Amount due: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready in the waiting bay! Please proceed to checkout. Amount due: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
                 try {
                     await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
                 } catch (e) {
                     console.error('Failed to send readiness SMS', e);
                 }
             }
-            return;
         }
 
-        const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}) };
+        const updated: CarWashJob = {
+            ...job,
+            status,
+            ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}),
+            ...(status === 'ready' ? { completedAt: new Date().toISOString() } : {})
+        };
         await apiService.saveModuleRecord('carwash_jobs', updated);
         loadData();
     };
@@ -697,7 +704,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const inputCls = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-semibold outline-none transition-all';
     const labelCls = 'block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 tracking-widest';
 
-    const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
+    const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', ready: 'bg-purple-100 text-purple-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
 
     const tabs = [
         { id: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-4 h-4" /> },
@@ -746,7 +753,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
                                 { label: "Today's Revenue", value: `KES ${todayRevenue.toLocaleString()}`, sub: `${todayJobs.filter(j => j.status === 'completed').length} washes`, color: 'from-emerald-500 to-teal-600' },
-                                { label: 'Active Queue', value: activeJobs.length, sub: `${jobs.filter(j => j.status === 'in_progress').length} in bays`, color: 'from-blue-500 to-cyan-600' },
+                                { label: 'Active Queue', value: activeJobs.length, sub: `${jobs.filter(j => j.status === 'in_progress').length} in bays, ${jobs.filter(j => j.status === 'ready').length} waiting`, color: 'from-blue-500 to-cyan-600' },
                                 { label: 'Total Customers', value: customers.length, sub: `${vehicles.length} vehicles registered`, color: 'from-violet-500 to-purple-600' },
                                 { label: 'Avg Rating', value: `${avgRating} ★`, sub: `${feedbacks.length} reviews`, color: 'from-amber-500 to-orange-600' },
                             ].map(card => (
@@ -795,11 +802,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <PlusIcon className="w-4 h-4" /> New Job
                             </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {(['queued', 'in_progress', 'completed'] as const).map(status => (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {(['queued', 'in_progress', 'ready', 'completed'] as const).map(status => (
                                 <div key={status} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
-                                    <h3 className={`text-[10px] font-black uppercase tracking-widest mb-4 ${status === 'queued' ? 'text-amber-600' : status === 'in_progress' ? 'text-blue-600' : 'text-emerald-600'}`}>
-                                        {status === 'queued' ? '🕐 Queue' : status === 'in_progress' ? '🔄 In Bays' : '✅ Done'} ({jobs.filter(j => j.status === status && j.createdAt?.startsWith(new Date().toISOString().split('T')[0])).length})
+                                    <h3 className={`text-[10px] font-black uppercase tracking-widest mb-4 ${status === 'queued' ? 'text-amber-600' : status === 'in_progress' ? 'text-blue-600' : status === 'ready' ? 'text-purple-600' : 'text-emerald-600'}`}>
+                                        {status === 'queued' ? '🕐 Queue' : status === 'in_progress' ? '🔄 In Bays' : status === 'ready' ? '🏁 Waiting' : '✅ Done'} ({jobs.filter(j => j.status === status && j.createdAt?.startsWith(new Date().toISOString().split('T')[0])).length})
                                     </h3>
                                     <div className="space-y-2">
                                         {jobs.filter(j => j.status === status).map(job => (
@@ -814,7 +821,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 </div>
                                                 <div className="flex gap-1 mt-2">
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'in_progress')} className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase">Start</button>}
-                                                    {status === 'in_progress' && <button onClick={() => updateJobStatus(job, 'completed')} className="flex-1 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase">Complete</button>}
+                                                    {status === 'in_progress' && <button onClick={() => updateJobStatus(job, 'ready')} className="flex-1 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-black uppercase">Finish</button>}
+                                                    {status === 'ready' && <button onClick={() => updateJobStatus(job, 'completed')} className="flex-1 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase">Checkout</button>}
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'cancelled')} className="py-1.5 px-2 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase">✕</button>}
                                                 </div>
                                             </div>
