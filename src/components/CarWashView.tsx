@@ -65,6 +65,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
     const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
+    const [editingExpense, setEditingExpense] = useState<CarWashExpense | null>(null);
     const [showNewPayrollModal, setShowNewPayrollModal] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
@@ -355,29 +356,87 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         if (!expForm.description || !expForm.amount) return alert('Description and amount are required');
         try {
             const exp: CarWashExpense = {
-                id: `cwe_${Date.now()}`,
+                id: editingExpense?.id || `cwe_${Date.now()}`,
                 institutionId,
                 ...expForm,
                 recordedBy: currentUser.id,
-                createdAt: new Date().toISOString()
+                createdAt: editingExpense?.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('carwash_expenses', exp);
             setShowNewExpenseModal(false);
+            setEditingExpense(null);
             setExpForm({ description: '', amount: 0, category: 'supplies', paymentMethod: 'cash', expenseDate: new Date().toISOString().split('T')[0] });
             loadData();
         } catch (e: any) { alert(`Failed: ${e.message}`); }
     };
 
+    const handleDeleteExpense = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this expense?')) return;
+        try {
+            await apiService.deleteModuleRecord('carwash_expenses', id);
+            loadData();
+        } catch (e: any) { alert(`Failed to delete: ${e.message}`); }
+    };
+
+    const handleEditExpense = (exp: CarWashExpense) => {
+        setEditingExpense(exp);
+        setExpForm({
+            description: exp.description,
+            amount: exp.amount,
+            category: exp.category,
+            paymentMethod: exp.paymentMethod,
+            expenseDate: exp.expenseDate
+        });
+        setShowNewExpenseModal(true);
+    };
+
     // -- Payroll Form --
-    const [payrlForm, setPayrlForm] = useState({ staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0, periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0], periodEnd: new Date().toISOString().split('T')[0] });
+    const [payrlForm, setPayrlForm] = useState({
+        staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
+        nssf: 0, shif: 0, paye: 0, housingLevy: 0,
+        periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+        periodEnd: new Date().toISOString().split('T')[0]
+    });
+
+    const calculateKenyanPayroll = (basic: number, commissions: number) => {
+        const gross = basic + commissions;
+        // NSSF Tier 1 & 2 (Standard consolidated)
+        const nssf = gross >= 18000 ? 2160 : (gross * 0.12 > 2160 ? 2160 : gross * 0.12);
+        const shif = gross * 0.0275;
+        const housingLevy = gross * 0.015;
+
+        // PAYE Calculation
+        const taxablePay = gross - nssf;
+        let paye = 0;
+        if (taxablePay <= 24000) {
+            paye = taxablePay * 0.1;
+        } else if (taxablePay <= 32333) {
+            paye = (24000 * 0.1) + ((taxablePay - 24000) * 0.25);
+        } else {
+            paye = (24000 * 0.1) + (8333 * 0.25) + ((taxablePay - 32333) * 0.3);
+        }
+
+        const personalRelief = 2400;
+        paye = Math.max(0, paye - personalRelief);
+
+        return { nssf, shif, housingLevy, paye, gross };
+    };
+
     const handleProcessPayroll = async () => {
         if (!payrlForm.staffId) return alert('Select staff');
         try {
+            const { nssf, shif, housingLevy, paye, gross } = calculateKenyanPayroll(payrlForm.baseSalary, payrlForm.commissionEarned);
+            const totalPay = gross - nssf - shif - housingLevy - paye - payrlForm.advancesTaken - payrlForm.deductions;
+
             const pyrl: CarWashPayroll = {
                 id: `cwp_${Date.now()}`,
                 institutionId,
                 ...payrlForm,
-                totalPay: payrlForm.baseSalary + payrlForm.commissionEarned - payrlForm.advancesTaken - payrlForm.deductions,
+                nssf,
+                shif,
+                paye,
+                housingLevy,
+                totalPay,
                 status: 'paid',
                 paymentDate: new Date().toISOString(),
                 processedBy: currentUser.id,
@@ -385,7 +444,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
             setShowNewPayrollModal(false);
-            setPayrlForm({ staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0, periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0], periodEnd: new Date().toISOString().split('T')[0] });
+            setPayrlForm({
+                staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
+                nssf: 0, shif: 0, paye: 0, housingLevy: 0,
+                periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+                periodEnd: new Date().toISOString().split('T')[0]
+            });
             loadData();
         } catch (e: any) { alert(`Failed: ${e.message}`); }
     };
@@ -1045,7 +1109,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {showNewExpenseModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
-                        <div className="bg-rose-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">Record Expense</h3><button onClick={() => setShowNewExpenseModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
+                        <div className="bg-rose-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">{editingExpense ? 'Edit Expense' : 'Record Expense'}</h3><button onClick={() => { setShowNewExpenseModal(false); setEditingExpense(null); }}><XIcon className="w-5 h-5 text-white" /></button></div>
                         <div className="p-6 space-y-4">
                             <div><label className={labelCls}>Description</label><input className={inputCls} value={expForm.description} onChange={e => setExpForm({ ...expForm, description: e.target.value })} placeholder="e.g. Soap refill" /></div>
                             <div className="grid grid-cols-2 gap-3">
@@ -1057,7 +1121,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div><label className={labelCls}>Method</label><select className={inputCls} value={expForm.paymentMethod} onChange={e => setExpForm({ ...expForm, paymentMethod: e.target.value as any })}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option><option value="bank">Bank</option></select></div>
                             </div>
                         </div>
-                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewExpenseModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateExpense} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-sm uppercase shadow">Save Expense</button></div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => { setShowNewExpenseModal(false); setEditingExpense(null); }} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateExpense} className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-sm uppercase shadow">{editingExpense ? 'Update Record' : 'Save Expense'}</button></div>
                     </div>
                 </div>
             )}
@@ -1079,12 +1143,42 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div><label className={labelCls}>From</label><input type="date" className={inputCls} value={payrlForm.periodStart} onChange={e => setPayrlForm({ ...payrlForm, periodStart: e.target.value })} /></div>
                                 <div><label className={labelCls}>To</label><input type="date" className={inputCls} value={payrlForm.periodEnd} onChange={e => setPayrlForm({ ...payrlForm, periodEnd: e.target.value })} /></div>
                             </div>
-                            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl flex justify-between items-center">
-                                <span className="text-xs font-black uppercase">Net Pay:</span>
-                                <span className="text-xl font-black text-blue-600">KES {(payrlForm.baseSalary + payrlForm.commissionEarned - payrlForm.advancesTaken - payrlForm.deductions).toLocaleString()}</span>
+                            <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl space-y-3">
+                                {(() => {
+                                    const { nssf, shif, housingLevy, paye, gross } = calculateKenyanPayroll(payrlForm.baseSalary, payrlForm.commissionEarned);
+                                    const net = gross - nssf - shif - housingLevy - paye - payrlForm.advancesTaken - payrlForm.deductions;
+                                    return (
+                                        <>
+                                            <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
+                                                <span>Gross Pay:</span>
+                                                <span className="text-slate-600 dark:text-slate-200">KES {gross.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
+                                                <span>NSSF Deduction:</span>
+                                                <span>-KES {nssf.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
+                                                <span>SHIF Deduction (2.75%):</span>
+                                                <span>-KES {shif.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
+                                                <span>Housing Levy (1.5%):</span>
+                                                <span>-KES {housingLevy.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[10px] font-black uppercase text-rose-400">
+                                                <span>PAYE (Net of Relief):</span>
+                                                <span>-KES {paye.toLocaleString()}</span>
+                                            </div>
+                                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                                <span className="text-xs font-black uppercase">Net Take-Home:</span>
+                                                <span className="text-xl font-black text-blue-600">KES {net.toLocaleString()}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
-                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPayrollModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleProcessPayroll} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-sm uppercase shadow">Pay Staff</button></div>
+                        <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPayrollModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleProcessPayroll} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-sm uppercase shadow">Finalize & Pay</button></div>
                     </div>
                 </div>
             )}
@@ -1239,6 +1333,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             <th className="px-6 py-4">Description</th>
                                             <th className="px-6 py-4">Payment Method</th>
                                             <th className="px-6 py-4 text-right">Amount (KES)</th>
+                                            <th className="px-6 py-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -1249,11 +1344,21 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <td className="px-6 py-4 font-semibold">{exp.description}</td>
                                                 <td className="px-6 py-4 capitalize text-slate-500 font-medium">{exp.paymentMethod.replace('_', ' ')}</td>
                                                 <td className="px-6 py-4 text-right font-black text-rose-500">{exp.amount.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2 text-slate-400">
+                                                        <button onClick={() => handleEditExpense(exp)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:text-indigo-600 transition-all" title="Edit Expense">
+                                                            <Cog8ToothIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => handleDeleteExpense(exp.id)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:text-rose-600 transition-all" title="Delete Expense">
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                         {expenses.length === 0 && (
                                             <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                                     <ChartPieIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
                                                     <p className="font-bold">No expenses recorded yet.</p>
                                                 </td>

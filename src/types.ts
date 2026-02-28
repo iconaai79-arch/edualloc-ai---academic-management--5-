@@ -1488,6 +1488,10 @@ export interface CarWashPayroll {
     commissionEarned: number;
     advancesTaken: number;
     deductions: number;
+    nssf?: number;
+    shif?: number;
+    paye?: number;
+    housingLevy?: number;
     totalPay: number;
     status: 'draft' | 'approved' | 'paid';
     paymentMethod?: string;
