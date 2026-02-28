@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, Invoice, Receipt } from '../types';
 import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
 import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
@@ -146,6 +146,20 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
         const updated: CarWashJob = { ...job, status, ...(status === 'in_progress' ? { startedAt: new Date().toISOString() } : {}) };
         await apiService.saveModuleRecord('carwash_jobs', updated);
+
+        // Notify customer when car is ready
+        if (status === 'completed') {
+            const customer = customers.find(c => c.id === job.customerId);
+            if (customer && customer.phoneNumber) {
+                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is complete and ready for pickup! Amount due: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                try {
+                    await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
+                } catch (e) {
+                    console.error('Failed to send readiness SMS', e);
+                }
+            }
+        }
+
         loadData();
     };
 
@@ -191,13 +205,77 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setShowCheckoutModal(null);
             setShowFeedbackModal(updated);
 
-            // Automated SMS Notification
+            // ── Billing Integration: Invoice & Receipt ──
+            const invoiceId = `inv_${Date.now()}`;
+            const receiptId = `rcpt_${Date.now()}`;
+            const invNumber = `INV-${Date.now().toString().slice(-6)}`;
+            const rcptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
+
+            const invoice: Invoice = {
+                id: invoiceId,
+                invoiceNumber: invNumber,
+                institutionId,
+                issueDate: new Date().toISOString(),
+                dueDate: new Date().toISOString(),
+                due_date: new Date().toISOString(),
+                items: [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }],
+                totalAmount: job.amountCharged,
+                status: 'paid'
+            };
+
+            const receipt: Receipt = {
+                id: receiptId,
+                receiptNumber: rcptNumber,
+                institutionId,
+                paymentDate: new Date().toISOString(),
+                amountPaid: job.amountCharged,
+                paidFor: `${job.packageName} - ${job.vehiclePlate}`,
+                paymentMethod: method,
+                relatedTransactionId: job.id,
+                invoiceId: invoiceId
+            };
+
+            await Promise.all([
+                apiService.saveModuleRecord('invoices', invoice),
+                apiService.saveModuleRecord('receipts', receipt)
+            ]);
+
+            // ── Email Notification ──
+            if (customer && customer.email) {
+                const emailSubject = `Payment Receipt - ${invNumber} - ${job.vehiclePlate}`;
+                const emailBody = `
+                    Dear ${customer.name},
+                    
+                    Thank you for your payment for car wash services at ${currentInstitution.name}.
+                    
+                    VEHICLE: ${job.vehiclePlate} (${job.vehicleType})
+                    SERVICE: ${job.packageName}
+                    TOTAL AMOUNT: KES ${job.amountCharged.toLocaleString()}
+                    PAYMENT METHOD: ${method.toUpperCase()}
+                    DATE: ${new Date().toLocaleDateString()}
+                    
+                    INVOICE NO: ${invNumber}
+                    RECEIPT NO: ${rcptNumber}
+                    
+                    We appreciate your business!
+                    
+                    Regards,
+                    Management
+                    ${currentInstitution.name}
+                `.trim();
+
+                apiService.sendEmail(customer.email, emailSubject, emailBody).catch(e => {
+                    console.error('Failed to send billing email', e);
+                });
+            }
+
+            // Automated SMS Notification (Payment Confirmation)
             if (customer && customer.phoneNumber) {
-                const message = `Hello ${customer.name}, your ${job.packageName} for vehicle ${job.vehiclePlate} is ready! Amount: KES ${(job.amountCharged || 0).toLocaleString()}. Thank you for choosing ${currentInstitution.name}.`;
+                const message = `Payment Received! KES ${(job.amountCharged || 0).toLocaleString()} for ${job.packageName} (${job.vehiclePlate}). Receipt: ${rcptNumber}. Thank you for choosing ${currentInstitution.name}!`;
                 try {
                     await onSendSms(customer.phoneNumber, message, smsConfig, 1, institutionId);
                 } catch (e) {
-                    console.error('Failed to send automated car wash SMS', e);
+                    console.error('Failed to send payment confirmation SMS', e);
                 }
             }
             loadData();
