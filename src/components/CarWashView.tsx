@@ -84,6 +84,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [editingExpense, setEditingExpense] = useState<CarWashExpense | null>(null);
     const [showNewPayrollModal, setShowNewPayrollModal] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
+    const [pdfFileName, setPdfFileName] = useState('');
 
     const [brandingForm, setBrandingForm] = useState({
         logoUrl: currentInstitution.logoUrl || '',
@@ -91,6 +94,90 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         headerImageUrl: currentInstitution.letterheadConfig?.headerImageUrl || '',
         stampImageUrl: currentInstitution.letterheadConfig?.stampImageUrl || ''
     });
+
+    // ── Derived Variables (Placed before handlers to avoid TDT issues) ──
+    const todayJobs = jobs.filter(j => j.createdAt?.startsWith(new Date().toISOString().split('T')[0]));
+    const todayRevenue = todayJobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0);
+    const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'in_progress' || j.status === 'ready');
+    const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
+    const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
+    const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
+
+    // ── Accounting Helpers (Moved up to avoid TDT) ──
+    const handleSeedAccounts = async () => {
+        setIsSeedingAccounts(true);
+        try {
+            const defaultAccounts: Partial<CarWashAccount>[] = [
+                { id: `acc_${institutionId}_1000`, accountCode: '1000', name: 'Cash on Hand', type: 'Asset', description: 'Physical cash in till', isActive: true },
+                { id: `acc_${institutionId}_1010`, accountCode: '1010', name: 'M-Pesa Till', type: 'Asset', description: 'Digital payments via M-Pesa', isActive: true },
+                { id: `acc_${institutionId}_2000`, accountCode: '2000', name: 'Accounts Payable', type: 'Liability', description: 'Money owed to suppliers', isActive: true },
+                { id: `acc_${institutionId}_3000`, accountCode: '3000', name: 'Owner Equity', type: 'Equity', description: 'Owner investments / Retained earnings', isActive: true },
+                { id: `acc_${institutionId}_4000`, accountCode: '4000', name: 'Wash Revenue', type: 'Revenue', description: 'Income from car washes', isActive: true },
+                { id: `acc_${institutionId}_5000`, accountCode: '5000', name: 'Supplies Expense', type: 'Expense', description: 'Soap, wax, rags, etc', isActive: true },
+                { id: `acc_${institutionId}_5010`, accountCode: '5010', name: 'Wages & Salary Expense', type: 'Expense', description: 'Staff payroll and commissions', isActive: true },
+                { id: `acc_${institutionId}_5020`, accountCode: '5020', name: 'Utilities Expense', type: 'Expense', description: 'Water and electricity bills', isActive: true },
+            ];
+
+            for (const acc of defaultAccounts) {
+                await apiService.saveModuleRecord('carwash_accounts', { ...acc, institutionId, createdAt: new Date().toISOString() });
+            }
+            alert('Accounting structure initialized successfully!');
+            onDataChange();
+            window.location.reload();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to initialize accounting');
+        } finally {
+            setIsSeedingAccounts(false);
+        }
+    };
+
+    const recordJournalEntry = async (description: string, amount: number, debitAccCode: string, creditAccCode: string, refType?: string, refId?: string) => {
+        const availableAccounts = accounts.length > 0 ? accounts : (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
+        let debitAcc = availableAccounts.find(a => a.accountCode === debitAccCode);
+        let creditAcc = availableAccounts.find(a => a.accountCode === creditAccCode);
+
+        if (!debitAcc || !creditAcc) {
+            await handleSeedAccounts();
+            const freshAccounts = (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
+            debitAcc = freshAccounts.find(a => a.accountCode === debitAccCode);
+            creditAcc = freshAccounts.find(a => a.accountCode === creditAccCode);
+        }
+
+        const debitAccId = debitAcc?.id || `acc_${institutionId}_${debitAccCode}`;
+        const creditAccId = creditAcc?.id || `acc_${institutionId}_${creditAccCode}`;
+
+        const entryId = `je_${Date.now()}`;
+        const journalEntry: CarWashJournalEntry = {
+            id: entryId, institutionId, entryNumber: `JE-${Date.now().toString().slice(-6)}`,
+            entryDate: new Date().toISOString().split('T')[0], description,
+            referenceType: refType, referenceId: refId,
+            createdBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+        };
+
+        const debitLine: CarWashJournalLine = { id: `jl_${Date.now()}_1`, institutionId, entryId, accountId: debitAccId, debit: amount, credit: 0, createdAt: new Date().toISOString() };
+        const creditLine: CarWashJournalLine = { id: `jl_${Date.now()}_2`, institutionId, entryId, accountId: creditAccId, debit: 0, credit: amount, createdAt: new Date().toISOString() };
+
+        await apiService.saveModuleRecord('carwash_journal_entries', journalEntry);
+        await apiService.saveModuleRecord('carwash_journal_lines', debitLine);
+        await apiService.saveModuleRecord('carwash_journal_lines', creditLine);
+    };
+
+    const calculateKenyanPayroll = (basic: number, commissions: number) => {
+        const gross = basic + commissions;
+        const nssf = gross >= 18000 ? 2160 : (gross * 0.12 > 2160 ? 2160 : gross * 0.12);
+        const shif = gross * 0.0275;
+        const housingLevy = gross * 0.015;
+        const taxablePay = gross - nssf;
+        let paye = 0;
+        if (taxablePay <= 24000) paye = taxablePay * 0.1;
+        else if (taxablePay <= 32333) paye = (24000 * 0.1) + ((taxablePay - 24000) * 0.25);
+        else paye = (24000 * 0.1) + (8333 * 0.25) + ((taxablePay - 32333) * 0.3);
+        const personalRelief = 2400;
+        paye = Math.max(0, paye - personalRelief);
+        return { nssf, shif, housingLevy, paye, gross };
+    };
 
     const handleSaveBranding = async () => {
         try {
@@ -157,10 +244,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 currentInstitution.logoUrl || '',
                 currentInstitution.footerImageUrl || ''
             );
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Trial-Balance-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
-            link.click();
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("Trial Balance Report Preview");
+            setPdfFileName(`Trial-Balance-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
         } catch (e) {
             console.error(e);
             alert('Failed to generate Trial Balance PDF');
@@ -178,10 +264,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 currentInstitution.logoUrl || '',
                 currentInstitution.footerImageUrl || ''
             );
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Cashbook-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
-            link.click();
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("General Journal / Cashbook Preview");
+            setPdfFileName(`Cashbook-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
         } catch (e) {
             console.error(e);
             alert('Failed to generate Cashbook PDF');
@@ -197,10 +282,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 currentInstitution.logoUrl || '',
                 currentInstitution.footerImageUrl || ''
             );
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Expenses-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
-            link.click();
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("Operating Expenses Report Preview");
+            setPdfFileName(`Expenses-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
         } catch (e) {
             console.error(e);
             alert('Failed to generate Expenses PDF');
@@ -217,10 +301,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 currentInstitution.logoUrl || '',
                 currentInstitution.footerImageUrl || ''
             );
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Payroll-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
-            link.click();
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("Staff Payroll History Preview");
+            setPdfFileName(`Payroll-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
         } catch (e) {
             console.error(e);
             alert('Failed to generate Payroll PDF');
@@ -246,14 +329,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             }
         }
     }, [payrlForm.staffId, payrlForm.periodStart, payrlForm.periodEnd, showNewPayrollModal, jobs]);
-
-    const todayJobs = jobs.filter(j => j.createdAt?.startsWith(new Date().toISOString().split('T')[0]));
-    const todayRevenue = todayJobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0);
-    const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'in_progress' || j.status === 'ready');
-    const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
-    const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
-
-    const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
 
     // ── New Job Modal State ──
     const [jobForm, setJobForm] = useState({ vehiclePlate: '', vehicleType: 'Sedan' as CarWashVehicleType, packageId: '', addOns: [] as string[], attendantId: '', bayNumber: 1, paymentMethod: 'cash' as CarWashPaymentMethod, customerId: '' });
@@ -708,30 +783,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     // -- Payroll Form --
 
-    const calculateKenyanPayroll = (basic: number, commissions: number) => {
-        const gross = basic + commissions;
-        // NSSF Tier 1 & 2 (Standard consolidated)
-        const nssf = gross >= 18000 ? 2160 : (gross * 0.12 > 2160 ? 2160 : gross * 0.12);
-        const shif = gross * 0.0275;
-        const housingLevy = gross * 0.015;
-
-        // PAYE Calculation
-        const taxablePay = gross - nssf;
-        let paye = 0;
-        if (taxablePay <= 24000) {
-            paye = taxablePay * 0.1;
-        } else if (taxablePay <= 32333) {
-            paye = (24000 * 0.1) + ((taxablePay - 24000) * 0.25);
-        } else {
-            paye = (24000 * 0.1) + (8333 * 0.25) + ((taxablePay - 32333) * 0.3);
-        }
-
-        const personalRelief = 2400;
-        paye = Math.max(0, paye - personalRelief);
-
-        return { nssf, shif, housingLevy, paye, gross };
-    };
-
     const handleProcessPayroll = async () => {
         if (!payrlForm.staffId) return alert('Select staff');
         try {
@@ -787,92 +838,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             loadData();
         } catch (e: any) { alert(`Failed: ${e.message}`); }
     };
-
-    // ── Accounting Helpers ──
-    const handleSeedAccounts = async () => {
-        setIsSeedingAccounts(true);
-        try {
-            const defaultAccounts: Partial<CarWashAccount>[] = [
-                { id: `acc_${institutionId}_1000`, accountCode: '1000', name: 'Cash on Hand', type: 'Asset', description: 'Physical cash in till', isActive: true },
-                { id: `acc_${institutionId}_1010`, accountCode: '1010', name: 'M-Pesa Till', type: 'Asset', description: 'Digital payments via M-Pesa', isActive: true },
-                { id: `acc_${institutionId}_2000`, accountCode: '2000', name: 'Accounts Payable', type: 'Liability', description: 'Money owed to suppliers', isActive: true },
-                { id: `acc_${institutionId}_3000`, accountCode: '3000', name: 'Owner Equity', type: 'Equity', description: 'Owner investments / Retained earnings', isActive: true },
-                { id: `acc_${institutionId}_4000`, accountCode: '4000', name: 'Wash Revenue', type: 'Revenue', description: 'Income from car washes', isActive: true },
-                { id: `acc_${institutionId}_5000`, accountCode: '5000', name: 'Supplies Expense', type: 'Expense', description: 'Soap, wax, rags, etc', isActive: true },
-                { id: `acc_${institutionId}_5010`, accountCode: '5010', name: 'Wages & Salary Expense', type: 'Expense', description: 'Staff payroll and commissions', isActive: true },
-                { id: `acc_${institutionId}_5020`, accountCode: '5020', name: 'Utilities Expense', type: 'Expense', description: 'Water and electricity bills', isActive: true },
-            ];
-
-            for (const acc of defaultAccounts) {
-                await apiService.saveModuleRecord('carwash_accounts', { ...acc, institutionId, createdAt: new Date().toISOString() });
-            }
-            alert('Accounting structure initialized successfully!');
-            await loadData();
-            window.location.reload();
-        } catch (e) {
-            console.error(e);
-            alert('Failed to initialize accounting');
-        } finally {
-            setIsSeedingAccounts(false);
-        }
-    };
-
-    const recordJournalEntry = async (description: string, amount: number, debitAccCode: string, creditAccCode: string, refType?: string, refId?: string) => {
-        const availableAccounts = accounts.length > 0 ? accounts : (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
-
-        let debitAcc = availableAccounts.find(a => a.accountCode === debitAccCode);
-        let creditAcc = availableAccounts.find(a => a.accountCode === creditAccCode);
-
-        // Auto-seed if accounts are missing
-        if (!debitAcc || !creditAcc) {
-            await handleSeedAccounts();
-            const freshAccounts = (await apiService.fetchModuleRecords<CarWashAccount>('carwash_accounts', institutionId)) || [];
-            debitAcc = freshAccounts.find(a => a.accountCode === debitAccCode);
-            creditAcc = freshAccounts.find(a => a.accountCode === creditAccCode);
-        }
-
-        const debitAccId = debitAcc?.id || `acc_${institutionId}_${debitAccCode}`;
-        const creditAccId = creditAcc?.id || `acc_${institutionId}_${creditAccCode}`;
-
-        const entryId = `je_${Date.now()}`;
-        const journalEntry: CarWashJournalEntry = {
-            id: entryId,
-            institutionId,
-            entryNumber: `JE-${Date.now().toString().slice(-6)}`,
-            entryDate: new Date().toISOString().split('T')[0],
-            description,
-            referenceType: refType,
-            referenceId: refId,
-            createdBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
-        const debitLine: CarWashJournalLine = {
-            id: `jl_${Date.now()}_1`,
-            institutionId,
-            entryId,
-            accountId: debitAccId,
-            debit: amount,
-            credit: 0,
-            createdAt: new Date().toISOString()
-        };
-
-        const creditLine: CarWashJournalLine = {
-            id: `jl_${Date.now()}_2`,
-            institutionId,
-            entryId,
-            accountId: creditAccId,
-            debit: 0,
-            credit: amount,
-            createdAt: new Date().toISOString()
-        };
-
-        await apiService.saveModuleRecord('carwash_journal_entries', journalEntry);
-        await apiService.saveModuleRecord('carwash_journal_lines', debitLine);
-        await apiService.saveModuleRecord('carwash_journal_lines', creditLine);
-    };
-
 
     // ── Feedback Form ──
     const [fbRating, setFbRating] = useState(5); const [fbComment, setFbComment] = useState('');
@@ -1988,6 +1953,50 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 </div>
             )}
 
+
+            {/* PDF PREVIEW MODAL */}
+            {pdfPreviewUrl && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-5xl h-[90vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="px-8 py-4 bg-gradient-to-r from-cyan-600 to-sky-700 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-white font-black uppercase tracking-widest text-sm">{pdfPreviewTitle}</h3>
+                                <p className="text-cyan-100 text-[10px] font-bold uppercase tracking-widest">{pdfFileName}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = pdfPreviewUrl;
+                                        link.download = pdfFileName;
+                                        link.click();
+                                    }}
+                                    className="px-5 py-2.5 bg-white text-cyan-600 rounded-xl font-black text-xs uppercase shadow hover:bg-cyan-50 transition-all flex items-center gap-2"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4 rotate-180" /> Download PDF
+                                </button>
+                                <button
+                                    onClick={() => setPdfPreviewUrl(null)}
+                                    className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-900 p-4">
+                            <iframe
+                                src={pdfPreviewUrl}
+                                title="PDF Preview"
+                                className="w-full h-full rounded-2xl border-none shadow-inner"
+                            />
+                        </div>
+                        <div className="px-8 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center text-slate-400">
+                            <p className="text-[10px] font-bold uppercase tracking-widest italic">Confidential Report · Generated by Antigravity OS</p>
+                            <button onClick={() => setPdfPreviewUrl(null)} className="text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-colors">Close Preview</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 @keyframes pulse-subtle {

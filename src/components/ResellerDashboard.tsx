@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, ArrowRightIcon, ArrowPathIcon } from './icons';
+import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, ArrowRightIcon, ArrowPathIcon, EyeIcon, XIcon, ShieldIcon, MapPinIcon, BedIcon, ChatBubbleBottomCenterTextIcon, BookOpenIcon, AcademicCapIcon, UserIcon, BeakerIcon, HomeIcon, ArchiveBoxIcon } from './icons';
 import { SparklesIcon } from './icons';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
@@ -9,7 +9,7 @@ import { generateId, generateUserId } from '../utils/idGenerator';
 interface ResellerDashboardProps {
     currentUser: User;
     currentInstitution: Institution;
-    onImpersonate: (tenantId: string) => void;
+    onImpersonate: (tenantId: string, initialRole?: Role | null) => void;
     companyDetails: CompanyDetails;
     transactions: MpesaTransaction[];
     invoices: Invoice[];
@@ -22,6 +22,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'clients' | 'commissions'>('clients');
     const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
+    const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
+    const [selectedTenantForPerspective, setSelectedTenantForPerspective] = useState<Institution | null>(null);
 
     // New Tenant Form State
     const [newTenantName, setNewTenantName] = useState('');
@@ -166,11 +168,33 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     };
 
     const openEditPricing = (tenant: Institution) => {
+        setSelectedTenantForPerspective(null);
         setSelectedTenantForPricing(tenant);
         setEditMonthlyPrice(tenant.customSubscriptionPrice?.monthly || companyDetails.subscriptionConfig.defaultMonthlyPrice);
         setEditYearlyPrice(tenant.customSubscriptionPrice?.yearly || companyDetails.subscriptionConfig.defaultYearlyPrice);
         setIsEditPricingModalOpen(true);
     };
+
+    const openPerspectiveSelection = (tenant: Institution) => {
+        setSelectedTenantForPerspective(tenant);
+        setIsPerspectiveModalOpen(true);
+    };
+
+    const perspectiveOptions = [
+        { role: 'admin', label: 'Admin Dashboard', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
+        { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
+        { role: 'transport_assistant', label: 'Transport Module', icon: <MapPinIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
+        { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
+        { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
+        { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
+        { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
+        { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'lecturer', label: 'Teacher/Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
+        { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
+        { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+    ];
 
     const filteredTenants = tenants.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -336,22 +360,37 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
             {activeTab === 'clients' ? (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                        <h2 className="text-lg font-bold text-slate-800">Your Portfolio</h2>
+                    <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center bg-slate-50/50 gap-4">
+                        <div className="flex items-center gap-4 w-full md:w-auto">
+                            <h2 className="text-lg font-bold text-slate-800">Your Portfolio</h2>
+                            <button
+                                onClick={() => setIsAddTenantModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                                Register Tenant
+                            </button>
+                        </div>
                         <input
                             type="text"
                             placeholder="Search clients..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-64 transition-all"
+                            className="border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-full md:w-64 transition-all"
                         />
                     </div>
-
                     {filteredTenants.length === 0 ? (
                         <div className="p-12 text-center text-slate-500">
                             <BuildingOfficeIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                             <p className="text-lg font-medium text-slate-700">No clients found</p>
-                            <p className="text-sm">You haven't onboarded any clients yet, or no clients match your search.</p>
+                            <p className="text-sm mb-6">You haven't onboarded any clients yet, or no clients match your search.</p>
+                            <button
+                                onClick={() => setIsAddTenantModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                                Onboard Your First Client
+                            </button>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -401,6 +440,14 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                     >
                                                         <CreditCardIcon className="w-4 h-4" />
                                                         Pricing
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openPerspectiveSelection(tenant)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                                        title="Switch perspective for this client"
+                                                    >
+                                                        <EyeIcon className="w-4 h-4" />
+                                                        Perspective
                                                     </button>
                                                     <button
                                                         onClick={() => onImpersonate(tenant.id)}
@@ -730,6 +777,43 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     </div>
                 )
             }
+
+            {/* Perspective Switching Modal */}
+            {isPerspectiveModalOpen && selectedTenantForPerspective && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsPerspectiveModalOpen(false)}>
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800">Perspective Switcher</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Impersonate {selectedTenantForPerspective.name}</p>
+                            </div>
+                            <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 transition-colors">
+                                <XIcon className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {perspectiveOptions.map(opt => (
+                                <button
+                                    key={opt.role}
+                                    onClick={() => {
+                                        onImpersonate(selectedTenantForPerspective.id, opt.role as Role);
+                                        setIsPerspectiveModalOpen(false);
+                                    }}
+                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
+                                >
+                                    <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
+                                        {opt.icon}
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this client.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

@@ -42,7 +42,7 @@ interface CountyAdminViewProps {
     onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
     onUpdateCounty?: (id: string, data: Partial<County>) => Promise<void>;
     onAddInstitution?: (data: any) => Promise<void>;
-    onLoginAsAdmin?: (institutionId: string) => void;
+    onLoginAsAdmin?: (institutionId: string, initialRole?: Role | null) => void;
     onImportInstitutions?: (data: any[]) => Promise<void>;
     onAddUser?: (data: any) => Promise<void>;
     onUpdateUser?: (id: string, data: any) => Promise<void>;
@@ -116,6 +116,8 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
+    const [selectedTenantForPerspective, setSelectedTenantForPerspective] = useState<Institution | null>(null);
 
     // Institution Registration State
     const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -247,6 +249,27 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         longitude: 0,
         description: ''
     });
+
+    const openPerspectiveSelection = (tenant: Institution) => {
+        setSelectedTenantForPerspective(tenant);
+        setIsPerspectiveModalOpen(true);
+    };
+
+    const perspectiveOptions = [
+        { role: 'admin', label: 'Admin Dashboard', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
+        { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
+        { role: 'transport_assistant', label: 'Transport Module', icon: <MapPinIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
+        { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
+        { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
+        { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
+        { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
+        { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'lecturer', label: 'Teacher/Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
+        { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
+        { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+    ];
 
     const [showFundModal, setShowFundModal] = useState(false);
     const [editingFund, setEditingFund] = useState<CountyBursaryFund | null>(null);
@@ -984,7 +1007,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                         {inst.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                <td className="px-6 py-4 whitespace-nowrap text-right flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => openPerspectiveSelection(inst)}
+                                                        className="text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
+                                                        title="Perspective View"
+                                                    >
+                                                        View
+                                                    </button>
                                                     <button
                                                         onClick={() => onLoginAsAdmin && onLoginAsAdmin(inst.id)}
                                                         className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all active:scale-95"
@@ -3115,6 +3145,44 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                     )
                 }
             </main >
+
+            {/* Perspective Switching Modal */}
+            {isPerspectiveModalOpen && selectedTenantForPerspective && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsPerspectiveModalOpen(false)}>
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800">Perspective Switcher</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Impersonate {selectedTenantForPerspective.name}</p>
+                            </div>
+                            <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 transition-colors">
+                                <XIcon className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {perspectiveOptions.map(opt => (
+                                <button
+                                    key={opt.role}
+                                    onClick={() => {
+                                        onLoginAsAdmin?.(selectedTenantForPerspective.id, opt.role as Role);
+                                        setIsPerspectiveModalOpen(false);
+                                    }}
+                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
+                                >
+                                    <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
+                                        {opt.icon}
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this institution.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showImportModal && onImportInstitutions && (
                 <SmartInstitutionImporterModal
                     countyId={myCounty.id}

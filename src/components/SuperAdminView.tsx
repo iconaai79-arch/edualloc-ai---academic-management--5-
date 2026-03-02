@@ -262,7 +262,7 @@ export interface SuperAdminViewProps {
     onAddInstitution: (data: Omit<Institution, 'id'>) => Promise<void>;
     onDeleteInstitution: (institutionId: string) => void;
     onToggleInstitutionStatus: (institutionId: string) => void;
-    onLoginAsAdmin: (institutionId: string) => void;
+    onLoginAsAdmin: (institutionId: string, initialRole?: Role | null) => void;
     onGenerateReceipt: (transaction: MpesaTransaction) => void;
 
     // New Props
@@ -362,6 +362,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [copyStatus, setCopyStatus] = useState(false);
     const [requestedSettingsTab, setRequestedSettingsTab] = useState<string | undefined>(undefined);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
+    const [selectedTenantForPerspective, setSelectedTenantForPerspective] = useState<Institution | null>(null);
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
@@ -398,6 +399,27 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     // Timetable state
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects'>('wizard');
+
+    const openPerspectiveSelection = (tenant: Institution) => {
+        setSelectedTenantForPerspective(tenant);
+        setIsPerspectiveModalOpen(true);
+    };
+
+    const perspectiveOptions = [
+        { role: 'admin', label: 'Admin Dashboard', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
+        { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
+        { role: 'transport_assistant', label: 'Transport Module', icon: <MapPinIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
+        { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
+        { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
+        { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
+        { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
+        { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'lecturer', label: 'Teacher/Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
+        { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
+        { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+    ];
 
     const fetchHealth = useCallback(async () => {
         setIsRefreshingHealth(true);
@@ -1343,6 +1365,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => openPerspectiveSelection(inst)}
+                                                                className="flex items-center gap-1 text-amber-600 hover:text-amber-900 font-black text-[10px] uppercase tracking-tighter bg-amber-50 px-2 py-1 rounded-lg transition-colors border border-amber-100"
+                                                                title="View Perspective"
+                                                            >
+                                                                <EyeIcon className="w-3 h-3" />
+                                                                View
+                                                            </button>
                                                             <button onClick={() => onLoginAsAdmin(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                 <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                 Portal
@@ -2899,6 +2929,43 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Perspective Switching Modal */}
+            {isPerspectiveModalOpen && selectedTenantForPerspective && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsPerspectiveModalOpen(false)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-700 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Perspective Switcher</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Impersonate {selectedTenantForPerspective.name}</p>
+                            </div>
+                            <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <XIcon className="w-6 h-6 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {perspectiveOptions.map(opt => (
+                                <button
+                                    key={opt.role}
+                                    onClick={() => {
+                                        onLoginAsAdmin(selectedTenantForPerspective.id, opt.role as Role);
+                                        setIsPerspectiveModalOpen(false);
+                                    }}
+                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm transition-transform group-hover:scale-110">
+                                        {opt.icon}
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 text-center">
+                            <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this institution.</p>
+                        </div>
                     </div>
                 </div>
             )}

@@ -814,7 +814,7 @@ export const App: React.FC = () => {
     };
 
 
-    const onLoginAsAdmin = (institutionId: string) => {
+    const onLoginAsAdmin = (institutionId: string, initialRole?: Role | null) => {
         const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'reseller'];
         let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
@@ -849,7 +849,7 @@ export const App: React.FC = () => {
             const impersonatedUser = { ...admin, isImpersonated: true };
             setCurrentUser(impersonatedUser);
             apiService.storeSession(impersonatedUser);
-            setImpersonatedRole(null);
+            setImpersonatedRole(initialRole || null);
         } else {
             console.warn(`Admin lookup failed for institution ${institutionId}. Available users:`, users.filter(u => u.institutionId === institutionId));
             alert("No admin account found for this institution.");
