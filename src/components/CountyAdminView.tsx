@@ -27,7 +27,12 @@ import {
     CheckIcon,
     DocumentArrowDownIcon,
     ShieldIcon,
-    TrashIcon
+    TrashIcon,
+    BedIcon,
+    ChatBubbleBottomCenterTextIcon,
+    BookOpenIcon,
+    BeakerIcon,
+    HomeIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
