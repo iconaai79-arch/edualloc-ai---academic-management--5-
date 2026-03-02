@@ -346,9 +346,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             amountCharged: price, amountPaid: 0, isLoyaltyRedemption: false, createdAt: new Date().toISOString(),
             customerId: jobForm.customerId || undefined,
         };
-        await apiService.saveModuleRecord('carwash_jobs', job);
-        setShowNewJobModal(false); setJobForm({ vehiclePlate: '', vehicleType: 'Sedan', packageId: '', addOns: [], attendantId: '', bayNumber: 1, paymentMethod: 'cash', customerId: '' });
-        loadData();
+        try {
+            await apiService.saveModuleRecord('carwash_jobs', job);
+            setShowNewJobModal(false);
+            setJobForm({ vehiclePlate: '', vehicleType: 'Sedan', packageId: '', addOns: [], attendantId: '', bayNumber: 1, paymentMethod: 'cash', customerId: '' });
+            loadData();
+        } catch (e: any) {
+            alert(e.message || 'Failed to create job');
+        }
     };
 
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
