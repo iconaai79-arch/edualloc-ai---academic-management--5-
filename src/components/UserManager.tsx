@@ -462,6 +462,249 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     );
 };
 
+interface PromoteStudentsModalProps {
+    students: User[];
+    courses: Course[];
+    onClose: () => void;
+    onPromote: (studentIds: string[], targetCourseId: string, targetCourseLevelId: string) => Promise<void>;
+    currentInstitutionName?: string;
+}
+
+const PromoteStudentsModal: React.FC<PromoteStudentsModalProps> = ({ students, courses, onClose, onPromote, currentInstitutionName }) => {
+    const [sourceCourseId, setSourceCourseId] = useState('');
+    const [sourceLevelId, setSourceLevelId] = useState('');
+    const [targetCourseId, setTargetCourseId] = useState('');
+    const [targetLevelId, setTargetLevelId] = useState('');
+
+    // Default selection state
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    // Derived variables
+    const sourceLevels = useMemo(() => courses.find(c => c.id === sourceCourseId)?.levels || [], [sourceCourseId, courses]);
+    const targetLevels = useMemo(() => courses.find(c => c.id === targetCourseId)?.levels || [], [targetCourseId, courses]);
+
+    const eligibleStudents = useMemo(() => {
+        if (!sourceCourseId) return [];
+        return students.filter(s =>
+            s.courseId === sourceCourseId &&
+            (!sourceLevelId || s.courseLevelId === sourceLevelId)
+        );
+    }, [students, sourceCourseId, sourceLevelId]);
+
+    // Update selection when filter changes
+    useEffect(() => {
+        setSelectedStudentIds(new Set(eligibleStudents.map(s => s.id)));
+    }, [eligibleStudents]);
+
+    const handleToggleStudent = (id: string) => {
+        const newSet = new Set(selectedStudentIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedStudentIds(newSet);
+    };
+
+    const handleToggleAll = () => {
+        if (selectedStudentIds.size === eligibleStudents.length) {
+            setSelectedStudentIds(new Set());
+        } else {
+            setSelectedStudentIds(new Set(eligibleStudents.map(s => s.id)));
+        }
+    };
+
+    const handlePromote = async () => {
+        if (!targetCourseId || !targetLevelId || selectedStudentIds.size === 0) return;
+        setIsProcessing(true);
+        setProgress(10);
+
+        try {
+            await onPromote(Array.from(selectedStudentIds), targetCourseId, targetLevelId);
+            setProgress(100);
+            setTimeout(onClose, 1000);
+        } catch (error) {
+            console.error("Promotion failed:", error);
+            alert("Failed to promote students. See console for details.");
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4" onClick={!isProcessing ? onClose : undefined}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-indigo-50/50 dark:bg-indigo-900/20 rounded-t-lg">
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-indigo-900 dark:text-indigo-100">
+                        <AcademicCapIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        Promote Students
+                    </h3>
+                    {!isProcessing && (
+                        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500">
+                            <XIcon className="w-6 h-6" />
+                        </button>
+                    )}
+                </div>
+
+                <div className="p-6 flex-grow overflow-y-auto space-y-6">
+                    {/* Information Alert */}
+                    <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex gap-3">
+                        <div className="text-yellow-600 dark:text-yellow-400 mt-0.5">
+                            <SparklesIcon className="w-5 h-5" />
+                        </div>
+                        <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                            <p className="font-bold mb-1">Before Promoting Students:</p>
+                            <p>To accurately register these students in the next year, ensure you have created and activated the new Academic Year in the <span className="font-semibold">Academics</span> module first. Promoting students updates their current class alignment which takes effect immediately.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Source Configuration */}
+                        <div className="space-y-4">
+                            <h4 className="font-semibold text-slate-800 dark:text-slate-200 border-b pb-2">1. Select Current Class (Source)</h4>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Current Course</label>
+                                <select
+                                    className="form-select w-full"
+                                    value={sourceCourseId}
+                                    onChange={e => { setSourceCourseId(e.target.value); setSourceLevelId(''); }}
+                                    disabled={isProcessing}
+                                >
+                                    <option value="">-- Select Course --</option>
+                                    {courses.map(c => <option key={`src-${c.id}`} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Current Stream / Level (Optional)</label>
+                                <select
+                                    className="form-select w-full"
+                                    value={sourceLevelId}
+                                    onChange={e => setSourceLevelId(e.target.value)}
+                                    disabled={!sourceCourseId || isProcessing}
+                                >
+                                    <option value="">All Streams in Course</option>
+                                    {sourceLevels.map(l => <option key={`src-l-${l.id}`} value={l.id}>{l.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Target Configuration */}
+                        <div className="space-y-4 border-l md:pl-8 dark:border-slate-700">
+                            <h4 className="font-semibold text-slate-800 dark:text-slate-200 border-b pb-2">2. Select Next Class (Destination)</h4>
+                            <div>
+                                <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">Target Course</label>
+                                <select
+                                    className="form-select w-full border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                    value={targetCourseId}
+                                    onChange={e => { setTargetCourseId(e.target.value); setTargetLevelId(''); }}
+                                    disabled={isProcessing}
+                                >
+                                    <option value="">-- Select Target Course --</option>
+                                    {courses.map(c => <option key={`tgt-${c.id}`} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">Target Stream / Level</label>
+                                <select
+                                    className="form-select w-full border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                    value={targetLevelId}
+                                    onChange={e => setTargetLevelId(e.target.value)}
+                                    disabled={!targetCourseId || isProcessing}
+                                >
+                                    <option value="">-- Select Target Stream --</option>
+                                    {targetLevels.map(l => <option key={`tgt-l-${l.id}`} value={l.id}>{l.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Student Selection */}
+                    {sourceCourseId && (
+                        <div className="mt-8 border rounded-lg border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+                                <h4 className="font-semibold text-sm flex items-center gap-2">
+                                    <UsersIcon className="w-4 h-4 text-slate-500" />
+                                    Eligible Students ({eligibleStudents.length})
+                                </h4>
+                                <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 px-2 py-1 rounded">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        checked={selectedStudentIds.size === eligibleStudents.length && eligibleStudents.length > 0}
+                                        onChange={handleToggleAll}
+                                        disabled={eligibleStudents.length === 0 || isProcessing}
+                                    />
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">Select All</span>
+                                </label>
+                            </div>
+
+                            <div className="max-h-60 overflow-y-auto p-1 bg-white dark:bg-slate-800">
+                                {eligibleStudents.length === 0 ? (
+                                    <div className="p-8 text-center text-slate-500 italic text-sm">
+                                        No students found in the selected source class.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1 p-2">
+                                        {eligibleStudents.map(student => (
+                                            <label
+                                                key={student.id}
+                                                className={`flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border transition-colors ${selectedStudentIds.has(student.id) ? 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-800 dark:bg-indigo-900/10' : 'border-transparent'}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={selectedStudentIds.has(student.id)}
+                                                    onChange={() => handleToggleStudent(student.id)}
+                                                    disabled={isProcessing}
+                                                />
+                                                <div className="flex flex-col overflow-hidden">
+                                                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{student.name}</span>
+                                                    <span className="text-[10px] text-slate-400 font-mono truncate">{student.staffId || student.email}</span>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="bg-slate-50 dark:bg-slate-700/50 px-6 py-4 flex items-center justify-between rounded-b-lg border-t dark:border-slate-700">
+                    <div>
+                        {isProcessing && (
+                            <div className="flex items-center gap-3 w-64">
+                                <ArrowPathIcon className="w-5 h-5 text-indigo-600 animate-spin" />
+                                <div className="flex-grow bg-slate-200 rounded-full h-2.5 dark:bg-slate-600 overflow-hidden">
+                                    <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                                </div>
+                                <span className="text-xs font-bold text-slate-500">{progress}%</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="btn-secondary"
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handlePromote}
+                            disabled={isProcessing || !targetCourseId || !targetLevelId || selectedStudentIds.size === 0}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            Promote {selectedStudentIds.size > 0 ? selectedStudentIds.size : ''} Students
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface UserManagerProps {
     allocations: AllocationRequest[];
     users: User[];
@@ -508,6 +751,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [managingParentsFor, setManagingParentsFor] = useState<User | null>(null);
     const [managingLessonsFor, setManagingLessonsFor] = useState<User | null>(null);
@@ -677,6 +921,11 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         <button onClick={() => { activeTab === 'staff' ? setIsImportModalOpen(true) : fileInputRef.current?.click() }} className="btn-secondary flex items-center gap-2">
                             <ArrowUpTrayIcon className="w-5 h-5" /> Import
                         </button>
+                        {activeTab === 'student' && canManageUserRecords && (
+                            <button onClick={() => setIsPromoteModalOpen(true)} className="btn-secondary flex items-center gap-2 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300">
+                                <AcademicCapIcon className="w-5 h-5" /> Promote Students
+                            </button>
+                        )}
                         <button
                             onClick={async () => {
                                 if (filteredUsers.length === 0) return;
@@ -1031,6 +1280,34 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     onSave={async (id, data) => { await onEditUser(id, data); setEditingUser(null); }}
                     currentInstitution={currentInstitution}
                     fixedDepartmentId={currentUser?.role === 'hod' || currentUser?.role === 'tto' ? currentUser.departmentId : undefined}
+                />
+            )}
+
+            {isPromoteModalOpen && (
+                <PromoteStudentsModal
+                    students={users.filter(u => u.role === 'student')}
+                    courses={courses}
+                    currentInstitutionName={currentInstitution?.name}
+                    onClose={() => setIsPromoteModalOpen(false)}
+                    onPromote={async (studentIds, targetCourseId, targetCourseLevelId) => {
+                        // Process promotions sequentially to avoid overwhelming the database with concurrent RPCs if there are many students
+                        let successCount = 0;
+                        for (const id of studentIds) {
+                            try {
+                                await onEditUser(id, { courseId: targetCourseId, courseLevelId: targetCourseLevelId } as any);
+                                successCount++;
+                            } catch (e) {
+                                console.error(`Failed to promote student ${id}`, e);
+                            }
+                        }
+                        const targetCourseName = courses.find(c => c.id === targetCourseId)?.name || 'Next Class';
+                        if (props.onLogAction) {
+                            await props.onLogAction(`Bulk promoted ${successCount} students to ${targetCourseName}`);
+                        }
+                        if (successCount < studentIds.length) {
+                            alert(`Promoted ${successCount} out of ${studentIds.length} students. Some updates failed.`);
+                        }
+                    }}
                 />
             )}
 
