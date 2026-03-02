@@ -1690,6 +1690,8 @@ export interface CarWashPackage {
     includesInterior: boolean;
     isActive: boolean;
     color?: string; // UI accent color
+    commissionType?: 'percentage' | 'fixed';
+    commissionValue?: number;
 }
 
 export interface CarWashCustomer {
@@ -1737,6 +1739,8 @@ export interface CarWashJob {
     completedAt?: string;
     createdAt: string;
     notes?: string;
+    commissionEarned?: number;
+    isCommissionPaid?: boolean;
 }
 
 export interface CarWashInventoryItem {

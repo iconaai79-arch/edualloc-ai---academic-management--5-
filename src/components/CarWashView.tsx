@@ -36,7 +36,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
 }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
@@ -71,6 +71,32 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [editingExpense, setEditingExpense] = useState<CarWashExpense | null>(null);
     const [showNewPayrollModal, setShowNewPayrollModal] = useState(false);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    const [brandingForm, setBrandingForm] = useState({
+        logoUrl: currentInstitution.logoUrl || '',
+        footerImageUrl: currentInstitution.footerImageUrl || '',
+        headerImageUrl: currentInstitution.letterheadConfig?.headerImageUrl || '',
+        stampImageUrl: currentInstitution.letterheadConfig?.stampImageUrl || ''
+    });
+
+    const handleSaveBranding = async () => {
+        try {
+            const updatedInst: Institution = {
+                ...currentInstitution,
+                logoUrl: brandingForm.logoUrl,
+                footerImageUrl: brandingForm.footerImageUrl,
+                letterheadConfig: {
+                    headerImageUrl: brandingForm.headerImageUrl,
+                    stampImageUrl: brandingForm.stampImageUrl
+                }
+            };
+            await apiService.saveModuleRecord('institutions', updatedInst);
+            alert('Branding updated successfully!');
+            onDataChange();
+        } catch (e) {
+            alert('Failed to update branding');
+        }
+    };
 
     const [search, setSearch] = useState('');
 
@@ -110,6 +136,24 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
+
+    // Auto-calculate commission when staff or period changes in payroll form
+    useEffect(() => {
+        if (showNewPayrollModal && payrlForm.staffId && payrlForm.periodStart && payrlForm.periodEnd) {
+            const unpaidComms = jobs.filter(j =>
+                j.attendantId === payrlForm.staffId &&
+                j.status === 'completed' &&
+                !j.isCommissionPaid &&
+                j.completedAt &&
+                j.completedAt >= payrlForm.periodStart &&
+                j.completedAt <= payrlForm.periodEnd
+            ).reduce((s, j) => s + (j.commissionEarned || 0), 0);
+
+            if (unpaidComms !== payrlForm.commissionEarned) {
+                setPayrlForm(prev => ({ ...prev, commissionEarned: unpaidComms }));
+            }
+        }
+    }, [payrlForm.staffId, payrlForm.periodStart, payrlForm.periodEnd, showNewPayrollModal, jobs]);
 
     const todayJobs = jobs.filter(j => j.createdAt?.startsWith(new Date().toISOString().split('T')[0]));
     const todayRevenue = todayJobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0);
@@ -187,12 +231,22 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 ]);
             }
 
+            const pkg = packages.find(p => p.id === job.packageId);
+            let commission = 0;
+            if (pkg?.commissionType === 'percentage') {
+                commission = (job.amountCharged * (pkg.commissionValue || 0)) / 100;
+            } else if (pkg?.commissionType === 'fixed') {
+                commission = pkg.commissionValue || 0;
+            }
+
             const updated: CarWashJob = {
                 ...job,
                 status: 'completed',
                 paymentMethod: method,
                 completedAt: new Date().toISOString(),
-                amountPaid: job.amountCharged
+                amountPaid: job.amountCharged,
+                commissionEarned: commission,
+                isCommissionPaid: false
             };
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
@@ -411,7 +465,17 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     // ── Package Form ──
-    const [pkgForm, setPkgForm] = useState({ name: '', description: '', pricing: {} as Partial<Record<CarWashVehicleType, number>>, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined as string | undefined });
+    const [pkgForm, setPkgForm] = useState({
+        name: '',
+        description: '',
+        pricing: {} as Partial<Record<CarWashVehicleType, number>>,
+        estimatedMinutes: 30,
+        includesInterior: false,
+        color: PACKAGE_COLORS[0],
+        commissionType: 'percentage' as 'percentage' | 'fixed',
+        commissionValue: 0,
+        editingId: undefined as string | undefined
+    });
     const handleEditPackage = (pkg: CarWashPackage) => {
         setPkgForm({
             name: pkg.name,
@@ -420,6 +484,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             estimatedMinutes: pkg.estimatedMinutes,
             includesInterior: pkg.includesInterior || false,
             color: pkg.color || PACKAGE_COLORS[0],
+            commissionType: pkg.commissionType || 'percentage',
+            commissionValue: pkg.commissionValue || 0,
             editingId: pkg.id
         });
         setShowNewPackageModal(true);
@@ -436,7 +502,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 estimatedMinutes: pkgForm.estimatedMinutes,
                 includesInterior: pkgForm.includesInterior,
                 isActive: true,
-                color: pkgForm.color
+                color: pkgForm.color,
+                commissionType: pkgForm.commissionType,
+                commissionValue: pkgForm.commissionValue
             };
             await apiService.saveModuleRecord('carwash_packages', pkg);
             setShowNewPackageModal(false);
@@ -600,6 +668,20 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             };
             await apiService.saveModuleRecord('carwash_payroll', pyrl);
 
+            // Mark jobs as commission paid
+            const unpaidJobs = jobs.filter(j =>
+                j.attendantId === pyrl.staffId &&
+                j.status === 'completed' &&
+                !j.isCommissionPaid &&
+                j.completedAt &&
+                j.completedAt >= pyrl.periodStart &&
+                j.completedAt <= pyrl.periodEnd
+            );
+
+            for (const job of unpaidJobs) {
+                await apiService.saveModuleRecord('carwash_jobs', { ...job, isCommissionPaid: true });
+            }
+
             // ── Accounting Integration: Payroll ──
             await recordJournalEntry(
                 `Payroll: ${attendants.find(a => a.id === pyrl.staffId)?.name || 'Staff'} - ${pyrl.periodStart}`,
@@ -738,7 +820,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
         { id: 'transactions', label: 'Bills & Payments', icon: <CurrencyIcon className="w-4 h-4" /> },
         { id: 'finance', label: 'Finance', icon: <BanknotesIcon className="w-4 h-4" /> },
-    ];
+        currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
+    ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
@@ -1291,6 +1374,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div className="flex items-center gap-3 pt-5"><input type="checkbox" id="interior" checked={pkgForm.includesInterior} onChange={e => setPkgForm({ ...pkgForm, includesInterior: e.target.checked })} className="w-5 h-5" /><label htmlFor="interior" className="text-xs font-bold">Includes Interior</label></div>
                             </div>
                             <div><label className={labelCls}>Pricing by Vehicle Type (KES)</label><div className="space-y-2">{VEHICLE_TYPES.map(vt => <div key={vt} className="flex items-center gap-3"><span className="text-xs font-bold w-20">{vt}</span><input type="number" className={inputCls} placeholder="0" value={pkgForm.pricing[vt] || ''} onChange={e => setPkgForm(prev => ({ ...prev, pricing: { ...prev.pricing, [vt]: +e.target.value } }))} /></div>)}</div></div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className={labelCls}>Commission Type</label><select className={inputCls} value={pkgForm.commissionType} onChange={e => setPkgForm({ ...pkgForm, commissionType: e.target.value as any })}><option value="percentage">Percentage (%)</option><option value="fixed">Fixed Amount</option></select></div>
+                                <div><label className={labelCls}>Commission Value</label><input type="number" className={inputCls} value={pkgForm.commissionValue} onChange={e => setPkgForm({ ...pkgForm, commissionValue: +e.target.value })} /></div>
+                            </div>
                             <div><label className={labelCls}>Accent Color</label><div className="flex gap-2">{PACKAGE_COLORS.map(c => <button key={c} type="button" onClick={() => setPkgForm({ ...pkgForm, color: c })} className={`w-8 h-8 rounded-full border-2 transition-all ${pkgForm.color === c ? 'border-slate-900 scale-110' : 'border-transparent'}`} style={{ background: c }} />)}</div></div>
                         </div>
                         <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewPackageModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreatePackage} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">{pkgForm.editingId ? 'Save Changes' : 'Save Package'}</button></div>
@@ -1703,6 +1790,97 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         </div>
                     )}
 
+                </div>
+            )}
+
+            {/* SETTINGS */}
+            {!loading && activeTab === 'settings' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-2xl">
+                                <Cog8ToothIcon className="w-6 h-6 text-cyan-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black uppercase tracking-tight">Branch Settings</h2>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage branding and document identity</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-6">
+                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 border-b pb-2">Logos & Images</h3>
+
+                                <div>
+                                    <label className={labelCls}>Branch Logo URL</label>
+                                    <div className="flex gap-3">
+                                        <input value={brandingForm.logoUrl} onChange={e => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })} className={inputCls} placeholder="https://..." />
+                                        {brandingForm.logoUrl && <img src={brandingForm.logoUrl} className="w-12 h-12 rounded-xl object-contain bg-slate-50" alt="Logo" />}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={labelCls}>Letterhead Header URL</label>
+                                    <input value={brandingForm.headerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, headerImageUrl: e.target.value })} className={inputCls} placeholder="Header image for invoices" />
+                                    {brandingForm.headerImageUrl && <img src={brandingForm.headerImageUrl} className="mt-2 h-20 w-full object-contain rounded-xl bg-slate-50" alt="Header" />}
+                                </div>
+
+                                <div>
+                                    <label className={labelCls}>Footer Image URL</label>
+                                    <input value={brandingForm.footerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, footerImageUrl: e.target.value })} className={inputCls} placeholder="Footer image for documents" />
+                                    {brandingForm.footerImageUrl && <img src={brandingForm.footerImageUrl} className="mt-2 h-16 w-full object-contain rounded-xl bg-slate-50" alt="Footer" />}
+                                </div>
+
+                                <div>
+                                    <label className={labelCls}>Stamp Image URL</label>
+                                    <input value={brandingForm.stampImageUrl} onChange={e => setBrandingForm({ ...brandingForm, stampImageUrl: e.target.value })} className={inputCls} placeholder="Official stamp image" />
+                                    {brandingForm.stampImageUrl && <img src={brandingForm.stampImageUrl} className="mt-2 w-20 h-20 object-contain rounded-xl bg-slate-50" alt="Stamp" />}
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 border-b pb-2">Module Info</h3>
+                                <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center text-white">
+                                            <SparklesIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-sm">{currentInstitution.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currentInstitution.institutionType} · Car Wash</p>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-500 font-bold uppercase">Active Packages</span>
+                                            <span className="font-black">{packages.length}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-500 font-bold uppercase">Staff Count</span>
+                                            <span className="font-black">{attendants.length}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-500 font-bold uppercase">Total Washes</span>
+                                            <span className="font-black">{jobs.length}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-[2rem] border border-blue-100 dark:border-blue-800">
+                                    <h4 className="text-[10px] font-black uppercase text-blue-700 mb-2 tracking-widest">Automation Note</h4>
+                                    <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
+                                        Commissions are automatically calculated based on package settings when a job is completed. These are aggregated during the monthly payroll run for each staff member.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-12 flex justify-end">
+                            <button onClick={handleSaveBranding} className="px-10 py-4 bg-cyan-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 btn-save-animate">
+                                Save Branch Branding
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
