@@ -85,6 +85,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [showNewExpenseModal, setShowNewExpenseModal] = useState(false);
     const [editingExpense, setEditingExpense] = useState<CarWashExpense | null>(null);
     const [showNewPayrollModal, setShowNewPayrollModal] = useState(false);
+    const [showBulkPayrollModal, setShowBulkPayrollModal] = useState(false);
+    const [bulkPayrollPeriod, setBulkPayrollPeriod] = useState({
+        start: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
@@ -903,6 +908,88 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             });
             loadData();
         } catch (e: any) { alert(`Failed: ${e.message}`); }
+    };
+
+    // ── Bulk Payroll Form ──
+    const handleProcessBulkPayroll = async () => {
+        if (!confirm('Are you sure you want to process payroll for all attendants in this period?')) return;
+        try {
+            let totalDisbursed = 0;
+            const updatedJobs: CarWashJob[] = [];
+            const newPayrolls: CarWashPayroll[] = [];
+
+            for (const attendant of attendants) {
+                // Find unpaid jobs for this attendant in the period
+                const attendantJobs = jobs.filter(j =>
+                    j.attendantId === attendant.id &&
+                    j.status === 'completed' &&
+                    !j.isCommissionPaid &&
+                    j.completedAt &&
+                    j.completedAt.split('T')[0] >= bulkPayrollPeriod.start &&
+                    j.completedAt.split('T')[0] <= bulkPayrollPeriod.end
+                );
+
+                if (attendantJobs.length === 0) continue;
+
+                // Calculate total commission for these jobs
+                let totalCommission = 0;
+                for (const job of attendantJobs) {
+                    const pkg = packages.find(p => p.id === job.packageId);
+                    if (pkg) {
+                        if (pkg.commissionType === 'fixed') totalCommission += pkg.commissionValue;
+                        else totalCommission += (job.amountCharged * pkg.commissionValue) / 100;
+                    }
+                    updatedJobs.push({ ...job, isCommissionPaid: true });
+                }
+
+                const basicSalary = 0; // Default or configured per attendant
+                const { nssf, shif, housingLevy, paye, gross } = calculateKenyanPayroll(basicSalary, totalCommission);
+                const totalPay = gross - nssf - shif - housingLevy - paye;
+
+                newPayrolls.push({
+                    id: `cwp_${Date.now()}_${attendant.id}`,
+                    institutionId,
+                    staffId: attendant.id,
+                    baseSalary: basicSalary,
+                    commissionEarned: totalCommission,
+                    advancesTaken: 0,
+                    deductions: 0,
+                    nssf, shif, housingLevy, paye, totalPay,
+                    periodStart: bulkPayrollPeriod.start,
+                    periodEnd: bulkPayrollPeriod.end,
+                    status: 'paid',
+                    paymentDate: new Date().toISOString(),
+                    processedBy: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined,
+                    createdAt: new Date().toISOString()
+                });
+
+                totalDisbursed += totalPay;
+            }
+
+            if (newPayrolls.length === 0) {
+                return alert('No unpaid commissions found in this period.');
+            }
+
+            // Save all generated payrolls concurrently
+            await Promise.all(newPayrolls.map(pr => apiService.saveModuleRecord('carwash_payroll', pr)));
+            await Promise.all(updatedJobs.map(job => apiService.saveModuleRecord('carwash_jobs', job)));
+
+            // Single journal entry for the bulk disbursement
+            await recordJournalEntry(
+                `Bulk Payroll Processing: ${bulkPayrollPeriod.start} to ${bulkPayrollPeriod.end}`,
+                totalDisbursed,
+                '5010', // Debit: Wages & Salary Expense
+                '1000', // Credit: Cash on Hand
+                'Payroll',
+                `bulk_pyrl_${Date.now()}`
+            );
+
+            setShowBulkPayrollModal(false);
+            alert(`Successfully processed payroll for ${newPayrolls.length} attendants. Total disbursed: KES ${totalDisbursed.toLocaleString()}`);
+            loadData();
+        } catch (e: any) {
+            alert(`Failed: ${e.message}`);
+        }
     };
 
     // ── Feedback Form ──
@@ -1926,8 +2013,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <button onClick={handleExportPayroll} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
                                         <DocumentTextIcon className="w-4 h-4" /> Export PDF
                                     </button>
+                                    <button onClick={() => setShowBulkPayrollModal(true)} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-purple-700 transition-all">
+                                        <UserGroupIcon className="w-4 h-4" /> Bulk Process
+                                    </button>
                                     <button onClick={() => setShowNewPayrollModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-blue-700 transition-all">
-                                        <PlusIcon className="w-4 h-4" /> Process Payroll
+                                        <PlusIcon className="w-4 h-4" /> Single Payroll
                                     </button>
                                 </div>
                             </div>
@@ -2071,6 +2161,99 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 </div>
             )}
 
+
+            {/* BULK PAYROLL MODAL */}
+            {showBulkPayrollModal && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] w-full max-w-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 p-8 flex justify-between items-center text-white relative overflow-hidden">
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md border border-white/20">
+                                    <UserGroupIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight">Bulk Payroll Run</h3>
+                                    <p className="text-[10px] text-purple-200 font-bold mt-1 tracking-widest uppercase">Assess & process staff commissions simultaneously</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowBulkPayrollModal(false)} className="w-10 h-10 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full transition-all relative z-10 border border-white/10"><XIcon className="w-5 h-5 text-white" /></button>
+                        </div>
+
+                        <div className="p-8">
+                            <div className="grid grid-cols-2 gap-6 mb-8 relative z-10">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <label className={labelCls}>Period Start Date</label>
+                                    <input type="date" value={bulkPayrollPeriod.start} onChange={e => setBulkPayrollPeriod({ ...bulkPayrollPeriod, start: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 shadow-sm'} />
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <label className={labelCls}>Period End Date</label>
+                                    <input type="date" value={bulkPayrollPeriod.end} onChange={e => setBulkPayrollPeriod({ ...bulkPayrollPeriod, end: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 shadow-sm'} />
+                                </div>
+                            </div>
+
+                            <div className="rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden mb-8 shadow-sm">
+                                <div className="bg-slate-50 dark:bg-slate-900/50 p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><ChartBarIcon className="w-4 h-4 text-purple-500" /> Commission Preview</h4>
+                                    <span className="text-[10px] uppercase font-bold text-slate-400 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">Auto-Calculated from Jobs</span>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="text-[10px] uppercase font-black text-slate-400 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-6 py-4">Staff Member</th>
+                                                <th className="px-6 py-4 text-center">Unpaid Jobs</th>
+                                                <th className="px-6 py-4 text-right">Est. Commission</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50 bg-white dark:bg-slate-900">
+                                            {attendants.map(attendant => {
+                                                const attendantJobs = jobs.filter(j => j.attendantId === attendant.id && j.status === 'completed' && !j.isCommissionPaid && j.completedAt && j.completedAt.split('T')[0] >= bulkPayrollPeriod.start && j.completedAt.split('T')[0] <= bulkPayrollPeriod.end);
+                                                if (attendantJobs.length === 0) return null;
+                                                let comm = 0;
+                                                attendantJobs.forEach(j => {
+                                                    const pkg = packages.find(p => p.id === j.packageId);
+                                                    if (pkg) { if (pkg.commissionType === 'fixed') comm += pkg.commissionValue; else comm += (j.amountCharged * pkg.commissionValue) / 100; }
+                                                });
+                                                return (
+                                                    <tr key={attendant.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center font-black text-xs">{attendant.name.charAt(0)}</div>
+                                                                <span className="font-black text-slate-700 dark:text-slate-200">{attendant.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg font-bold text-slate-500 text-xs">{attendantJobs.length} washes</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right font-black text-emerald-600 text-base">KES {comm.toLocaleString()}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {attendants.every(a => jobs.filter(j => j.attendantId === a.id && j.status === 'completed' && !j.isCommissionPaid && j.completedAt && j.completedAt.split('T')[0] >= bulkPayrollPeriod.start && j.completedAt.split('T')[0] <= bulkPayrollPeriod.end).length === 0) && (
+                                                <tr>
+                                                    <td colSpan={3} className="px-6 py-12 text-center">
+                                                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 scale-90 opacity-50"><UserGroupIcon className="w-8 h-8 text-slate-400" /></div>
+                                                        <p className="text-sm font-black text-slate-500 uppercase tracking-widest">No Unpaid Commissions</p>
+                                                        <p className="text-xs text-slate-400 font-medium mt-1">Adjust the date range to find pending payouts.</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <button onClick={() => setShowBulkPayrollModal(false)} className="px-8 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95">Cancel</button>
+                                <button onClick={handleProcessBulkPayroll} className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:shadow-purple-600/40 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <CheckCircleIcon className="w-5 h-5" /> Confirm & Process All Staff
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* PDF PREVIEW MODAL */}
             {pdfPreviewUrl && (
