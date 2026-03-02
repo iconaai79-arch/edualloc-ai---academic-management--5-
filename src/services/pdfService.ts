@@ -1,5 +1,5 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -2563,4 +2563,212 @@ export const generateMemberQrCodesPdf = async (
     }
 
     return doc.output('blob');
+};
+
+export const generateCarWashTrialBalancePdf = async (
+    accounts: CarWashAccount[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("TRIAL BALANCE", margin, yPos);
+    yPos += 10;
+
+    const head = [['Account Code', 'Account Name', 'Type', 'Balance (KES)']];
+    const body = (accounts || []).map(acc => [
+        acc.accountCode,
+        acc.name,
+        acc.type,
+        (acc.balance || 0).toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 9 },
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateCarWashCashbookPdf = async (
+    entries: CarWashJournalEntry[],
+    lines: CarWashJournalLine[],
+    accounts: CarWashAccount[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("GENERAL JOURNAL / CASHBOOK", margin, yPos);
+    yPos += 10;
+
+    const head = [['Date', 'Reference / Description', 'Account', 'Debit', 'Credit']];
+    const body: any[] = [];
+
+    (entries || []).sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime()).forEach(entry => {
+        const entryLines = (lines || []).filter(l => l.entryId === entry.id);
+        entryLines.forEach((line, idx) => {
+            const acc = accounts.find(a => a.id === line.accountId);
+            body.push([
+                idx === 0 ? new Date(entry.entryDate).toLocaleDateString() : '',
+                idx === 0 ? `${entry.entryNumber}\n${entry.description}` : '',
+                acc ? acc.name : 'Unknown Account',
+                line.debit > 0 ? line.debit.toLocaleString() : '',
+                line.credit > 0 ? line.credit.toLocaleString() : ''
+            ]);
+        });
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: 50 },
+            3: { halign: 'right' },
+            4: { halign: 'right' }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateCarWashExpensesPdf = async (
+    expenses: CarWashExpense[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("OPERATING EXPENSES REPORT", margin, yPos);
+    yPos += 10;
+
+    const head = [['Date', 'Category', 'Description', 'Method', 'Amount (KES)']];
+    const body = (expenses || []).sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime()).map(exp => [
+        new Date(exp.expenseDate).toLocaleDateString(),
+        exp.category.toUpperCase(),
+        exp.description,
+        exp.paymentMethod.replace('_', ' ').toUpperCase(),
+        (exp.amount || 0).toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 9 },
+        columnStyles: { 4: { halign: 'right' } }
+    });
+
+    const total = (expenses || []).reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL EXPENSES: KES ${total.toLocaleString()}`, doc.internal.pageSize.getWidth() - margin, finalY, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateCarWashPayrollPdf = async (
+    payroll: CarWashPayroll[],
+    attendants: User[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF({ orientation: 'landscape' });
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("STAFF PAYROLL HISTORY", margin, yPos);
+    yPos += 10;
+
+    const head = [['Period', 'Staff Member', 'Base Salary', 'Commission', 'Advances/Deductions', 'Total Paid (KES)', 'Status']];
+    const body = (payroll || []).sort((a, b) => new Date(b.periodStart).getTime() - new Date(a.periodStart).getTime()).map(pr => {
+        const staff = attendants.find(a => a.id === pr.staffId);
+        return [
+            `${new Date(pr.periodStart).toLocaleDateString()} - ${new Date(pr.periodEnd).toLocaleDateString()}`,
+            staff?.name || 'Unknown',
+            (pr.baseSalary || 0).toLocaleString(),
+            (pr.commissionEarned || 0).toLocaleString(),
+            ((pr.advancesTaken || 0) + (pr.deductions || 0)).toLocaleString(),
+            (pr.totalPay || 0).toLocaleString(),
+            pr.status.toUpperCase()
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 9 },
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
 };

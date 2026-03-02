@@ -5,6 +5,12 @@ import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
 import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
 import {
+    generateCarWashTrialBalancePdf,
+    generateCarWashCashbookPdf,
+    generateCarWashExpensesPdf,
+    generateCarWashPayrollPdf
+} from '../services/pdfService';
+import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
     BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
@@ -133,6 +139,85 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setPayroll(pyrl || []);
         } catch (e) { console.error(e); }
         setLoading(false);
+    };
+
+    const handleExportTrialBalance = async () => {
+        try {
+            const dataUri = await generateCarWashTrialBalancePdf(
+                accounts,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.logoUrl || '',
+                currentInstitution.footerImageUrl || ''
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Trial-Balance-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
+            link.click();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Trial Balance PDF');
+        }
+    };
+
+    const handleExportCashbook = async () => {
+        try {
+            const dataUri = await generateCarWashCashbookPdf(
+                journalEntries,
+                journalLines,
+                accounts,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.logoUrl || '',
+                currentInstitution.footerImageUrl || ''
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Cashbook-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
+            link.click();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Cashbook PDF');
+        }
+    };
+
+    const handleExportExpenses = async () => {
+        try {
+            const dataUri = await generateCarWashExpensesPdf(
+                expenses,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.logoUrl || '',
+                currentInstitution.footerImageUrl || ''
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Expenses-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
+            link.click();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Expenses PDF');
+        }
+    };
+
+    const handleExportPayroll = async () => {
+        try {
+            const dataUri = await generateCarWashPayrollPdf(
+                payroll,
+                attendants,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.logoUrl || '',
+                currentInstitution.footerImageUrl || ''
+            );
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Payroll-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`;
+            link.click();
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Payroll PDF');
+        }
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
@@ -1588,9 +1673,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-100 dark:border-slate-700">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="font-black uppercase tracking-widest text-sm">Chart of Accounts Status</h3>
-                                    <button className="text-xs font-bold text-cyan-600 hover:text-cyan-700 bg-cyan-50 dark:bg-cyan-900/30 px-4 py-2 rounded-xl transition-colors">
-                                        View Trial Balance →
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleExportTrialBalance} className="text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded-xl transition-colors shadow-sm">
+                                            Export PDF ↓
+                                        </button>
+                                        <button className="text-xs font-bold text-cyan-600 hover:text-cyan-700 bg-cyan-50 dark:bg-cyan-900/30 px-4 py-2 rounded-xl transition-colors">
+                                            View Full Report →
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     {accounts.map(acc => (
@@ -1622,6 +1712,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <h3 className="font-black uppercase tracking-widest text-sm">General Journal / Cashbook</h3>
                                     <p className="text-xs text-slate-400 mt-1">All standardized accounting entries across the module.</p>
                                 </div>
+                                <button onClick={handleExportCashbook} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
+                                    <DocumentTextIcon className="w-4 h-4" /> Export PDF
+                                </button>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
@@ -1683,9 +1776,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <h3 className="font-black uppercase tracking-widest text-sm">Operating Expenses</h3>
                                     <p className="text-xs text-slate-400 mt-1">Record and manage daily car wash expenditures.</p>
                                 </div>
-                                <button onClick={() => setShowNewExpenseModal(true)} className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-rose-600 transition-all">
-                                    <PlusIcon className="w-4 h-4" /> Record Expense
-                                </button>
+                                <div className="flex gap-2">
+                                    <button onClick={handleExportExpenses} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
+                                        <DocumentTextIcon className="w-4 h-4" /> Export PDF
+                                    </button>
+                                    <button onClick={() => setShowNewExpenseModal(true)} className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-rose-600 transition-all">
+                                        <PlusIcon className="w-4 h-4" /> Record Expense
+                                    </button>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
@@ -1740,9 +1838,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <h3 className="font-black uppercase tracking-widest text-sm">Staff Commissions & Payroll</h3>
                                     <p className="text-xs text-slate-400 mt-1">Manage attendant commissions and salary disbursements.</p>
                                 </div>
-                                <button onClick={() => setShowNewPayrollModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-blue-700 transition-all">
-                                    <PlusIcon className="w-4 h-4" /> Process Payroll
-                                </button>
+                                <div className="flex gap-2">
+                                    <button onClick={handleExportPayroll} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
+                                        <DocumentTextIcon className="w-4 h-4" /> Export PDF
+                                    </button>
+                                    <button onClick={() => setShowNewPayrollModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow hover:bg-blue-700 transition-all">
+                                        <PlusIcon className="w-4 h-4" /> Process Payroll
+                                    </button>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
