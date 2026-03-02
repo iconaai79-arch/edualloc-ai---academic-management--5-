@@ -39,6 +39,49 @@ interface CarWashViewProps {
     onRegisterUser?: (userData: Partial<User>) => Promise<void>;
 }
 
+const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGraphValue: number }) => {
+    const rawRevHeight = (d.revenue / maxGraphValue) * 100;
+    const rawExpHeight = (d.expense / maxGraphValue) * 100;
+    const [revHeight, setRevHeight] = useState(0);
+    const [expHeight, setExpHeight] = useState(0);
+
+    // Trigger animation on mount
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setRevHeight(rawRevHeight);
+            setExpHeight(rawExpHeight);
+        }, 100 + (i * 150));
+        return () => clearTimeout(timer);
+    }, [rawRevHeight, rawExpHeight, i]);
+
+    return (
+        <div className="flex flex-col items-center flex-1 group">
+            <div className="flex items-end justify-center w-full h-full gap-1 sm:gap-4 relative">
+                {/* Revenue Bar */}
+                <div className="relative w-8 sm:w-12 bg-emerald-100 dark:bg-emerald-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${revHeight}%` }}>
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
+                        Rev: KES {d.revenue.toLocaleString()}
+                    </div>
+                </div>
+                {/* Expense Bar */}
+                <div className="relative w-8 sm:w-12 bg-red-100 dark:bg-red-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${expHeight}%` }}>
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-red-500 to-orange-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
+                        Exp: KES {d.expense.toLocaleString()}
+                    </div>
+                </div>
+            </div>
+            <div className="mt-4 text-center">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{d.label}</p>
+                <p className={`text-[10px] font-black mt-1 ${d.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {d.profit >= 0 ? '+' : ''}KES {d.profit.toLocaleString()}
+                </p>
+            </div>
+        </div>
+    );
+};
+
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, users, onDataChange,
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
@@ -1081,48 +1124,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <h3 className="text-sm font-black uppercase text-slate-700 dark:text-white mb-6">Profit Analysis (Last 3 Months)</h3>
                             <div className="flex items-end justify-around h-64 gap-2 border-b-2 border-slate-200 dark:border-slate-700 pb-2 relative">
                                 {/* Y-Axis lines optional, keep it clean */}
-                                {last3MonthsData.map((d, i) => {
-                                    const rawRevHeight = (d.revenue / maxGraphValue) * 100;
-                                    const rawExpHeight = (d.expense / maxGraphValue) * 100;
-                                    const [revHeight, setRevHeight] = useState(0);
-                                    const [expHeight, setExpHeight] = useState(0);
-
-                                    // Trigger animation on mount
-                                    useEffect(() => {
-                                        const timer = setTimeout(() => {
-                                            setRevHeight(rawRevHeight);
-                                            setExpHeight(rawExpHeight);
-                                        }, 100 + (i * 150));
-                                        return () => clearTimeout(timer);
-                                    }, [rawRevHeight, rawExpHeight, i]);
-
-                                    return (
-                                        <div key={d.label} className="flex flex-col items-center flex-1 group">
-                                            <div className="flex items-end justify-center w-full h-full gap-1 sm:gap-4 relative">
-                                                {/* Revenue Bar */}
-                                                <div className="relative w-8 sm:w-12 bg-emerald-100 dark:bg-emerald-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${revHeight}%` }}>
-                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
-                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
-                                                        Rev: KES {d.revenue.toLocaleString()}
-                                                    </div>
-                                                </div>
-                                                {/* Expense Bar */}
-                                                <div className="relative w-8 sm:w-12 bg-red-100 dark:bg-red-900/40 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: `${expHeight}%` }}>
-                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-red-500 to-orange-400 rounded-t-lg transition-all duration-1000 ease-out" style={{ height: '100%' }} />
-                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded">
-                                                        Exp: KES {d.expense.toLocaleString()}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-4 text-center">
-                                                <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{d.label}</p>
-                                                <p className={`text-[10px] font-black mt-1 ${d.profit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                    {d.profit >= 0 ? '+' : ''}KES {d.profit.toLocaleString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {last3MonthsData.map((d, i) => (
+                                    <AnimatedProfitBar key={d.label} d={d} i={i} maxGraphValue={maxGraphValue} />
+                                ))}
                             </div>
                             <div className="flex justify-center gap-6 mt-6">
                                 <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal-500" /><span className="text-[10px] font-black uppercase text-slate-500">Revenue</span></div>
