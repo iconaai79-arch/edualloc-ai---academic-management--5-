@@ -970,10 +970,10 @@ export const generateInternshipReportPdf = async (
         ['Student Name', student.name],
         ['Registration Number', student.staffId || 'N/A'],
         ['Course of Study', courseName],
-        ['Company/Organization', internship.companyName],
-        ['Position', internship.position || 'Student Intern'],
+        ['Company/Organization', internship.industryName],
+        ['Position', (internship as any).position || 'Student Intern'],
         ['Duration', `${new Date(internship.startDate).toLocaleDateString()} to ${new Date(internship.endDate).toLocaleDateString()}`],
-        ['Supervisor', internship.supervisorName || 'N/A']
+        ['Supervisor', (internship as any).supervisorName || 'N/A']
     ];
 
     (doc as any).autoTable({
@@ -2381,7 +2381,7 @@ export const generateMemberLibraryHistoryPdf = async (
     const roleText = (member.roles && member.roles.length > 0)
         ? member.roles.join(', ').replace(/_/g, ' ').toUpperCase()
         : (member.role ? member.role.replace(/_/g, ' ').toUpperCase() : 'N/A');
-    doc.text(`Role: ${roleText}`, margin, tableY - 5);
+    doc.text(`Role: ${roleText}`, margin, tableStartY - 5);
 
     // Institution Contact Details
     doc.setFont('helvetica', 'italic');

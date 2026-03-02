@@ -60,6 +60,13 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     const [financeTab, setFinanceTab] = useState<'dashboard' | 'cashbook' | 'expenses' | 'payroll'>('dashboard');
 
+    const [payrlForm, setPayrlForm] = useState({
+        staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
+        nssf: 0, shif: 0, paye: 0, housingLevy: 0,
+        periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+        periodEnd: new Date().toISOString().split('T')[0]
+    });
+
     const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
@@ -593,7 +600,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             };
             await apiService.saveModuleRecord('carwash_packages', pkg);
             setShowNewPackageModal(false);
-            setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined });
+            setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], commissionType: 'percentage', commissionValue: 0, editingId: undefined });
             loadData();
         } catch (e: any) {
             console.error("Save Package Error:", e);
@@ -700,12 +707,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     };
 
     // -- Payroll Form --
-    const [payrlForm, setPayrlForm] = useState({
-        staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
-        nssf: 0, shif: 0, paye: 0, housingLevy: 0,
-        periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
-        periodEnd: new Date().toISOString().split('T')[0]
-    });
 
     const calculateKenyanPayroll = (basic: number, commissions: number) => {
         const gross = basic + commissions;
@@ -1077,7 +1078,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-black uppercase">Service Packages</h2>
-                            <button onClick={() => { setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], editingId: undefined }); setShowNewPackageModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
+                            <button onClick={() => { setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], commissionType: 'percentage', commissionValue: 0, editingId: undefined }); setShowNewPackageModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {packages.map(pkg => (
