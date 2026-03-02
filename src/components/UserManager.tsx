@@ -3,8 +3,10 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import type {
     User, Role, SmsConfig, Department, Unavailability, Course,
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
-    AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig
+    AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig,
+    CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem
 } from '../types';
+import { PayNowModal } from './PayNowModal';
 import {
     PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
     CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
@@ -150,9 +152,11 @@ interface SmartUserImporterModalProps {
     currentInstitution?: Institution | null;
     currentUser: User;
     onLogAction?: (action: string) => Promise<void>;
+    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    companyDetails?: CompanyDetails;
 }
 
-const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction }) => {
+const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<UserMappingField, string | null>>(ALL_USER_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<UserMappingField, string | null>));
@@ -312,28 +316,59 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         setStep('preview');
     };
 
+    const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+    const [pendingImportStudents, setPendingImportStudents] = useState<any[]>([]);
+
     const handleFinalImport = async () => {
         if (!parsedData?.valid) return;
+
+        const isStudentImport = parsedData.valid.length > 0 && parsedData.valid[0].role === 'student';
+        const costPerStudent = companyDetails?.subscriptionConfig?.baseCostPerStudent || 0;
+        const totalCost = parsedData.valid.length * costPerStudent;
+
+        if (isStudentImport && currentInstitution?.status === 'active' && costPerStudent > 0 && currentInstitution?.institutionType !== 'Reseller') {
+            // Intercept for payment
+            const sanitizedUsers = parsedData.valid.map(({
+                originalRowIndex, generatedStaffId, generatedEmail, originalRoleValue, ...user
+            }) => user);
+            setPendingImportStudents(sanitizedUsers);
+            setIsPayModalOpen(true);
+            return;
+        }
+
+        await processImport(parsedData.valid);
+    };
+
+    const processImport = async (usersToImport: any[]) => {
         setStep('finalizing');
         setImportProgress(0);
 
         try {
-            const sanitizedUsers = parsedData.valid.map(({
-                originalRowIndex, generatedStaffId, generatedEmail, originalRoleValue, ...user
-            }) => user);
+            // If coming direct, it's the raw valid array. If from payment, it's already sanitized
+            const sanitizedUsers = 'originalRowIndex' in usersToImport[0]
+                ? usersToImport.map(({ originalRowIndex, generatedStaffId, generatedEmail, originalRoleValue, ...user }: any) => user)
+                : usersToImport;
 
             setImportProgress(20);
             await onImport(sanitizedUsers);
-            onLogAction?.(`Bulk imported ${sanitizedUsers.length} staff members to registry`);
+            onLogAction?.(`Bulk imported ${sanitizedUsers.length} members to registry`);
             setImportProgress(80);
             await new Promise(r => setTimeout(r, 800));
             setImportProgress(100);
             setStep('success');
         } catch (error: any) {
             console.error("Import error:", error);
-            setErrorMessage(error.message || "Failed to save staff records to the database.");
+            setErrorMessage(error.message || "Failed to save records to the database.");
             setStep('error');
         }
+    };
+
+    const handlePaymentSubmit = async (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
+        if (!onAddTransaction || !currentInstitution) return 'failed';
+        return await onAddTransaction({
+            ...paymentData,
+            institutionId: currentInstitution.id,
+        }, items);
     };
 
     const finalizingMessages = useMemo(() => {
@@ -458,6 +493,26 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     )}
                 </div>
             </div>
+
+            {isPayModalOpen && currentInstitution && companyDetails && (
+                <PayNowModal
+                    mpesaConfig={companyDetails.mpesaConfig}
+                    institution={currentInstitution}
+                    onClose={() => setIsPayModalOpen(false)}
+                    onSubmit={handlePaymentSubmit}
+                    onSuccess={() => {
+                        setIsPayModalOpen(false);
+                        processImport(pendingImportStudents);
+                    }}
+                    forceAmount={pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)}
+                    forcedItems={[{
+                        description: `Additional Student Licenses (${pendingImportStudents.length} students)`,
+                        quantity: pendingImportStudents.length,
+                        unitPrice: companyDetails.subscriptionConfig?.baseCostPerStudent || 0,
+                        amount: pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)
+                    }]}
+                />
+            )}
         </div>
     );
 };
@@ -646,7 +701,7 @@ const PromoteStudentsModal: React.FC<PromoteStudentsModalProps> = ({ students, c
                                         {eligibleStudents.map(student => (
                                             <label
                                                 key={student.id}
-                                                className={`flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border transition-colors ${selectedStudentIds.has(student.id) ? 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-800 dark:bg-indigo-900/10' : 'border-transparent'}`}
+                                                className={`flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border transition-colors ${selectedStudentIds.has(student.id) ? 'border-indigo-200 bg-indigo-50/30 dark:border-indigo-900/10' : 'border-transparent'}`}
                                             >
                                                 <input
                                                     type="checkbox"
@@ -737,6 +792,8 @@ interface UserManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
+    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    companyDetails?: CompanyDetails;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -745,7 +802,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         courses = [], subjects = [], onDirectAssign, onWithdrawRequest, onDeleteUser,
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
-        onUpdateRequest, showOnly, onSendBulkCredentials
+        onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails
     } = props;
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
@@ -759,6 +816,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [institutionFilter, setInstitutionFilter] = useState('all');
     const [isSaving, setIsSaving] = useState(false);
+    const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+    const [pendingStudentSave, setPendingStudentSave] = useState<any | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
@@ -887,12 +946,27 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             userData.courseLevelId = courseLevelId;
         }
 
+        const isStudentSave = activeTab === 'student';
+        const costPerStudent = companyDetails?.subscriptionConfig?.baseCostPerStudent || 0;
+
+        if (isStudentSave && currentInstitution?.status === 'active' && costPerStudent > 0 && currentInstitution?.institutionType !== 'Reseller') {
+            // Intercept manual save for payment
+            setPendingStudentSave(userData);
+            setIsPayModalOpen(true);
+            return;
+        }
+
+        // Proceed directly if no payment intercepted
+        await processSave(userData);
+    };
+
+    const processSave = async (userData: any) => {
         try {
             setIsSaving(true);
             if (onAddUser) {
                 await onAddUser(userData);
             }
-            props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${name}`);
+            props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${userData.name}`);
             setIsAdding(false);
             resetForm();
         } catch (error: any) {
@@ -901,6 +975,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handlePaymentSubmit = async (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]): Promise<TransactionStatus> => {
+        if (!onAddTransaction || !currentInstitution) return 'failed';
+        return await onAddTransaction({
+            ...paymentData,
+            institutionId: currentInstitution.id,
+        }, items);
     };
 
     const courseLevels = useMemo(() => {
@@ -1332,6 +1414,27 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     onAssign={onDirectAssign!}
                     onUpdateAllocation={onUpdateRequest || (() => { })}
                     onDeallocate={onWithdrawRequest}
+                />
+            )}
+
+            {isPayModalOpen && currentInstitution && companyDetails && pendingStudentSave && (
+                <PayNowModal
+                    mpesaConfig={companyDetails.mpesaConfig}
+                    institution={currentInstitution}
+                    onClose={() => setIsPayModalOpen(false)}
+                    onSubmit={handlePaymentSubmit}
+                    onSuccess={() => {
+                        setIsPayModalOpen(false);
+                        processSave(pendingStudentSave);
+                        setPendingStudentSave(null);
+                    }}
+                    forceAmount={companyDetails.subscriptionConfig?.baseCostPerStudent || 0}
+                    forcedItems={[{
+                        description: `Additional Student License (1 student)`,
+                        quantity: 1,
+                        unitPrice: companyDetails.subscriptionConfig?.baseCostPerStudent || 0,
+                        amount: companyDetails.subscriptionConfig?.baseCostPerStudent || 0
+                    }]}
                 />
             )}
 

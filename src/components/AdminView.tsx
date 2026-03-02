@@ -616,6 +616,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onDeleteUser={props.onDeleteUser}
                         onAddUser={props.onAddUser}
                         onAddTimeOffRequest={props.onAddTimeOffRequest}
+                        onAddTransaction={props.onAddTransaction}
+                        companyDetails={props.companyDetails}
+                        currentInstitution={props.currentInstitution}
                     />
                 )}
 
