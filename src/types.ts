@@ -301,6 +301,18 @@ export interface AllocationRequest {
     };
 }
 
+export interface CommissionWithdrawalRequest {
+    id: string;
+    resellerId: string;
+    resellerName: string;
+    amount: number;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    processedAt?: string;
+    notes?: string;
+    accountDetails?: string;
+}
+
 export interface TimetableEntry {
     id: string;
     day: string;

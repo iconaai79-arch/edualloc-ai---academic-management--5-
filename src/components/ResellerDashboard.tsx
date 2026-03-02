@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest } from '../types';
 import { apiService } from '../services/apiService';
 import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, ArrowRightIcon, ArrowPathIcon, EyeIcon, XIcon, ShieldIcon, MapPinIcon, BedIcon, ChatBubbleBottomCenterTextIcon, BookOpenIcon, AcademicCapIcon, UserIcon, BeakerIcon, HomeIcon, ArchiveBoxIcon } from './icons';
 import { SparklesIcon } from './icons';
@@ -24,6 +24,12 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
     const [isAddTenantModalOpen, setIsAddTenantModalOpen] = useState(false);
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [selectedTenantForPerspective, setSelectedTenantForPerspective] = useState<Institution | null>(null);
+    const [withdrawalRequests, setWithdrawalRequests] = useState<CommissionWithdrawalRequest[]>([]);
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState(0);
+    const [withdrawNotes, setWithdrawNotes] = useState('');
+    const [withdrawAccount, setWithdrawAccount] = useState('');
+    const [isSubmittingWithdrawal, setIsSubmittingWithdrawal] = useState(false);
 
     // New Tenant Form State
     const [newTenantName, setNewTenantName] = useState('');
@@ -54,6 +60,9 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 const tenantUserIds = myTenants.map(t => t.id);
                 const usersInMyTenants = fetchedUsers.filter(u => tenantUserIds.includes(u.institutionId));
                 setAllUsers(usersInMyTenants);
+
+                const fetchedRequests = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests');
+                setWithdrawalRequests(fetchedRequests.filter(r => r.resellerId === currentInstitution.id));
             } catch (error) {
                 console.error("Error loading reseller data:", error);
             } finally {
@@ -196,6 +205,39 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
     ];
 
+    const handleRequestWithdrawal = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (withdrawAmount <= 0) return alert("Please enter a valid amount.");
+        if (withdrawAmount > pendingPayout) return alert("You cannot withdraw more than your pending payout.");
+
+        setIsSubmittingWithdrawal(true);
+        try {
+            const request: CommissionWithdrawalRequest = {
+                id: generateId('wireq'),
+                resellerId: currentInstitution.id,
+                resellerName: currentInstitution.name,
+                amount: withdrawAmount,
+                status: 'pending',
+                requestedAt: new Date().toISOString(),
+                notes: withdrawNotes,
+                accountDetails: withdrawAccount
+            };
+
+            await apiService.saveModuleRecord('commission_withdrawal_requests', request);
+            setWithdrawalRequests(prev => [request, ...prev]);
+            setIsWithdrawModalOpen(false);
+            setWithdrawAmount(0);
+            setWithdrawNotes('');
+            setWithdrawAccount('');
+            alert("Withdrawal request submitted successfully. It will be processed by the Super Admin.");
+        } catch (error: any) {
+            console.error("Withdrawal Request Failed:", error);
+            alert(`Failed to submit request: ${error.message}`);
+        } finally {
+            setIsSubmittingWithdrawal(false);
+        }
+    };
+
     const filteredTenants = tenants.filter(t =>
         t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -312,7 +354,20 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Pending Payout</p>
-                            <p className="text-3xl font-black text-emerald-600 font-mono">KES {pendingPayout.toLocaleString()}</p>
+                            <div className="flex items-center gap-4">
+                                <p className="text-3xl font-black text-emerald-600 font-mono">KES {pendingPayout.toLocaleString()}</p>
+                                {pendingPayout > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setWithdrawAmount(pendingPayout);
+                                            setIsWithdrawModalOpen(true);
+                                        }}
+                                        className="bg-emerald-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-sm active:scale-95"
+                                    >
+                                        Withdraw
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-amber-500">
@@ -481,6 +536,29 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                             </select>
                         </div>
                     </div>
+
+                    {/* Withdrawal Requests Sub-section */}
+                    {withdrawalRequests.length > 0 && (
+                        <div className="p-6 border-b border-slate-100 bg-amber-50/20">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Withdrawal Requests</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {withdrawalRequests.map(req => (
+                                    <div key={req.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group hover:border-amber-200 transition-all">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{new Date(req.requestedAt).toLocaleDateString()}</p>
+                                            <p className="text-lg font-black text-slate-900 font-mono">KES {req.amount.toLocaleString()}</p>
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                            req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                                                'bg-rose-100 text-rose-700'
+                                            }`}>
+                                            {req.status}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {commissionTransactions.length === 0 ? (
                         <div className="p-12 text-center text-slate-500">
@@ -777,6 +855,79 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     </div>
                 )
             }
+
+            {/* Withdraw Modal */}
+            {isWithdrawModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in border border-emerald-100">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-emerald-50/30">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Request Withdrawal</h3>
+                                <p className="text-xs text-emerald-600 font-medium tracking-tight uppercase">Transfer commissions to your account</p>
+                            </div>
+                            <button onClick={() => setIsWithdrawModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                <XIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleRequestWithdrawal} className="p-6 space-y-6">
+                            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+                                <InformationCircleIcon className="w-5 h-5 text-amber-600 shrink-0" />
+                                <p className="text-xs text-amber-800 leading-relaxed">
+                                    Funds will be disbursed to your registered mobile money account or bank details as provided below.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Amount to Withdraw (KES)</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        required
+                                        max={pendingPayout}
+                                        min={1}
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(Number(e.target.value))}
+                                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all font-mono font-bold text-lg"
+                                    />
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">
+                                        MAX: {pendingPayout.toLocaleString()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Payout Details (M-Pesa / Bank)</label>
+                                <textarea
+                                    required
+                                    value={withdrawAccount}
+                                    onChange={(e) => setWithdrawAccount(e.target.value)}
+                                    placeholder="e.g. M-Pesa 07XX XXX XXX or Equity Bank Acc XXXXXX"
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm h-20 resize-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 ml-1">Additional Notes (Optional)</label>
+                                <input
+                                    type="text"
+                                    value={withdrawNotes}
+                                    onChange={(e) => setWithdrawNotes(e.target.value)}
+                                    placeholder="Reference or reason for withdrawal"
+                                    className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-sm"
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isSubmittingWithdrawal}
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-emerald-100 transition-all active:scale-95"
+                            >
+                                {isSubmittingWithdrawal ? 'Processing...' : 'Submit Request'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Perspective Switching Modal */}
             {isPerspectiveModalOpen && selectedTenantForPerspective && (
