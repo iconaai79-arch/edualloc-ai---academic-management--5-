@@ -19,7 +19,7 @@ import {
     EnvelopeIcon, ArrowUpTrayIcon
 } from './icons/index';
 
-const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus'];
+const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
 const PAYMENT_METHODS: CarWashPaymentMethod[] = ['cash', 'mpesa', 'card', 'credit'];
 const ADD_ONS = ['Waxing', 'Interior Vacuum', 'Tire Dressing', 'Engine Wash', 'Seat Shampoo', 'Odor Removal'];
 const PACKAGE_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -340,7 +340,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         if (!pkg) return;
         const price = pkg.pricing[jobForm.vehicleType] || 0;
         const job: CarWashJob = {
-            id: `cwj_${Date.now()}`, institutionId, vehiclePlate: jobForm.vehiclePlate.toUpperCase(), vehicleType: jobForm.vehicleType,
+            id: `cwj_${Date.now()}`, institutionId, vehiclePlate: jobForm.vehicleType === 'Other' && !jobForm.vehiclePlate ? 'N/A' : jobForm.vehiclePlate.toUpperCase(), vehicleType: jobForm.vehicleType,
             packageId: jobForm.packageId, packageName: pkg.name, addOns: jobForm.addOns,
             attendantId: users.some(u => u.id === jobForm.attendantId) ? jobForm.attendantId : undefined,
             attendantName: attendants.find(a => a.id === jobForm.attendantId)?.name,
@@ -1401,7 +1401,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
                         <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">New Wash Job</h3><button onClick={() => setShowNewJobModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                            <div><label className={labelCls}>Vehicle Plate</label><input className={inputCls} value={jobForm.vehiclePlate} onChange={e => setJobForm({ ...jobForm, vehiclePlate: e.target.value })} placeholder="e.g. KCA 123A" /></div>
+                            <div><label className={labelCls}>{jobForm.vehicleType === 'Other' ? 'Item Name / Identifier (optional)' : 'Vehicle Plate'}</label><input className={inputCls} value={jobForm.vehiclePlate} onChange={e => setJobForm({ ...jobForm, vehiclePlate: e.target.value })} placeholder={jobForm.vehicleType === 'Other' ? 'e.g. Living Room Carpet' : 'e.g. KCA 123A'} /></div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div><label className={labelCls}>Vehicle Type</label><select className={inputCls} value={jobForm.vehicleType} onChange={e => setJobForm({ ...jobForm, vehicleType: e.target.value as CarWashVehicleType })}>{VEHICLE_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
                                 <div><label className={labelCls}>Bay #</label><input type="number" className={inputCls} value={jobForm.bayNumber} onChange={e => setJobForm({ ...jobForm, bayNumber: +e.target.value })} min={1} max={20} /></div>

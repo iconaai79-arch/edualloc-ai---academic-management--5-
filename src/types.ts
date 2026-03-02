@@ -1692,7 +1692,7 @@ export interface MaintenanceRequest {
 // CAR WASH MODULE TYPES
 // ============================================================================
 
-export type CarWashVehicleType = 'Sedan' | 'SUV' | 'Truck' | 'Matatu' | 'Motorbike' | 'Van' | 'Bus';
+export type CarWashVehicleType = 'Sedan' | 'SUV' | 'Truck' | 'Matatu' | 'Motorbike' | 'Van' | 'Bus' | 'Other';
 export type CarWashJobStatus = 'queued' | 'in_progress' | 'ready' | 'completed' | 'cancelled';
 export type CarWashPaymentMethod = 'cash' | 'mpesa' | 'card' | 'credit';
 
