@@ -16,7 +16,7 @@ import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
     BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
-    EnvelopeIcon, ArrowUpTrayIcon
+    EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon
 } from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
