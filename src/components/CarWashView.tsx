@@ -401,6 +401,19 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 }, [
                     { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged }
                 ]);
+            } else {
+                // Create manual transaction record for cash/card/credit so it appears in the audit log
+                await apiService.saveModuleRecord('mpesa_transactions', {
+                    id: `txn_cw_${Date.now()}`,
+                    institutionId,
+                    transactionId: `${method.toUpperCase()}-${Date.now().toString().slice(-6)}`,
+                    phoneNumber: customer?.phoneNumber || 'N/A',
+                    amount: job.amountCharged,
+                    description: `Car Wash (${method}): ${job.packageName} - ${job.vehiclePlate}`,
+                    status: 'completed',
+                    timestamp: new Date().toISOString(),
+                    userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
+                });
             }
 
             const pkg = packages.find(p => p.id === job.packageId);
