@@ -320,8 +320,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 j.status === 'completed' &&
                 !j.isCommissionPaid &&
                 j.completedAt &&
-                j.completedAt >= payrlForm.periodStart &&
-                j.completedAt <= payrlForm.periodEnd
+                j.completedAt.split('T')[0] >= payrlForm.periodStart &&
+                j.completedAt.split('T')[0] <= payrlForm.periodEnd
             ).reduce((s, j) => s + (j.commissionEarned || 0), 0);
 
             if (unpaidComms !== payrlForm.commissionEarned) {
@@ -816,8 +816,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 j.status === 'completed' &&
                 !j.isCommissionPaid &&
                 j.completedAt &&
-                j.completedAt >= pyrl.periodStart &&
-                j.completedAt <= pyrl.periodEnd
+                j.completedAt.split('T')[0] >= pyrl.periodStart &&
+                j.completedAt.split('T')[0] <= pyrl.periodEnd
             );
 
             for (const job of unpaidJobs) {
