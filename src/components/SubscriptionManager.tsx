@@ -4,6 +4,7 @@ import { PayNowModal } from './PayNowModal';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { SparklesIcon } from './icons';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
+import { apiService } from '../services/apiService';
 
 interface SubscriptionManagerProps {
     institution: Institution;
@@ -126,6 +127,45 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
     const hasCustomMonthly = customPrice?.monthly !== undefined;
     const hasCustomYearly = customPrice?.yearly !== undefined;
 
+    const [activeLibraryStudents, setActiveLibraryStudents] = useState(0);
+    const [activeBoardingStudents, setActiveBoardingStudents] = useState(0);
+    const [activeTransportStudents, setActiveTransportStudents] = useState(0);
+
+    useEffect(() => {
+        if (institution.institutionType === 'Reseller') return;
+
+        const fetchModuleData = async () => {
+            try {
+                // Fetch required data in parallel
+                const [usersData, bedAllocationsData, transportOnboardingData, academicYearsData] = await Promise.all([
+                    apiService.fetchModuleRecords<any>('users', institution.id).catch(() => []),
+                    apiService.fetchModuleRecords<any>('bed_allocations', institution.id).catch(() => []),
+                    apiService.fetchModuleRecords<any>('transport_onboarding', institution.id).catch(() => []),
+                    apiService.fetchModuleRecords<any>('academic_years', institution.id).catch(() => []),
+                ]);
+
+                // Filter users to only 'student' role
+                const students = usersData.filter((u: any) => u.role === 'student');
+
+                // Determine active library students (all students if an active academic year exists)
+                const hasActiveAcademicYear = academicYearsData.some((ay: any) => ay.status === 'active');
+                setActiveLibraryStudents(hasActiveAcademicYear ? students.length : 0);
+
+                // Determine active boarding students
+                const activeBeds = bedAllocationsData.filter((a: any) => a.status === 'Active');
+                setActiveBoardingStudents(activeBeds.length);
+
+                // Determine active transport students
+                const onboardedTransport = transportOnboardingData.filter((t: any) => t.status === 'onboarded');
+                setActiveTransportStudents(onboardedTransport.length);
+            } catch (error) {
+                console.error("Failed to fetch module data for billing calculation", error);
+            }
+        };
+
+        fetchModuleData();
+    }, [institution.id, institution.institutionType]);
+
     const isSubscriptionExpired = useMemo(() => {
         if (!institution) return false;
         if (institution.institutionType === 'Reseller') return false;
@@ -217,26 +257,80 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                                 <h4 className="text-lg font-medium text-slate-900 dark:text-white">Monthly Plan</h4>
-                                <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
-                                    KES {monthlyPrice.toLocaleString()}
-                                    <span className="text-base font-normal text-slate-500 dark:text-slate-400">/month</span>
-                                </p>
+                                <div className="space-y-2 mt-4">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-600 dark:text-slate-400">Base License:</span>
+                                        <span className="font-bold">KES {monthlyPrice.toLocaleString()}</span>
+                                    </div>
+                                    {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                        <span className="text-slate-900 dark:text-white font-bold">Total:</span>
+                                        <span className="text-2xl font-bold text-[var(--color-primary)]">
+                                            KES {(monthlyPrice + (subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents + (subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents + (subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents).toLocaleString()}
+                                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/mo</span>
+                                        </span>
+                                    </div>
+                                </div>
                                 {hasCustomMonthly ? (
-                                    <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                                    <p className="mt-3 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional base price</p>
                                 ) : (
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Default system base price</p>
                                 )}
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
                                 <h4 className="text-lg font-medium text-slate-900 dark:text-white">Yearly Plan</h4>
-                                <p className="mt-2 text-4xl font-bold text-[var(--color-primary)]">
-                                    KES {yearlyPrice.toLocaleString()}
-                                    <span className="text-base font-normal text-slate-500 dark:text-slate-400">/year</span>
-                                </p>
+                                <div className="space-y-2 mt-4">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-600 dark:text-slate-400">Base License:</span>
+                                        <span className="font-bold">KES {yearlyPrice.toLocaleString()}</span>
+                                    </div>
+                                    {subscriptionConfig.libraryCostPerStudent !== undefined && subscriptionConfig.libraryCostPerStudent > 0 && activeLibraryStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Library ({activeLibraryStudents} active x 12):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.libraryCostPerStudent * activeLibraryStudents * 12).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.boardingCostPerStudent !== undefined && subscriptionConfig.boardingCostPerStudent > 0 && activeBoardingStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Boarding ({activeBoardingStudents} active x 12):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.boardingCostPerStudent * activeBoardingStudents * 12).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {subscriptionConfig.transportCostPerStudent !== undefined && subscriptionConfig.transportCostPerStudent > 0 && activeTransportStudents > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">Transport ({activeTransportStudents} active x 12):</span>
+                                            <span className="font-bold">KES {(subscriptionConfig.transportCostPerStudent * activeTransportStudents * 12).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                        <span className="text-slate-900 dark:text-white font-bold">Total:</span>
+                                        <span className="text-2xl font-bold text-[var(--color-primary)]">
+                                            KES {(yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12)).toLocaleString()}
+                                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">/yr</span>
+                                        </span>
+                                    </div>
+                                </div>
                                 {hasCustomYearly ? (
-                                    <p className="mt-1 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional price</p>
+                                    <p className="mt-3 text-xs font-bold text-teal-600 dark:text-teal-400">Custom institutional base price</p>
                                 ) : (
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Default system price</p>
+                                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Default system base price</p>
                                 )}
                                 <p className="mt-1 text-xs text-green-600 dark:text-green-400">Save by subscribing annually!</p>
                             </div>
@@ -359,9 +453,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
-                                        No billing documents found for this institution.
-                                    </td>
+                                    <td colSpan={6} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 text-center italic">No billing history found.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -373,16 +465,13 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                 <PayNowModal
                     isOpen={isPayModalOpen}
                     onClose={() => setIsPayModalOpen(false)}
+                    monthlyPrice={monthlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents)}
+                    yearlyPrice={yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12)}
                     onPay={handlePayNow}
-                    monthlyPrice={monthlyPrice}
-                    yearlyPrice={yearlyPrice}
-                    mpesaConfig={mpesaConfig}
-                    institutionId={institution.id}
-                    institutionCode={institution.institutionCode}
                     institutionName={institution.name}
+                    companyDetails={companyDetails}
                 />
             )}
-
         </div>
     );
 };

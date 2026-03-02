@@ -413,6 +413,9 @@ export interface EmailConfig {
 export interface SubscriptionConfig {
     defaultMonthlyPrice: number;
     defaultYearlyPrice: number;
+    libraryCostPerStudent?: number;
+    boardingCostPerStudent?: number;
+    transportCostPerStudent?: number;
 }
 
 export interface DatabaseConfig {
