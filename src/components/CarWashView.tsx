@@ -8,7 +8,9 @@ import {
     generateCarWashTrialBalancePdf,
     generateCarWashCashbookPdf,
     generateCarWashExpensesPdf,
-    generateCarWashPayrollPdf
+    generateCarWashPayrollPdf,
+    generateInvoicePdfDataUri,
+    generateReceiptPdfDataUri
 } from '../services/pdfService';
 import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
@@ -509,9 +511,34 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     ${currentInstitution.name}
                 `.trim();
 
-                apiService.sendEmail(customer.email, emailSubject, emailBody).catch(e => {
-                    console.error('Failed to send billing email', e);
-                });
+                try {
+                    // Generate PDFs
+                    const proxyTransaction: MpesaTransaction = {
+                        id: job.id,
+                        transactionId: `${method.toUpperCase()}-${Date.now().toString().slice(-6)}`,
+                        institutionId,
+                        amount: job.amountCharged,
+                        phoneNumber: customer.phoneNumber || 'N/A',
+                        status: 'completed',
+                        timestamp: new Date().toISOString(),
+                        payerName: customer.name
+                    };
+
+                    const invDataUri = await generateInvoicePdfDataUri(invoice, currentInstitution, currentInstitution, currentInstitution.logoUrl || null);
+                    const rcptDataUri = await generateReceiptPdfDataUri(receipt, proxyTransaction, currentInstitution, currentInstitution, currentInstitution.logoUrl || null);
+
+                    const invBase64 = invDataUri.split(',')[1];
+                    const rcptBase64 = rcptDataUri.split(',')[1];
+
+                    const attachments = [
+                        { filename: `Invoice_${invNumber}.pdf`, content: invBase64, encoding: 'base64' },
+                        { filename: `Receipt_${rcptNumber}.pdf`, content: rcptBase64, encoding: 'base64' }
+                    ];
+
+                    await apiService.sendEmail(customer.email, emailSubject, emailBody, undefined, undefined, attachments);
+                } catch (e) {
+                    console.error('Failed to send billing email with attachments', e);
+                }
             }
 
             // Automated SMS Notification (Payment Confirmation)
