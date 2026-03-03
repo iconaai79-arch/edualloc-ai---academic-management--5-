@@ -292,6 +292,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLoginAsAdmin,
         onSendSms,
         currentUser,
+        onRefreshData,
         onImportUsers,
         onImportStudents,
         onEditUser,
@@ -1571,7 +1572,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                             </td>
                                                             <td className="px-6 py-5">
                                                                 <div className="text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 px-3 py-1.5 rounded-xl inline-block border border-slate-200 dark:border-slate-600 font-mono">
-                                                                    {req.payoutAccount}
+                                                                    {req.accountDetails}
                                                                 </div>
                                                                 {req.notes && <div className="text-[10px] text-slate-400 mt-1 italic">"{req.notes}"</div>}
                                                             </td>

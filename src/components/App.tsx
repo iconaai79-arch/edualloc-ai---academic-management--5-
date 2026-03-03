@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LoginView } from './LoginView';
 import { AdminView } from './AdminView';
@@ -23,6 +21,8 @@ import { ParentView } from './ParentView';
 import { PracticeTeacherView } from './PracticeTeacherView';
 import { CarWashView } from './CarWashView';
 import { CarWashCustomerPortal } from './CarWashCustomerPortal';
+import { TenantPortalView } from './TenantPortalView';
+import { LandlordPortalView } from './LandlordPortalView';
 import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
@@ -47,7 +47,7 @@ import type {
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
-    Vehicle, TransportOnboarding, VehicleLog
+    Vehicle, TransportOnboarding, VehicleLog, PMLandlord
 
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
@@ -690,7 +690,7 @@ export const App: React.FC = () => {
         if (group) {
             subjectIdsToAdd = group.subjectIds;
             const subjectName = subjects.find(s => s.id === subjectId)?.name || subjectId;
-            // Optional: You could notify the user here, but since this is a global handler, 
+            // Optional: You could notify the user here, but since this is a global handler,
             // maybe it's better to keep it silent or handle UI feedback in the components.
             console.log(`Auto-associating whole option block for ${subjectName}`);
         }
@@ -819,12 +819,12 @@ export const App: React.FC = () => {
         let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
         if (!admin) {
-            console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to any user.`);
+            console.warn(`Strict admin lookup failed for institution ${institutionId}.Falling back to any user.`);
             admin = users.find(u => u.institutionId === institutionId);
         }
 
         if (!admin) {
-            console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
+            console.warn(`No users found for institution ${institutionId}.Creating temporary admin session.`);
             const targetInstitution = institutions.find(i => i.id === institutionId);
             const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : 'admin';
 
@@ -851,7 +851,7 @@ export const App: React.FC = () => {
             apiService.storeSession(impersonatedUser);
             setImpersonatedRole(initialRole || null);
         } else {
-            console.warn(`Admin lookup failed for institution ${institutionId}. Available users:`, users.filter(u => u.institutionId === institutionId));
+            console.warn(`Admin lookup failed for institution ${institutionId}.Available users: `, users.filter(u => u.institutionId === institutionId));
             alert("No admin account found for this institution.");
         }
     };
@@ -946,7 +946,7 @@ export const App: React.FC = () => {
             for (const parent of parents) {
                 if (parent.phoneNumber) {
                     const msg = direction === 'from_school'
-                        ? `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading home. Please be ready to pick.`
+                        ? `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading home.Please be ready to pick.`
                         : `${student?.name} has onboarded vehicle ${vehicle?.plateNumber} and is heading to school.`;
                     await apiService.sendSms(parent.phoneNumber, msg, activeInstitution?.smsConfig, 1, activeInstitution?.id);
                 }
@@ -988,7 +988,7 @@ export const App: React.FC = () => {
                     status: 'received',
                     parentConfirmedAt: new Date().toISOString()
                 });
-                await handleLogAction(`Parent confirmed receipt of child (record ${recordId})`);
+                await handleLogAction(`Parent confirmed receipt of child(record ${recordId})`);
                 loadData();
             }
         } catch (error) {
@@ -1126,7 +1126,7 @@ export const App: React.FC = () => {
                     const subject = subjects.find(s => s.id === lesson?.subjectId);
 
                     if (parent && student && lesson && subject) {
-                        const message = `Parent/Guardian Alert: ${student.name} was marked ABSENT for ${subject.name} on ${lesson.day} at ${lesson.startTime}. Please confirm with the school.`;
+                        const message = `Parent / Guardian Alert: ${student.name} was marked ABSENT for ${subject.name} on ${lesson.day} at ${lesson.startTime}. Please confirm with the school.`;
 
                         if (parent.phoneNumber) {
                             await apiService.sendSms(parent.phoneNumber, message);
@@ -1270,7 +1270,7 @@ export const App: React.FC = () => {
             await apiService.saveUser(newAdmin);
 
             if (companyDetails.emailConfig?.username) {
-                const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
 
                 try {
                     await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
@@ -1280,7 +1280,7 @@ export const App: React.FC = () => {
             }
 
             await loadData();
-            alert(`Institution registered successfully!\n\nAdmin Credentials:\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\n(Account details have been sent to ${newAdmin.email})`);
+            alert(`Institution registered successfully!\n\nAdmin Credentials: \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\n(Account details have been sent to ${newAdmin.email})`);
         } catch (error: any) {
             console.error("Failed to register institution:", error);
             alert(`Failed to register institution: ${error.message || 'Unknown error'}`);
@@ -1327,7 +1327,7 @@ export const App: React.FC = () => {
                 await apiService.saveUser(newAdmin);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
 
                     try {
                         await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
@@ -1343,7 +1343,7 @@ export const App: React.FC = () => {
         }
 
         await loadData();
-        alert(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount}\nFailed: ${failCount}`);
+        alert(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount} \nFailed: ${failCount}`);
     }, [loadData, companyDetails]);
 
 
@@ -1385,7 +1385,7 @@ export const App: React.FC = () => {
                 await loadData(true);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${adminPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${adminPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
                     try {
                         await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody);
                     } catch (e) {
@@ -1442,7 +1442,7 @@ export const App: React.FC = () => {
                 await loadData(true);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name},\n\nCongratulations! ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials:\nPortal URL: ${window.location.origin}\nEmail: ${newAdmin.email}\nPassword: ${generatedPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
                     try {
                         await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
                     } catch (e) {
@@ -1611,7 +1611,7 @@ export const App: React.FC = () => {
                                     onUpdateStudentAbsenceRequestStatus={() => { }}
                                     isTimetableGenerating={false}
                                     timetableGenerationProgress={0}
-                                    timetableGenerationMessage=""
+                                    demoDataGenerationMessage=""
                                     timetableGenerationEta={null}
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
@@ -1626,7 +1626,7 @@ export const App: React.FC = () => {
                                     contracts={contracts}
                                     isGeneratingDemoData={false}
                                     demoDataGenerationProgress={0}
-                                    demoDataGenerationMessage=""
+                                    timetableGenerationMessage=""
                                     examTimetable={examTimetable}
                                     onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
                                     onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
@@ -2079,6 +2079,18 @@ export const App: React.FC = () => {
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                 />
+                            ) : activeRole === 'tenant' ? (
+                                <TenantPortalView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    onLogout={handleLogout}
+                                />
+                            ) : activeRole === 'landlord' ? (
+                                <LandlordPortalView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    onLogout={handleLogout}
+                                />
                             ) : (activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
                                 <PropertyManagementView
                                     currentUser={currentUser}
@@ -2179,8 +2191,8 @@ export const App: React.FC = () => {
                                     onUpdateRequestStatus={async (id, status) => { await apiService.updateAllocationStatus(id, status); loadData(); }}
                                     onBulkUpdateRequestStatus={async (status, deptId) => { const targets = requests.filter(r => r.status === 'pending' || r.status === 'hod_approved'); for (const t of targets) await apiService.updateAllocationStatus(t.id, status); loadData(); }}
                                     onDirectAssign={handleDirectAssign}
-                                    onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay}/${sem}`); }}
-                                    onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay}/${sem}`); }}
+                                    onTimetableGenerated={async (entries, ay, sem) => { await apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[]); await handleLogAction(`Generated timetable for ${ay} / ${sem}`); }}
+                                    onExamTimetableGenerated={async (entries, ay, sem) => { await apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries); await handleLogAction(`Generated exam timetable for ${ay} / ${sem}`); }}
                                     onSaveTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { timetableSettings: config }); handleLogAction(`Saved timetable settings`); }}
                                     onSaveExamTimetableSettings={(config) => { onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config }); handleLogAction(`Saved exam timetable settings`); }}
                                     onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}
@@ -2252,13 +2264,13 @@ export const App: React.FC = () => {
                                     courseSizes={courseSizes}
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                     onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onUpdateAssessmentStatus={() => { }}
                                     onSaveAssessmentMarks={async (id, marks) => {
                                         const promises = marks.map((m: any) => {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
 
                                             const record: AssessmentMark = {
                                                 id: recordId,
@@ -2286,14 +2298,14 @@ export const App: React.FC = () => {
                                     onWithdrawRequestStatus={async (id) => { }}
                                     onManualInvoice={() => { }}
                                     onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)}
-                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` } as any); loadData(); }}
+                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)} ` } as any); loadData(); }}
                                     onDeleteInstitution={onDeleteInstitution}
                                     onToggleInstitutionStatus={onToggleInstitutionStatus}
                                     onLoginAsAdmin={onLoginAsAdmin}
                                     onGenerateReceipt={onGenerateReceipt}
                                     assignments={assignments}
                                     submissions={submissions}
-                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                     onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
                                     onUpdateSubmission={async (id, data) => {
                                         const sub = submissions.find(s => s.id === id);
@@ -2338,7 +2350,7 @@ export const App: React.FC = () => {
                                     onSubmitRequest={handleLecturerRequest}
                                     onAllocationChangeRequest={handleAllocationChangeRequest}
                                     onDeallocationRequest={handleDeallocationRequest}
-                                    onAddTask={async (t) => apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() })}
+                                    onAddTask={async (t) => apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()} `, createdAt: new Date().toISOString() })}
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); }}
                                     onDeleteTask={async (id) => apiService.deleteModuleRecord('tasks', id)}
                                     timeOffRequests={timeOffRequests.filter(r => r.lecturerId === currentUser.id)}
@@ -2346,7 +2358,7 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution}
                                     assignments={assignments}
                                     submissions={submissions}
-                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                     onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
                                     onUpdateSubmission={async (id, data) => {
                                         const sub = submissions.find(s => s.id === id);
@@ -2357,12 +2369,12 @@ export const App: React.FC = () => {
                                     }}
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()}`, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
+                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
                                     onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
                                     onSaveAssessmentMarks={async (id, marks) => {
                                         const promises = marks.map((m: any) => {
                                             const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()}`;
+                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
 
                                             const record: AssessmentMark = {
                                                 id: recordId,
@@ -2387,7 +2399,7 @@ export const App: React.FC = () => {
                                             await apiService.saveModuleRecord('county_inventory', { ...item, quantity: newQty });
 
                                             const transaction: StockTransaction = {
-                                                id: `stx_issue_${Date.now()}`,
+                                                id: `stx_issue_${Date.now()} `,
                                                 itemId: item.id,
                                                 itemName: item.name,
                                                 type: 'Issue',
@@ -2438,7 +2450,7 @@ export const App: React.FC = () => {
                                         setOtpPendingUser(u);
 
                                         const otpMessage = `Your EduAi Verification Code is: ${otp}. Do not share this code with anyone.`;
-                                        console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${u.institutionId})`);
+                                        console.log(`[Login] OTP Triggered for ${u.email}(Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
                                         Promise.all([

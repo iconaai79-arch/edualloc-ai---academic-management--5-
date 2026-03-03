@@ -10,7 +10,7 @@ import {
     ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, UserIcon, ArrowPathIcon,
     ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
-    TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon
+    TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon
 } from './icons/index';
 
 interface PropertyManagementViewProps {
@@ -80,8 +80,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const handleSaveLandlord = async (data: Partial<PMLandlord>) => {
         try {
+            const landlordId = `ll_${Date.now()}`;
+
+            // 1. Create the system user account if email is provided
+            if (data.email) {
+                const tempPassword = Math.random().toString(36).slice(-8);
+                const newUser = {
+                    id: `user_${Date.now()}`,
+                    name: data.name || '',
+                    email: data.email,
+                    phoneNumber: data.phoneNumber || '',
+                    role: 'landlord', // Fixed: 'landlord' is now a valid Role
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    isActive: true,
+                    mustChangePassword: true,
+                    password: tempPassword // In a real app this would be hashed on the backend
+                };
+                await apiService.saveModuleRecord('users', institutionId, newUser);
+
+                // 2. Send email with credentials
+                try {
+                    await apiService.sendEmail({
+                        to: data.email,
+                        subject: 'Welcome to your Landlord Portal',
+                        html: `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                                <h2>Welcome, ${data.name}!</h2>
+                                <p>You have been registered as a Landlord in the system.</p>
+                                <p>You can now log in to view your properties, track tenant payments, and monitor your commission payouts.</p>
+                                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                    <p style="margin: 0;"><strong>Login URL:</strong> ${window.location.origin}</p>
+                                    <p style="margin: 10px 0 0 0;"><strong>Email:</strong> ${data.email}</p>
+                                    <p style="margin: 10px 0 0 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
+                                </div>
+                                <p><em>Please change your password upon your first login.</em></p>
+                            </div>
+                        `
+                    });
+                } catch (emailErr) {
+                    console.error("Failed to send landlord welcome email:", emailErr);
+                    // Don't fail the whole operation if just the email fails
+                }
+            }
+
+            // 3. Create the PM landlord record
             const newLandlord: PMLandlord = {
-                id: `ll_${Date.now()}`,
+                id: landlordId,
                 name: data.name || '',
                 phoneNumber: data.phoneNumber || '',
                 email: data.email,
@@ -92,8 +137,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_landlords', newLandlord);
+
             setShowLandlordModal(false);
             loadData();
+
+            if (data.email) {
+                alert(`Landlord saved! Login credentials have been emailed to ${data.email}`);
+            } else {
+                alert("Landlord saved! (No email provided, so no portal access created)");
+            }
         } catch (e: any) { alert(e.message || "Failed to save landlord"); console.error(e); }
     };
 
@@ -138,8 +190,51 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const handleSaveTenant = async (data: Partial<PMTenant>) => {
         try {
+            const tenantId = `tenant_${Date.now()}`;
+
+            // 1. Create system user account for the tenant if email is provided
+            if (data.email) {
+                const tempPassword = Math.random().toString(36).slice(-8);
+                const newUser = {
+                    id: `user_${Date.now()}`,
+                    name: data.name || '',
+                    email: data.email,
+                    phoneNumber: data.phoneNumber || '',
+                    role: 'tenant',
+                    institutionId,
+                    createdAt: new Date().toISOString(),
+                    isActive: true,
+                    mustChangePassword: true,
+                    password: tempPassword
+                };
+                await apiService.saveModuleRecord('users', institutionId, newUser);
+
+                // 2. Send tenant welcome email
+                try {
+                    await apiService.sendEmail({
+                        to: data.email,
+                        subject: 'Welcome to your Tenant Portal',
+                        html: `
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                                <h2>Welcome to your new home, ${data.name}!</h2>
+                                <p>You have been registered as a Tenant in our property management system.</p>
+                                <p>You can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.</p>
+                                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                    <p style="margin: 0;"><strong>Login URL:</strong> ${window.location.origin}</p>
+                                    <p style="margin: 10px 0 0 0;"><strong>Email:</strong> ${data.email}</p>
+                                    <p style="margin: 10px 0 0 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
+                                </div>
+                                <p><em>Please change your password upon your first login.</em></p>
+                            </div>
+                        `
+                    });
+                } catch (emailErr) {
+                    console.error("Failed to send tenant welcome email:", emailErr);
+                }
+            }
+
             const newTenant: PMTenant = {
-                id: `tenant_${Date.now()}`,
+                id: tenantId,
                 name: data.name || '',
                 phoneNumber: data.phoneNumber || '',
                 email: data.email,
@@ -150,6 +245,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             await apiService.saveModuleRecord('pm_tenants', newTenant);
             setShowTenantModal(false);
             loadData();
+
+            if (data.email) {
+                alert(`Tenant saved! Login credentials have been emailed to ${data.email}`);
+            } else {
+                alert("Tenant saved! (No email provided, no portal access created)");
+            }
         } catch (e: any) { alert(e.message || "Failed to save tenant"); console.error(e); }
     };
 
@@ -183,111 +284,146 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const LandlordsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {landlords.map(landlord => {
-                    const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
-                    return (
-                        <div key={landlord.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl group hover:shadow-2xl transition-all border-b-8 border-b-purple-600">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="p-4 bg-purple-600/10 rounded-2xl text-purple-600 group-hover:scale-110 transition-transform duration-500">
-                                    <UserPlusIcon className="w-8 h-8" />
-                                </div>
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-2 group-hover:text-purple-600 transition-colors">{landlord.name}</h3>
-                            <div className="space-y-2 mt-6">
-                                <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-2">
-                                    <CreditCardIcon className="w-4 h-4" /> {landlord.phoneNumber}
-                                </p>
-                                {landlord.email && (
-                                    <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-2">
-                                        <UserIcon className="w-4 h-4" /> {landlord.email}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-700">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Properties Owned ({ownedProperties.length})</p>
-                                <div className="space-y-2">
-                                    {ownedProperties.map(p => (
-                                        <div key={p.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
-                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{p.name}</span>
-                                            <span className="text-[10px] font-black text-purple-600 bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded-md">{p.commissionRate}% Comm.</span>
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                        <tr>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord Name</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Properties Owned</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {landlords.map(landlord => {
+                            const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
+                            return (
+                                <tr key={landlord.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-purple-600/10 rounded-xl text-purple-600">
+                                                <UserPlusIcon className="w-5 h-5" />
+                                            </div>
+                                            {landlord.name}
                                         </div>
-                                    ))}
-                                    {ownedProperties.length === 0 && <span className="text-xs text-slate-400 italic">No properties assigned yet.</span>}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-                {landlords.length === 0 && (
-                    <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[3rem]">
-                        <UserPlusIcon className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                        <h3 className="text-xl font-black text-slate-400 uppercase tracking-widest italic">No Landlords Found</h3>
-                        <p className="text-slate-500 mt-2 font-bold">Add property owners to track commission payouts.</p>
-                    </div>
-                )}
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-tight flex items-center gap-2">
+                                            <CreditCardIcon className="w-3 h-3 text-slate-400" /> {landlord.phoneNumber}
+                                        </div>
+                                        {landlord.email && (
+                                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tight flex items-center gap-2">
+                                                <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="text-xs font-black text-purple-600">{ownedProperties.length} Properties</div>
+                                        <div className="mt-2 space-y-1">
+                                            {ownedProperties.slice(0, 2).map(p => (
+                                                <div key={p.id} className="text-[9px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[15rem]">
+                                                    • {p.name} <span className="text-purple-400">({p.commissionRate}%)</span>
+                                                </div>
+                                            ))}
+                                            {ownedProperties.length > 2 && (
+                                                <div className="text-[9px] font-bold text-slate-400 italic">...and {ownedProperties.length - 2} more</div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-6 text-right space-x-2">
+                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-purple-600 rounded-xl transition-colors" title="View Landlord">
+                                            <EyeIcon className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {landlords.length === 0 && (
+                            <tr>
+                                <td colSpan={4} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
+                                    No Landlords Found
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 
     const PropertiesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-                {properties.map(property => (
-                    <div key={property.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden group hover:shadow-2xl transition-all duration-500 border-b-8 border-b-blue-600">
-                        <div className="p-8">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="p-4 bg-blue-600/10 rounded-2xl text-blue-600 group-hover:scale-110 transition-transform duration-500">
-                                    <BuildingOfficeIcon className="w-8 h-8" />
-                                </div>
-                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-2 group-hover:text-blue-600 transition-colors">{property.name}</h3>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-tight flex items-center gap-2">
-                                <SearchIcon className="w-4 h-4" /> {property.address || 'No Address Provided'}
-                            </p>
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                        <tr>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units (Total / Vacant)</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord / Commission</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {properties.map(property => {
+                            const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                            const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
 
-                            <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-700 grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Units</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">{property.totalUnits || 0}</p>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-3xl">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Available</p>
-                                    <p className="text-2xl font-black text-blue-600 italic">
-                                        {units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {property.landlordId && (
-                                <div className="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-2xl flex justify-between items-center border border-purple-100 dark:border-purple-800/30">
-                                    <div>
-                                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Landlord</p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{landlords.find(l => l.id === property.landlordId)?.name || 'Unknown'}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Commission</p>
-                                        <p className="text-sm font-black text-purple-600 italic">{property.commissionRate}%</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="mt-6 flex gap-3">
-                                <button className="flex-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
-                                    <ListIcon className="w-4 h-4" /> Manage Units
-                                </button>
-                                <button
-                                    onClick={() => setShowUnitModal(true)}
-                                    className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-500/30"
-                                >
-                                    <PlusIcon className="w-6 h-6" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                            return (
+                                <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
+                                                <BuildingOfficeIcon className="w-5 h-5" />
+                                            </div>
+                                            {property.name}
+                                        </div>
+                                    </td>
+                                    <td className="p-6">
+                                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
+                                    </td>
+                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2 mt-2">
+                                        <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
+                                    </td>
+                                    <td className="p-6">
+                                        <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
+                                        <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
+                                    </td>
+                                    <td className="p-6">
+                                        {landlord ? (
+                                            <div>
+                                                <div className="text-xs font-black text-purple-600 truncate max-w-[12rem]">{landlord.name}</div>
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 text-purple-600/70">{property.commissionRate}% Commission</div>
+                                            </div>
+                                        ) : (
+                                            <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
+                                        )}
+                                    </td>
+                                    <td className="p-6 text-right space-x-2">
+                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors" title="Manage Units">
+                                            <ListIcon className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setShowUnitModal(true)}
+                                            className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                                            title="Add Unit"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {properties.length === 0 && (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
+                                    No Properties Found
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             <div className="mt-12">
