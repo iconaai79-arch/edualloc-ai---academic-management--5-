@@ -25,6 +25,7 @@ import { TenantPortalView } from './TenantPortalView';
 import { LandlordPortalView } from './LandlordPortalView';
 import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
+import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import ResellerDashboard from './ResellerDashboard';
 
@@ -74,26 +75,43 @@ const PerspectiveReturnButton: React.FC<{
     isImpersonatedSession?: boolean;
     onReturn: () => void;
     onRestoreSession?: () => void;
-}> = ({ role, isImpersonatedSession, onReturn, onRestoreSession }) => {
-    if (!role && !isImpersonatedSession) return null;
+    hasCurrentUser?: boolean;
+}> = ({ role, isImpersonatedSession, onReturn, onRestoreSession, hasCurrentUser }) => {
+    if (!role && !isImpersonatedSession && hasCurrentUser) return null;
     return (
-        <div className="fixed bottom-24 left-6 z-[200] animate-fade-in-up no-print">
-            <button
-                onClick={isImpersonatedSession ? onRestoreSession : onReturn}
-                className="flex items-center gap-3 pl-2 pr-6 py-2 bg-slate-900 text-white rounded-full shadow-2xl hover:scale-105 transition-transform border-2 border-indigo-500 group"
-            >
-                <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg group-hover:bg-indigo-500 transition-colors">
-                    <ArrowRightOnRectangleIcon className="w-5 h-5 text-white" />
-                </div>
-                <div className="text-left">
-                    <p className="text-[9px] font-black uppercase tracking-widest opacity-80 text-indigo-200">
-                        {isImpersonatedSession ? 'System Access' : 'Viewing as'}
-                    </p>
-                    <p className="text-xs font-black uppercase tracking-tight text-white">
-                        {isImpersonatedSession ? 'Return to Super Admin' : (role || '').replace('_', ' ')}
-                    </p>
-                </div>
-            </button>
+        <div className="fixed bottom-24 left-6 z-[200] animate-fade-in-up no-print flex flex-col gap-3">
+            {(role || isImpersonatedSession) && (
+                <button
+                    onClick={isImpersonatedSession ? onRestoreSession : onReturn}
+                    className="flex items-center gap-3 pl-2 pr-6 py-2 bg-slate-900 text-white rounded-full shadow-2xl hover:scale-105 transition-transform border-2 border-indigo-500 group"
+                >
+                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg group-hover:bg-indigo-500 transition-colors">
+                        <ArrowRightOnRectangleIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[9px] font-black uppercase tracking-widest opacity-80 text-indigo-200">
+                            {isImpersonatedSession ? 'System Access' : 'Viewing as'}
+                        </p>
+                        <p className="text-xs font-black uppercase tracking-tight text-white">
+                            {isImpersonatedSession ? 'Return to Super Admin' : (role || '').replace('_', ' ')}
+                        </p>
+                    </div>
+                </button>
+            )}
+            {!hasCurrentUser && (
+                <button
+                    onClick={onReturn}
+                    className="flex items-center gap-3 pl-2 pr-6 py-2 bg-slate-900 text-white rounded-full shadow-2xl hover:scale-105 transition-transform border-2 border-orange-500 group"
+                >
+                    <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center shadow-lg group-hover:bg-orange-500 transition-colors">
+                        <ArrowRightOnRectangleIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[9px] font-black uppercase tracking-widest opacity-80 text-orange-200">Public Access</p>
+                        <p className="text-xs font-black uppercase tracking-tight text-white">Return to Login</p>
+                    </div>
+                </button>
+            )}
         </div>
     );
 };
@@ -262,6 +280,7 @@ export const App: React.FC = () => {
 
     const [showGuestPortal, setShowGuestPortal] = useState(false);
     const [showGuestFeedback, setShowGuestFeedback] = useState(false);
+    const [showMarketplace, setShowMarketplace] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
     // 2FA State
@@ -1349,7 +1368,10 @@ export const App: React.FC = () => {
 
     const commonLoginProps = {
         users, institutions, courses, academicLevels, logoUrl: companyDetails.logoUrl, registrationProgress: null, registrationMessage: "",
-        onOpenGuestPortal: () => setShowGuestPortal(true), onOpenGuestFeedback: () => setShowGuestFeedback(true), themeColor: companyDetails.themeColor || "#4f46e5",
+        onOpenGuestPortal: () => setShowGuestPortal(true),
+        onOpenGuestFeedback: () => setShowGuestFeedback(true),
+        onOpenMarketplace: () => setShowMarketplace(true),
+        themeColor: companyDetails.themeColor || "#4f46e5",
         onParentRequestOtp: () => ({ success: true, message: '' }), onParentVerifyOtp: () => ({ success: true, message: '' }), companyDetails: companyDetails,
         onCountyRegister: async (data: CountyRegistrationData) => {
             try {
@@ -2424,6 +2446,8 @@ export const App: React.FC = () => {
                             <ProfileModal currentUser={currentUser} onClose={() => setIsProfileModalOpen(false)} onSave={async (id, data) => { const fullUpdate = { ...data, id, role: currentUser.role, institutionId: currentUser.institutionId }; await apiService.saveUser(fullUpdate); setCurrentUser(prev => prev ? ({ ...prev, ...fullUpdate }) : null); setIsProfileModalOpen(false); }} onChangePassword={async (id, data) => { const updated = { id, password: data.newPassword, passwordLastUpdated: new Date().toISOString(), role: currentUser.role, institutionId: currentUser.institutionId }; await apiService.saveUser(updated); return { success: true, message: "Password updated." }; }} onManageUnavailability={() => { }} />
                         )}
                     </>
+                ) : showMarketplace ? (
+                    <PropertyMarketplaceView />
                 ) : (
                     <>
                         <LoginView
@@ -2524,7 +2548,13 @@ export const App: React.FC = () => {
                 <PerspectiveReturnButton
                     role={impersonatedRole}
                     isImpersonatedSession={!!originalSuperAdminSession}
-                    onReturn={() => setImpersonatedRole(null)}
+                    hasCurrentUser={!!currentUser}
+                    onReturn={() => {
+                        setImpersonatedRole(null);
+                        setShowGuestPortal(false);
+                        setShowGuestFeedback(false);
+                        setShowMarketplace(false);
+                    }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />
             </div>

@@ -376,6 +376,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
     const [managingMpesaFor, setManagingMpesaFor] = useState<Institution | null>(null);
     const [managingPlansFor, setManagingPlansFor] = useState<Institution | null>(null);
+    const [managingMarketplaceFor, setManagingMarketplaceFor] = useState<Institution | null>(null);
     const [managingSmsUnitsFor, setManagingSmsUnitsFor] = useState<Institution | null>(null);
     const [tenantSmsConfig, setTenantSmsConfig] = useState<SmsConfig>({ provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
     const [tenantMpesaConfig, setTenantMpesaConfig] = useState<MpesaConfig>({ paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
@@ -819,7 +820,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
-        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
+        { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
         const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(selectedTenantForPerspective?.institutionType || '');
         if (isEdu) {
@@ -1253,6 +1255,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                                 <CreditCardIcon className="w-3 h-3" />
                                                                 SMS Units
                                                             </button>
+                                                            {inst.businessSubType === 'Property Management' && (
+                                                                <button
+                                                                    onClick={() => setManagingMarketplaceFor(inst)}
+                                                                    className="flex items-center gap-1 text-orange-600 hover:text-orange-900 font-black text-[10px] uppercase tracking-tighter bg-orange-50 px-2 py-1 rounded-lg"
+                                                                >
+                                                                    <ShoppingCartIcon className="w-3 h-3" />
+                                                                    Marketplace
+                                                                </button>
+                                                            )}
                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                 Edit
                                                             </button>
@@ -2413,6 +2424,85 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 )}
             </main>
 
+            {managingMarketplaceFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setManagingMarketplaceFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-orange-50/50 dark:bg-orange-900/10">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight text-orange-900 dark:text-orange-200">Marketplace Governance</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{managingMarketplaceFor.name}</p>
+                            </div>
+                            <button onClick={() => setManagingMarketplaceFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                                        <ShoppingCartIcon className="w-5 h-5 text-orange-600" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">Enable Marketplace</h4>
+                                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Public Advertising Access</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setManagingMarketplaceFor({
+                                            ...managingMarketplaceFor,
+                                            marketplaceEnabled: !managingMarketplaceFor.marketplaceEnabled
+                                        });
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${managingMarketplaceFor.marketplaceEnabled ? 'bg-orange-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${managingMarketplaceFor.marketplaceEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Listing Quota (Max Ads)</label>
+                                <input
+                                    type="number"
+                                    value={managingMarketplaceFor.listingQuota || 0}
+                                    onChange={e => setManagingMarketplaceFor({ ...managingMarketplaceFor, listingQuota: Number(e.target.value) })}
+                                    className="form-input text-lg font-black"
+                                    min="0"
+                                    placeholder="e.g. 10"
+                                />
+                                <p className="text-[10px] text-slate-400 font-medium italic">Set to 0 for unlimited or based on subscription tier.</p>
+                            </div>
+
+                            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-100 dark:border-orange-800">
+                                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium leading-relaxed">
+                                    Enabling the marketplace allows this institution to post properties on the platform's public sales page. Use the quota to limit their advertising reach.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-8 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setManagingMarketplaceFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isSavingTenantConfig}
+                                onClick={async () => {
+                                    if (!managingMarketplaceFor || !props.onUpdateInstitution) return;
+                                    setIsSavingTenantConfig(true);
+                                    try {
+                                        await props.onUpdateInstitution(managingMarketplaceFor.id, {
+                                            marketplaceEnabled: managingMarketplaceFor.marketplaceEnabled,
+                                            listingQuota: managingMarketplaceFor.listingQuota
+                                        });
+                                        setManagingMarketplaceFor(null);
+                                    } finally {
+                                        setIsSavingTenantConfig(false);
+                                    }
+                                }}
+                                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-10 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-orange-100/50 dark:shadow-none transition-all active:scale-95"
+                            >
+                                {isSavingTenantConfig ? 'Synchronizing…' : 'Update Marketplace Settings'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isDirectAssignOpen && (
                 <DirectAssignModal
                     lecturers={(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin')}
@@ -2434,7 +2524,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
                         <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {perspectiveOptions.map(opt => (
+                            {perspectiveOptions.filter(o => !o.isService).map(opt => (
                                 <button
                                     key={opt.role}
                                     onClick={() => {

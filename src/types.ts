@@ -132,6 +132,8 @@ export interface Institution {
     mpesaConfig?: MpesaConfig;
     customModulePricing?: Record<string, { monthly?: number; yearly?: number }>;
     parentAbsenceNotificationsEnabled?: boolean;
+    marketplaceEnabled?: boolean;
+    listingQuota?: number;
 }
 
 
@@ -2032,4 +2034,26 @@ export interface PMDisbursement {
     notes?: string;
     institutionId: string;
     paymentIds?: string[]; // IDs of PMPayment records included in this disbursement
+}
+
+export type PMListingStatus = 'Active' | 'Published' | 'Draft' | 'Under Offer' | 'Sold' | 'Leased';
+export type PMListingType = 'Sale' | 'Rent' | 'Lease';
+
+export interface PMListing {
+    id: string;
+    propertyId: string;
+    unitId?: string;
+    title: string;
+    description: string;
+    price: number;
+    listingType: PMListingType;
+    status: PMListingStatus;
+    images: string[];
+    features: string[];
+    isPromoted: boolean;
+    location?: string;
+    viewCount: number;
+    inquiryCount: number;
+    institutionId: string;
+    createdAt: string;
 }

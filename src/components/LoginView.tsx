@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { User, Institution, InstitutionRegistrationData, CountyRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
-import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon, ShieldExclamationIcon } from './icons/index';
+import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon, ShieldExclamationIcon, ShoppingCartIcon } from './icons/index';
 
 interface LoginViewProps {
     // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx
@@ -21,6 +21,7 @@ interface LoginViewProps {
     registrationMessage: string;
     onOpenGuestPortal: () => void;
     onOpenGuestFeedback: () => void;
+    onOpenMarketplace: () => void;
     themeColor: string;
     onParentRequestOtp: (phone: string) => { success: boolean; message: string };
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
@@ -31,7 +32,7 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
-    onOpenGuestPortal, onOpenGuestFeedback, companyDetails, onForgotPassword, onResetPassword,
+    onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, companyDetails, onForgotPassword, onResetPassword,
     onVerifyOtp, onResendOtp
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
@@ -245,14 +246,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                 </div>
                                 <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-lg active:scale-95" type="submit">Sign In to Portal</button>
                             </form>
-                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-2 gap-4">
-                                <button type="button" onClick={onOpenGuestPortal} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
-                                    <CalendarDaysIcon className="w-6 h-6 text-blue-600 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[10px] font-bold uppercase text-slate-500">Book Visit</span>
+                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-3 gap-2">
+                                <button type="button" onClick={onOpenGuestPortal} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                                    <CalendarDaysIcon className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Visit</span>
                                 </button>
-                                <button type="button" onClick={onOpenGuestFeedback} className="flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
-                                    <StarIcon className="w-6 h-6 text-yellow-500 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[10px] font-bold uppercase text-slate-500">Feedback</span>
+                                <button type="button" onClick={onOpenMarketplace} className="flex flex-col items-center justify-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-100 dark:border-orange-900/30 transition-all hover:bg-white hover:shadow-md group">
+                                    <ShoppingCartIcon className="w-5 h-5 text-orange-600 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Market</span>
+                                </button>
+                                <button type="button" onClick={onOpenGuestFeedback} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                                    <StarIcon className="w-5 h-5 text-yellow-500 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Feedback</span>
                                 </button>
                             </div>
                             <div className="mt-8 text-center">

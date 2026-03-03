@@ -10,7 +10,7 @@ import {
     ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, UserIcon, ArrowPathIcon,
     ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
-    TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon
+    TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon
 } from './icons/index';
 
 interface PropertyManagementViewProps {
@@ -22,7 +22,7 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -34,6 +34,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [payments, setPayments] = useState<PMPayment[]>([]);
     const [tickets, setTickets] = useState<PMTicket[]>([]);
     const [disbursements, setDisbursements] = useState<PMDisbursement[]>([]);
+    const [listings, setListings] = useState<any[]>([]); // Using any for now until types are fully recognized
     const [loading, setLoading] = useState(true);
 
     // Modals
@@ -44,6 +45,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [showLeaseModal, setShowLeaseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
+    const [showListingModal, setShowListingModal] = useState(false);
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
 
     const [search, setSearch] = useState('');
@@ -51,7 +53,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList] = await Promise.all([
+            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList, listingList] = await Promise.all([
                 apiService.fetchModuleRecords<PMLandlord>('pm_landlords', institutionId),
                 apiService.fetchModuleRecords<PMProperty>('pm_properties', institutionId),
                 apiService.fetchModuleRecords<PMUnit>('pm_units', institutionId),
@@ -60,6 +62,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 apiService.fetchModuleRecords<PMPayment>('pm_payments', institutionId),
                 apiService.fetchModuleRecords<PMTicket>('pm_maintenance', institutionId),
                 apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', institutionId),
+                apiService.fetchModuleRecords<any>('pm_listings', institutionId),
             ]);
             setLandlords(landlordList || []);
             setProperties(propList || []);
@@ -69,6 +72,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             setPayments(paymentList || []);
             setTickets(ticketList || []);
             setDisbursements(disbursementList || []);
+            setListings(listingList || []);
             onDataChange();
         } catch (e) { console.error(e); }
         setLoading(false);
@@ -829,6 +833,91 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
+    const handleSaveListing = async (data: any) => {
+        try {
+            await apiService.saveModuleRecord('pm_listings', {
+                ...data,
+                id: data.id || `list_${Date.now()}`,
+                institutionId,
+                status: data.status || 'Active',
+                createdAt: new Date().toISOString()
+            });
+            setShowListingModal(false);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to save listing"); }
+    };
+
+    const handleDeleteListing = async (id: string) => {
+        if (!confirm("Are you sure you want to remove this listing?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_listings', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete listing"); }
+    };
+
+    const ListingsTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Marketplace Listings</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
+                        Active Public Advertisements ({listings.length} / {currentInstitution.listingQuota || 'Unlimited'})
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {listings.map(listing => (
+                    <div key={listing.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden group hover:-translate-y-2 transition-all duration-500">
+                        <div className="h-48 bg-slate-100 dark:bg-slate-900 relative">
+                            {listing.images && listing.images[0] ? (
+                                <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                                    <HomeIcon className="w-12 h-12 mb-2" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest">No Preview Image</p>
+                                </div>
+                            )}
+                            <div className="absolute top-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg">
+                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {listing.price?.toLocaleString()}</p>
+                            </div>
+                            <span className={`absolute bottom-4 left-4 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic shadow-sm ${listing.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                                {listing.status}
+                            </span>
+                        </div>
+                        <div className="p-6">
+                            <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter italic mb-1 truncate">{listing.title}</h4>
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{listing.listingType} • {listing.propertyType}</p>
+                            <p className="text-xs text-slate-500 font-medium line-clamp-2 h-10 mb-6">{listing.description}</p>
+
+                            <div className="flex justify-between items-center pt-6 border-t border-slate-50 dark:border-slate-700">
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleDeleteListing(listing.id)} className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors">
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Views</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white mt-0.5">---</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+
+                {listings.length === 0 && (
+                    <div className="col-span-full py-20 bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
+                        <div className="p-6 bg-white dark:bg-slate-800 rounded-full shadow-xl mb-6">
+                            <ShoppingCartIcon className="w-12 h-12 text-slate-300" />
+                        </div>
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-2">No Active Listings</h4>
+                        <p className="text-slate-500 text-sm font-medium max-w-sm">Tap the "New Ad Listing" button to start advertising your properties on the public marketplace.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     const ReportsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -870,6 +959,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                 { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
                 { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
+                { id: 'listings', label: 'Sales & Listings', icon: ShoppingCartIcon },
                 { id: 'reports', label: 'Reports', icon: ChartPieIcon },
             ].map(tab => (
                 <button
@@ -964,6 +1054,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             <CurrencyIcon className="w-5 h-5" /> Record Payment
                         </button>
                     )}
+                    {activeTab === 'listings' && (
+                        <button
+                            onClick={() => {
+                                if (!currentInstitution.marketplaceEnabled) {
+                                    alert("Marketplace access is currently disabled for your institution. Please contact Super Admin.");
+                                    return;
+                                }
+                                const quota = currentInstitution.listingQuota || 0;
+                                if (quota > 0 && listings.length >= quota) {
+                                    alert(`You have reached your listing quota of ${quota} ads. Please upgrade your plan or remove old listings.`);
+                                    return;
+                                }
+                                setShowListingModal(true);
+                            }}
+                            className="flex items-center gap-2 bg-orange-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-orange-600/20 hover:scale-[1.02] active:scale-95 transition-all"
+                        >
+                            <ShoppingCartIcon className="w-5 h-5" /> New Ad Listing
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1009,7 +1118,77 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {activeTab === 'payments' && <PaymentsTab />}
             {activeTab === 'maintenance' && <MaintenanceTab />}
             {activeTab === 'payouts' && <PayoutsTab />}
+            {activeTab === 'listings' && <ListingsTab />}
             {activeTab === 'reports' && <ReportsTab />}
+
+            <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="Create Marketplace Ad" maxWidth="max-w-2xl">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveListing({
+                        title: formData.get('title') as string,
+                        description: formData.get('description') as string,
+                        price: parseFloat(formData.get('price') as string) || 0,
+                        listingType: formData.get('listingType') as any,
+                        propertyType: formData.get('propertyType') as any,
+                        location: formData.get('location') as string,
+                        features: (formData.get('features') as string).split(',').map(f => f.trim()),
+                        images: [] // To be handled by image upload logic if needed
+                    });
+                }} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Listing Title</label>
+                        <input name="title" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Luxury 3 Bedroom Apartment in Kilimani" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Listing Type</label>
+                            <select name="listingType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                                <option value="Rent">For Rent</option>
+                                <option value="Sale">For Sale</option>
+                                <option value="Lease">For Lease</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Property Type</label>
+                            <select name="propertyType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                                <option value="Apartment">Apartment</option>
+                                <option value="House">House</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Land">Land</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Asking Price (KES)</label>
+                            <input name="price" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="50000" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">General Location</label>
+                            <input name="location" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Kilimani, Nairobi" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description</label>
+                        <textarea name="description" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all h-32" placeholder="Describe the property, amenities, nearby facilities..." />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Key Features (Comma separated)</label>
+                        <input name="features" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-orange-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. WiFi, Parking, Backup Generator" />
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 font-bold italic text-center">Note: Your contact details from your profile will be used for inquiries.</p>
+
+                    <button type="submit" className="w-full bg-orange-600 text-white py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 mt-4 transition-all hover:bg-orange-700 active:scale-95 leading-none">
+                        Publish Ad to Marketplace
+                    </button>
+                </form>
+            </Modal>
 
             <Modal show={showPropertyModal} onClose={() => setShowPropertyModal(false)} title="Register New Property">
                 <form onSubmit={(e) => {
