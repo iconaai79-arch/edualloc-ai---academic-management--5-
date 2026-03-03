@@ -667,7 +667,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         },
                         country: 'Kenya',
                         currency: 'KES',
-                        timezone: 'Africa/Nairobi'
+                        timezone: 'Africa/Nairobi',
+                        logoUrl: currentInstitution.logoUrl || null,
+                        mpesaConfig: undefined as any,
+                        emailConfig: undefined as any,
+                        smsConfig: undefined as any,
+                        letterheadConfig: undefined as any
                     };
 
                     const invDataUri = await generateInvoicePdfDataUri(invoice, currentInstitution, proxyCompanyDetails, currentInstitution.logoUrl || null);
@@ -2356,7 +2361,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 let comm = 0;
                                                 attendantJobs.forEach(j => {
                                                     const pkg = packages.find(p => p.id === j.packageId);
-                                                    if (pkg) { if (pkg.commissionType === 'fixed') comm += pkg.commissionValue; else comm += (j.amountCharged * pkg.commissionValue) / 100; }
+                                                    if (pkg) { if (pkg.commissionType === 'fixed') comm += (pkg.commissionValue || 0); else comm += (j.amountCharged * (pkg.commissionValue || 0)) / 100; }
                                                 });
                                                 return (
                                                     <tr key={attendant.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
