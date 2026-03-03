@@ -44,6 +44,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [showLeaseModal, setShowLeaseModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
+    const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
 
     const [search, setSearch] = useState('');
 
@@ -244,6 +245,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 depositAmount: data.depositAmount || 0,
                 billingCycle: 'Monthly',
                 status: 'Active',
+                termsAndConditions: data.termsAndConditions,
+                witnessName: data.witnessName,
+                witnessPhone: data.witnessPhone,
+                noticePeriodDays: data.noticePeriodDays,
+                lateFeePercentage: data.lateFeePercentage,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
@@ -584,8 +590,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                         </span>
                                     </td>
                                     <td className="p-6 text-right">
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
-                                            <EyeIcon className="w-4 h-4" />
+                                        <button
+                                            onClick={() => setSelectedLeaseForPreview(lease)}
+                                            className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ml-auto"
+                                        >
+                                            <EyeIcon className="w-4 h-4" /> Agreement
                                         </button>
                                     </td>
                                 </tr>
@@ -878,11 +887,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
-    const Modal = ({ show, onClose, title, children }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode }) => {
+    const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
         if (!show) return null;
         return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                <div className={`bg-white dark:bg-slate-900 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
                     <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
                         <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
@@ -1163,21 +1172,193 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
             <Modal show={showLeaseModal} onClose={() => setShowLeaseModal(false)} title="Create Lease Agreement">
                 <form onSubmit={(e) => {
-                    e.preventDefault(); const formData = new FormData(e.currentTarget);
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
                     handleSaveLease({
                         unitId: formData.get('unitId') as string,
                         tenantId: formData.get('tenantId') as string,
                         rentAmount: parseFloat(formData.get('rentAmount') as string) || 0,
-                        depositAmount: parseFloat(formData.get('depositAmount') as string) || 0
+                        depositAmount: parseFloat(formData.get('depositAmount') as string) || 0,
+                        witnessName: formData.get('witnessName') as string,
+                        witnessPhone: formData.get('witnessPhone') as string,
+                        noticePeriodDays: parseInt(formData.get('noticePeriodDays') as string) || 30,
+                        lateFeePercentage: parseFloat(formData.get('lateFeePercentage') as string) || 5,
+                        termsAndConditions: formData.get('termsAndConditions') as string,
                     });
-                }} className="space-y-6">
-                    <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                    <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{units.filter(u => u.status === 'Vacant').map(u => <option key={u.id} value={u.id}>{u.unitNumber} - {properties.find(p => p.id === u.propertyId)?.name}</option>)}</select>
-                    <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Agreed Rent" />
-                    <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Security Deposit" />
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Activate Lease</button>
+                }} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Unit</label>
+                            <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{units.filter(u => u.status === 'Vacant').map(u => <option key={u.id} value={u.id}>{u.unitNumber} - {properties.find(p => p.id === u.propertyId)?.name}</option>)}</select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Tenant</label>
+                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">{tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Rent Amount</label>
+                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Rent" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Security Deposit</label>
+                            <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Deposit" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Late Fee (%)</label>
+                            <input name="lateFeePercentage" type="number" defaultValue="5" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Notice Period (Days)</label>
+                            <input name="noticePeriodDays" type="number" defaultValue="30" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Witness Name</label>
+                            <input name="witnessName" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Enter witness name" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Witness Phone</label>
+                            <input name="witnessPhone" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Enter witness phone" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Special Terms & Conditions</label>
+                        <textarea name="termsAndConditions" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none h-24" placeholder="Enter any specific terms, rules or inclusions..." />
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">Generate Agreement & Activate Lease</button>
                 </form>
             </Modal>
+
+            {/* Lease Preview Modal (Print Ready) */}
+            {selectedLeaseForPreview && (
+                <Modal
+                    show={true}
+                    onClose={() => setSelectedLeaseForPreview(null)}
+                    title="Lease Agreement Preview"
+                    maxWidth="max-w-4xl"
+                >
+                    <div className="print:p-0 p-4">
+                        <div className="flex justify-end mb-6 print:hidden">
+                            <button
+                                onClick={() => window.print()}
+                                className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all"
+                            >
+                                <ArrowPathIcon className="w-4 h-4" /> Download PDF / Print
+                            </button>
+                        </div>
+
+                        <div id="lease-document" className="bg-white text-slate-900 p-12 border border-slate-200 shadow-sm font-serif leading-relaxed text-sm overflow-y-auto max-h-[70vh] print:max-h-none print:border-none print:shadow-none">
+                            {/* Document Header */}
+                            <div className="text-center border-b-2 border-slate-900 pb-8 mb-8">
+                                <h1 className="text-3xl font-black uppercase tracking-tighter mb-2">RESIDENTIAL LEASE AGREEMENT</h1>
+                                <p className="text-xs uppercase font-bold tracking-[0.3em] text-slate-500 italic">Official Property Management Binding Document</p>
+                            </div>
+
+                            {/* Section 1: Parties */}
+                            <div className="space-y-6">
+                                <section>
+                                    <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">1. PARTIES TO THE AGREEMENT</h2>
+                                    <p>This agreement is entered into this <strong>{new Date(selectedLeaseForPreview.startDate).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</strong>, by and between:</p>
+                                    <div className="grid grid-cols-2 gap-12 mt-4 bg-slate-50 p-6 rounded-2xl font-sans">
+                                        <div>
+                                            <p className="text-[10px] uppercase font-black text-slate-400 mb-2">Landlord (Lessor)</p>
+                                            <p className="font-black uppercase italic">{properties.find(p => p.id === units.find(u => u.id === selectedLeaseForPreview.unitId)?.propertyId)?.landlordId ? landlords.find(l => l.id === properties.find(p => p.id === units.find(u => u.id === selectedLeaseForPreview.unitId)?.propertyId)?.landlordId)?.name : currentInstitution.name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] uppercase font-black text-slate-400 mb-2">Tenant (Lessee)</p>
+                                            <p className="font-black uppercase italic">{tenants.find(t => t.id === selectedLeaseForPreview.tenantId)?.name}</p>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Section 2: Property */}
+                                <section>
+                                    <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">2. DESCRIPTION OF THE PREMISES</h2>
+                                    <p>The Landlord hereby leases to the Tenant, and the Tenant hereby takes from the Landlord, the residential premises described as:</p>
+                                    <div className="mt-4 bg-slate-50 p-6 rounded-2xl font-sans">
+                                        <p className="font-black uppercase italic">
+                                            UNIT {units.find(u => u.id === selectedLeaseForPreview.unitId)?.unitNumber}
+                                            {" "} — {properties.find(p => p.id === units.find(u => u.id === selectedLeaseForPreview.unitId)?.propertyId)?.name}
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-1 uppercase font-bold">{properties.find(p => p.id === units.find(u => u.id === selectedLeaseForPreview.unitId)?.propertyId)?.address}</p>
+                                    </div>
+                                </section>
+
+                                {/* Section 3: Financials */}
+                                <section>
+                                    <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">3. FINANCIAL OBLIGATIONS</h2>
+                                    <div className="space-y-4">
+                                        <p><strong>A. RENT:</strong> The Tenant shall pay the Landlord a monthly rent of <strong>KES {selectedLeaseForPreview.rentAmount.toLocaleString()}</strong> payable on or before the 1st of every month.</p>
+                                        <p><strong>B. DEPOSIT:</strong> A security deposit of <strong>KES {selectedLeaseForPreview.depositAmount.toLocaleString()}</strong> has been paid and shall be held by the Landlord until the expiration of the lease.</p>
+                                        <p><strong>C. LATE FEES:</strong> Payments made after the 5th day of the month shall incur a late fee penalty of <strong>{selectedLeaseForPreview.lateFeePercentage || 5}%</strong> of the outstanding balance.</p>
+                                    </div>
+                                </section>
+
+                                {/* Section 4: Terms */}
+                                <section>
+                                    <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">4. ADDITIONAL TERMS & CONDITIONS</h2>
+                                    <div className="space-y-4">
+                                        <p><strong>NOTICE PERIOD:</strong> This agreement may be terminated by either party giving <strong>{selectedLeaseForPreview.noticePeriodDays || 30} days</strong> written notice.</p>
+                                        {selectedLeaseForPreview.termsAndConditions ? (
+                                            <p className="whitespace-pre-wrap italic text-slate-700 bg-slate-50 p-6 rounded-2xl border-l-4 border-slate-300">"{selectedLeaseForPreview.termsAndConditions}"</p>
+                                        ) : (
+                                            <p className="text-slate-400 italic">No special terms specified.</p>
+                                        )}
+                                    </div>
+                                </section>
+
+                                {/* Section 5: Witness */}
+                                {selectedLeaseForPreview.witnessName && (
+                                    <section>
+                                        <h2 className="font-black uppercase tracking-widest border-b border-slate-200 pb-2 mb-4 text-xs italic">5. ATTESTATION</h2>
+                                        <p>This lease has been witnessed by <strong>{selectedLeaseForPreview.witnessName}</strong> ({selectedLeaseForPreview.witnessPhone}).</p>
+                                    </section>
+                                )}
+
+                                {/* Signatures */}
+                                <div className="mt-16 grid grid-cols-2 gap-24 pt-12">
+                                    <div className="border-t border-slate-900 text-center">
+                                        <p className="mt-4 text-[10px] uppercase font-black tracking-widest">LANDLORD SIGNATURE</p>
+                                        <div className="mt-8 flex justify-center opacity-20"><BuildingOfficeIcon className="w-16 h-16" /></div>
+                                    </div>
+                                    <div className="border-t border-slate-900 text-center">
+                                        <p className="mt-4 text-[10px] uppercase font-black tracking-widest">TENANT SIGNATURE</p>
+                                        <div className="mt-8 flex justify-center opacity-20"><UserIcon className="w-16 h-16" /></div>
+                                    </div>
+                                </div>
+
+                                <div className="text-center pt-24 text-[9px] uppercase font-bold text-slate-300 tracking-[0.5em] italic">
+                                    Generated via {currentInstitution.name} ERP — {new Date().getFullYear()}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Print CSS */}
+                    <style>{`
+                        @media print {
+                            body * { visibility: hidden; }
+                            #lease-document, #lease-document * { visibility: visible; }
+                            #lease-document {
+                                position: fixed;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                                height: 100%;
+                                margin: 0;
+                                padding: 2cm;
+                                border: none;
+                                font-size: 11pt;
+                            }
+                        }
+                    `}</style>
+                </Modal>
+            )}
 
             <Modal show={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Transaction">
                 <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSavePayment({ leaseId: formData.get('leaseId') as string, amount: parseFloat(formData.get('amount') as string) || 0, paymentType: formData.get('paymentType') as PMPaymentType }); }} className="space-y-6">

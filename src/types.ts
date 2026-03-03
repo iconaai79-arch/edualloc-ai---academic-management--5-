@@ -1977,6 +1977,12 @@ export interface PMLease {
     depositAmount: number;
     billingCycle: 'Monthly' | 'Quarterly';
     status: PMLeaseStatus;
+    termsAndConditions?: string;
+    utilitiesIncluded?: string[];
+    lateFeePercentage?: number;
+    noticePeriodDays?: number;
+    witnessName?: string;
+    witnessPhone?: string;
     institutionId: string;
     createdAt: string;
 }
