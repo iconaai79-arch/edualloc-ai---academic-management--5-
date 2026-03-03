@@ -654,6 +654,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         subscriptionConfig: {
                             subscriptionType: 'free' as const,
                             subscriptionBaseCost: 0,
+                            defaultMonthlyPrice: 0,
+                            defaultYearlyPrice: 0,
                             tierLimits: {
                                 maxStudents: Infinity,
                                 maxStaff: Infinity,
