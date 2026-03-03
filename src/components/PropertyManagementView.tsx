@@ -23,7 +23,7 @@ interface PropertyManagementViewProps {
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts'>('dashboard');
-    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords'>('properties');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -337,6 +337,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     { id: 'properties', label: 'Master Assets', icon: BuildingOfficeIcon },
                     { id: 'units', label: 'Unit Registry', icon: GridIcon },
                     { id: 'landlords', label: 'Landlord Directory', icon: UserGroupIcon },
+                    { id: 'tenants', label: 'Tenant Directory', icon: UserIcon },
                 ].map(sub => (
                     <button
                         key={sub.id}
@@ -500,6 +501,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {propertyActiveSubTab === 'landlords' && <LandlordsTab />}
+            {propertyActiveSubTab === 'tenants' && <TenantsTab />}
         </div>
     );
 
@@ -855,7 +857,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {[
                 { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
                 { id: 'properties', label: 'Properties & Units', icon: BuildingOfficeIcon },
-                { id: 'tenants', label: 'Tenant Directory', icon: UserGroupIcon },
                 { id: 'leases', label: 'Lease Manager', icon: ArchiveBoxIcon },
                 { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                 { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
@@ -937,11 +938,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                     <PlusIcon className="w-5 h-5" /> Register Unit
                                 </button>
                             )}
+                            {propertyActiveSubTab === 'tenants' && (
+                                <button onClick={() => setShowTenantModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <PlusIcon className="w-5 h-5" /> Onboard Tenant
+                                </button>
+                            )}
                         </div>
                     )}
-                    {(activeTab === 'tenants' || activeTab === 'leases') && (
-                        <button onClick={() => activeTab === 'tenants' ? setShowTenantModal(true) : setShowLeaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                            <PlusIcon className="w-5 h-5" /> {activeTab === 'tenants' ? 'Onboard Tenant' : 'New Lease'}
+                    {activeTab === 'leases' && (
+                        <button onClick={() => setShowLeaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                            <PlusIcon className="w-5 h-5" /> New Lease
                         </button>
                     )}
                     {activeTab === 'payments' && (
@@ -990,7 +996,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {activeTab === 'properties' && <PropertiesTab />}
-            {activeTab === 'tenants' && <TenantsTab />}
             {activeTab === 'leases' && <LeasesTab />}
             {activeTab === 'payments' && <PaymentsTab />}
             {activeTab === 'maintenance' && <MaintenanceTab />}
@@ -1089,11 +1094,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             </Modal>
 
             <Modal show={showUnitModal} onClose={() => setShowUnitModal(false)} title="Register New Unit">
-                <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.currentTarget); handleSaveUnit({ propertyId: formData.get('propertyId') as string, unitNumber: formData.get('unitNumber') as string, rentAmount: parseFloat(formData.get('rentAmount') as string) || 0 }); }} className="space-y-6">
-                    <select name="propertyId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"><option value="">Select Property</option>{properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-                    <input name="unitNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Unit Number" />
-                    <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Monthly Rent" />
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Deploy Unit</button>
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveUnit({
+                        propertyId: formData.get('propertyId') as string,
+                        unitNumber: formData.get('unitNumber') as string,
+                        unitType: formData.get('unitType') as string,
+                        floorNumber: formData.get('floorNumber') ? parseInt(formData.get('floorNumber') as string) : undefined,
+                        rentAmount: parseFloat(formData.get('rentAmount') as string) || 0
+                    });
+                }} className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Property</label>
+                        <select name="propertyId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                            <option value="">Select Property</option>
+                            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Number</label>
+                            <input name="unitNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A1, Suite 202" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Type</label>
+                            <select name="unitType" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                                <option value="Bedsitter">Bedsitter</option>
+                                <option value="Studio">Studio</option>
+                                <option value="1 Bedroom">1 Bedroom</option>
+                                <option value="2 Bedroom">2 Bedroom</option>
+                                <option value="3 Bedroom">3 Bedroom</option>
+                                <option value="Office Space">Office Space</option>
+                                <option value="Shop">Shop</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Floor Number</label>
+                            <input name="floorNumber" type="number" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. 1, 2, 3" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Monthly Rent (KES)</label>
+                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">Deploy Unit</button>
                 </form>
             </Modal>
 
