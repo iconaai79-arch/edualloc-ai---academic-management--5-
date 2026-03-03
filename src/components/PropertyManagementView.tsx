@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
-    PMPriority, PMTicketStatus, PMLandlord
+    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -22,7 +22,7 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts'>('dashboard');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -32,6 +32,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [leases, setLeases] = useState<PMLease[]>([]);
     const [payments, setPayments] = useState<PMPayment[]>([]);
     const [tickets, setTickets] = useState<PMTicket[]>([]);
+    const [disbursements, setDisbursements] = useState<PMDisbursement[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Modals
@@ -48,7 +49,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList] = await Promise.all([
+            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList] = await Promise.all([
                 apiService.fetchModuleRecords<PMLandlord>('pm_landlords', institutionId),
                 apiService.fetchModuleRecords<PMProperty>('pm_properties', institutionId),
                 apiService.fetchModuleRecords<PMUnit>('pm_units', institutionId),
@@ -56,6 +57,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 apiService.fetchModuleRecords<PMLease>('pm_leases', institutionId),
                 apiService.fetchModuleRecords<PMPayment>('pm_payments', institutionId),
                 apiService.fetchModuleRecords<PMTicket>('pm_maintenance', institutionId),
+                apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', institutionId),
             ]);
             setLandlords(landlordList || []);
             setProperties(propList || []);
@@ -64,6 +66,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             setLeases(leaseList || []);
             setPayments(paymentList || []);
             setTickets(ticketList || []);
+            setDisbursements(disbursementList || []);
             onDataChange();
         } catch (e) { console.error(e); }
         setLoading(false);
@@ -90,37 +93,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     name: data.name || '',
                     email: data.email,
                     phoneNumber: data.phoneNumber || '',
-                    role: 'landlord', // Fixed: 'landlord' is now a valid Role
+                    role: 'landlord',
                     institutionId,
                     createdAt: new Date().toISOString(),
                     isActive: true,
                     mustChangePassword: true,
-                    password: tempPassword // In a real app this would be hashed on the backend
+                    password: tempPassword
                 };
-                await apiService.saveModuleRecord('users', institutionId, newUser);
+                await apiService.saveModuleRecord('users', newUser);
 
                 // 2. Send email with credentials
                 try {
-                    await apiService.sendEmail({
-                        to: data.email,
-                        subject: 'Welcome to your Landlord Portal',
-                        html: `
-                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                                <h2>Welcome, ${data.name}!</h2>
-                                <p>You have been registered as a Landlord in the system.</p>
-                                <p>You can now log in to view your properties, track tenant payments, and monitor your commission payouts.</p>
-                                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                                    <p style="margin: 0;"><strong>Login URL:</strong> ${window.location.origin}</p>
-                                    <p style="margin: 10px 0 0 0;"><strong>Email:</strong> ${data.email}</p>
-                                    <p style="margin: 10px 0 0 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
-                                </div>
-                                <p><em>Please change your password upon your first login.</em></p>
-                            </div>
-                        `
-                    });
+                    const subject = 'Welcome to your Landlord Portal';
+                    const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                    await apiService.sendEmail(data.email, subject, body);
                 } catch (emailErr) {
                     console.error("Failed to send landlord welcome email:", emailErr);
-                    // Don't fail the whole operation if just the email fails
                 }
             }
 
@@ -152,7 +140,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
         try {
             const newProperty: PMProperty = {
-                id: `prop_${Date.now()}`,
+                id: `prop_${Date.now()} `,
                 name: data.name || '',
                 address: data.address,
                 propertyType: data.propertyType || 'Apartment',
@@ -171,7 +159,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveUnit = async (data: Partial<PMUnit>) => {
         try {
             const newUnit: PMUnit = {
-                id: `unit_${Date.now()}`,
+                id: `unit_${Date.now()} `,
                 propertyId: data.propertyId || '',
                 unitNumber: data.unitNumber || '',
                 unitType: data.unitType || '',
@@ -207,27 +195,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     mustChangePassword: true,
                     password: tempPassword
                 };
-                await apiService.saveModuleRecord('users', institutionId, newUser);
+                await apiService.saveModuleRecord('users', newUser);
 
                 // 2. Send tenant welcome email
                 try {
-                    await apiService.sendEmail({
-                        to: data.email,
-                        subject: 'Welcome to your Tenant Portal',
-                        html: `
-                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                                <h2>Welcome to your new home, ${data.name}!</h2>
-                                <p>You have been registered as a Tenant in our property management system.</p>
-                                <p>You can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.</p>
-                                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                                    <p style="margin: 0;"><strong>Login URL:</strong> ${window.location.origin}</p>
-                                    <p style="margin: 10px 0 0 0;"><strong>Email:</strong> ${data.email}</p>
-                                    <p style="margin: 10px 0 0 0;"><strong>Temporary Password:</strong> ${tempPassword}</p>
-                                </div>
-                                <p><em>Please change your password upon your first login.</em></p>
-                            </div>
-                        `
-                    });
+                    const subject = 'Welcome to your Tenant Portal';
+                    const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                    await apiService.sendEmail(data.email, subject, body);
                 } catch (emailErr) {
                     console.error("Failed to send tenant welcome email:", emailErr);
                 }
@@ -239,10 +213,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 phoneNumber: data.phoneNumber || '',
                 email: data.email,
                 idNumber: data.idNumber,
+                emergencyContactName: data.emergencyContactName,
+                emergencyContactPhone: data.emergencyContactPhone,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_tenants', newTenant);
+
             setShowTenantModal(false);
             loadData();
 
@@ -258,7 +235,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         try {
             const startDate = new Date().toISOString().split('T')[0];
             const newLease: PMLease = {
-                id: `lease_${Date.now()}`,
+                id: `lease_${Date.now()} `,
                 unitId: data.unitId || '',
                 tenantId: data.tenantId || '',
                 startDate,
@@ -477,7 +454,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                         <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
                                             unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' :
                                                 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'
-                                            }`}>
+                                            } `}>
                                             {unit.status}
                                         </span>
                                     </td>
@@ -572,7 +549,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                     <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
                                     <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</td>
                                     <td className="p-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>
+                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'} `}>
                                             {lease.status}
                                         </span>
                                     </td>
@@ -611,7 +588,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             }
 
             const newPayment: PMPayment = {
-                id: `pay_${Date.now()}`,
+                id: `pay_${Date.now()} `,
                 leaseId: data.leaseId || '',
                 amount,
                 paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
@@ -632,7 +609,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveTicket = async (data: Partial<PMTicket>) => {
         try {
             const newTicket: PMTicket = {
-                id: `tick_${Date.now()}`,
+                id: `tick_${Date.now()} `,
                 propertyId: data.propertyId || '',
                 unitId: data.unitId || '',
                 title: data.title || '',
@@ -700,7 +677,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
                 {tickets.map(ticket => (
                     <div key={ticket.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl group hover:-translate-y-2 transition-all duration-500 relative overflow-hidden">
-                        <div className={`absolute top-0 right-10 w-12 h-2 rounded-b-full ${ticket.priority === 'Urgent' ? 'bg-rose-500' : ticket.priority === 'High' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
+                        <div className={`absolute top-0 right-10 w-12 h-2 rounded-b-full ${ticket.priority === 'Urgent' ? 'bg-rose-500' : ticket.priority === 'High' ? 'bg-amber-500' : 'bg-blue-500'} `}></div>
                         <h4 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-2">{ticket.title}</h4>
                         <p className="text-slate-500 text-xs font-bold leading-relaxed mb-6">{ticket.description}</p>
                         <div className="flex justify-between items-center pt-6 border-t border-slate-50 dark:border-slate-700">
@@ -715,6 +692,104 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
+    const PayoutsTab = () => (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Landlord Disbursements</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Manage and process payout requests from landlords</p>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                        <tr>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Request Date</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Landlord</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Bank Details</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Amount (KES)</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Status</th>
+                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {disbursements.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">No payout requests found</td>
+                            </tr>
+                        ) : (
+                            disbursements.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime()).map(d => {
+                                const landlord = landlords.find(l => l.id === d.landlordId);
+                                return (
+                                    <tr key={d.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                                        <td className="p-6 text-sm font-bold text-slate-600 dark:text-slate-300">{new Date(d.requestDate).toLocaleDateString()}</td>
+                                        <td className="p-6">
+                                            <div className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{landlord?.name || 'Unknown'}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{landlord?.phoneNumber}</div>
+                                        </td>
+                                        <td className="p-6 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">{d.bankDetails || landlord?.bankDetails || 'N/A'}</td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {d.amount.toLocaleString()}</td>
+                                        <td className="p-6">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${d.status === 'Paid' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
+                                                d.status === 'Pending' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' :
+                                                    'bg-slate-100 text-slate-600 dark:bg-slate-700/50'
+                                                } `}>
+                                                {d.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-right">
+                                            {d.status === 'Pending' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm(`Mark KES ${d.amount.toLocaleString()} as paid? This will update associated payment records.`)) return;
+                                                        try {
+                                                            const updatedDisb: PMDisbursement = {
+                                                                ...d,
+                                                                status: 'Paid',
+                                                                processedDate: new Date().toISOString()
+                                                            };
+                                                            await apiService.saveModuleRecord('pm_disbursements', updatedDisb);
+
+                                                            // Update associated payments to 'paid'
+                                                            if (d.paymentIds && d.paymentIds.length > 0) {
+                                                                await Promise.all(d.paymentIds.map(async pid => {
+                                                                    const p = payments.find(pay => pay.id === pid);
+                                                                    if (p) {
+                                                                        await apiService.saveModuleRecord('pm_payments', {
+                                                                            ...p,
+                                                                            landlordPayoutStatus: 'paid'
+                                                                        });
+                                                                    }
+                                                                }));
+                                                            }
+
+                                                            alert("Disbursement completed successfully.");
+                                                            loadData();
+                                                        } catch (err) {
+                                                            console.error(err);
+                                                            alert("Failed to process disbursement.");
+                                                        }
+                                                    }}
+                                                    className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-800 transition-colors text-[10px] font-black uppercase tracking-widest"
+                                                >
+                                                    Mark as Paid
+                                                </button>
+                                            )}
+                                            {d.status === 'Paid' && (
+                                                <span className="text-xs text-slate-400 font-bold italic">Processed on {new Date(d.processedDate || '').toLocaleDateString()}</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     const ReportsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -722,7 +797,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Rent Collection Trend (Monthly)</h4>
                     <div className="h-64 flex items-end gap-2 px-4 shadow-inner bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-6">
                         {[45, 60, 85, 30, 95, 70, 90, 100].map((h, i) => (
-                            <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${h}%` }}>
+                            <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${h}% ` }}>
                                 <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
                                     KES {(h * 1000).toLocaleString()}
                                 </div>
@@ -756,6 +831,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 { id: 'leases', label: 'Lease Manager', icon: ArchiveBoxIcon },
                 { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                 { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
+                { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
                 { id: 'reports', label: 'Reports', icon: ChartPieIcon },
             ].map(tab => (
                 <button
@@ -764,9 +840,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id
                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                         : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        }`}
+                        } `}
                 >
-                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-pulse' : ''}`} />
+                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-pulse' : ''} `} />
                     {tab.label}
                 </button>
             ))}
@@ -882,6 +958,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {activeTab === 'leases' && <LeasesTab />}
             {activeTab === 'payments' && <PaymentsTab />}
             {activeTab === 'maintenance' && <MaintenanceTab />}
+            {activeTab === 'payouts' && <PayoutsTab />}
             {activeTab === 'reports' && <ReportsTab />}
 
             <Modal show={showPropertyModal} onClose={() => setShowPropertyModal(false)} title="Register New Property">

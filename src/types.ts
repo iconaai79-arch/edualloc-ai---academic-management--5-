@@ -2010,3 +2010,20 @@ export interface PMTicket {
     institutionId: string;
     createdAt: string;
 }
+
+export type PMDisbursementStatus = 'Pending' | 'Approved' | 'Paid' | 'Rejected';
+
+export interface PMDisbursement {
+    id: string;
+    landlordId: string;
+    amount: number;
+    status: PMDisbursementStatus;
+    requestDate: string;
+    processedDate?: string;
+    paymentReference?: string;
+    paymentMethod?: string;
+    bankDetails?: string;
+    notes?: string;
+    institutionId: string;
+    paymentIds?: string[]; // IDs of PMPayment records included in this disbursement
+}

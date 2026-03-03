@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     User, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
-    Institution, PMLandlord
+    Institution, PMLandlord, PMDisbursement
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -30,9 +30,11 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
     const [leases, setLeases] = useState<PMLease[]>([]);
     const [payments, setPayments] = useState<PMPayment[]>([]);
     const [tickets, setTickets] = useState<PMTicket[]>([]);
+    const [disbursements, setDisbursements] = useState<PMDisbursement[]>([]);
 
     // Expansion states
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
     const [broadcastMessage, setBroadcastMessage] = useState('');
     const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
     const [broadcastSuccess, setBroadcastSuccess] = useState(false);
@@ -42,39 +44,39 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
             setLoading(true);
             try {
                 const instId = currentInstitution.id;
-                // Find the landlord record associated with this user's email
-                const allLandlords = await apiService.fetchModuleRecords<PMLandlord>('pm_landlords', instId);
-                const myLandlord = allLandlords.find(l => l.email?.toLowerCase() === currentUser.email.toLowerCase());
+                // 1. Fetch all required datasets
+                const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList] = await Promise.all([
+                    apiService.fetchModuleRecords<PMLandlord>('pm_landlords', instId),
+                    apiService.fetchModuleRecords<PMProperty>('pm_properties', instId),
+                    apiService.fetchModuleRecords<PMUnit>('pm_units', instId),
+                    apiService.fetchModuleRecords<PMTenant>('pm_tenants', instId),
+                    apiService.fetchModuleRecords<PMLease>('pm_leases', instId),
+                    apiService.fetchModuleRecords<PMPayment>('pm_payments', instId),
+                    apiService.fetchModuleRecords<PMTicket>('pm_maintenance', instId),
+                    apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', instId),
+                ]);
 
-                if (myLandlord) {
-                    setLandlord(myLandlord);
-                    // Fetch related records
-                    const [propList, unitList, tenantList, leaseList, paymentList, ticketList] = await Promise.all([
-                        apiService.fetchModuleRecords<PMProperty>('pm_properties', instId),
-                        apiService.fetchModuleRecords<PMUnit>('pm_units', instId),
-                        apiService.fetchModuleRecords<PMTenant>('pm_tenants', instId),
-                        apiService.fetchModuleRecords<PMLease>('pm_leases', instId),
-                        apiService.fetchModuleRecords<PMPayment>('pm_payments', instId),
-                        apiService.fetchModuleRecords<PMTicket>('pm_maintenance', instId),
-                    ]);
+                // 2. Identify the current landlord
+                const currentLandlord = landlordList.find(l => l.email?.toLowerCase() === currentUser.email.toLowerCase());
+                setLandlord(currentLandlord || null);
 
-                    const myProperties = propList.filter(p => p.landlordId === myLandlord.id);
-                    setProperties(myProperties);
-
+                if (currentLandlord) {
+                    // 3. Filter data for this specific landlord's portfolio
+                    const myProperties = propList.filter(p => p.landlordId === currentLandlord.id);
                     const myPropIds = new Set(myProperties.map(p => p.id));
                     const myUnits = unitList.filter(u => myPropIds.has(u.propertyId));
-                    setUnits(myUnits);
-
                     const myUnitIds = new Set(myUnits.map(u => u.id));
                     const myLeases = leaseList.filter(l => myUnitIds.has(l.unitId));
-                    setLeases(myLeases);
-
                     const myLeaseIds = new Set(myLeases.map(l => l.id));
                     const myTenantIds = new Set(myLeases.map(l => l.tenantId));
-                    setTenants(tenantList.filter(t => myTenantIds.has(t.id)));
 
+                    setProperties(myProperties);
+                    setUnits(myUnits);
+                    setLeases(myLeases);
                     setPayments(paymentList.filter(p => myLeaseIds.has(p.leaseId)));
-                    setTickets(ticketList.filter(t => myUnitIds.has(t.unitId || '')));
+                    setTenants(tenantList.filter(t => myTenantIds.has(t.id)));
+                    setTickets(ticketList.filter(t => myPropIds.has(t.propertyId)));
+                    setDisbursements(disbursementList.filter(d => d.landlordId === currentLandlord.id));
                 }
             } catch (err) {
                 console.error("Failed to load landlord portal data:", err);
@@ -117,6 +119,51 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
             console.error("Broadcast failed:", err);
         } finally {
             setIsSendingBroadcast(false);
+        }
+    };
+
+    const handleWithdrawalRequest = async () => {
+        if (!landlord) return;
+
+        // Calculate amount from pending payouts
+        const pendingPayouts = payments.filter(p => p.landlordPayoutStatus === 'pending' || !p.landlordPayoutStatus);
+        const amount = pendingPayouts.reduce((sum, p) => sum + (p.amount - (p.commissionAmount || 0)), 0);
+
+        if (amount <= 0) {
+            alert("No funds available for withdrawal at this time.");
+            return;
+        }
+
+        try {
+            const newDisbursement: PMDisbursement = {
+                id: `disb_${Date.now()}`,
+                landlordId: landlord.id,
+                amount,
+                status: 'Pending',
+                requestDate: new Date().toISOString(),
+                bankDetails: landlord.bankDetails,
+                institutionId: currentInstitution.id,
+                paymentIds: pendingPayouts.map(p => p.id)
+            };
+
+            await apiService.saveModuleRecord('pm_disbursements', newDisbursement);
+
+            // Update local state
+            setDisbursements([newDisbursement, ...disbursements]);
+
+            // Optimistically update payments in local state (UI only)
+            const updatedPayments = payments.map(p =>
+                pendingPayouts.some(pp => pp.id === p.id)
+                    ? { ...p, landlordPayoutStatus: 'pending' as any }
+                    : p
+            );
+            setPayments(updatedPayments);
+
+            setShowWithdrawModal(false);
+            alert(`Withdrawal request for KES ${amount.toLocaleString()} has been submitted. Status: Pending.`);
+        } catch (err) {
+            console.error("Withdrawal request failed:", err);
+            alert("Failed to submit withdrawal request. Please try again later.");
         }
     };
 
@@ -241,7 +288,10 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Net Portfolio Payout</p>
                                 <h3 className="text-2xl font-black tracking-tighter uppercase italic">KES {netEarnings.toLocaleString()}</h3>
-                                <button className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-emerald-900/40">
+                                <button
+                                    onClick={() => setShowWithdrawModal(true)}
+                                    className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-lg shadow-emerald-900/40"
+                                >
                                     WITHDRAW FUNDS
                                 </button>
                             </div>
@@ -564,6 +614,61 @@ export const LandlordPortalView: React.FC<LandlordPortalViewProps> = ({ currentU
                                 <p className="text-slate-400 text-xs font-bold uppercase mt-2">Broadcast successfully delivered to all tenant portals.</p>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* Withdrawal Modal */}
+            {showWithdrawModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-10 relative animate-in zoom-in-95 duration-300">
+                        <button
+                            onClick={() => setShowWithdrawModal(false)}
+                            className="absolute top-8 right-8 w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <XIcon className="w-5 h-5" />
+                        </button>
+
+                        <div className="mb-8">
+                            <div className="w-16 h-16 bg-emerald-50 rounded-[1.5rem] flex items-center justify-center mb-6">
+                                <CurrencyIcon className="w-8 h-8 text-emerald-600" />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 italic uppercase underline decoration-emerald-200 decoration-4 underline-offset-4">Request Portfolio Payout</h3>
+                            <p className="text-slate-400 text-xs font-bold uppercase mt-2">Available for withdrawal: <span className="text-emerald-600">KES {netEarnings.toLocaleString()}</span></p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Settlement Destination</h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                                        <BuildingOfficeIcon className="w-5 h-5 text-slate-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-slate-800 uppercase italic">Bank Transfer</p>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase">{landlord.bankDetails || 'No bank details provided'}</p>
+                                    </div>
+                                </div>
+                                {!landlord.bankDetails && (
+                                    <p className="mt-4 text-[9px] font-black text-rose-500 uppercase italic flex items-center gap-1">
+                                        <InformationCircleIcon className="w-3 h-3" /> Please update your bank details in settings
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="bg-amber-50 p-6 rounded-[2rem] border border-amber-100">
+                                <p className="text-[10px] font-bold text-amber-700 leading-relaxed italic">
+                                    Requests are processed within 24-48 business hours. You will receive an SMS and Portal notification once the funds are disbursed.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={handleWithdrawalRequest}
+                                disabled={netEarnings <= 0 || !landlord.bankDetails}
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-emerald-100 disabled:opacity-50"
+                            >
+                                CONFIRM WITHDRAWAL
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
