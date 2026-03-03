@@ -87,6 +87,7 @@ import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { TimetableWizard } from './TimetableWizard';
 import { ParentView } from './ParentView';
 import { CountyManager } from './CountyManager';
+import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -2480,6 +2481,26 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                         >
                                             {isSavingConfigs ? 'Synchronizing...' : 'Save Marketplace Config'}
                                         </button>
+                                    </div>
+
+                                    <div className="pt-12 border-t border-slate-200 dark:border-slate-700">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-6 italic">Live Preview</h3>
+                                        <div className="h-[600px] border-[8px] border-slate-900 rounded-[3rem] overflow-hidden shadow-2xl relative bg-slate-50 dark:bg-slate-950">
+                                            {/* Top bar simulating browser */}
+                                            <div className="h-8 bg-slate-900 w-full flex items-center px-4 gap-2 absolute top-0 left-0 z-10">
+                                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                                <div className="ml-4 flex-1 h-5 bg-slate-800 rounded text-[9px] text-slate-400 flex items-center px-3 font-mono">
+                                                    {localCompanyInfo.marketplaceConfig?.customUrl || 'https://marketplace.edualloc.com'}
+                                                </div>
+                                            </div>
+                                            <div className="pt-8 h-full overflow-y-auto">
+                                                <div className="origin-top scale-[0.80] w-[125%] h-[125%]">
+                                                    <PropertyMarketplaceView />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             )}
