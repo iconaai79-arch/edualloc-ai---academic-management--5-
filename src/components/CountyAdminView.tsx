@@ -274,7 +274,13 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
-    ];
+    ].filter(opt => {
+        const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(selectedTenantForPerspective?.institutionType || '');
+        if (isEdu) {
+            return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
+        }
+        return true;
+    });
 
     const [showFundModal, setShowFundModal] = useState(false);
     const [editingFund, setEditingFund] = useState<CountyBursaryFund | null>(null);
