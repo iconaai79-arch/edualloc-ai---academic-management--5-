@@ -48,7 +48,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     },
     marketplaceConfig: {
         pricingAmount: 150,
-        customUrl: "https://your-marketplace.com"
+        customUrl: "https://marketplace.eduai.co.ke"
     }
 };
 

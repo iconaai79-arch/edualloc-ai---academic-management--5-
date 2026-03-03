@@ -280,7 +280,13 @@ export const App: React.FC = () => {
 
     const [showGuestPortal, setShowGuestPortal] = useState(false);
     const [showGuestFeedback, setShowGuestFeedback] = useState(false);
-    const [showMarketplace, setShowMarketplace] = useState(false);
+    const [showMarketplace, setShowMarketplace] = useState(() => {
+        try {
+            return window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
+        } catch (e) {
+            return false;
+        }
+    });
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
     // 2FA State
@@ -415,7 +421,19 @@ export const App: React.FC = () => {
 
             if (insts && insts.length > 0) setInstitutions(insts);
             if (cnts && cnts.length > 0) setCounties(cnts);
-            if (sett) setCompanyDetails(sett);
+            if (sett) {
+                setCompanyDetails(sett);
+                if (sett.marketplaceConfig?.customUrl) {
+                    try {
+                        const marketUrl = new URL(sett.marketplaceConfig.customUrl);
+                        if (window.location.hostname === marketUrl.hostname) {
+                            setShowMarketplace(true);
+                        }
+                    } catch (e) {
+                        console.warn("Invalid marketplace URL:", e);
+                    }
+                }
+            }
 
             let finalUsers = u || [];
             const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
