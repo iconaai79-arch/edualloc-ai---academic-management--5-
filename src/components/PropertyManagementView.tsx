@@ -836,7 +836,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveListing = async (data: any) => {
         try {
             await apiService.saveModuleRecord('pm_listings', {
-                ...data,
+                ...data, // includes propertyId which API maps to property_id
+                propertyId: data.propertyId, // Explicitly ensure it is passed
+                unitId: data.unitId || null,
                 id: data.id || `list_${Date.now()}`,
                 institutionId,
                 status: data.status || 'Active',
@@ -864,6 +866,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         Active Public Advertisements ({listings.length} / {currentInstitution.listingQuota || 'Unlimited'})
                     </p>
                 </div>
+                <button
+                    onClick={() => setShowListingModal(true)}
+                    className="btn-primary flex items-center gap-2 h-12 shadow-indigo-100 dark:shadow-none uppercase tracking-widest text-[10px]"
+                >
+                    <PlusIcon className="w-4 h-4" /> New Ad Listing
+                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1567,6 +1575,61 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <button type="submit" className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">Submit Request</button>
                 </form>
             </Modal>
+            <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="New Marketplace Listing">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveListing({
+                        title: formData.get('title') as string,
+                        propertyId: formData.get('propertyId') as string,
+                        unitId: formData.get('unitId') as string || null,
+                        description: formData.get('description') as string,
+                        price: parseFloat(formData.get('price') as string) || 0,
+                        listingType: formData.get('listingType') as string,
+                        status: formData.get('status') as string,
+                    });
+                }} className="space-y-6">
+                    <select name="propertyId" required className="form-select">
+                        <option value="">Select Target Property...</option>
+                        {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Listing Title</label>
+                        <input name="title" required className="form-input" placeholder="e.g. Spacious 2BR Apartment in Westlands" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Market Objective</label>
+                            <select name="listingType" className="form-select">
+                                <option value="Rent">For Rent</option>
+                                <option value="Sale">For Sale</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Asking Price (KES)</label>
+                            <input name="price" type="number" required className="form-input" placeholder="0.00" />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description</label>
+                        <textarea name="description" required className="form-input h-32" placeholder="Detail the prime features of this property..."></textarea>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Visibility Status</label>
+                        <select name="status" className="form-select">
+                            <option value="Draft">Save as Draft (Hidden)</option>
+                            <option value="Published">Publish to Marketplace</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" className="btn-primary w-full h-14 mt-4 text-[10px]">Create Advertisement</button>
+                </form>
+            </Modal>
+
         </div>
     );
 };
