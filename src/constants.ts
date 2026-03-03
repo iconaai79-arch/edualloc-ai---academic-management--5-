@@ -45,6 +45,10 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     chatAssistantConfig: {
         enabled: true,
         welcomeMessage: "Hello! I am your academic assistant. How can I help you today?"
+    },
+    marketplaceConfig: {
+        pricingAmount: 150,
+        customUrl: "https://your-marketplace.com"
     }
 };
 

@@ -369,7 +369,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace'>('profile');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -1856,6 +1856,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                 >
                                     <CurrencyIcon className="w-4 h-4" /> SMS Pricing
                                 </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('marketplace')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'marketplace' ? 'border-orange-600 text-orange-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <ShoppingCartIcon className="w-4 h-4" /> Marketplace
+                                </button>
                             </nav>
                         </div>
 
@@ -2415,6 +2421,64 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                             className="btn-primary px-12 h-14 shadow-indigo-100 uppercase tracking-widest text-xs"
                                         >
                                             {isSavingConfigs ? 'Synchronizing...' : 'Sync Pricing Map'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {settingsSubTab === 'marketplace' && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in shadow-xl shadow-orange-50/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                                            <ShoppingCartIcon className="w-6 h-6 text-orange-600" />
+                                        </div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Public Marketplace Settings</h3>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Marketplace URL</label>
+                                            <input
+                                                type="text"
+                                                value={localCompanyInfo.marketplaceConfig?.customUrl || ''}
+                                                onChange={e => setLocalCompanyInfo({
+                                                    ...localCompanyInfo,
+                                                    marketplaceConfig: {
+                                                        pricingAmount: localCompanyInfo.marketplaceConfig?.pricingAmount || 150,
+                                                        customUrl: e.target.value
+                                                    }
+                                                })}
+                                                className="form-input"
+                                                placeholder="e.g. https://marketplace.edualloc.com"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">The public base URL for property listings and sales.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Advertising / Lead Pricing (KES)</label>
+                                            <input
+                                                type="number"
+                                                value={localCompanyInfo.marketplaceConfig?.pricingAmount || ''}
+                                                onChange={e => setLocalCompanyInfo({
+                                                    ...localCompanyInfo,
+                                                    marketplaceConfig: {
+                                                        customUrl: localCompanyInfo.marketplaceConfig?.customUrl || '',
+                                                        pricingAmount: parseInt(e.target.value) || 0
+                                                    }
+                                                })}
+                                                className="form-input font-bold text-lg"
+                                                placeholder="e.g. 150"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">Charge per ad or lead generated for tenants.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t flex justify-end">
+                                        <button
+                                            onClick={handleSaveGlobalConfigs}
+                                            disabled={isSavingConfigs}
+                                            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-12 h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-orange-100/50 dark:shadow-none transition-all"
+                                        >
+                                            {isSavingConfigs ? 'Synchronizing...' : 'Save Marketplace Config'}
                                         </button>
                                     </div>
                                 </div>

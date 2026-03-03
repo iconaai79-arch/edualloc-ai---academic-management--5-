@@ -448,6 +448,10 @@ export interface CompanyDetails {
     phone: string;
     website: string;
     logoUrl: string | null;
+    marketplaceConfig?: {
+        pricingAmount: number;
+        customUrl: string;
+    };
     footerImageUrl?: string | null;
     applicationTitle?: string;
     themeColor?: string;
