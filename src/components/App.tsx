@@ -2452,11 +2452,23 @@ export const App: React.FC = () => {
                     <>
                         <LoginView
                             onLogin={(e, p) => {
-                                const u = (users || []).find(user =>
+                                const matchedUsers = (users || []).filter(user =>
                                     user &&
                                     (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
                                     (user.password === p || (!user.password && p === 'password123'))
                                 );
+
+                                // Prioritize administrative roles over portal/client roles
+                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin'];
+                                matchedUsers.sort((a, b) => {
+                                    const indexA = rolePriority.indexOf(a.role);
+                                    const indexB = rolePriority.indexOf(b.role);
+                                    const scoreA = indexA === -1 ? 999 : indexA;
+                                    const scoreB = indexB === -1 ? 999 : indexB;
+                                    return scoreA - scoreB;
+                                });
+
+                                const u = matchedUsers[0];
                                 if (u) {
                                     const inst = institutions.find(i => i.id === u.institutionId);
                                     if (inst?.status === 'suspended' && u.role !== 'super_admin') {
