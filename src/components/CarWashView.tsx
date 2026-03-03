@@ -133,6 +133,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         start: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0]
     });
+    const [cashbookPeriod, setCashbookPeriod] = useState({
+        start: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState('');
@@ -664,6 +668,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         },
                         databaseConfig: {
                             provider: 'supabase' as const,
+                            dbType: 'postgresql' as const,
+                            host: '',
+                            port: '5432',
+                            username: '',
+                            dbName: '',
                             connectionUrl: '',
                             poolSize: 10
                         },
@@ -2033,9 +2042,16 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <h3 className="font-black uppercase tracking-widest text-sm">General Journal / Cashbook</h3>
                                     <p className="text-xs text-slate-400 mt-1">All standardized accounting entries across the module.</p>
                                 </div>
-                                <button onClick={handleExportCashbook} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
-                                    <DocumentTextIcon className="w-4 h-4" /> Export PDF
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <input type="date" value={cashbookPeriod.start} onChange={e => setCashbookPeriod({ ...cashbookPeriod, start: e.target.value })} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 shadow-sm" />
+                                        <span className="text-slate-400 text-xs font-bold uppercase">to</span>
+                                        <input type="date" value={cashbookPeriod.end} onChange={e => setCashbookPeriod({ ...cashbookPeriod, end: e.target.value })} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 shadow-sm" />
+                                    </div>
+                                    <button onClick={handleExportCashbook} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
+                                        <DocumentTextIcon className="w-4 h-4" /> Export PDF
+                                    </button>
+                                </div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left whitespace-nowrap">
@@ -2049,42 +2065,72 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                        {journalEntries.flatMap(entry => {
-                                            const lines = journalLines.filter(l => l.entryId === entry.id);
-                                            return lines.map((line, idx) => (
-                                                <tr key={line.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group">
-                                                    {idx === 0 ? (
-                                                        <>
-                                                            <td className="px-6 py-4 text-xs font-bold text-slate-500 align-top" rowSpan={lines.length}>
-                                                                {new Date(entry.entryDate).toLocaleDateString()}
+                                        {(() => {
+                                            const filteredEntries = journalEntries.filter(e => {
+                                                const d = e.entryDate?.split('T')[0];
+                                                if (!d) return true;
+                                                return d >= cashbookPeriod.start && d <= cashbookPeriod.end;
+                                            }).sort((a, b) => new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime());
+
+                                            return (
+                                                <>
+                                                    {filteredEntries.flatMap(entry => {
+                                                        const lines = journalLines.filter(l => l.entryId === entry.id);
+                                                        return lines.map((line, idx) => (
+                                                            <tr key={line.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group">
+                                                                {idx === 0 ? (
+                                                                    <>
+                                                                        <td className="px-6 py-4 text-xs font-bold text-slate-500 align-top" rowSpan={lines.length}>
+                                                                            {new Date(entry.entryDate).toLocaleDateString()}
+                                                                        </td>
+                                                                        <td className="px-6 py-4 align-top" rowSpan={lines.length}>
+                                                                            <p className="font-black text-xs">{entry.entryNumber}</p>
+                                                                            <p className="text-xs text-slate-400 italic max-w-xs truncate" title={entry.description}>{entry.description}</p>
+                                                                        </td>
+                                                                    </>
+                                                                ) : null}
+                                                                <td className={`px-6 py-3 font-semibold text-xs ${line.credit > 0 ? 'pl-10 text-slate-500' : ''}`}>
+                                                                    {accounts.find(a => a.id === line.accountId)?.name || 'Unknown Account'}
+                                                                </td>
+                                                                <td className="px-6 py-3 text-right font-black text-emerald-600">
+                                                                    {line.debit > 0 ? line.debit.toLocaleString() : ''}
+                                                                </td>
+                                                                <td className="px-6 py-3 text-right font-black text-rose-500">
+                                                                    {line.credit > 0 ? line.credit.toLocaleString() : ''}
+                                                                </td>
+                                                            </tr>
+                                                        ));
+                                                    })}
+                                                    {filteredEntries.length === 0 && (
+                                                        <tr>
+                                                            <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                                                <ArchiveBoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                                <p className="font-bold">No journal entries found for this period.</p>
                                                             </td>
-                                                            <td className="px-6 py-4 align-top" rowSpan={lines.length}>
-                                                                <p className="font-black text-xs">{entry.entryNumber}</p>
-                                                                <p className="text-xs text-slate-400 italic max-w-xs truncate" title={entry.description}>{entry.description}</p>
-                                                            </td>
-                                                        </>
-                                                    ) : null}
-                                                    <td className={`px-6 py-3 font-semibold text-xs ${line.credit > 0 ? 'pl-10 text-slate-500' : ''}`}>
-                                                        {accounts.find(a => a.id === line.accountId)?.name || 'Unknown Account'}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-right font-black text-emerald-600">
-                                                        {line.debit > 0 ? line.debit.toLocaleString() : ''}
-                                                    </td>
-                                                    <td className="px-6 py-3 text-right font-black text-rose-500">
-                                                        {line.credit > 0 ? line.credit.toLocaleString() : ''}
-                                                    </td>
-                                                </tr>
-                                            ));
-                                        })}
-                                        {journalEntries.length === 0 && (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                                                    <ArchiveBoxIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                                                    <p className="font-bold">No journal entries found.</p>
-                                                </td>
-                                            </tr>
-                                        )}
+                                                        </tr>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </tbody>
+                                    <tfoot className="bg-slate-50 dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-700 font-black text-sm">
+                                        {(() => {
+                                            const filteredEntries = journalEntries.filter(e => {
+                                                const d = e.entryDate?.split('T')[0];
+                                                if (!d) return true;
+                                                return d >= cashbookPeriod.start && d <= cashbookPeriod.end;
+                                            });
+                                            const totalDebit = filteredEntries.reduce((sum, e) => sum + journalLines.filter(l => l.entryId === e.id).reduce((s, l) => s + (l.debit || 0), 0), 0);
+                                            const totalCredit = filteredEntries.reduce((sum, e) => sum + journalLines.filter(l => l.entryId === e.id).reduce((s, l) => s + (l.credit || 0), 0), 0);
+                                            return (
+                                                <tr>
+                                                    <td colSpan={3} className="px-6 py-4 text-right text-xs uppercase tracking-widest text-slate-500">Running Total / Period Balance:</td>
+                                                    <td className="px-6 py-4 text-right text-emerald-600">{totalDebit.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right text-rose-500">{totalCredit.toLocaleString()}</td>
+                                                </tr>
+                                            );
+                                        })()}
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>
