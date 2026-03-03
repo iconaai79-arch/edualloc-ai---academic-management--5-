@@ -46,6 +46,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [showListingModal, setShowListingModal] = useState(false);
+    const [newListingImages, setNewListingImages] = useState<string[]>([]);
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
 
     const [search, setSearch] = useState('');
@@ -833,18 +834,44 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (newListingImages.length + files.length > 5) {
+            alert('You can only upload up to 5 images per listing.');
+            return;
+        }
+
+        files.forEach(file => {
+            if (file.size > 2 * 1024 * 1024) {
+                alert(`File ${file.name} is larger than 2MB.`);
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result as string;
+                setNewListingImages(prev => {
+                    const next = [...prev, base64String];
+                    return next.slice(0, 5);
+                });
+            };
+            if (file) reader.readAsDataURL(file);
+        });
+    };
+
     const handleSaveListing = async (data: any) => {
         try {
             await apiService.saveModuleRecord('pm_listings', {
                 ...data, // includes propertyId which API maps to property_id
                 propertyId: data.propertyId, // Explicitly ensure it is passed
                 unitId: data.unitId || null,
+                images: newListingImages,
                 id: data.id || `list_${Date.now()}`,
                 institutionId,
                 status: data.status || 'Active',
                 createdAt: new Date().toISOString()
             });
             setShowListingModal(false);
+            setNewListingImages([]);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save listing"); }
     };
@@ -1616,6 +1643,35 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description</label>
                         <textarea name="description" required className="form-input h-32" placeholder="Detail the prime features of this property..."></textarea>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Property Images ({newListingImages.length}/5)</label>
+                            {newListingImages.length < 5 && (
+                                <label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 cursor-pointer hover:underline">
+                                    + Add Image
+                                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                </label>
+                            )}
+                        </div>
+
+                        {newListingImages.length > 0 && (
+                            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                                {newListingImages.map((img, idx) => (
+                                    <div key={idx} className="relative flex-none w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm group">
+                                        <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewListingImages(prev => prev.filter((_, i) => i !== idx))}
+                                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-2">
