@@ -725,9 +725,10 @@ export interface Visitor {
 export interface Requisition {
     id: string;
     institutionId: string;
+    storeId?: string;
     requestedBy: string;
     requestedDate: string;
-    items: any[];
+    items: { name: string; quantity: number; unitCost: number; unit: string }[];
     totalEstimatedCost: number;
     status: string;
     supplierId?: string;
@@ -735,6 +736,7 @@ export interface Requisition {
     rejectionReason?: string;
     supplierResponse?: 'accepted' | 'rejected';
     deliveryEta?: string;
+    receivedDate?: string;
 }
 
 export type TransactionStatus = 'completed' | 'failed' | 'pending';
@@ -2060,4 +2062,152 @@ export interface PMListing {
     inquiryCount: number;
     institutionId: string;
     createdAt: string;
+}
+
+// ============================================================================
+// RETAIL & AGENCY MODULE TYPES
+// ============================================================================
+
+export type RetailStoreType = 'main_store' | 'branch_store' | 'van_stock' | 'warehouse';
+export type RetailItemStatus = 'in_stock' | 'sold' | 'reserved' | 'in_transit' | 'defective';
+export type RetailTransferStatus = 'pending' | 'approved' | 'completed' | 'rejected' | 'cancelled';
+export type RetailWishlistUrgency = 'urgent' | 'casual';
+
+export interface RetailStore {
+    id: string;
+    institutionId: string;
+    name: string;
+    storeType: RetailStoreType;
+    location?: string;
+    storeManagerId?: string; // Optional: user ID of the manager
+    agentId?: string;        // If type='van_stock', the user ID of the field agent
+    isActive: boolean;
+    mpesaConfig?: MpesaConfig; // Store-specific MPESA credentials
+    createdAt: string;
+}
+
+export interface RetailExpense {
+    id: string;
+    institutionId: string;
+    storeId: string;
+    amount: number;
+    category: string;
+    description: string;
+    date: string;
+    recordedById: string;
+}
+
+export interface RetailInventoryItem {
+    id: string;
+    institutionId: string;
+    name: string;
+    category: string;
+    description?: string;
+    basePrice: number;       // The minimum acceptable selling price
+    srpPrice: number;        // Suggested Retail Price
+    unit: string;
+    imageUrl?: string;
+    reorderLevel: number;
+    marketplaceEnabled: boolean;
+    bufferStock: number;     // Quantity held back from online sales
+    createdAt: string;
+}
+
+// A junction table to show how much of a RetailInventoryItem is in a specific RetailStore
+export interface RetailStoreStock {
+    id: string;
+    storeId: string;
+    itemId: string;
+    quantity: number;
+}
+
+// Tracks individual high-value items (e.g., phones by IMEI, printers by Serial No.)
+export interface RetailSerializedItem {
+    id: string;
+    institutionId: string;
+    itemId: string;          // Links to RetailInventoryItem
+    storeId: string;         // The store it's currently located in
+    serialNumber: string;    // IMEI or Serial Number
+    status: RetailItemStatus;
+    costPrice: number;
+    soldPrice?: number;
+    saleId?: string;         // Links to an AgrovetSale or generic RetailSale
+    createdAt: string;
+}
+
+export interface RetailStockTransfer {
+    id: string;
+    institutionId: string;
+    sourceStoreId: string;
+    destinationStoreId: string;
+    requestedById: string;
+    approvedById?: string;
+    status: RetailTransferStatus;
+    notes?: string;
+    createdAt: string;
+    completedAt?: string;
+}
+
+export interface RetailStockTransferItem {
+    id: string;
+    transferId: string;
+    itemId: string;
+    quantity: number;
+    // Optionally track exactly which serial numbers were transferred:
+    serialNumbers?: string[];
+}
+
+export interface RetailWishlist {
+    id: string;
+    institutionId: string;
+    customerName: string;
+    phoneNumber: string;
+    productQuery: string;
+    maxBudget?: number;
+    urgency: RetailWishlistUrgency;
+    capturedById: string;    // User ID of the agent who logged the lead
+    isMatched: boolean;
+    notifiedAt?: string;
+    createdAt: string;
+}
+
+export interface RetailCommissionLedger {
+    id: string;
+    institutionId: string;
+    agentId: string;         // User ID of the field agent
+    saleId: string;
+    itemId: string;
+    serialNumber?: string;
+    basePrice: number;
+    soldPrice: number;
+    commissionAmount: number;
+    isPaid: boolean;
+    createdAt: string;
+}
+
+export interface RetailSaleItem {
+    itemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    serialNumber?: string;
+}
+
+export interface RetailSale {
+    id: string;
+    institutionId: string;
+    storeId: string;
+    agentId?: string;        // Present if sold by a van agent
+    totalAmount: number;
+    paymentMethod: string;
+    items: RetailSaleItem[];
+    customerName?: string;
+    customerPhone?: string;
+    createdAt: string;
+}
+basePrice: number;
+soldPrice: number;
+commissionAmount: number; // (soldPrice - basePrice) or custom logic
+isPaid: boolean;
+createdAt: string;
 }

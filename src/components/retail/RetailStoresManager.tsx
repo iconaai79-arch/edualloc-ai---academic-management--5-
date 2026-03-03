@@ -1,0 +1,289 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { RetailStore, MpesaConfig } from '../../types';
+import { Store, Truck, Plus, Search, MapPin, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, CreditCard } from 'lucide-react';
+
+interface RetailStoresManagerProps {
+    institutionId: string;
+}
+
+export function RetailStoresManager({ institutionId }: RetailStoresManagerProps) {
+    const [stores, setStores] = useState<RetailStore[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState<string>('all');
+    const [selectedStore, setSelectedStore] = useState<RetailStore | null>(null);
+    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+    const [config, setConfig] = useState<MpesaConfig>({
+        paybillNumber: '',
+        accountNumber: '',
+        consumerKey: '',
+        consumerSecret: '',
+        passkey: ''
+    });
+
+    useEffect(() => {
+        fetchStores();
+    }, [institutionId]);
+
+    const fetchStores = async () => {
+        if (!supabase) {
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('retail_stores')
+                .select('*')
+                .eq('institution_id', institutionId);
+
+            if (data) {
+                setStores(data.map(s => ({
+                    ...s,
+                    mpesaConfig: s.mpesa_config // Map snake_case to camelCase
+                })));
+            }
+        } catch (err) {
+            console.error("Fetch error:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSaveConfig = async () => {
+        if (!selectedStore || !supabase) return;
+
+        try {
+            const { error } = await supabase
+                .from('retail_stores')
+                .update({ mpesa_config: config })
+                .eq('id', selectedStore.id);
+
+            if (error) throw error;
+
+            setStores(prev => prev.map(s => s.id === selectedStore.id ? { ...s, mpesaConfig: config } : s));
+            setIsConfigModalOpen(false);
+            setSelectedStore(null);
+            alert('Configuration saved successfully!');
+        } catch (err) {
+            console.error("Save error:", err);
+            alert('Failed to save configuration');
+        }
+    };
+
+    const openConfig = (store: RetailStore) => {
+        setSelectedStore(store);
+        setConfig(store.mpesaConfig || {
+            paybillNumber: '',
+            accountNumber: '',
+            consumerKey: '',
+            consumerSecret: '',
+            passkey: ''
+        });
+        setIsConfigModalOpen(true);
+    };
+
+    const filteredStores = stores.filter(store => {
+        const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (store.location && store.location.toLowerCase().includes(searchQuery.toLowerCase()));
+        const matchesType = filterType === 'all' || store.storeType === filterType;
+        return matchesSearch && matchesType;
+    });
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800 tracking-tight">Stores & Agent Locations</h2>
+                    <p className="text-slate-500 text-sm mt-1">Manage physical branches and van stock for field agents.</p>
+                </div>
+
+                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium">
+                    <Plus className="w-4 h-4" />
+                    Add Location
+                </button>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                <div className="relative w-full sm:w-96">
+                    <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="Search stores or agents..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    />
+                </div>
+
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="w-full sm:w-auto px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm bg-slate-50"
+                    >
+                        <option value="all">All Locations</option>
+                        <option value="main_store">Main Stores</option>
+                        <option value="branch_store">Branch Stores</option>
+                        <option value="van_stock">Van Stock (Agents)</option>
+                        <option value="warehouse">Warehouses</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* Stores List */}
+            {isLoading ? (
+                <div className="flex justify-center py-12">
+                    <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin"></div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredStores.map(store => (
+                        <div key={store.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group relative">
+                            <div className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                <MoreVertical className="w-5 h-5" />
+                            </div>
+
+                            <div className="p-6">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${store.storeType === 'van_stock' ? 'bg-indigo-50 text-indigo-600' :
+                                    store.storeType === 'main_store' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                                    }`}>
+                                    {store.storeType === 'van_stock' ? <Truck className="w-6 h-6" /> : <Store className="w-6 h-6" />}
+                                </div>
+
+                                <h3 className="font-semibold text-slate-800 text-lg pr-6 truncate">{store.name}</h3>
+
+                                <div className="mt-2 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                        <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                        <span className="truncate">{store.location || 'No location set'}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                        {store.isActive ? (
+                                            <><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" /><span>Active Location</span></>
+                                        ) : (
+                                            <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span>Inactive</span></>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-slate-100 bg-slate-50 p-4 flex flex-col gap-2 group-hover:bg-blue-50 transition-colors">
+                                <div className="flex justify-between items-center w-full">
+                                    <span className="text-sm font-medium text-slate-600 group-hover:text-blue-700">
+                                        {store.storeType === 'van_stock' ? 'View Assigned Stock' : 'Manage Inventory'}
+                                    </span>
+                                    <span className="text-slate-400 group-hover:text-blue-600 transition-colors">›</span>
+                                </div>
+                                <button
+                                    onClick={() => openConfig(store)}
+                                    className="mt-2 flex items-center gap-2 w-full py-1.5 px-3 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 transition-all"
+                                >
+                                    <CreditCard className="w-3 h-3" />
+                                    {store.mpesaConfig ? 'Update MPESA Config' : 'Setup Payments'}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+
+                    {filteredStores.length === 0 && (
+                        <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-slate-300">
+                            <Store className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                            <h3 className="text-lg font-medium text-slate-800">No locations found</h3>
+                            <p className="text-slate-500 mt-1">Try adjusting your search or add a new location.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+            {/* MPESA Config Modal */}
+            {isConfigModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">MPESA Integration</h3>
+                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">{selectedStore?.name}</p>
+                            </div>
+                            <button onClick={() => setIsConfigModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <XCircle className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Till/Paybill Number</label>
+                                    <input
+                                        type="text"
+                                        value={config.paybillNumber}
+                                        onChange={(e) => setConfig({ ...config, paybillNumber: e.target.value })}
+                                        className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="e.g. 174379"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Store Shortcode</label>
+                                    <input
+                                        type="text"
+                                        value={config.accountNumber}
+                                        onChange={(e) => setConfig({ ...config, accountNumber: e.target.value })}
+                                        className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="e.g. STORE001"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Consumer Key</label>
+                                <input
+                                    type="text"
+                                    value={config.consumerKey}
+                                    onChange={(e) => setConfig({ ...config, consumerKey: e.target.value })}
+                                    className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Consumer Secret</label>
+                                <input
+                                    type="password"
+                                    value={config.consumerSecret}
+                                    onChange={(e) => setConfig({ ...config, consumerSecret: e.target.value })}
+                                    className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Passkey</label>
+                                <input
+                                    type="password"
+                                    value={config.passkey}
+                                    onChange={(e) => setConfig({ ...config, passkey: e.target.value })}
+                                    className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setIsConfigModalOpen(false)}
+                                    className="flex-1 py-3 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all underline"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSaveConfig}
+                                    className="flex-[2] py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                                >
+                                    Save Configuration
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

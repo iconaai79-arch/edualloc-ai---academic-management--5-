@@ -1,0 +1,356 @@
+
+import React, { useState } from 'react';
+import {
+    ShoppingBag as ShoppingBagIcon,
+    Plus as PlusIcon,
+    FileText as FileIcon,
+    Truck as TruckIcon,
+    CheckCircle as CheckCircleIcon,
+    Clock as ClockIcon,
+    Printer as PrinterIcon,
+    Mail as MailIcon,
+    User as UserIcon,
+    Building as BuildingIcon,
+    MoreVertical as MoreVerticalIcon,
+    Eye as EyeIcon,
+    ArrowRight as ArrowRightIcon
+} from 'lucide-react';
+import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier } from '../types';
+
+interface ProcurementManagerProps {
+    requisitions: Requisition[];
+    onAddRequisition: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition: (reqId: string, data: Partial<Requisition>) => Promise<void>;
+    inventory: RetailInventoryItem[];
+    suppliers: Supplier[];
+    retailStores: RetailStore[];
+}
+
+export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
+    requisitions,
+    onAddRequisition,
+    onUpdateRequisition,
+    inventory,
+    suppliers,
+    retailStores
+}) => {
+    const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'requisitions' | 'lpos' | 'suppliers'>('dashboard');
+    const [selectedRequisition, setSelectedRequisition] = useState<Requisition | null>(null);
+    const [isLPOModalOpen, setIsLPOModalOpen] = useState(false);
+    const [selectedSupplierId, setSelectedSupplierId] = useState('');
+
+    const handleCreateLPO = async () => {
+        if (!selectedRequisition || !selectedSupplierId) return;
+
+        const lpoNumber = `LPO-${Math.floor(10000 + Math.random() * 90000)}`;
+        await onUpdateRequisition(selectedRequisition.id, {
+            status: 'ordered',
+            supplierId: selectedSupplierId,
+            lpoNumber
+        });
+
+        setIsLPOModalOpen(false);
+        setSelectedRequisition(null);
+        setSelectedSupplierId('');
+    };
+
+    const handleReceiveItems = async (req: Requisition) => {
+        if (!window.confirm(`Are you sure you have received items for ${req.lpoNumber}?`)) return;
+
+        await onUpdateRequisition(req.id, {
+            status: 'received',
+            receivedDate: new Date().toISOString()
+        });
+
+        // Note: The logic to actually update the inventory quantities in the database 
+        // should be handled in the App.tsx onUpdateRequisition handler or a dedicated 
+        // onMarkLPOReceived handler to ensure atomicity.
+    };
+
+    const getStatusColor = (status: Requisition['status']) => {
+        switch (status) {
+            case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200';
+            case 'approved': return 'bg-blue-100 text-blue-700 border-blue-200';
+            case 'ordered': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+            case 'received': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
+            default: return 'bg-slate-100 text-slate-700 border-slate-200';
+        }
+    };
+
+    return (
+        <div className="p-6 space-y-6">
+            <div className="flex justify-between items-end mb-8">
+                <div>
+                    <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Procurement Center</h2>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Manage Requisitions, LPOs and Vendor Relations</p>
+                </div>
+                <div className="flex gap-3">
+                    <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
+                        <PlusIcon className="w-4 h-4" />
+                        Quick Requisition
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700 mb-8 overflow-x-auto pb-1 no-scrollbar">
+                {[
+                    { id: 'dashboard', label: 'Overview', icon: <ShoppingBagIcon className="w-4 h-4" /> },
+                    { id: 'requisitions', label: 'Requisitions', icon: <FileIcon className="w-4 h-4" /> },
+                    { id: 'lpos', label: 'Purchase Orders', icon: <TruckIcon className="w-4 h-4" /> },
+                    { id: 'suppliers', label: 'Vendors', icon: <BuildingIcon className="w-4 h-4" /> },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveSubTab(tab.id as any)}
+                        className={`flex items-center gap-2 px-4 py-3 border-b-2 font-black uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${activeSubTab === tab.id
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-400 hover:text-slate-600'
+                            }`}
+                    >
+                        {tab.icon}
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {activeSubTab === 'dashboard' && (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Waitlist Approval', value: requisitions.filter(r => r.status === 'pending').length, icon: <ClockIcon className="text-amber-500" />, bg: 'bg-amber-50' },
+                            { label: 'Active LPOs', value: requisitions.filter(r => r.status === 'ordered').length, icon: <TruckIcon className="text-blue-500" />, bg: 'bg-blue-50' },
+                            { label: 'Received (MTD)', value: requisitions.filter(r => r.status === 'received').length, icon: <CheckCircleIcon className="text-green-500" />, bg: 'bg-green-50' },
+                            { label: 'Total Suppliers', value: suppliers.length, icon: <BuildingIcon className="text-slate-500" />, bg: 'bg-slate-50' },
+                        ].map((stat, i) => (
+                            <div key={i} className={`${stat.bg} p-6 rounded-[2rem] border border-white shadow-sm`}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-white rounded-2xl shadow-sm">{stat.icon}</div>
+                                </div>
+                                <p className="text-4xl font-black text-slate-900">{stat.value}</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">{stat.label}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-lg font-black uppercase tracking-tight">Recent Pending Requisitions</h3>
+                            <button onClick={() => setActiveSubTab('requisitions')} className="text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:underline">View All</button>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b border-slate-50 dark:border-slate-700">
+                                        <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                        <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Source</th>
+                                        <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Items</th>
+                                        <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                    {requisitions.filter(r => r.status === 'pending').slice(0, 5).map(req => (
+                                        <tr key={req.id} className="group hover:bg-slate-50 transition-colors">
+                                            <td className="py-4 text-xs font-bold text-slate-600">{new Date(req.requestedDate).toLocaleDateString()}</td>
+                                            <td className="py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                        <StoreIcon className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="text-xs font-black uppercase tracking-tight">{retailStores.find(s => s.id === req.storeId)?.name || 'Central'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 text-xs font-medium text-slate-500">
+                                                {req.items.length} Product(s)
+                                            </td>
+                                            <td className="py-4 text-right">
+                                                <button
+                                                    onClick={() => { setSelectedRequisition(req); setIsLPOModalOpen(true); }}
+                                                    className="px-4 py-1.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm"
+                                                >
+                                                    Generate LPO
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {requisitions.filter(r => r.status === 'pending').length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="py-12 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">No pending requisitions</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {(activeSubTab === 'requisitions' || activeSubTab === 'lpos') && (
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="border-b border-slate-50">
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">ID / LPO</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Requested By</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Supplier</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Total Items</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {requisitions
+                                .filter(r => activeSubTab === 'requisitions' ? r.status === 'pending' || r.status === 'rejected' : r.status !== 'pending' && r.status !== 'rejected')
+                                .map(req => (
+                                    <tr key={req.id} className="group hover:bg-slate-50 transition-colors">
+                                        <td className="py-5">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-black text-slate-900">{req.lpoNumber || req.id.slice(0, 8)}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{new Date(req.requestedDate).toLocaleDateString()}</span>
+                                            </div>
+                                        </td>
+                                        <td className="py-5">
+                                            <span className="text-xs font-bold text-slate-600 tracking-tight">{retailStores.find(s => s.id === req.storeId)?.name || 'Central Admin'}</span>
+                                        </td>
+                                        <td className="py-5">
+                                            <span className="text-xs font-bold text-slate-600 tracking-tight">{suppliers.find(s => s.id === req.supplierId)?.name || 'Not Assigned'}</span>
+                                        </td>
+                                        <td className="py-5">
+                                            <span className="text-xs font-medium text-slate-500">{req.items.length} items</span>
+                                        </td>
+                                        <td className="py-5">
+                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getStatusColor(req.status)}`}>
+                                                {req.status}
+                                            </span>
+                                        </td>
+                                        <td className="py-5 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                {req.status === 'pending' && (
+                                                    <button
+                                                        onClick={() => { setSelectedRequisition(req); setIsLPOModalOpen(true); }}
+                                                        className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Generate LPO"
+                                                    >
+                                                        <TruckIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {req.status === 'ordered' && (
+                                                    <button
+                                                        onClick={() => handleReceiveItems(req)}
+                                                        className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Mark as Received"
+                                                    >
+                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                <button className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-all shadow-sm">
+                                                    <PrinterIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {activeSubTab === 'suppliers' && (
+                <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm text-center py-32">
+                    <BuildingIcon className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Supplier Directory Integration in progress...</p>
+                </div>
+            )}
+
+            {/* LPO Generation Modal */}
+            {isLPOModalOpen && selectedRequisition && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Review & Generate LPO</h3>
+                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Transforming Requisition into Purchase Order</p>
+                            </div>
+                            <button onClick={() => setIsLPOModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <PlusIcon className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 space-y-8">
+                            <div className="grid grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Requesting Location</label>
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
+                                        <StoreIcon className="w-5 h-5 text-indigo-600" />
+                                        <span className="font-black text-slate-900 uppercase text-xs tracking-tight">
+                                            {retailStores.find(s => s.id === selectedRequisition.storeId)?.name || 'Central Admin'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Select Supplier</label>
+                                    <select
+                                        value={selectedSupplierId}
+                                        onChange={(e) => setSelectedSupplierId(e.target.value)}
+                                        className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs font-bold uppercase tracking-tight focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                    >
+                                        <option value="">- Choose a Vendor -</option>
+                                        {suppliers.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.contactPerson})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Order Items</label>
+                                <div className="border border-slate-100 rounded-3xl overflow-hidden">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400">Item Name</th>
+                                                <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                                <th className="px-6 py-3 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Est. Unit Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {selectedRequisition.items.map((item, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="px-6 py-4 text-xs font-bold text-slate-700 uppercase tracking-tight">{item.name}</td>
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-900 text-center">{item.quantity} {item.unit}</td>
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-900 text-right">KES {item.unitCost?.toLocaleString() || '0'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    onClick={() => setIsLPOModalOpen(false)}
+                                    className="flex-1 px-8 py-4 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all font-sans"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    disabled={!selectedSupplierId}
+                                    onClick={handleCreateLPO}
+                                    className="flex-[2] px-8 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-sans"
+                                >
+                                    Confirm & Generate LPO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Helper Icon for clarity within the component
+const StoreIcon = ({ className }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    </svg>
+);

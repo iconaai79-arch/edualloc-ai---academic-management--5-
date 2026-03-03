@@ -12,7 +12,7 @@ import type {
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
-    Submission, UserUpdateData, County, Assignment
+    Submission, UserUpdateData, County, Assignment, RetailExpense
 } from '../types';
 import { UserManager } from './UserManager';
 import { TimetableGenerator } from './TimetableGenerator';
@@ -24,6 +24,8 @@ import { CommunicationsManager } from './CommunicationsManager';
 import { ReportsDashboard } from './ReportsDashboard';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { SubscriptionManager } from './SubscriptionManager';
+import { RetailManager } from './retail/RetailManager';
+import { ProcurementManager } from './ProcurementManager';
 
 import {
     ClipboardListIcon,
@@ -52,6 +54,7 @@ import {
     MapPinIcon,
     HomeIcon
 } from './icons/index';
+import { Store as StoreIcon, ShoppingBag as ShoppingBagIcon } from 'lucide-react';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
 import { TimetablesView } from './TimetablesView';
@@ -253,13 +256,20 @@ export interface AdminViewProps {
     onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
     onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
     onConfirmReceipt?: (recordId: string) => Promise<void>;
+    retailExpenses?: RetailExpense[];
+    onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
+    onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
+    retailStores?: RetailStore[];
+    inventory?: RetailInventoryItem[];
+    suppliers?: Supplier[];
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
-    const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes } = props;
+    const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [] } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -280,6 +290,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
+            { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
@@ -670,6 +682,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
+                {activeTab === 'retail' && (
+                    <RetailManager
+                        institutionId={props.currentInstitution!.id!}
+                        currentUser={props.currentUser}
+                        retailStores={retailStores}
+                        inventory={inventory}
+                        retailExpenses={retailExpenses}
+                        onAddRetailExpense={props.onAddRetailExpense}
+                    />
+                )}
+
                 {activeTab === 'settings' && (
                     <SettingsManager
                         {...props}
@@ -694,6 +717,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onRefreshData={props.onRefreshData}
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         examTimetableSettings={props.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                    />
+                )}
+
+                {activeTab === 'procurement' && (
+                    <ProcurementManager
+                        requisitions={props.requisitions || []}
+                        onAddRequisition={props.onAddRequisition!}
+                        onUpdateRequisition={props.onUpdateRequisition!}
+                        inventory={inventory}
+                        suppliers={suppliers}
+                        retailStores={retailStores}
                     />
                 )}
 

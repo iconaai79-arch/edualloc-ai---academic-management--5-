@@ -48,8 +48,8 @@ import type {
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
-    Vehicle, TransportOnboarding, VehicleLog, PMLandlord
-
+    Vehicle, TransportOnboarding, VehicleLog, PMLandlord,
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -234,6 +234,9 @@ export const App: React.FC = () => {
     const [visitors, setVisitors] = useState<Visitor[]>([]);
     const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
     const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+    const [retailExpenses, setRetailExpenses] = useState<RetailExpense[]>([]);
+    const [retailStores, setRetailStores] = useState<RetailStore[]>([]);
+    const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
     const [examTimetable, setExamTimetable] = useState<ExamTimetableEntry[]>([]);
     const [feedbackSubmissions, setFeedbackSubmissions] = useState<FeedbackSubmission[]>([]);
     const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
@@ -464,7 +467,7 @@ export const App: React.FC = () => {
 
             setActivityLog(logs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -500,6 +503,9 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
                 apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
                 apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
+                apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
+                apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', instId).catch(() => []),
                 apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
                 apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),
@@ -547,6 +553,9 @@ export const App: React.FC = () => {
             setVisitors(vis || []);
             setSecurityAlerts(sec || []);
             setRequisitions(req || []);
+            setRetailExpenses(retExp || []);
+            setRetailStores(rStores || []);
+            setRetailInventory(rInv || []);
             setTimeOffRequests(tor || []);
             setBulletinItems(fBulletin || []);
             setDocumentCollections(fDocs || []);
@@ -568,6 +577,76 @@ export const App: React.FC = () => {
     useEffect(() => {
         loadData(true);
     }, [loadData]);
+
+    const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
+        if (!activeInstitution || !currentUser) return;
+        const newReq: Requisition = {
+            ...req,
+            id: `req_${Date.now()}`,
+            status: 'pending',
+            requestedDate: new Date().toISOString(),
+            institutionId: activeInstitution.id
+        };
+        await apiService.saveModuleRecord('requisitions', newReq);
+        await handleLogAction(`Created requisition for ${req.totalEstimatedCost}`);
+        loadData();
+    };
+
+    const handleUpdateRequisition = async (reqId: string, data: Partial<Requisition>) => {
+        const existing = requisitions.find(r => r.id === reqId);
+        if (!existing) return;
+
+        const updated = { ...existing, ...data };
+        await apiService.saveModuleRecord('requisitions', updated);
+
+        // If newly marked as received, update inventory for the specific store
+        if (data.status === 'received' && existing.status !== 'received' && updated.storeId && activeInstitution) {
+            try {
+                // Fetch current stock to find existing records
+                const currentStock = await apiService.fetchModuleRecords<RetailStoreStock>('retail_store_stock', activeInstitution.id);
+
+                for (const item of updated.items) {
+                    const globalItem = retailInventory.find(ri => ri.name.toLowerCase() === item.name.toLowerCase());
+                    if (globalItem) {
+                        const existingStock = currentStock.find(s => s.storeId === updated.storeId && s.itemId === globalItem.id);
+
+                        if (existingStock) {
+                            await apiService.saveModuleRecord('retail_store_stock', {
+                                ...existingStock,
+                                quantity: Number(existingStock.quantity) + Number(item.quantity)
+                            });
+                        } else {
+                            await apiService.saveModuleRecord('retail_store_stock', {
+                                id: `rss_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                storeId: updated.storeId,
+                                itemId: globalItem.id,
+                                quantity: Number(item.quantity)
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to auto-update inventory:", err);
+            }
+        }
+
+        await handleLogAction(`Updated requisition ${reqId.slice(-6)}`);
+        loadData();
+    };
+
+    const handleAddRetailExpense = async (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => {
+        if (!activeInstitution || !currentUser) return;
+        const newEx: RetailExpense = {
+            ...expense,
+            id: `ret_exp_${Date.now()}`,
+            institutionId: activeInstitution.id,
+            date: new Date().toISOString(),
+            recordedById: currentUser.id
+        };
+        await apiService.saveModuleRecord('retail_expenses', newEx);
+        await handleLogAction(`Added store expense: ${expense.amount}`);
+        loadData();
+    };
 
     const handleLogout = () => {
         apiService.clearSession();
@@ -2178,6 +2257,13 @@ export const App: React.FC = () => {
                                     smsConfig={companyDetails.smsConfig}
                                     emailConfig={companyDetails.emailConfig}
                                     timetableConflicts={timetableConflicts}
+                                    retailExpenses={retailExpenses}
+                                    onAddRetailExpense={handleAddRetailExpense}
+                                    onAddRequisition={handleAddRequisition}
+                                    onUpdateRequisition={handleUpdateRequisition}
+                                    retailStores={retailStores}
+                                    inventory={retailInventory}
+                                    suppliers={suppliers}
                                     currentInstitution={activeInstitution}
                                     counties={counties}
                                     onAddUser={async (userData) => {
