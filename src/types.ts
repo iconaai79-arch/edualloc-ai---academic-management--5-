@@ -1919,12 +1919,26 @@ export type PMPaymentType = 'Rent' | 'Utility' | 'Deposit' | 'Other';
 export type PMPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 export type PMTicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 
+export interface PMLandlord {
+    id: string;
+    name: string;
+    phoneNumber: string;
+    email?: string;
+    idNumber?: string;
+    taxPin?: string;
+    bankDetails?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
 export interface PMProperty {
     id: string;
     name: string;
     address?: string;
     propertyType: PMPropertyType;
     totalUnits: number;
+    landlordId?: string;
+    commissionRate?: number;
     institutionId: string;
     createdAt: string;
 }
@@ -1977,6 +1991,8 @@ export interface PMPayment {
     periodMonth?: number;
     periodYear?: number;
     status: 'Completed' | 'Pending' | 'Cancelled';
+    commissionAmount?: number;
+    landlordPayoutStatus?: 'pending' | 'paid';
     institutionId: string;
     createdAt: string;
 }

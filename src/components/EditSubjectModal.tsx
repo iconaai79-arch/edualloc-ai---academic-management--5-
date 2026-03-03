@@ -109,16 +109,16 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     }, [courses, subject.id, pendingLevelIds]);
 
     const availableCoursesForAssociation = useMemo(() => {
-        let available = isSchool ? (courses || []) : (courses || []).filter(c => c && c.departmentId === (formData.departmentId || subject.departmentId));
+        let available = courses || [];
 
         if (courseSearchQuery.trim()) {
             const query = courseSearchQuery.toLowerCase();
-            available = (available || []).filter(c =>
+            available = available.filter(c =>
                 c && (c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query))
             );
         }
-        return available || [];
-    }, [courses, subject.departmentId, formData.departmentId, isSchool, courseSearchQuery]);
+        return available;
+    }, [courses, courseSearchQuery]);
 
     const levelsForSelectedCourse = useMemo(() => {
         if (!selectedCourseId) return [];

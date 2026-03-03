@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
-    PMPriority, PMTicketStatus
+    PMPriority, PMTicketStatus, PMLandlord
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -22,7 +22,9 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports'>('dashboard');
+
+    const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
     const [properties, setProperties] = useState<PMProperty[]>([]);
     const [units, setUnits] = useState<PMUnit[]>([]);
@@ -33,6 +35,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [loading, setLoading] = useState(true);
 
     // Modals
+    const [showLandlordModal, setShowLandlordModal] = useState(false);
     const [showPropertyModal, setShowPropertyModal] = useState(false);
     const [showUnitModal, setShowUnitModal] = useState(false);
     const [showTenantModal, setShowTenantModal] = useState(false);
@@ -45,7 +48,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [propList, unitList, tenantList, leaseList, paymentList, ticketList] = await Promise.all([
+            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList] = await Promise.all([
+                apiService.fetchModuleRecords<PMLandlord>('pm_landlords', institutionId),
                 apiService.fetchModuleRecords<PMProperty>('pm_properties', institutionId),
                 apiService.fetchModuleRecords<PMUnit>('pm_units', institutionId),
                 apiService.fetchModuleRecords<PMTenant>('pm_tenants', institutionId),
@@ -53,6 +57,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 apiService.fetchModuleRecords<PMPayment>('pm_payments', institutionId),
                 apiService.fetchModuleRecords<PMTicket>('pm_maintenance', institutionId),
             ]);
+            setLandlords(landlordList || []);
             setProperties(propList || []);
             setUnits(unitList || []);
             setTenants(tenantList || []);
@@ -68,9 +73,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     // Derived Stats
     const totalRentCollected = payments.filter(p => p.paymentType === 'Rent').reduce((sum, p) => sum + p.amount, 0);
+    const totalCommissionEarned = payments.reduce((sum, p) => sum + (p.commissionAmount || 0), 0);
     const activeLeases = leases.filter(l => l.status === 'Active');
     const vacantUnits = units.filter(u => u.status === 'Vacant');
     const openTickets = tickets.filter(t => t.status !== 'Resolved' && t.status !== 'Closed');
+
+    const handleSaveLandlord = async (data: Partial<PMLandlord>) => {
+        try {
+            const newLandlord: PMLandlord = {
+                id: `ll_${Date.now()}`,
+                name: data.name || '',
+                phoneNumber: data.phoneNumber || '',
+                email: data.email,
+                idNumber: data.idNumber,
+                taxPin: data.taxPin,
+                bankDetails: data.bankDetails,
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_landlords', newLandlord);
+            setShowLandlordModal(false);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to save landlord"); console.error(e); }
+    };
 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
         try {
@@ -80,13 +105,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 address: data.address,
                 propertyType: data.propertyType || 'Apartment',
                 totalUnits: 0,
+                landlordId: data.landlordId,
+                commissionRate: data.commissionRate || 0,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_properties', newProperty);
             setShowPropertyModal(false);
             loadData();
-        } catch (e) { console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save property"); console.error(e); }
     };
 
     const handleSaveUnit = async (data: Partial<PMUnit>) => {
@@ -106,7 +133,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
             setShowUnitModal(false);
             loadData();
-        } catch (e) { console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save unit"); console.error(e); }
     };
 
     const handleSaveTenant = async (data: Partial<PMTenant>) => {
@@ -123,7 +150,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             await apiService.saveModuleRecord('pm_tenants', newTenant);
             setShowTenantModal(false);
             loadData();
-        } catch (e) { console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save tenant"); console.error(e); }
     };
 
     const handleSaveLease = async (data: Partial<PMLease>) => {
@@ -151,8 +178,58 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
             setShowLeaseModal(false);
             loadData();
-        } catch (e) { console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save lease"); console.error(e); }
     };
+
+    const LandlordsTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {landlords.map(landlord => {
+                    const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
+                    return (
+                        <div key={landlord.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl group hover:shadow-2xl transition-all border-b-8 border-b-purple-600">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="p-4 bg-purple-600/10 rounded-2xl text-purple-600 group-hover:scale-110 transition-transform duration-500">
+                                    <UserPlusIcon className="w-8 h-8" />
+                                </div>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-2 group-hover:text-purple-600 transition-colors">{landlord.name}</h3>
+                            <div className="space-y-2 mt-6">
+                                <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-2">
+                                    <CreditCardIcon className="w-4 h-4" /> {landlord.phoneNumber}
+                                </p>
+                                {landlord.email && (
+                                    <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-2">
+                                        <UserIcon className="w-4 h-4" /> {landlord.email}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="mt-8 pt-8 border-t border-slate-50 dark:border-slate-700">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Properties Owned ({ownedProperties.length})</p>
+                                <div className="space-y-2">
+                                    {ownedProperties.map(p => (
+                                        <div key={p.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{p.name}</span>
+                                            <span className="text-[10px] font-black text-purple-600 bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded-md">{p.commissionRate}% Comm.</span>
+                                        </div>
+                                    ))}
+                                    {ownedProperties.length === 0 && <span className="text-xs text-slate-400 italic">No properties assigned yet.</span>}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+                {landlords.length === 0 && (
+                    <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[3rem]">
+                        <UserPlusIcon className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                        <h3 className="text-xl font-black text-slate-400 uppercase tracking-widest italic">No Landlords Found</h3>
+                        <p className="text-slate-500 mt-2 font-bold">Add property owners to track commission payouts.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 
     const PropertiesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -183,6 +260,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                     </p>
                                 </div>
                             </div>
+
+                            {property.landlordId && (
+                                <div className="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-2xl flex justify-between items-center border border-purple-100 dark:border-purple-800/30">
+                                    <div>
+                                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Landlord</p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{landlords.find(l => l.id === property.landlordId)?.name || 'Unknown'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Commission</p>
+                                        <p className="text-sm font-black text-purple-600 italic">{property.commissionRate}%</p>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-6 flex gap-3">
                                 <button className="flex-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2">
@@ -366,21 +456,41 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const handleSavePayment = async (data: Partial<PMPayment>) => {
         try {
+            // Calculate Commission
+            let commissionAmount = 0;
+            const amount = data.amount || 0;
+            const paymentType = data.paymentType || 'Rent';
+
+            if (paymentType === 'Rent' && data.leaseId) {
+                const lease = leases.find(l => l.id === data.leaseId);
+                if (lease) {
+                    const unit = units.find(u => u.id === lease.unitId);
+                    if (unit) {
+                        const property = properties.find(p => p.id === unit.propertyId);
+                        if (property && property.commissionRate && property.commissionRate > 0) {
+                            commissionAmount = (amount * property.commissionRate) / 100;
+                        }
+                    }
+                }
+            }
+
             const newPayment: PMPayment = {
                 id: `pay_${Date.now()}`,
                 leaseId: data.leaseId || '',
-                amount: data.amount || 0,
+                amount,
                 paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
                 paymentMethod: data.paymentMethod || 'M-Pesa',
-                paymentType: data.paymentType || 'Rent',
+                paymentType,
                 status: 'Completed',
+                commissionAmount,
+                landlordPayoutStatus: commissionAmount > 0 ? 'pending' : undefined,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_payments', newPayment);
             setShowPaymentModal(false);
             loadData();
-        } catch (e) { console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save payment"); console.error(e); }
     };
 
     const handleSaveTicket = async (data: Partial<PMTicket>) => {
@@ -575,6 +685,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             <PlusIcon className="w-5 h-5" /> Add Property
                         </button>
                     )}
+                    {activeTab === 'landlords' && (
+                        <button onClick={() => setShowLandlordModal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                            <UserPlusIcon className="w-5 h-5" /> Add Landlord
+                        </button>
+                    )}
                     {(activeTab === 'tenants' || activeTab === 'leases') && (
                         <button onClick={() => activeTab === 'tenants' ? setShowTenantModal(true) : setShowLeaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
                             <PlusIcon className="w-5 h-5" /> {activeTab === 'tenants' ? 'Onboard Tenant' : 'New Lease'}
@@ -596,8 +711,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
                         <h4 className="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Total Collection</h4>
                         <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected.toLocaleString()}</p>
-                        <div className="mt-4 flex items-center gap-2 text-emerald-500 font-bold text-xs">
-                            <TrendingUpIcon className="w-4 h-4" /> +12% vs last month
+                        <div className="mt-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs">
+                                <TrendingUpIcon className="w-4 h-4" /> +12% vs last month
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black uppercase text-purple-600 tracking-wider">Commission</p>
+                                <p className="text-sm font-black text-purple-600 italic">KES {totalCommissionEarned.toLocaleString()}</p>
+                            </div>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
@@ -620,6 +741,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {activeTab === 'properties' && <PropertiesTab />}
+            {activeTab === 'landlords' && <LandlordsTab />}
             {activeTab === 'tenants' && <TenantsTab />}
             {activeTab === 'leases' && <LeasesTab />}
             {activeTab === 'payments' && <PaymentsTab />}
@@ -634,6 +756,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         name: formData.get('name') as string,
                         address: formData.get('address') as string,
                         propertyType: formData.get('propertyType') as PMPropertyType,
+                        landlordId: formData.get('landlordId') as string,
+                        commissionRate: parseFloat(formData.get('commissionRate') as string) || 0,
                     });
                 }} className="space-y-6">
                     <div className="space-y-2">
@@ -653,7 +777,65 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             <option value="Warehouse">Warehouse</option>
                         </select>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Landlord (Optional)</label>
+                            <select name="landlordId" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                                <option value="">Select Landlord</option>
+                                {landlords.map(ll => <option key={ll.id} value={ll.id}>{ll.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Commission Rate (%)</label>
+                            <input name="commissionRate" type="number" step="0.1" defaultValue={0} min="0" max="100" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" />
+                        </div>
+                    </div>
                     <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">Save Asset</button>
+                </form>
+            </Modal>
+
+            <Modal show={showLandlordModal} onClose={() => setShowLandlordModal(false)} title="Onboard Landlord">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleSaveLandlord({
+                        name: formData.get('name') as string,
+                        phoneNumber: formData.get('phoneNumber') as string,
+                        email: formData.get('email') as string,
+                        idNumber: formData.get('idNumber') as string,
+                        taxPin: formData.get('taxPin') as string,
+                        bankDetails: formData.get('bankDetails') as string,
+                    });
+                }} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Full Name / Company Name</label>
+                        <input name="name" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. John Doe / XYZ Holdings" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                            <input name="phoneNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="+254..." />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
+                            <input name="email" type="email" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="john@example.com" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID Number</label>
+                            <input name="idNumber" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tax PIN</label>
+                            <input name="taxPin" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A00..." />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank Details</label>
+                        <textarea name="bankDetails" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank Name, Branch, Account Number..." />
+                    </div>
+                    <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">Save Landlord Profile</button>
                 </form>
             </Modal>
 
