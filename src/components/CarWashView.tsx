@@ -643,8 +643,35 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         payerName: customer.name
                     };
 
-                    const invDataUri = await generateInvoicePdfDataUri(invoice, currentInstitution, currentInstitution, currentInstitution.logoUrl || null);
-                    const rcptDataUri = await generateReceiptPdfDataUri(receipt, proxyTransaction, currentInstitution, currentInstitution, currentInstitution.logoUrl || null);
+                    const proxyCompanyDetails = {
+                        name: currentInstitution.name,
+                        address: 'N/A',
+                        phone: currentInstitution.phoneNumber,
+                        email: currentInstitution.email,
+                        website: '',
+                        kraPin: '',
+                        motto: '',
+                        subscriptionConfig: {
+                            subscriptionType: 'free' as const,
+                            subscriptionBaseCost: 0,
+                            tierLimits: {
+                                maxStudents: Infinity,
+                                maxStaff: Infinity,
+                                storageMbs: Infinity
+                            },
+                        },
+                        databaseConfig: {
+                            provider: 'supabase' as const,
+                            connectionUrl: '',
+                            poolSize: 10
+                        },
+                        country: 'Kenya',
+                        currency: 'KES',
+                        timezone: 'Africa/Nairobi'
+                    };
+
+                    const invDataUri = await generateInvoicePdfDataUri(invoice, currentInstitution, proxyCompanyDetails, currentInstitution.logoUrl || null);
+                    const rcptDataUri = await generateReceiptPdfDataUri(receipt, proxyTransaction, currentInstitution, proxyCompanyDetails, currentInstitution.logoUrl || null);
 
                     const invBase64 = invDataUri.split(',')[1];
                     const rcptBase64 = rcptDataUri.split(',')[1];
@@ -1048,8 +1075,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 for (const job of attendantJobs) {
                     const pkg = packages.find(p => p.id === job.packageId);
                     if (pkg) {
-                        if (pkg.commissionType === 'fixed') totalCommission += pkg.commissionValue;
-                        else totalCommission += (job.amountCharged * pkg.commissionValue) / 100;
+                        if (pkg.commissionType === 'fixed') totalCommission += (pkg.commissionValue || 0);
+                        else totalCommission += (job.amountCharged * (pkg.commissionValue || 0)) / 100;
                     }
                     updatedJobs.push({ ...job, isCommissionPaid: true });
                 }
