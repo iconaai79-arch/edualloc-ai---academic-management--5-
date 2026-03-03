@@ -427,9 +427,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
     };
 
+    const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+
     const updateJobStatus = async (job: CarWashJob, status: CarWashJob['status']) => {
         if (status === 'completed') {
             setShowCheckoutModal(job);
+            setUseLoyaltyPoints(false); // Reset for new checkout
             return;
         }
 
@@ -461,30 +464,45 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         try {
             const customer = customers.find(c => c.id === job.customerId);
 
-            if (method === 'mpesa' && onAddTransaction) {
-                // Initiate STK Push
+            // Calculate discount and final amount
+            let discountApplied = 0;
+            let finalAmountToPay = job.amountCharged;
+            if (useLoyaltyPoints && customer && (customer.loyaltyPoints || 0) > 0) {
+                discountApplied = Math.min(finalAmountToPay, customer.loyaltyPoints || 0);
+                finalAmountToPay -= discountApplied;
+            }
+
+            if (method === 'mpesa' && onAddTransaction && finalAmountToPay > 0) {
+                // Initiate STK Push only if there's an actual cash amount due
                 await onAddTransaction({
-                    amount: job.amountCharged,
+                    amount: finalAmountToPay,
                     phoneNumber: customer?.phoneNumber || '',
                     description: `Car Wash: ${job.packageName} - ${job.vehiclePlate}`,
                     institutionId,
                     userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
                 }, [
-                    { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged }
+                    { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: finalAmountToPay }
                 ]);
-            } else {
+            } else if (finalAmountToPay > 0 || discountApplied > 0) {
                 // Create manual transaction record for cash/card/credit so it appears in the audit log
-                await apiService.saveModuleRecord('mpesa_transactions', {
-                    id: `txn_cw_${Date.now()}`,
-                    institutionId,
-                    transactionId: `${method.toUpperCase()}-${Date.now().toString().slice(-6)}`,
-                    phoneNumber: customer?.phoneNumber || 'N/A',
-                    amount: job.amountCharged,
-                    description: `Car Wash (${method}): ${job.packageName} - ${job.vehiclePlate}`,
-                    status: 'completed',
-                    timestamp: new Date().toISOString(),
-                    userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
-                });
+                // Also create a "loyalty" log if fully paid by points (rare but possible)
+                const paymentDesc = discountApplied > 0
+                    ? `Car Wash (${method}): ${job.packageName} (Discount: KES ${discountApplied})`
+                    : `Car Wash (${method}): ${job.packageName} - ${job.vehiclePlate}`;
+
+                if (finalAmountToPay > 0) {
+                    await apiService.saveModuleRecord('mpesa_transactions', {
+                        id: `txn_cw_${Date.now()}`,
+                        institutionId,
+                        transactionId: `${method.toUpperCase()}-${Date.now().toString().slice(-6)}`,
+                        phoneNumber: customer?.phoneNumber || 'N/A',
+                        amount: finalAmountToPay,
+                        description: paymentDesc,
+                        status: 'completed',
+                        timestamp: new Date().toISOString(),
+                        userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
+                    });
+                }
             }
 
             const pkg = packages.find(p => p.id === job.packageId);
@@ -500,12 +518,35 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 status: 'completed',
                 paymentMethod: method,
                 completedAt: new Date().toISOString(),
-                amountPaid: job.amountCharged,
+                amountPaid: finalAmountToPay,
                 commissionEarned: commission,
-                isCommissionPaid: false
+                isCommissionPaid: false,
+                isLoyaltyRedemption: discountApplied > 0
             };
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
+
+            // ── Loyalty Points Update ──
+            if (customer) {
+                // Points Earned = 1 Point per KES paid in cash (exclude discounted amount)
+                const pointsEarned = finalAmountToPay;
+
+                const existingStamps = customer.loyaltyStamps || 0;
+                let newStamps = existingStamps + 1;
+
+                const remainingPoints = discountApplied > 0
+                    ? (customer.loyaltyPoints || 0) - discountApplied
+                    : (customer.loyaltyPoints || 0);
+
+                const finalLoyaltyPoints = remainingPoints + pointsEarned;
+
+                const updatedCustomer = {
+                    ...customer,
+                    loyaltyStamps: newStamps >= 10 ? 0 : newStamps,
+                    loyaltyPoints: finalLoyaltyPoints
+                };
+                await apiService.saveModuleRecord('carwash_customers', updatedCustomer);
+            }
 
             // ── Accounting Integration: Income ──
             const incomeAcc = method === 'mpesa' ? '1010' : '1000';
@@ -527,6 +568,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const invNumber = `INV-${Date.now().toString().slice(-6)}`;
             const rcptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
 
+            const items: any[] = [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }];
+            if (discountApplied > 0) {
+                items.push({ description: `Loyalty Points Discount applied`, quantity: -1, unitPrice: discountApplied, amount: -discountApplied });
+            }
+
             const invoice: Invoice = {
                 id: invoiceId,
                 invoiceNumber: invNumber,
@@ -534,8 +580,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 issueDate: new Date().toISOString(),
                 dueDate: new Date().toISOString(),
                 due_date: new Date().toISOString(),
-                items: [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }],
-                totalAmount: job.amountCharged,
+                items,
+                totalAmount: finalAmountToPay,
                 status: 'paid'
             };
 
@@ -544,7 +590,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 receiptNumber: rcptNumber,
                 institutionId,
                 paymentDate: new Date().toISOString(),
-                amountPaid: job.amountCharged,
+                amountPaid: finalAmountToPay,
                 paidFor: `${job.packageName} - ${job.vehiclePlate}`,
                 paymentMethod: method,
                 relatedTransactionId: job.id,
@@ -566,12 +612,16 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     
                     VEHICLE: ${job.vehiclePlate} (${job.vehicleType})
                     SERVICE: ${job.packageName}
-                    TOTAL AMOUNT: KES ${job.amountCharged.toLocaleString()}
+                    TOTAL VALUE: KES ${job.amountCharged.toLocaleString()}
+                    ${discountApplied > 0 ? `LOYALTY DISCOUNT: -KES ${discountApplied.toLocaleString()}` : ''}
+                    FINAL PAID: KES ${finalAmountToPay.toLocaleString()}
                     PAYMENT METHOD: ${method.toUpperCase()}
                     DATE: ${new Date().toLocaleDateString()}
                     
                     INVOICE NO: ${invNumber}
                     RECEIPT NO: ${rcptNumber}
+                    
+                    Your new Loyalty Points balance is: ${(customer.loyaltyPoints || 0) + finalAmountToPay - (useLoyaltyPoints ? discountApplied : 0)} PTS
                     
                     We appreciate your business!
                     
@@ -1499,7 +1549,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div className="bg-slate-50 dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
                                 <div className="flex justify-between items-center mb-4">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Vehicle Summary</p>
-                                    <span className="px-3 py-1 bg-white dark:bg-slate-800 rounded-full text-[10px] font-black text-indigo-600 shadow-sm border border-slate-100 dark:border-slate-700">{showCheckoutModal.vehiclePlate}</span>
                                 </div>
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm font-bold">
@@ -1521,6 +1570,50 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
                             <div className="space-y-4">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Choose Payment Method</p>
+
+                                {/* Loyalty Points Redemption Box */}
+                                {customers.find(c => c.id === showCheckoutModal.customerId) && (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0) > 0 && (
+                                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-5 shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-amber-500 text-white rounded-xl shadow-lg shadow-amber-500/30">
+                                                    <StarIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black text-amber-900 dark:text-amber-400 uppercase tracking-tight">Loyalty Reward Available</h4>
+                                                    <p className="text-[10px] font-bold text-amber-700 dark:text-amber-500/80 uppercase tracking-widest mt-0.5">
+                                                        Customer has {(customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()} points
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${useLoyaltyPoints ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>Use Points</span>
+                                                <div className="relative">
+                                                    <input type="checkbox" className="sr-only" checked={useLoyaltyPoints} onChange={(e) => setUseLoyaltyPoints(e.target.checked)} />
+                                                    <div className={`block w-12 h-6 rounded-full transition-colors duration-300 ease-in-out ${useLoyaltyPoints ? 'bg-amber-500 shadow-inner' : 'bg-slate-300 dark:bg-slate-700 border border-slate-400/20'}`}></div>
+                                                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 ease-in-out shadow-sm ${useLoyaltyPoints ? 'transform translate-x-6' : ''}`}></div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {useLoyaltyPoints && (
+                                            <div className="mt-4 pt-4 border-t border-amber-200/50 dark:border-amber-800/50 flex justify-between items-center animate-in slide-in-from-top-2">
+                                                <span className="text-xs font-black text-amber-800 dark:text-amber-500 uppercase tracking-widest">Discount Applied:</span>
+                                                <span className="text-lg font-black text-rose-600">- KES {Math.min(showCheckoutModal.amountCharged, customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {useLoyaltyPoints && customers.find(c => c.id === showCheckoutModal.customerId) && (
+                                    <div className="flex justify-between items-center px-4 py-3 bg-slate-900 text-white rounded-2xl">
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Final Amount Required:</span>
+                                        <span className="text-xl font-black text-emerald-400">
+                                            KES {Math.max(0, showCheckoutModal.amountCharged - (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)).toLocaleString()}
+                                        </span>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <button
                                         onClick={() => handleCheckout(showCheckoutModal, 'cash')}

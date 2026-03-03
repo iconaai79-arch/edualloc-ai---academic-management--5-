@@ -1718,6 +1718,7 @@ export interface CarWashCustomer {
     email?: string;
     loyaltyStamps: number;
     stampsForFreeWash: number;
+    loyaltyPoints?: number;
     notes?: string;
     createdAt: string;
 }

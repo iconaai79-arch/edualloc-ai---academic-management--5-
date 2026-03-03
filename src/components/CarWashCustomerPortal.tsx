@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
+import { generateReceiptPdfDataUri, downloadBase64Pdf } from '../utils/pdfGenerator';
 import type { User, CarWashJob, CarWashCustomer, Receipt, Invoice, Institution } from '../types';
 import {
     ClockIcon, CheckCircleIcon, DocumentArrowDownIcon,
@@ -17,6 +18,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
     const [receipts, setReceipts] = useState<Receipt[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [totalLoyaltyPoints, setTotalLoyaltyPoints] = useState(0);
 
     const loadData = async () => {
         setRefreshing(true);
@@ -39,9 +41,13 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
             const filteredJobs = allJobs.filter(j => myCustomerIds.includes(j.customerId || ''))
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+            // Sum up total loyalty points across all this user's profiles
+            const totalPoints = myCustomerProfiles.reduce((sum, c) => sum + (c.loyaltyPoints || 0), 0);
+
             setJobs(filteredJobs);
             setInstitutions(allInsts);
             setReceipts(allReceipts.filter(r => filteredJobs.some(j => j.id === r.relatedTransactionId)));
+            setTotalLoyaltyPoints(totalPoints);
         } catch (e) {
             console.error("Portal Data Load Error:", e);
         } finally {
@@ -63,6 +69,31 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
     };
 
     const getInstitutionName = (id: string) => institutions.find(i => i.id === id)?.name || 'Unknown Car Wash';
+
+    const handleDownloadReceipt = async (receipt: Receipt) => {
+        try {
+            const institution = institutions.find(i => i.id === receipt.institutionId) || institutions[0];
+            const job = jobs.find(j => j.id === receipt.relatedTransactionId);
+
+            // Dummy transaction data to satisfy generator (portal doesn't fetch mpesa tracking atm)
+            const proxyTx = {
+                id: receipt.relatedTransactionId || '',
+                transactionId: receipt.paymentMethod.toUpperCase(),
+                institutionId: receipt.institutionId,
+                amount: receipt.amountPaid,
+                phoneNumber: currentUser.phoneNumber,
+                status: 'completed' as const,
+                timestamp: receipt.paymentDate,
+                payerName: currentUser.name
+            };
+
+            const dataUri = await generateReceiptPdfDataUri(receipt, proxyTx, institution, institution, institution?.logoUrl || null);
+            downloadBase64Pdf(dataUri.split(',')[1], `Receipt_${receipt.receiptNumber}.pdf`);
+        } catch (e) {
+            console.error("Failed to download receipt:", e);
+            alert("Failed to generate receipt PDF.");
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8">
@@ -128,8 +159,8 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                         ].map((step, idx) => (
                                             <div key={step.id} className="flex flex-col items-center">
                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all z-10 ${getStatusStep(job.status) >= idx + 1
-                                                        ? 'bg-indigo-600 border-white dark:border-slate-800 text-white'
-                                                        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-300'
+                                                    ? 'bg-indigo-600 border-white dark:border-slate-800 text-white'
+                                                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-300'
                                                     }`}>
                                                     {step.icon}
                                                 </div>
@@ -201,6 +232,18 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2 bg-gradient-to-r from-amber-400 to-amber-600 rounded-2xl p-4 text-white shadow-inner flex justify-between items-center group relative overflow-hidden">
+                                <div className="absolute right-0 top-0 w-24 h-24 bg-white/20 rounded-full -translate-y-8 translate-x-8 blur-xl"></div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-amber-100 tracking-widest flex items-center gap-1.5 object-contain">
+                                        <SparklesIcon className="w-3 h-3" /> Loyalty Reward Points
+                                    </p>
+                                    <p className="text-3xl font-black mt-1">{totalLoyaltyPoints.toLocaleString()} <span className="text-xs font-bold text-amber-200">PTS</span></p>
+                                </div>
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md group-hover:scale-110 transition-transform">
+                                    🌟
+                                </div>
+                            </div>
                             <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/5">
                                 <p className="text-[9px] font-black uppercase opacity-60 tracking-widest">Total Washes</p>
                                 <p className="text-2xl font-black mt-1">{jobs.length}</p>
@@ -218,9 +261,9 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                         </h2>
                         <div className="space-y-2">
                             {receipts.slice(0, 5).map(receipt => (
-                                <button key={receipt.id} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-all text-left border border-transparent hover:border-slate-100">
+                                <button key={receipt.id} onClick={() => handleDownloadReceipt(receipt)} className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-all text-left border border-transparent hover:border-slate-100 group">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-emerald-50/50 text-emerald-600 rounded-lg">
+                                        <div className="p-2 bg-emerald-50/50 text-emerald-600 rounded-lg group-hover:bg-emerald-100 transition-colors">
                                             <CurrencyIcon className="w-4 h-4" />
                                         </div>
                                         <div>
@@ -228,7 +271,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                             <p className="text-[9px] font-bold text-slate-400">{new Date(receipt.paymentDate).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                    <DocumentArrowDownIcon className="w-4 h-4 text-slate-300" />
+                                    <DocumentArrowDownIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition-colors" />
                                 </button>
                             ))}
                             {receipts.length === 0 && (
