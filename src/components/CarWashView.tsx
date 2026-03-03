@@ -742,19 +742,38 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             await apiService.saveModuleRecord('carwash_customers', cust);
 
-            // Auto-register customer as a user if they have an email
-            if (cust.email && onRegisterUser) {
-                const existingUser = users.find(u => u.email?.toLowerCase() === cust.email?.toLowerCase());
-                if (!existingUser) {
+            // Auto-register customer as a user to grant Portal Access
+            if (onRegisterUser) {
+                // If they didn't provide an email, generate a dummy one required by User type
+                const accountEmail = cust.email || `${cust.phoneNumber.replace(/[^0-9]/g, '')}@carwash.local`;
+
+                const existingUser = users.find(u => u.email?.toLowerCase() === accountEmail.toLowerCase() || u.phoneNumber === cust.phoneNumber);
+
+                // Only register and send credentials if this is a brand new customer (no editingId) AND no existing user exists
+                if (!existingUser && !custForm.editingId) {
                     try {
+                        // Generate a random 8 character password
+                        const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+
                         await onRegisterUser({
                             name: cust.name,
-                            email: cust.email,
+                            email: accountEmail,
                             phoneNumber: cust.phoneNumber,
                             role: 'carwash_customer',
                             institutionId: institutionId,
-                            expertise: ['Car Wash Customer']
+                            expertise: ['Car Wash Customer'],
+                            password: generatedPassword
                         });
+
+                        // Dispatch SMS with Credentials
+                        if (cust.phoneNumber) {
+                            const smsMessage = `Welcome to ${currentInstitution.name}! Access your Customer Portal to track washes & download receipts.\nLogin: ${cust.phoneNumber}\nPass: ${generatedPassword}`;
+                            try {
+                                await onSendSms(cust.phoneNumber, smsMessage, smsConfig, 1, institutionId);
+                            } catch (e) {
+                                console.error('Failed to dispatch welcome credentials SMS', e);
+                            }
+                        }
                     } catch (e) {
                         console.error("Auto-registration failed:", e);
                     }
