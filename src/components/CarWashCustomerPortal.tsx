@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
-import { generateReceiptPdfDataUri, downloadBase64Pdf } from '../utils/pdfGenerator';
+import { generateReceiptPdfDataUri } from '../services/pdfService';
 import type { User, CarWashJob, CarWashCustomer, Receipt, Invoice, Institution } from '../types';
 import {
     ClockIcon, CheckCircleIcon, DocumentArrowDownIcon,
@@ -87,8 +87,83 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                 payerName: currentUser.name
             };
 
-            const dataUri = await generateReceiptPdfDataUri(receipt, proxyTx, institution, institution, institution?.logoUrl || null);
-            downloadBase64Pdf(dataUri.split(',')[1], `Receipt_${receipt.receiptNumber}.pdf`);
+            const proxyCompanyDetails = {
+                name: institution.name,
+                address: institution.location ? `${institution.location.latitude}, ${institution.location.longitude}` : 'N/A',
+                phone: institution.phoneNumber,
+                email: institution.email,
+                website: '',
+                subscriptionConfig: {
+                    basePrice: 0,
+                    features: [],
+                    maxStudents: 0,
+                    supportLevel: 'basic' as const,
+                    storageLimit: 0,
+                    moduleAccess: [],
+                    billingCycle: 'monthly' as const,
+                    defaultMonthlyPrice: 0,
+                    defaultYearlyPrice: 0
+                },
+                paymentDetails: { bankName: '', accountNumber: '', paybillNumber: '', accountName: '' },
+                logoUrl: institution.logoUrl || null,
+                mpesaConfig: {
+                    consumerKey: '',
+                    consumerSecret: '',
+                    passkey: '',
+                    shortcode: '',
+                    environment: 'sandbox' as const,
+                    callbackUrl: '',
+                    storeNumber: '',
+                    paybillNumber: '',
+                    accountNumber: ''
+                },
+                emailConfig: {
+                    provider: 'smtp' as const,
+                    smtp: { host: '', port: 587, user: '', pass: '', from: '' },
+                    sendgrid: { apiKey: '', from: '' },
+                    aws: { accessKeyId: '', secretAccessKey: '', region: '', from: '' },
+                    fromName: institution.name,
+                    fromEmail: institution.email
+                },
+                smsConfig: {
+                    provider: 'africastalking' as const,
+                    africastalking: { username: '', apiKey: '', senderId: '' },
+                    twilio: { accountSid: '', authToken: '', fromNumber: '' },
+                    countryCode: '+254',
+                    enabled: false,
+                    modules: {},
+                    apiKey: '',
+                    apiSecret: '',
+                    fromNumber: ''
+                },
+                letterheadConfig: {
+                    showLogo: true, showInstitutionName: true, showAddress: true,
+                    showContacts: true, showMotto: true, borderColor: '#4f46e5',
+                    headerHeight: 120, layout: 'standard' as const,
+                    watermarkOpacity: 0.1,
+                    headerImageUrl: null,
+                    stampImageUrl: null
+                },
+                databaseConfig: {
+                    supabaseUrl: '',
+                    supabaseAnonKey: '',
+                    dbType: 'postgresql' as const,
+                    host: '',
+                    port: '5432',
+                    username: '',
+                    dbName: ''
+                }
+            };
+
+            const dataUri = await generateReceiptPdfDataUri(receipt, proxyTx, institution, proxyCompanyDetails, institution?.logoUrl || null);
+
+            // Download the PDF
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Receipt_${receipt.receiptNumber}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } catch (e) {
             console.error("Failed to download receipt:", e);
             alert("Failed to generate receipt PDF.");
