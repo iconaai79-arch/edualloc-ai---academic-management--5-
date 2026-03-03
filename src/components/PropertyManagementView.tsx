@@ -23,6 +23,7 @@ interface PropertyManagementViewProps {
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts'>('dashboard');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords'>('properties');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -330,148 +331,175 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const PropertiesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                        <tr>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units (Total / Vacant)</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord / Commission</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {properties.map(property => {
-                            const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
-                            const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
-
-                            return (
-                                <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
-                                                <BuildingOfficeIcon className="w-5 h-5" />
-                                            </div>
-                                            {property.name}
-                                        </div>
-                                    </td>
-                                    <td className="p-6">
-                                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
-                                    </td>
-                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2 mt-2">
-                                        <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
-                                    </td>
-                                    <td className="p-6">
-                                        <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
-                                        <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
-                                    </td>
-                                    <td className="p-6">
-                                        {landlord ? (
-                                            <div>
-                                                <div className="text-xs font-black text-purple-600 truncate max-w-[12rem]">{landlord.name}</div>
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 text-purple-600/70">{property.commissionRate}% Commission</div>
-                                            </div>
-                                        ) : (
-                                            <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
-                                        )}
-                                    </td>
-                                    <td className="p-6 text-right space-x-2">
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors" title="Manage Units">
-                                            <ListIcon className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => setShowUnitModal(true)}
-                                            className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
-                                            title="Add Unit"
-                                        >
-                                            <PlusIcon className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        {properties.length === 0 && (
-                            <tr>
-                                <td colSpan={6} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
-                                    No Properties Found
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+            {/* Sub-navigation bar */}
+            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner">
+                {[
+                    { id: 'properties', label: 'Master Assets', icon: BuildingOfficeIcon },
+                    { id: 'units', label: 'Unit Registry', icon: GridIcon },
+                    { id: 'landlords', label: 'Landlord Directory', icon: UserGroupIcon },
+                ].map(sub => (
+                    <button
+                        key={sub.id}
+                        onClick={() => setPropertyActiveSubTab(sub.id as any)}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${propertyActiveSubTab === sub.id
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                    >
+                        <sub.icon className="w-3.5 h-3.5" />
+                        {sub.label}
+                    </button>
+                ))}
             </div>
 
-            <div className="mt-12">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Unit Registry</h3>
-                    <div className="relative">
-                        <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="SEARCH BY UNIT NO..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-64"
-                        />
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+            {propertyActiveSubTab === 'properties' && (
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                             <tr>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Unit Details</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type / Floor</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Rent (KES)</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Status</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units (Total / Vacant)</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord / Commission</th>
                                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
-                                <tr key={unit.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                    <td className="p-6">
-                                        <div className="flex items-center gap-4 text-slate-900 dark:text-white font-black italic">
-                                            <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-600">
-                                                <GridIcon className="w-5 h-5" />
+                            {properties.map(property => {
+                                const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                                const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
+
+                                return (
+                                    <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                        <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
+                                                    <BuildingOfficeIcon className="w-5 h-5" />
+                                                </div>
+                                                {property.name}
                                             </div>
-                                            {unit.unitNumber}
-                                        </div>
-                                    </td>
-                                    <td className="p-6 text-sm font-bold text-slate-600 dark:text-slate-400">
-                                        {properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}
-                                    </td>
-                                    <td className="p-6">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{unit.unitType}</span>
-                                        <p className="text-xs font-bold text-slate-500 italic mt-1">Floor {unit.floorNumber || 'G'}</p>
-                                    </td>
-                                    <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">
-                                        {unit.rentAmount.toLocaleString()}
-                                    </td>
-                                    <td className="p-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
-                                            unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' :
-                                                'bg-rose-100 text-rose-600 dark:bg-rose-900/30'
-                                            } `}>
-                                            {unit.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 text-right space-x-2">
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
-                                            <EyeIcon className="w-4 h-4" />
-                                        </button>
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-rose-600 transition-colors">
-                                            <TrashIcon className="w-4 h-4" />
-                                        </button>
+                                        </td>
+                                        <td className="p-6">
+                                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
+                                        </td>
+                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2 mt-2">
+                                            <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
+                                            <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
+                                        </td>
+                                        <td className="p-6">
+                                            {landlord ? (
+                                                <div>
+                                                    <div className="text-xs font-black text-purple-600 truncate max-w-[12rem]">{landlord.name}</div>
+                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 text-purple-600/70">{property.commissionRate}% Commission</div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
+                                            )}
+                                        </td>
+                                        <td className="p-6 text-right space-x-2">
+                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors" title="Manage Units">
+                                                <ListIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => setShowUnitModal(true)}
+                                                className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
+                                                title="Add Unit"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {properties.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
+                                        No Properties Found
                                     </td>
                                 </tr>
-                            ))}
+                            )}
                         </tbody>
                     </table>
                 </div>
-            </div>
+            )}
+
+            {propertyActiveSubTab === 'units' && (
+                <div className="mt-4">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Unit Registry</h3>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="SEARCH BY UNIT NO..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-64"
+                            />
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Unit Details</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type / Floor</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Rent (KES)</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Status</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
+                                    <tr key={unit.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                        <td className="p-6">
+                                            <div className="flex items-center gap-4 text-slate-900 dark:text-white font-black italic">
+                                                <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-600">
+                                                    <GridIcon className="w-5 h-5" />
+                                                </div>
+                                                {unit.unitNumber}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-sm font-bold text-slate-600 dark:text-slate-400">
+                                            {properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}
+                                        </td>
+                                        <td className="p-6">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{unit.unitType}</span>
+                                            <p className="text-xs font-bold text-slate-500 italic mt-1">Floor {unit.floorNumber || 'G'}</p>
+                                        </td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">
+                                            {unit.rentAmount.toLocaleString()}
+                                        </td>
+                                        <td className="p-6">
+                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
+                                                unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' :
+                                                    'bg-rose-100 text-rose-600 dark:bg-rose-900/30'
+                                                } `}>
+                                                {unit.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-right space-x-2">
+                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
+                                                <EyeIcon className="w-4 h-4" />
+                                            </button>
+                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-rose-600 transition-colors">
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {propertyActiveSubTab === 'landlords' && <LandlordsTab />}
         </div>
     );
 
@@ -893,14 +921,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         <ArrowPathIcon className="w-6 h-6" />
                     </button>
                     {activeTab === 'properties' && (
-                        <button onClick={() => setShowPropertyModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                            <PlusIcon className="w-5 h-5" /> Add Property
-                        </button>
-                    )}
-                    {activeTab === 'landlords' && (
-                        <button onClick={() => setShowLandlordModal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                            <UserPlusIcon className="w-5 h-5" /> Add Landlord
-                        </button>
+                        <div className="flex gap-4">
+                            {propertyActiveSubTab === 'properties' && (
+                                <button onClick={() => setShowPropertyModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <PlusIcon className="w-5 h-5" /> Add Property
+                                </button>
+                            )}
+                            {propertyActiveSubTab === 'landlords' && (
+                                <button onClick={() => setShowLandlordModal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <UserPlusIcon className="w-5 h-5" /> Add Landlord
+                                </button>
+                            )}
+                            {propertyActiveSubTab === 'units' && (
+                                <button onClick={() => setShowUnitModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                    <PlusIcon className="w-5 h-5" /> Register Unit
+                                </button>
+                            )}
+                        </div>
                     )}
                     {(activeTab === 'tenants' || activeTab === 'leases') && (
                         <button onClick={() => activeTab === 'tenants' ? setShowTenantModal(true) : setShowLeaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
@@ -953,7 +990,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {activeTab === 'properties' && <PropertiesTab />}
-            {activeTab === 'landlords' && <LandlordsTab />}
             {activeTab === 'tenants' && <TenantsTab />}
             {activeTab === 'leases' && <LeasesTab />}
             {activeTab === 'payments' && <PaymentsTab />}
