@@ -244,6 +244,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         courseSizes = new Map()
     } = props;
 
+    const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
+
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
     const [isWorkloadPdfGenerating, setIsWorkloadPdfGenerating] = useState(false);
@@ -439,7 +441,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
     const subTabs = [
         { key: 'visuals', label: 'Graphs & Visuals', icon: <ChartPieIcon className="w-5 h-5 mr-3" /> },
-        { key: 'stats', label: 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
+        { key: 'stats', label: isRetailAgency ? 'Personnel & Agent Stats' : 'Workload & Statistics', icon: <ChartBarIcon className="w-5 h-5 mr-3" /> },
         { key: 'progress', label: 'Course Progress Tracking', icon: <CheckCircleIcon className="w-5 h-5 mr-3" /> },
         { key: 'enrollment_capacity', label: 'Enrollment vs Capacity', icon: <UserGroupIcon className="w-5 h-5 mr-3" /> },
         { key: 'utilization', label: 'Room Utilization', icon: <BuildingOfficeIcon className="w-5 h-5 mr-3" /> },
@@ -447,12 +449,18 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'advisory', label: 'Room Advisory Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
         { key: 'audit', label: 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'conflicts', label: 'Conflict Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
-        { key: 'attendance', label: 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
+        { key: 'attendance', label: isRetailAgency ? 'Staff Clock-In Reports' : 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
         { key: 'exam_timetable', label: 'Exam Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
-    ];
+    ].filter(tab => {
+        if (isRetailAgency) {
+            const allowed = ['visuals', 'stats', 'audit', 'attendance', 'patterns'];
+            return allowed.includes(tab.key);
+        }
+        return true;
+    });
 
     return (
         <div className="space-y-6">
@@ -520,11 +528,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Subjects</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Total Units/Items' : 'Total Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Allocated Subjects</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Active Assignments' : 'Allocated Subjects'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{allocatedSubjectsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
@@ -532,7 +540,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{totalRequestsCount}</p>
                                 </div>
                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm">
-                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Staff</h3>
+                                    <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{isRetailAgency ? 'Total Personnel' : 'Total Staff'}</h3>
                                     <p className="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{filteredLecturers.length}</p>
                                 </div>
                             </div>
@@ -594,14 +602,14 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-lg overflow-x-auto">
-                                <h3 className="text-xl font-semibold p-6">Faculty Workload Summary</h3>
+                                <h3 className="text-xl font-semibold p-6">{isRetailAgency ? 'Personnel & Agent Statistics' : 'Faculty Workload Summary'}</h3>
                                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                                     <thead className="bg-slate-50 dark:bg-slate-700">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Faculty Member</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Allocated Units</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Staff / Agent' : 'Faculty Member'}</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Assigned Tasks' : 'Allocated Units'}</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Count</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Total Periods</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">{isRetailAgency ? 'Total Sessions' : 'Total Periods'}</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Hrs/Week</th>
                                         </tr>
                                     </thead>

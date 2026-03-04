@@ -22,6 +22,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
+  const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
   useEffect(() => {
@@ -112,7 +113,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
               onClick={() => setActiveTab(tab)}
               className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              {tab === 'basic' ? 'Basic Info' : tab === 'pro' ? 'Professional' : 'Access Control'}
+              {tab === 'basic' ? 'Basic Info' : tab === 'pro' ? (isRetailAgency ? 'Experience' : 'Professional') : 'Access Control'}
               {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8_px_rgba(79,70,229,0.4)]" />}
             </button>
           ))}
@@ -150,12 +151,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
             {activeTab === 'pro' && (
               <div className="space-y-6 animate-fade-in-up">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Staff / Student ID</label>
-                  <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder="EMP-001" required />
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : 'Staff / Student ID'}</label>
+                  <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} required />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Expertise / Skills (comma separated)</label>
-                  <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder="e.g. Mathematics, Pedagogy, Sports Coaching" required={user.role !== 'student'} />
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : 'Expertise / Skills (comma separated)'}</label>
+                  <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} required={user.role !== 'student'} />
                 </div>
                 {roles.includes('driver') && (
                   <div>
@@ -175,9 +176,10 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {[
-                        'head_teacher', 'deputy', 'dos', 'teacher', 'admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master'
-                      ].map((r) => (
+                      {(isRetailAgency
+                        ? ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver']
+                        : ['head_teacher', 'deputy', 'dos', 'teacher', 'admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master']
+                      ).map((r) => (
                         <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
                           <input
                             type="checkbox"

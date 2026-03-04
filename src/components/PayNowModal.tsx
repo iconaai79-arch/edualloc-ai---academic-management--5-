@@ -5,21 +5,29 @@ import type { TransactionStatus, InvoiceItem, MpesaConfig } from '../types';
 import { apiService } from '../services/apiService';
 
 interface PayNowModalProps {
-    isOpen: boolean;
+    isOpen?: boolean; // Optional because some uses check it before rendering
     onClose: () => void;
-    onPay: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
-    monthlyPrice: number;
-    yearlyPrice: number;
+    onPay?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    onSubmit?: (paymentData: { amount: number; phoneNumber: string; payerName: string; }, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    onSuccess?: () => void;
+    monthlyPrice?: number;
+    yearlyPrice?: number;
     mpesaConfig: MpesaConfig;
     institutionId?: string;
     institutionCode?: string;
     institutionName?: string;
+    forceAmount?: number;
+    forcedItems?: InvoiceItem[];
 }
 
-export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay, monthlyPrice, yearlyPrice, mpesaConfig, institutionId, institutionCode, institutionName }) => {
+export const PayNowModal: React.FC<PayNowModalProps> = ({
+    isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, yearlyPrice = 0,
+    mpesaConfig, institutionId, institutionCode, institutionName,
+    forceAmount, forcedItems
+}) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
-    const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+    const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
@@ -32,12 +40,18 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
         }
 
         setIsLoading(true);
-        const amount = selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice;
+        const amount = forceAmount !== undefined ? forceAmount : (selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice);
+        const activeItems = forcedItems && forcedItems.length > 0 ? forcedItems : [{
+            description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
+            quantity: 1,
+            unitPrice: amount,
+            amount: amount,
+        }];
 
         try {
             // 1. Initiate STK Push via Backend API
             const metadata = {
-                type: 'subscription',
+                type: forceAmount !== undefined ? 'one-off' : 'subscription',
                 plan: selectedPlan,
                 institutionId: institutionId || 'SYSTEM',
                 institutionCode: institutionCode || 'SYSTEM',
@@ -59,15 +73,15 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({ isOpen, onClose, onPay
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
-                        const items: InvoiceItem[] = [{
-                            description: `Timetable Allocator Subscription - ${selectedPlan === 'monthly' ? 'Monthly' : 'Yearly'} Plan`,
-                            quantity: 1,
-                            unitPrice: amount,
-                            amount: amount,
-                        }];
-                        await onPay({ amount, phoneNumber, payerName }, items);
+
+                        const paymentExecutor = onSubmit || onPay;
+                        if (paymentExecutor) {
+                            await paymentExecutor({ amount, phoneNumber, payerName }, activeItems);
+                        }
+
                         setFinalStatus('completed');
-                        setStatusMessage('Payment Confirmed! Your subscription is now active.');
+                        setStatusMessage('Payment Confirmed!');
+                        if (onSuccess) onSuccess();
                         setIsLoading(false);
                     } else if (status === 'failed' || attempts >= maxAttempts) {
                         clearInterval(pollInterval);

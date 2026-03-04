@@ -1214,6 +1214,7 @@ export interface UserUpdateData {
     departmentId?: string;
     expertise?: string[];
     gender?: 'Male' | 'Female' | 'Other';
+    driverType?: 'staff' | 'private';
 }
 
 export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'roles' | 'departmentName' | 'expertise' | 'gender';

@@ -31,7 +31,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -154,9 +154,10 @@ interface SmartUserImporterModalProps {
     onLogAction?: (action: string) => Promise<void>;
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     companyDetails?: CompanyDetails;
+    isRetailAgency?: boolean;
 }
 
-const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails }) => {
+const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose, onImport, existingUsers, departments, currentInstitution, currentUser, onLogAction, onAddTransaction, companyDetails, isRetailAgency }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);
     const [userMapping, setUserMapping] = useState<Record<UserMappingField, string | null>>(ALL_USER_MAPPING_FIELDS.reduce((acc, field) => ({ ...acc, [field]: null }), {} as Record<UserMappingField, string | null>));
@@ -382,13 +383,13 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="text-xl font-bold">Smart Staff Importer</h3>
+                    <h3 className="text-xl font-bold">{isRetailAgency ? 'Smart Staff/Agent Importer' : 'Smart Staff Importer'}</h3>
                     {step !== 'finalizing' && <button onClick={onClose}><XIcon className="w-6 h-6" /></button>}
                 </div>
                 <div className="p-6 flex-grow overflow-y-auto">
                     {step === 'upload' && (
                         <div className="text-center p-8 border-2 border-dashed border-slate-300 rounded-lg">
-                            <h4 className="text-lg font-semibold">Upload Staff File</h4>
+                            <h4 className="text-lg font-semibold">{isRetailAgency ? 'Upload Personnel File' : 'Upload Staff File'}</h4>
                             <input type="file" onChange={e => e.target.files && handleFileSelect(e.target.files[0])} accept=".xlsx, .xls" className="mt-6 file-input" />
                         </div>
                     )}
@@ -448,7 +449,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                             {ALL_USER_MAPPING_FIELDS.map(field => (
                                 <div key={field} className="grid grid-cols-2 gap-4 items-center">
                                     <label className="text-right text-sm font-medium capitalize">
-                                        {field.replace(/([A-Z])/g, ' $1')}
+                                        {field === 'staffId' ? (isRetailAgency ? 'ID Number' : 'Staff ID') : field.replace(/([A-Z])/g, ' $1')}
                                         {field === 'email' && <span className="text-xs text-[var(--color-primary)] ml-1">(Auto-gen if empty)</span>}
                                         :
                                     </label>
@@ -497,7 +498,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
             {isPayModalOpen && currentInstitution && companyDetails && (
                 <PayNowModal
                     mpesaConfig={companyDetails.mpesaConfig}
-                    institution={currentInstitution}
+                    institutionId={currentInstitution.id}
                     onClose={() => setIsPayModalOpen(false)}
                     onSubmit={handlePaymentSubmit}
                     onSuccess={() => {
@@ -676,7 +677,7 @@ const PromoteStudentsModal: React.FC<PromoteStudentsModalProps> = ({ students, c
                         <div className="mt-8 border rounded-lg border-slate-200 dark:border-slate-700 overflow-hidden">
                             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                                 <h4 className="font-semibold text-sm flex items-center gap-2">
-                                    <UsersIcon className="w-4 h-4 text-slate-500" />
+                                    <UserGroupIcon className="w-4 h-4 text-slate-500" />
                                     Eligible Students ({eligibleStudents.length})
                                 </h4>
                                 <label className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 px-2 py-1 rounded">
@@ -805,6 +806,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails
     } = props;
 
+    const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
+
     const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -868,6 +871,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             return u.role === 'student';
         });
 
+        // For Retail Agency, we only show specific roles in Staff tab
+        if (isRetailAgency && activeTab === 'staff') {
+            const retailRoles: Role[] = ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'];
+            list = list.filter(u => retailRoles.includes(u.role));
+        }
+
         const isRestrictedAdmin = (currentUser?.role === 'hod' || currentUser?.role === 'tto');
         if (isRestrictedAdmin && currentUser?.departmentId) {
             list = list.filter(u => u.departmentId === currentUser.departmentId);
@@ -886,7 +895,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             );
         }
         return list;
-    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId]);
+    }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency]);
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -1082,7 +1091,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="form-input w-full" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">{activeTab === 'staff' ? 'Staff ID' : 'Student ID'}</label>
+                                <label className="block text-sm font-medium mb-1">
+                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID')}
+                                </label>
                                 <input type="text" value={staffId} onChange={e => setStaffId(e.target.value)} className="form-input w-full" />
                             </div>
                             <div>
@@ -1098,7 +1109,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <div className="md:col-span-2 lg:col-span-3">
                                         <label className="block text-sm font-medium mb-2">Assigned Roles</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                            {VALID_STAFF_ROLES.map(r => (
+                                            {VALID_STAFF_ROLES.filter(r => {
+                                                if (isRetailAgency) return ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'].includes(r);
+                                                return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent'].includes(r);
+                                            }).map(r => (
                                                 <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                                     <input
                                                         type="checkbox"
@@ -1120,7 +1134,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             onChange={e => setDepartmentId(e.target.value)}
                                             disabled={currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto'}
                                             className="form-select w-full disabled:bg-slate-50"
-                                            required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r))}
+                                            required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r)) && !isRetailAgency} // Fallback for Retail Agency
                                         >
                                             <option value="">-- Select Department --</option>
                                             {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -1174,8 +1188,28 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             )}
 
             <div className="flex border-b border-slate-200 dark:border-slate-700">
-                <button onClick={() => { setActiveTab('staff'); setIsAdding(false); }} className={`py-2 px-4 border-b-2 font-medium text-sm ${activeTab === 'staff' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>Staff</button>
-                <button onClick={() => { setActiveTab('student'); setIsAdding(false); }} className={`py-2 px-4 border-b-2 font-medium text-sm ${activeTab === 'student' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}>Students</button>
+                <div className="bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl">
+                    <button
+                        onClick={() => setActiveTab('staff')}
+                        className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <span className="flex items-center gap-2">
+                            <UserGroupIcon className="w-4 h-4" />
+                            {isRetailAgency ? 'Staff/Agents' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff')}
+                        </span>
+                    </button>
+                    {!isRetailAgency && (
+                        <button
+                            onClick={() => setActiveTab('student')}
+                            className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <AcademicCapIcon className="w-4 h-4" />
+                                {isSchool ? 'Students' : 'Learners'}
+                            </span>
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-4">
@@ -1185,7 +1219,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search by name, ID or email..."
+                            placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : 'Search faculty...') : 'Search students...'}
                             className="form-input w-full pl-10"
                         />
                         <div className="absolute left-3 top-3 text-slate-400">
@@ -1339,6 +1373,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     currentInstitution={currentInstitution}
                     currentUser={currentUser}
                     onLogAction={props.onLogAction}
+                    onAddTransaction={onAddTransaction}
+                    companyDetails={companyDetails}
+                    isRetailAgency={isRetailAgency}
                 />
             )}
 
@@ -1420,7 +1457,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             {isPayModalOpen && currentInstitution && companyDetails && pendingStudentSave && (
                 <PayNowModal
                     mpesaConfig={companyDetails.mpesaConfig}
-                    institution={currentInstitution}
+                    institutionId={currentInstitution.id}
                     onClose={() => setIsPayModalOpen(false)}
                     onSubmit={handlePaymentSubmit}
                     onSuccess={() => {

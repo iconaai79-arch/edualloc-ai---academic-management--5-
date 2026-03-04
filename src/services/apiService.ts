@@ -10,7 +10,7 @@ import type {
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
-    Vehicle, TransportOnboarding, VehicleLog, TransportBill
+    Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -798,9 +798,39 @@ export const apiService = {
             console.error("Status Check Query Error:", e);
             // Fallback to database check in case API fails
             if (!_supabase) return { status: 'pending' };
-            const { data } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
-            return { status: data?.status || 'pending' };
+            const { data, error } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
+            if (error) return { status: 'pending' };
+            return { status: data.status };
         }
+    },
+    async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
+        // Mock KCB Buni STK Push Integration
+        console.log(`[KCB Buni] Initiating STK Push for ${tenantId}. Amount: ${amount}, Type: ${paymentType}`);
+
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        return {
+            success: true,
+            message: "KCB STK Push initiated successfully. Please check your phone for the prompt.",
+            requestId: `KCB_${Date.now()}`
+        };
+    },
+    async verifyKcbAccount(tenantId: string): Promise<{ success: boolean; message: string; details?: any }> {
+        // Mock KCB Buni Account Verification
+        console.log(`[KCB Buni] Verifying account for ${tenantId}`);
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        return {
+            success: true,
+            message: "Account verified successfully via KCB Buni KYC.",
+            details: {
+                verificationStatus: 'Verified',
+                customerName: 'Verified Tenant Name',
+                kycSource: 'KCB Buni API'
+            }
+        };
     },
     async verifyMpesaTransaction(transactionId: string) {
         if (!_supabase) return { success: false, message: "Bridge unavailable" };
