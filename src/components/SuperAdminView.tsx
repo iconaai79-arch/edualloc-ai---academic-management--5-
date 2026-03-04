@@ -461,7 +461,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         letterheadConfig: companyDetails?.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
         welcomeMessage: companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
-        enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false
+        enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
+        marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -486,7 +487,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 letterheadConfig: companyDetails.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
                 welcomeMessage: companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
-                enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false
+                enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
+                marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });

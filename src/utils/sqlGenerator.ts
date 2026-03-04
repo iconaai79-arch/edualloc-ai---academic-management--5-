@@ -42,7 +42,10 @@ CREATE TABLE IF NOT EXISTS institutions (
     schedule_profiles JSONB DEFAULT '[]'::jsonb,
     county_id TEXT REFERENCES counties(id) ON DELETE SET NULL,
     reseller_id TEXT REFERENCES institutions(id) ON DELETE SET NULL,
-    is_otp_enabled BOOLEAN DEFAULT FALSE
+    is_otp_enabled BOOLEAN DEFAULT FALSE,
+    business_sub_type TEXT,
+    marketplace_enabled BOOLEAN DEFAULT FALSE,
+    listing_quota INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS counties (
