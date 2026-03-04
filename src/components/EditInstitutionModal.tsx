@@ -22,7 +22,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       yearly: '',
     },
     isOtpEnabled: false,
-    customSmsPrice: ''
+    customSmsPrice: '',
+    businessSubType: ''
   });
 
   useEffect(() => {
@@ -38,7 +39,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           yearly: (institution.customSubscriptionPrice?.yearly ?? (institution as any).custom_subscription_price?.yearly)?.toString() || '',
         },
         isOtpEnabled: institution.isOtpEnabled ?? false,
-        customSmsPrice: institution.customSmsPrice?.toString() || ''
+        customSmsPrice: institution.customSmsPrice?.toString() || '',
+        businessSubType: institution.businessSubType || ''
       });
     }
   }, [institution]);
@@ -72,7 +74,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
       },
       isOtpEnabled: formData.isOtpEnabled,
-      customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined
+      customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined,
+      businessSubType: formData.businessSubType || undefined
     };
     onSave(institution.id, saveData);
   };
@@ -143,6 +146,27 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option>Broadcaster</option>
                     </select>
                   </div>
+                  {formData.institutionType === 'Business' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Business Niche / Category</label>
+                      <select
+                        name="businessSubType"
+                        value={formData.businessSubType}
+                        onChange={handleChange}
+                        className="form-select border-2 border-indigo-200"
+                        required
+                      >
+                        <option value="">-- Select Category --</option>
+                        <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
+                        <option value="Property Management">Property Management (Rent/Leases)</option>
+                        <option value="Retail Agency">Retail Agency (Commission Based)</option>
+                        <option value="Car Wash">Car Wash / Service Center</option>
+                        <option value="Hardware">Hardware Store</option>
+                        <option value="Pharmacy">Pharmacy / Chemist</option>
+                        <option value="General">General Retail / Business</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">County Location</label>
                     <select name="countyId" value={formData.countyId} onChange={handleChange} className="form-select">

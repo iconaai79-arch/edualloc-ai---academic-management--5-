@@ -22,7 +22,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
-  const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
+  const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
+  const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
   useEffect(() => {

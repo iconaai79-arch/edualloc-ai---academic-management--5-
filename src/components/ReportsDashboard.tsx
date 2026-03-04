@@ -244,7 +244,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         courseSizes = new Map()
     } = props;
 
-    const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
+    const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
+    const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
 
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');

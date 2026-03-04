@@ -1162,6 +1162,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                     >
                                                         <option value="Agrovet">Agrovet (Agricultural Supplies)</option>
                                                         <option value="Property Management">Property Management (Rent/Leases)</option>
+                                                        <option value="Retail Agency">Retail Agency (Commission Based)</option>
                                                         <option value="Car Wash">Car Wash / Service Center</option>
                                                         <option value="Hardware">Hardware Store</option>
                                                         <option value="Pharmacy">Pharmacy / Chemist</option>

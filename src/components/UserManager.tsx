@@ -806,7 +806,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails
     } = props;
 
-    const isRetailAgency = currentInstitution?.businessSubType === 'Retail Agency';
+    const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
+    const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);
