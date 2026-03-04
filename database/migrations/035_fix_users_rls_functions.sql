@@ -68,3 +68,11 @@ CREATE POLICY "Super Admins can manage all"
 ON public.users FOR ALL
 USING (get_curr_user_role() = 'super_admin')
 WITH CHECK (get_curr_user_role() = 'super_admin');
+
+-- 7. Anonymous Read (CRITICAL for client-side login)
+-- The application fetches users to perform client-side matching.
+-- Without this, no user can log in because they can't be found in the first place.
+CREATE POLICY "Allow anonymous read for login"
+ON public.users FOR SELECT
+TO anon
+USING (true);
