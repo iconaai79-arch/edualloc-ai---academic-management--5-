@@ -23,6 +23,7 @@ import { CarWashView } from './CarWashView';
 import { CarWashCustomerPortal } from './CarWashCustomerPortal';
 import { TenantPortalView } from './TenantPortalView';
 import { LandlordPortalView } from './LandlordPortalView';
+import { RetailCustomerPortal } from './retail/RetailCustomerPortal';
 import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
@@ -2167,6 +2168,7 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     logoUrl={activeLogoUrl}
                                     footerImageUrl={activeFooterImageUrl}
+                                    onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
                                 />
 
                             ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
@@ -2191,8 +2193,8 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                 />
-                            ) : activeRole === 'carwash_customer' ? (
-                                <CarWashCustomerPortal currentUser={currentUser} />
+                            ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
+                                <RetailCustomerPortal currentUser={currentUser} />
                             ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}

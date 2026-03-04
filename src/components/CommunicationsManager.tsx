@@ -185,6 +185,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return baseUsers.filter(u => u.role === 'field_agent');
             case 'all_agents':
                 return baseUsers.filter(u => ['retail_agent', 'field_agent', 'agent'].includes(u.role as string));
+            case 'all_leads':
+                return baseUsers.filter(u => u.role === 'lead');
             case 'institution': {
                 if (!selectedId) return [];
                 const usersInInstitution = baseUsers.filter(u => u.institutionId === selectedId);
@@ -472,6 +474,8 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                                 <option value="all_retail_agents">All Retail Agents</option>
                                                 <option value="all_field_agents">All Field Agents</option>
                                                 <option value="all_agents">All Agents (Retail + Field)</option>
+                                                <option value="all_customers">All Customers</option>
+                                                <option value="all_leads">All Leads</option>
                                             </>
                                         ) : (
                                             <>

@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'carwash_admin' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'carwash_admin' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'customer' | 'lead';
 
 
 export interface Unavailability {
@@ -40,6 +40,8 @@ export interface User {
     smsBalance?: number;
     subscriptionStatus?: 'active' | 'expired' | 'none';
     subscriptionExpiry?: string;
+    walletBalance?: number;
+    loyaltyPoints?: number;
 }
 
 export interface GradeDefinition {
@@ -2204,5 +2206,18 @@ export interface RetailSale {
     items: RetailSaleItem[];
     customerName?: string;
     customerPhone?: string;
+    createdAt: string;
+}
+
+export interface ServiceBooking {
+    id: string;
+    customerName: string;
+    customerPhone: string;
+    serviceType: string;
+    bookingDate: string;
+    bookingTime: string;
+    status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+    institutionId: string;
+    notes?: string;
     createdAt: string;
 }

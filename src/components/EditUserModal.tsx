@@ -178,7 +178,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {(isRetailAgency
-                        ? ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver']
+                        ? ['admin', 'retail_agent', 'field_agent', 'customer', 'lead', 'store', 'security', 'info_desk', 'driver']
                         : ['head_teacher', 'deputy', 'dos', 'teacher', 'admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master']
                       ).map((r) => (
                         <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
@@ -196,7 +196,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

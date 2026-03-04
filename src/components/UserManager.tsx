@@ -32,7 +32,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -447,19 +447,21 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                     {step === 'mapping' && (
                         <div className="space-y-4">
                             <p className="text-sm text-slate-500">Map columns from your file. Skip fields to auto-generate them.</p>
-                            {ALL_USER_MAPPING_FIELDS.map(field => (
-                                <div key={field} className="grid grid-cols-2 gap-4 items-center">
-                                    <label className="text-right text-sm font-medium capitalize">
-                                        {field === 'staffId' ? (isRetailAgency ? 'ID Number' : 'Staff ID') : field.replace(/([A-Z])/g, ' $1')}
-                                        {field === 'email' && <span className="text-xs text-[var(--color-primary)] ml-1">(Auto-gen if empty)</span>}
-                                        :
-                                    </label>
-                                    <select value={userMapping[field] || ''} onChange={e => handleMappingChange(field, e.target.value || null)} className="form-select">
-                                        <option value="">-- Skip / Auto-generate --</option>
-                                        {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
-                                    </select>
-                                </div>
-                            ))}
+                            {ALL_USER_MAPPING_FIELDS
+                                .filter(f => !isRetailAgency || f !== 'departmentName')
+                                .map(field => (
+                                    <div key={field} className="grid grid-cols-2 gap-4 items-center">
+                                        <label className="text-right text-sm font-medium capitalize">
+                                            {field === 'staffId' ? (isRetailAgency ? 'ID Number' : 'Staff ID') : field.replace(/([A-Z])/g, ' $1')}
+                                            {field === 'email' && <span className="text-xs text-[var(--color-primary)] ml-1">(Auto-gen if empty)</span>}
+                                            :
+                                        </label>
+                                        <select value={userMapping[field] || ''} onChange={e => handleMappingChange(field, e.target.value || null)} className="form-select">
+                                            <option value="">-- Skip / Auto-generate --</option>
+                                            {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                        </select>
+                                    </div>
+                                ))}
                             <button onClick={handleConfirmMapping} className="btn-primary w-full mt-4">Preview Import</button>
                         </div>
                     )}
@@ -496,26 +498,28 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                 </div>
             </div>
 
-            {isPayModalOpen && currentInstitution && companyDetails && (
-                <PayNowModal
-                    mpesaConfig={companyDetails.mpesaConfig}
-                    institutionId={currentInstitution.id}
-                    onClose={() => setIsPayModalOpen(false)}
-                    onSubmit={handlePaymentSubmit}
-                    onSuccess={() => {
-                        setIsPayModalOpen(false);
-                        processImport(pendingImportStudents);
-                    }}
-                    forceAmount={pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)}
-                    forcedItems={[{
-                        description: `Additional Student Licenses (${pendingImportStudents.length} students)`,
-                        quantity: pendingImportStudents.length,
-                        unitPrice: companyDetails.subscriptionConfig?.baseCostPerStudent || 0,
-                        amount: pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)
-                    }]}
-                />
-            )}
-        </div>
+            {
+                isPayModalOpen && currentInstitution && companyDetails && (
+                    <PayNowModal
+                        mpesaConfig={companyDetails.mpesaConfig}
+                        institutionId={currentInstitution.id}
+                        onClose={() => setIsPayModalOpen(false)}
+                        onSubmit={handlePaymentSubmit}
+                        onSuccess={() => {
+                            setIsPayModalOpen(false);
+                            processImport(pendingImportStudents);
+                        }}
+                        forceAmount={pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)}
+                        forcedItems={[{
+                            description: `Additional Student Licenses (${pendingImportStudents.length} students)`,
+                            quantity: pendingImportStudents.length,
+                            unitPrice: companyDetails.subscriptionConfig?.baseCostPerStudent || 0,
+                            amount: pendingImportStudents.length * (companyDetails.subscriptionConfig?.baseCostPerStudent || 0)
+                        }]}
+                    />
+                )
+            }
+        </div >
     );
 };
 
@@ -785,7 +789,7 @@ interface UserManagerProps {
     currentUser: User;
     onManageUnavailability?: (user: User) => void;
     currentInstitution?: Institution | null;
-    showOnly?: 'staff' | 'student';
+    showOnly?: 'staff' | 'student' | 'customer';
     letterheadConfig: LetterheadConfig;
     logoUrl: string | null;
     footerImageUrl: string | null;
@@ -795,6 +799,7 @@ interface UserManagerProps {
     onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
+    onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     companyDetails?: CompanyDetails;
 }
 
@@ -809,7 +814,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
-    const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
+    const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
@@ -867,7 +872,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         let list = (users || []).filter(u => {
             if (!u) return false;
             if (activeTab === 'staff') {
-                return u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent';
+                return u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'parent' && u.role !== 'customer' && u.role !== 'lead';
+            }
+            if (activeTab === 'customer') {
+                return u.role === 'customer' || u.role === 'lead';
             }
             return u.role === 'student';
         });
@@ -974,9 +982,29 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         try {
             setIsSaving(true);
             if (onAddUser) {
-                await onAddUser(userData);
+                // Generate and send credentials if it's a new customer in a retail agency
+                const isNewRegistration = !userData.id; // Basic check, though usually userData for onAddUser doesn't have id yet
+                const isCustomer = activeTab === 'customer' || (Array.isArray(userData.roles) && userData.roles.includes('customer'));
+
+                if (isRetailAgency && isCustomer && isNewRegistration) {
+                    const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+                    userData.password = generatedPassword;
+
+                    await onAddUser(userData);
+
+                    if (props.onSendSms && userData.phoneNumber) {
+                        const smsMessage = `Welcome to ${currentInstitution?.name}! Access your Customer Portal to track records & more.\nLogin: ${userData.phoneNumber}\nPass: ${generatedPassword}`;
+                        try {
+                            await props.onSendSms(userData.phoneNumber, smsMessage, props.smsConfig, 1, currentInstitution?.id || '');
+                        } catch (e) {
+                            console.error('Failed to dispatch welcome credentials SMS', e);
+                        }
+                    }
+                } else {
+                    await onAddUser(userData);
+                }
             }
-            props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : 'student'}: ${userData.name}`);
+            props.onLogAction?.(`Manually registered new ${activeTab === 'staff' ? 'staff member' : (activeTab === 'customer' ? 'Customer/Lead' : 'student')}: ${userData.name}`);
             setIsAdding(false);
             resetForm();
         } catch (error: any) {
@@ -1075,7 +1103,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             {isAdding && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
-                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? 'Staff Member' : 'Student'}</h4>
+                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? 'Staff Member' : (activeTab === 'customer' ? 'Customer/Lead' : 'Student')}</h4>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
@@ -1105,14 +1133,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
-                            {activeTab === 'staff' ? (
+                            {(activeTab === 'staff' || activeTab === 'customer') ? (
                                 <>
                                     <div className="md:col-span-2 lg:col-span-3">
-                                        <label className="block text-sm font-medium mb-2">Assigned Roles</label>
+                                        <label className="block text-sm font-medium mb-2">{activeTab === 'staff' ? 'Assigned Roles' : 'Category'}</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                            {VALID_STAFF_ROLES.filter(r => {
+                                            {activeTab === 'staff' && VALID_STAFF_ROLES.filter(r => {
                                                 if (isRetailAgency) return ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'].includes(r);
-                                                return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent'].includes(r);
+                                                return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'customer', 'lead'].includes(r);
                                             }).map(r => (
                                                 <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                                     <input
@@ -1126,21 +1154,36 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                     </span>
                                                 </label>
                                             ))}
+                                            {activeTab === 'customer' && ['customer', 'lead'].map(r => (
+                                                <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={roles.includes(r as Role)}
+                                                        onChange={() => toggleRole(r as Role)}
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600"
+                                                    />
+                                                    <span className={`text-[10px] font-bold uppercase ${roles.includes(r as Role) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
+                                                        {r}
+                                                    </span>
+                                                </label>
+                                            ))}
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Department</label>
-                                        <select
-                                            value={(currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId}
-                                            onChange={e => setDepartmentId(e.target.value)}
-                                            disabled={currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto'}
-                                            className="form-select w-full disabled:bg-slate-50"
-                                            required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r)) && !isRetailAgency} // Fallback for Retail Agency
-                                        >
-                                            <option value="">-- Select Department --</option>
-                                            {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                        </select>
-                                    </div>
+                                    {!isRetailAgency && (
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Department</label>
+                                            <select
+                                                value={(currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId}
+                                                onChange={e => setDepartmentId(e.target.value)}
+                                                disabled={currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto'}
+                                                className="form-select w-full disabled:bg-slate-50"
+                                                required={roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r))}
+                                            >
+                                                <option value="">-- Select Department --</option>
+                                                {(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                     {roles.includes('driver') && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Driver Type</label>
@@ -1181,7 +1224,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {isSaving && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
-                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? 'Staff' : 'Student'}`}
+                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? 'Staff' : (activeTab === 'customer' ? 'Record' : 'Student')}`}
                             </button>
                         </div>
                     </form>
@@ -1207,6 +1250,17 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             <span className="flex items-center gap-2">
                                 <AcademicCapIcon className="w-4 h-4" />
                                 {isSchool ? 'Students' : 'Learners'}
+                            </span>
+                        </button>
+                    )}
+                    {isRetailAgency && (
+                        <button
+                            onClick={() => setActiveTab('customer')}
+                            className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'customer' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <UserIcon className="w-4 h-4" />
+                                Customers & Leads
                             </span>
                         </button>
                     )}

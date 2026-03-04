@@ -1663,6 +1663,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                             letterheadConfig={localCompanyInfo.letterheadConfig}
                             logoUrl={localCompanyInfo.logoUrl}
                             footerImageUrl={localCompanyInfo.footerImageUrl}
+                            onSendSms={props.onSendSms}
                             onAddParent={props.onAddParent}
                             onDeleteParent={props.onDeleteParent}
                         />

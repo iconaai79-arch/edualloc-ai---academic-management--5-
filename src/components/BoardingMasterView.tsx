@@ -37,6 +37,7 @@ interface BoardingMasterViewProps {
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
     footerImageUrl?: string | null;
+    onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
 }
 
 
@@ -61,7 +62,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     subjects,
     letterheadConfig,
     logoUrl,
-    footerImageUrl
+    footerImageUrl,
+    onSendSms
 }) => {
 
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
@@ -480,6 +482,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         letterheadConfig={letterheadConfig!}
                         logoUrl={logoUrl!}
                         footerImageUrl={footerImageUrl!}
+                        onSendSms={onSendSms}
                         showOnly="student"
                         allocations={[]} // Optional for student view in this context
                         onWithdrawRequest={() => { }}

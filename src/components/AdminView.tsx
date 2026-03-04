@@ -672,6 +672,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddUser={props.onAddUser}
                         onAddTimeOffRequest={props.onAddTimeOffRequest}
                         onAddTransaction={props.onAddTransaction}
+                        onSendSms={props.onSendSms}
                         companyDetails={props.companyDetails}
                         currentInstitution={props.currentInstitution}
                     />
