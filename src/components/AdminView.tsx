@@ -12,7 +12,7 @@ import type {
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
-    Submission, UserUpdateData, County, Assignment, RetailExpense
+    Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier
 } from '../types';
 import { UserManager } from './UserManager';
 import { TimetableGenerator } from './TimetableGenerator';
@@ -297,16 +297,38 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        // Hide Broadcaster for non-Super Admins, except for Broadcaster institutions or other authorized admins
-        if (props.currentUser?.role !== 'super_admin' &&
-            props.currentInstitution?.institutionType !== 'Broadcaster' &&
-            !['admin', 'head_teacher', 'deputy', 'dos', 'tto'].includes(props.currentUser?.role || '')
-        ) {
-            return baseTabs.filter(t => t.id !== 'comms');
-        }
+        const institutionType = props.currentInstitution?.institutionType;
+        const businessSubType = props.currentInstitution?.businessSubType;
+        const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International'].includes(institutionType || '');
+        const isBusiness = institutionType === 'Business';
 
-        return baseTabs;
-    }, [props.currentUser?.role, props.currentInstitution?.institutionType, isSchool]);
+        let filteredTabs = baseTabs.filter(tab => {
+            // Educational tabs
+            if (['timetable', 'courses', 'leaveout', 'transport'].includes(tab.id)) {
+                return isEdu;
+            }
+
+            // Retail & Procurement tabs
+            if (['retail', 'procurement'].includes(tab.id)) {
+                if (isEdu) return false;
+                if (isBusiness) {
+                    return ['Hardware', 'Pharmacy', 'General', 'Retail'].includes(businessSubType || '');
+                }
+                return true;
+            }
+
+            // Broadcaster tab
+            if (tab.id === 'comms') {
+                if (props.currentUser?.role === 'super_admin') return true;
+                if (institutionType === 'Broadcaster') return true;
+                return ['admin', 'head_teacher', 'deputy', 'dos', 'tto'].includes(props.currentUser?.role || '');
+            }
+
+            return true;
+        });
+
+        return filteredTabs;
+    }, [props.currentUser?.role, props.currentInstitution?.institutionType, props.currentInstitution?.businessSubType, isSchool]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;

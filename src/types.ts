@@ -2205,9 +2205,3 @@ export interface RetailSale {
     customerPhone?: string;
     createdAt: string;
 }
-basePrice: number;
-soldPrice: number;
-commissionAmount: number; // (soldPrice - basePrice) or custom logic
-isPaid: boolean;
-createdAt: string;
-}
