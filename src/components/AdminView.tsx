@@ -312,7 +312,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (['retail', 'procurement'].includes(tab.id)) {
                 if (isEdu) return false;
                 if (isBusiness) {
-                    return ['Hardware', 'Pharmacy', 'General', 'Retail'].includes(businessSubType || '');
+                    return ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'].includes(businessSubType || '');
                 }
                 return true;
             }
