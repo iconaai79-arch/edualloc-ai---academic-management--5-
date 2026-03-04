@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/index';
 import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog } from '../types';
+import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
 
 interface CommunicationsManagerProps {
@@ -46,6 +47,7 @@ const calculateSmsParts = (msg: string) => {
 
 
 export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school' }) => {
+    const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || ''), [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
@@ -177,6 +179,12 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 if (!selectedId) return [];
                 return baseUsers.filter(u => u.courseId === selectedId);
             }
+            case 'all_retail_agents':
+                return baseUsers.filter(u => u.role === 'retail_agent' || (u.role as string) === 'agent');
+            case 'all_field_agents':
+                return baseUsers.filter(u => u.role === 'field_agent');
+            case 'all_agents':
+                return baseUsers.filter(u => ['retail_agent', 'field_agent', 'agent'].includes(u.role as string));
             case 'institution': {
                 if (!selectedId) return [];
                 const usersInInstitution = baseUsers.filter(u => u.institutionId === selectedId);
@@ -459,9 +467,19 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         <option value="individual">Individual User</option>
                                         {isSuperAdminView && <option value="institution">By Institution</option>}
                                         <option value="all_staff">All Staff</option>
-                                        <option value="all_students">All Students</option>
-                                        <option value="department">By Department</option>
-                                        <option value="course">By Course</option>
+                                        {isRetailAgency ? (
+                                            <>
+                                                <option value="all_retail_agents">All Retail Agents</option>
+                                                <option value="all_field_agents">All Field Agents</option>
+                                                <option value="all_agents">All Agents (Retail + Field)</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="all_students">All Students</option>
+                                                <option value="department">By Department</option>
+                                                <option value="course">By Course</option>
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </select>
