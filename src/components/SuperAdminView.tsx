@@ -2454,7 +2454,14 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                 className="form-input"
                                                 placeholder="e.g. https://marketplace.edualloc.com"
                                             />
-                                            <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">The public base URL for property listings and sales.</p>
+                                            <div className="mt-3 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-900/20">
+                                                <p className="text-[10px] text-orange-700 dark:text-orange-400 font-black uppercase tracking-widest mb-2">Hosting Configuration Required</p>
+                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
+                                                    If using a custom domain, you MUST add it to your project settings in Vercel/Netlify.
+                                                    <br /><br />
+                                                    <strong>Fallback Access:</strong> If the domain is not yet active, use the system URL with <span className="text-orange-600 font-bold">?view=marketplace</span> appended.
+                                                </p>
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Advertising / Lead Pricing (KES)</label>

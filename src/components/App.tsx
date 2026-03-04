@@ -285,7 +285,8 @@ export const App: React.FC = () => {
     const [showGuestFeedback, setShowGuestFeedback] = useState(false);
     const [showMarketplace, setShowMarketplace] = useState(() => {
         try {
-            return window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') === 'marketplace' || window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
         } catch (e) {
             return false;
         }
@@ -429,7 +430,7 @@ export const App: React.FC = () => {
                 if (sett.marketplaceConfig?.customUrl) {
                     try {
                         const marketUrl = new URL(sett.marketplaceConfig.customUrl);
-                        if (window.location.hostname === marketUrl.hostname) {
+                        if (window.location.hostname === marketUrl.hostname || new URLSearchParams(window.location.search).get('view') === 'marketplace') {
                             setShowMarketplace(true);
                         }
                     } catch (e) {
