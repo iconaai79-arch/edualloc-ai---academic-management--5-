@@ -278,6 +278,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
 
+    const isEdu = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International'].includes(type || '');
+    }, [props.currentInstitution]);
+
     const isSchool = useMemo(() => {
         return props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
     }, [props.currentInstitution]);
@@ -299,7 +304,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
         const institutionType = props.currentInstitution?.institutionType;
         const businessSubType = props.currentInstitution?.businessSubType;
-        const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International'].includes(institutionType || '');
         const isBusiness = institutionType === 'Business';
 
         let filteredTabs = baseTabs.filter(tab => {
@@ -362,11 +366,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
     ].filter(opt => {
-        const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(props.currentInstitution?.institutionType || '');
         if (isEdu) {
             return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
+        } else {
+            // Non-educational: Hide educational portal perspectives
+            return !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant'].includes(opt.role);
         }
-        return true;
     });
 
 
@@ -399,7 +404,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             <main className="animate-fade-in">
                 {activeTab === 'dashboard' && (
                     <div className="space-y-6">
-                        {stats.totalActionable > 0 && (
+                        {isEdu && stats.totalActionable > 0 && (
                             <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-6 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-up">
                                 <div className="flex items-center gap-4 text-center sm:text-left">
                                     <div className="p-3 bg-amber-100 dark:bg-amber-900 rounded-2xl">
@@ -421,21 +426,25 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Active Faculty</h3>
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Active Faculty' : 'Active Staff'}</h3>
                                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
                                     {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin').length}
                                 </p>
                             </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Registry Load</h3>
-                                <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Total Students</h3>
-                                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {(props.users || []).filter(u => u && u.role === 'student').length}
-                                </p>
-                            </div>
+                            {isEdu && (
+                                <>
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Registry Load</h3>
+                                        <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Total Students</h3>
+                                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                            {(props.users || []).filter(u => u && u.role === 'student').length}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
@@ -444,16 +453,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 Operational Hub
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                <button
-                                    onClick={() => handleQuickAction('timetable', 'wizard')}
-                                    className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
-                                >
-                                    <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
-                                        <BeakerIcon className="w-6 h-6" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
-                                    <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
-                                </button>
+                                {isEdu && (
+                                    <button
+                                        onClick={() => handleQuickAction('timetable', 'wizard')}
+                                        className="flex flex-col items-start p-6 bg-indigo-600 text-white rounded-3xl shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all group text-left hover:-translate-y-1"
+                                    >
+                                        <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                            <BeakerIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="font-black text-sm uppercase tracking-tight">Timetable Wizard</span>
+                                        <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setIsPerspectiveModalOpen(true)}
                                     className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
@@ -473,24 +484,28 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     </div>
                                     <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Staff Hub</span>
                                 </button>
-                                <button
-                                    onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
-                                    className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-                                        <CalendarDaysIcon className="w-6 h-6" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : 'Academic Calendar'}</span>
-                                </button>
-                                <button
-                                    onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
-                                    className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-                                        <BookOpenIcon className="w-6 h-6" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Subjects</span>
-                                </button>
+                                {isEdu && (
+                                    <>
+                                        <button
+                                            onClick={() => handleQuickAction('timetable', undefined, 'calendar')}
+                                            className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                        >
+                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                                                <CalendarDaysIcon className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : 'Academic Calendar'}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
+                                            className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                        >
+                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                                                <BookOpenIcon className="w-6 h-6" />
+                                            </div>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Subjects</span>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
 

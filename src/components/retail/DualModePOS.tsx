@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { RetailInventoryItem, RetailStore, User } from '../../types';
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus } from 'lucide-react';
+import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store } from 'lucide-react';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -107,8 +107,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                         <button
                             onClick={() => setActiveMode('shop')}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeMode === 'shop'
-                                    ? 'bg-blue-600 text-white shadow-sm'
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                                 }`}
                         >
                             <Store className="w-4 h-4" />
@@ -117,8 +117,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                         <button
                             onClick={() => setActiveMode('field')}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeMode === 'field'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                                 }`}
                         >
                             <MapPin className="w-4 h-4" />
