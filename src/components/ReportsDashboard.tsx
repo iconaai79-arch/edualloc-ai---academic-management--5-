@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Subject, Department, AllocationRequest, RequestStatus, LessonStructure, TimetableEntry, Room, LetterheadConfig, Conflict, Course, StudentAttendance, Assessment, AssessmentMark, Institution, LecturerContract, ExamTimetableEntry, Building, TimetableSettings, Semester, AcademicYear, Visitor, ActivityLog } from '../types';
+import { RETAIL_SUBTYPES } from '../constants';
 import { AdvisoryReportView } from './AdvisoryReportView.tsx';
 import { ConflictReport } from './ConflictReport.tsx';
 import { AttendanceReports } from './AttendanceReports.tsx';
@@ -244,8 +245,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         courseSizes = new Map()
     } = props;
 
-    const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
-    const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
+    const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');

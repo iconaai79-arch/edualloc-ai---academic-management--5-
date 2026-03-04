@@ -7,6 +7,7 @@ import type {
     CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem
 } from '../types';
 import { PayNowModal } from './PayNowModal';
+import { RETAIL_SUBTYPES } from '../constants';
 import {
     PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
     CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
@@ -806,8 +807,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails
     } = props;
 
-    const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
-    const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
+    const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);

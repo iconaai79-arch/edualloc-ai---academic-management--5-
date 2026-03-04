@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types';
+import { RETAIL_SUBTYPES } from '../constants';
 
 interface EditUserModalProps {
   user: User;
@@ -22,8 +23,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
-  const retailSubTypes = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'];
-  const isRetailAgency = retailSubTypes.includes(currentInstitution?.businessSubType || '');
+  const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
   useEffect(() => {

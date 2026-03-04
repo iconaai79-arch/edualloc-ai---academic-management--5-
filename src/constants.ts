@@ -295,3 +295,5 @@ export const INITIAL_USERS: User[] = [
         password: 'password123'
     }
 ];
+
+export const RETAIL_SUBTYPES = ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail'];

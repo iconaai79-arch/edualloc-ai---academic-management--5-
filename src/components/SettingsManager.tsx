@@ -10,6 +10,7 @@ import type {
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
     TeacherLogicRule, TeacherRuleType, Invoice, Receipt
 } from '../types';
+import { RETAIL_SUBTYPES } from '../constants';
 import { AcademicYearManager } from './AcademicYearManager';
 import { LocationSettings } from './LocationSettings';
 import { BrandedPaper } from './BrandedPaper';
@@ -168,6 +169,7 @@ type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'sub
 
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
+    const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
     const [activeTab, setActiveTab] = useState<SettingsTab>(isSuperAdmin ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing'>('profile');
@@ -600,11 +602,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
-            tabs.push({ id: 'facilities', label: 'Facilities', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
+            if (!isRetailAgency) {
+                tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'facilities', label: 'Facilities', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
+            }
         }
 
         return tabs;
@@ -1049,6 +1053,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     <div className="space-y-8 animate-fade-in-up">
                         <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar">
                             {(() => {
+                                if (isRetailAgency) return ['profile', 'location', 'branding'];
                                 const subs = ['profile', 'academic_config', 'location', 'branding', 'grading'];
                                 if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); }
                                 return subs;
