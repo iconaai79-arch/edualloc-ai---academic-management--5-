@@ -66,6 +66,7 @@ import { EditInstitutionModal } from './EditInstitutionModal';
 import { TimetableWizard } from './TimetableWizard';
 import { TransportManager } from './TransportManager';
 import { apiService } from '../services/apiService';
+import { RetailReportsDashboard } from './retail/RetailReportsDashboard';
 
 export interface AdminViewProps {
     currentUser: User;
@@ -838,20 +839,28 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'reports' && (
-
-                    <ReportsDashboard
-                        {...props}
-                        lecturers={props.users || []}
-                        allTimetableEntries={props.allTimetableEntries || []}
-                        getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
-                        getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
-                        getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}
-                        currentInstitution={props.currentInstitution}
-                        requests={requests || []}
-                        timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
-                        activityLog={props.activityLog || []}
-                        courseSizes={props.courseSizes}
-                    />
+                    <div className="animate-fade-in-up">
+                        {isRetailAgency ? (
+                            <RetailReportsDashboard
+                                institutionId={props.currentInstitution!.id!}
+                                users={props.users || []}
+                            />
+                        ) : (
+                            <ReportsDashboard
+                                {...props}
+                                lecturers={props.users || []}
+                                allTimetableEntries={props.allTimetableEntries || []}
+                                getLecturerById={props.getLecturerById || (id => (props.users || []).find(u => u && u.id === id))}
+                                getSubjectById={props.getSubjectById || (id => (props.subjects || []).find(s => s && s.id === id))}
+                                getRoomById={props.getRoomById || (id => (props.rooms || []).find(r => r && r.id === id))}
+                                currentInstitution={props.currentInstitution}
+                                requests={requests || []}
+                                timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                activityLog={props.activityLog || []}
+                                courseSizes={props.courseSizes}
+                            />
+                        )}
+                    </div>
                 )}
             </main>
 
