@@ -2117,6 +2117,7 @@ export interface RetailInventoryItem {
     marketplaceEnabled: boolean;
     bufferStock: number;
     createdAt: string;
+    lastUpdated?: string;
 }
 
 // A junction table to show how much of a RetailInventoryItem is in a specific RetailStore

@@ -16,6 +16,7 @@ import {
     Upload
 } from 'lucide-react';
 import { apiService } from '../../services/apiService';
+import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 
 interface RetailInventoryManagerProps {
     institutionId: string;
@@ -26,6 +27,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<RetailInventoryItem | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
@@ -142,6 +144,20 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         }
     };
 
+    const handleBulkImport = async (items: Partial<RetailInventoryItem>[]) => {
+        try {
+            // Save each item
+            for (const item of items) {
+                await apiService.saveModuleRecord('retail_inventory', item);
+            }
+            fetchInventory();
+            setIsImportModalOpen(false);
+        } catch (err) {
+            console.error("Bulk save error:", err);
+            throw new Error("Failed to save some items.");
+        }
+    };
+
     const openEdit = (item: RetailInventoryItem) => {
         setEditingItem(item);
         setFormData(item);
@@ -187,6 +203,14 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 >
                     <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
                     List New Product
+                </button>
+
+                <button
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="flex items-center gap-2 px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95 group"
+                >
+                    <Upload className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
+                    Import Excel
                 </button>
             </div>
 
@@ -502,6 +526,14 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                         </form>
                     </div>
                 </div>
+            )}
+
+            {isImportModalOpen && (
+                <SmartRetailInventoryImporterModal
+                    onClose={() => setIsImportModalOpen(false)}
+                    onImport={handleBulkImport}
+                    institutionId={institutionId}
+                />
             )}
         </div>
     );
