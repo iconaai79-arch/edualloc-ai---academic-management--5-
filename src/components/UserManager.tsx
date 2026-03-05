@@ -1239,16 +1239,18 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             <div className="flex border-b border-slate-200 dark:border-slate-700">
                 <div className="bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl">
-                    <button
-                        onClick={() => setActiveTab('staff')}
-                        className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <span className="flex items-center gap-2">
-                            <UserGroupIcon className="w-4 h-4" />
-                            {isRetailAgency ? 'Staff/Agents' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff')}
-                        </span>
-                    </button>
-                    {!isRetailAgency && (
+                    {(!showOnly || showOnly === 'staff') && (
+                        <button
+                            onClick={() => setActiveTab('staff')}
+                            className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'staff' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <span className="flex items-center gap-2">
+                                <UserGroupIcon className="w-4 h-4" />
+                                {isRetailAgency ? 'Staff/Agents' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff')}
+                            </span>
+                        </button>
+                    )}
+                    {!isRetailAgency && (!showOnly || showOnly === 'student') && (
                         <button
                             onClick={() => setActiveTab('student')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
@@ -1259,7 +1261,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </span>
                         </button>
                     )}
-                    {isRetailAgency && (
+                    {isRetailAgency && (!showOnly || showOnly === 'customer') && (
                         <button
                             onClick={() => setActiveTab('customer')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'customer' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}

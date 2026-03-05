@@ -698,6 +698,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     <UserManager
                         {...props}
                         user={props.currentUser}
+                        showOnly="staff"
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
                         onImportUsers={props.onImportUsers}
                         onImportStudents={props.onImportStudents}
