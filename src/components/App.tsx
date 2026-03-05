@@ -2194,7 +2194,7 @@ export const App: React.FC = () => {
                                     }}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
-                                <RetailCustomerPortal currentUser={currentUser} />
+                                <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />
                             ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}
@@ -2426,7 +2426,6 @@ export const App: React.FC = () => {
                                     demoDataGenerationMessage=""
                                     examTimetable={examTimetable}
                                     onSwitchPerspective={(role) => setImpersonatedRole(role)}
-                                    activeRole={activeRole}
                                     isImpersonating={!!impersonatedRole}
                                     vehicles={vehicles}
                                     transportOnboarding={transportOnboarding}
