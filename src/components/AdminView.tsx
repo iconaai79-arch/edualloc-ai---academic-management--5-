@@ -61,7 +61,7 @@ import { Store as StoreIcon, ShoppingBag as ShoppingBagIcon } from 'lucide-react
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
 import { TimetablesView } from './TimetablesView';
-import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
+import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUBTYPES } from '../constants';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { TimetableWizard } from './TimetableWizard';
 import { TransportManager } from './TransportManager';
@@ -292,12 +292,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
-        return props.currentInstitution?.businessSubType === 'Retail Agency';
+        return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
     }, [props.currentInstitution]);
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'dos', 'deputy'].includes(role || '');
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto'].includes(role || '');
     }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
@@ -337,7 +337,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (['retail', 'procurement'].includes(tab.id)) {
                 if (isEdu) return false;
                 if (isBusiness) {
-                    return ['Hardware', 'Pharmacy', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Agrovet', 'Car Wash', 'Property Management'].includes(businessSubType || '');
+                    return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
                 return true;
             }

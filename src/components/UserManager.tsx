@@ -858,6 +858,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         );
     };
 
+    useEffect(() => {
+        if (activeTab === 'staff') setRoles(['teacher']);
+        else if (activeTab === 'customer') setRoles(['customer']);
+        else setRoles(['student']);
+    }, [activeTab]);
+
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
     const canManageUserRecords = useMemo(() => {
@@ -950,8 +956,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             phoneNumber: phone,
             staffId,
             gender,
-            role: activeTab === 'staff' ? roles[0] : 'student',
-            roles: activeTab === 'staff' ? roles : ['student'],
+            role: activeTab === 'staff' ? roles[0] : (activeTab === 'customer' ? roles[0] || 'customer' : 'student'),
+            roles: activeTab === 'staff' ? roles : (activeTab === 'customer' ? (roles.length > 0 ? roles : ['customer']) : ['student']),
             institutionId: currentUser?.institutionId || '',
             expertise: [],
             driverType: roles.includes('driver') ? driverType : undefined
