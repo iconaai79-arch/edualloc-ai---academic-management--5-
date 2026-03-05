@@ -284,6 +284,161 @@ export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTra
     link.click();
 };
 
+export const generateRetailReceiptPdf = async (
+    saleData: any,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    isReprint: boolean = false
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+
+    // 80mm Thermal Receipt (width: 80mm, dynamic height)
+    // We estimate height based on items
+    const baseHeight = 150;
+    const itemHeight = 10;
+    const itemsCount = saleData.items?.length || 0;
+    const estimatedHeight = baseHeight + (itemsCount * itemHeight);
+
+    // Create jsPDF instance with custom dimensions for thermal printer
+    const doc = new lib.jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, estimatedHeight]
+    });
+
+    const logoImg = await loadImage(logoUrl);
+    const margin = 5;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 10;
+
+    // Center alignment helper
+    const centerText = (text: string, y: number) => {
+        const textWidth = doc.getTextWidth(text);
+        doc.text(text, (pageWidth - textWidth) / 2, y);
+    };
+
+    // 1. Header (Logo & Clinic/Store Name)
+    if (logoImg) {
+        const logoWidth = 20;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', (pageWidth - logoWidth) / 2, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 5;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    centerText(institution.name, yPos);
+    yPos += 5;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    if (institution.phoneNumber) {
+        centerText(`Tel: ${institution.phoneNumber}`, yPos);
+        yPos += 4;
+    }
+    if (institution.email) {
+        centerText(`Email: ${institution.email}`, yPos);
+        yPos += 4;
+    }
+
+    yPos += 2;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0); // reset
+    yPos += 6;
+
+    // 2. Receipt Info
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    if (isReprint) {
+        centerText("*** REPRINT ***", yPos);
+        yPos += 6;
+    }
+    centerText("SALES RECEIPT", yPos);
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date: ${new Date(saleData.createdAt || new Date()).toLocaleString()}`, margin, yPos);
+    yPos += 4;
+    doc.text(`Receipt #: ${saleData.id?.substring(0, 8).toUpperCase() || 'N/A'}`, margin, yPos);
+    yPos += 4;
+    doc.text(`Cashier: ${saleData.agentId ? 'Agent ' + saleData.agentId.substring(0, 4) : 'Main Store'}`, margin, yPos);
+    yPos += 4;
+
+    if (saleData.customerName) {
+        doc.text(`Customer: ${saleData.customerName}`, margin, yPos);
+        yPos += 4;
+    }
+
+    yPos += 2;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    // 3. Items Header
+    doc.setFont('helvetica', 'bold');
+    doc.text("Item", margin, yPos);
+    doc.text("Qty", 45, yPos, { align: 'right' });
+    doc.text("Total", pageWidth - margin, yPos, { align: 'right' });
+    yPos += 4;
+
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 4;
+
+    // 4. Items List
+    doc.setFont('helvetica', 'normal');
+    let totalItems = 0;
+    (saleData.items || []).forEach((item: any) => {
+        const itemName = item.name.length > 20 ? item.name.substring(0, 18) + '...' : item.name;
+        doc.text(itemName, margin, yPos);
+
+        doc.text(`${item.quantity} x ${item.unitPrice}`, 45, yPos, { align: 'right' });
+
+        const lineTotal = item.quantity * item.unitPrice;
+        doc.text(lineTotal.toLocaleString(), pageWidth - margin, yPos, { align: 'right' });
+
+        yPos += 5;
+        totalItems += item.quantity;
+    });
+
+    yPos += 2;
+    doc.setLineDashPattern([1, 1], 0);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setLineDashPattern([], 0);
+    yPos += 6;
+
+    // 5. Totals
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text("TOTAL DUE:", 30, yPos);
+    doc.text(`Kes ${saleData.totalAmount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Payment Method:", 30, yPos);
+    doc.text(saleData.paymentMethod?.toUpperCase() || 'CASH', pageWidth - margin, yPos, { align: 'right' });
+    yPos += 6;
+
+    doc.text("Items Count:", 30, yPos);
+    doc.text(totalItems.toString(), pageWidth - margin, yPos, { align: 'right' });
+    yPos += 8;
+
+    // 6. Footer
+    doc.setFont('helvetica', 'italic');
+    centerText("Thank you for your business!", yPos);
+    yPos += 4;
+
+    doc.setFontSize(6);
+    centerText("Powered by EduAlloc Retail Engine", yPos);
+
+    return doc.output('bloburl');
+};
+
 export const generateUserListPdf = async (
     users: User[],
     title: string,

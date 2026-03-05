@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
+import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User } from '../../types';
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard } from 'lucide-react';
+import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard, Printer } from 'lucide-react';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -140,6 +141,38 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 }
                 if (customerInfo.email) {
                     console.log(`[Mock Email] Sending invoice to ${customerInfo.email}`);
+                }
+
+                // Generate and trigger Receipt Auto-Preview
+                try {
+                    console.log("Generating thermal receipt preview...");
+
+                    // Add totalAmount and paymentMethod to items since generator expects root level properties on saleData
+                    const completeSaleData = {
+                        ...saleData,
+                        id: (savedSale as any).id || Date.now().toString(),
+                    }
+
+                    // We generate the Blob URL for the PDF
+                    const dummyInstitution = { name: 'Retail Store', phoneNumber: '123-456-7890', email: 'store@example.com' } as any; // Assuming these might not be passed down, creating fallback.
+                    const pdfUrl = await generateRetailReceiptPdf(
+                        completeSaleData,
+                        dummyInstitution,
+                        {} as any, // company details
+                        null // default logo
+                    );
+
+                    // Auto-open print dialog in a new window
+                    const printWindow = window.open(pdfUrl, '_blank');
+                    if (printWindow) {
+                        printWindow.onload = () => {
+                            printWindow.print();
+                        };
+                    } else {
+                        console.warn("Popup blocked! Could not auto-preview receipt.");
+                    }
+                } catch (pdfErr) {
+                    console.error("Failed to generate receipt PDF:", pdfErr);
                 }
 
                 setCheckoutSuccess(savedSale);
