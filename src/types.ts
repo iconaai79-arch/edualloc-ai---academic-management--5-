@@ -2105,6 +2105,7 @@ export interface RetailInventoryItem {
     institutionId: string;
     name: string;
     sku: string;
+    barcode?: string;
     category: string;
     description?: string;
     costPrice: number;
@@ -2210,6 +2211,7 @@ export interface RetailSale {
     items: RetailSaleItem[];
     customerName?: string;
     customerPhone?: string;
+    customerEmail?: string;
     createdAt: string;
 }
 

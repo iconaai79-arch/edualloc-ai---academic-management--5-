@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiService } from '../../services/apiService';
 import { RetailStore, MpesaConfig } from '../../types';
 import { Store, Truck, Plus, Search, MapPin, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, CreditCard } from 'lucide-react';
 
@@ -27,21 +27,13 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
     }, [institutionId]);
 
     const fetchStores = async () => {
-        if (!supabase) {
-            setIsLoading(false);
-            return;
-        }
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('retail_stores')
-                .select('*')
-                .eq('institution_id', institutionId);
-
+            const data = await apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId);
             if (data) {
-                setStores(data.map(s => ({
+                setStores(data.map((s: RetailStore) => ({
                     ...s,
-                    mpesaConfig: s.mpesa_config // Map snake_case to camelCase
+                    mpesaConfig: (s as any).mpesa_config || s.mpesaConfig // Handle potential snake_case from DB
                 })));
             }
         } catch (err) {
@@ -52,15 +44,13 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
     };
 
     const handleSaveConfig = async () => {
-        if (!selectedStore || !supabase) return;
+        if (!selectedStore) return;
 
         try {
-            const { error } = await supabase
-                .from('retail_stores')
-                .update({ mpesa_config: config })
-                .eq('id', selectedStore.id);
-
-            if (error) throw error;
+            await apiService.saveModuleRecord('retail_stores', {
+                id: selectedStore.id,
+                mpesa_config: config
+            });
 
             setStores(prev => prev.map(s => s.id === selectedStore.id ? { ...s, mpesaConfig: config } : s));
             setIsConfigModalOpen(false);

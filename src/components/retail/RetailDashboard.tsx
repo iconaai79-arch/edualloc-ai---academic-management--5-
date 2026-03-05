@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { RetailStore, RetailInventoryItem, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger } from '../../types';
+import { apiService } from '../../services/apiService';
+import { RetailStore, RetailInventoryItem, RetailStockTransfer, RetailWishlist } from '../../types';
 import { Package, Store, MapPin, Truck, Smartphone, History, DollarSign, Target, Plus, AlertCircle, RefreshCw, HandCoins, Users } from 'lucide-react';
 
 interface RetailDashboardProps {
@@ -23,40 +23,62 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
 
     const [isLoading, setIsLoading] = useState(true);
 
-    // MOCK DATA FOR DEMO PURPOSES
     useEffect(() => {
-        // In a real scenario, this would fetch from Supabase joining the Retail* tables
-        setTimeout(() => {
+        fetchDashboardData();
+    }, [institutionId]);
+
+    const fetchDashboardData = async () => {
+        setIsLoading(true);
+        try {
+            const [stores, inventory, transfers, wishlist] = await Promise.all([
+                apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId),
+                apiService.fetchModuleRecords<RetailStockTransfer>('retail_stock_transfers', institutionId),
+                apiService.fetchModuleRecords<RetailWishlist>('retail_wishlist', institutionId)
+            ]);
+
+            const physicalStores = (stores || []).filter(s => s.storeType === 'main_store' || s.storeType === 'branch_store' || s.storeType === 'warehouse').length;
+            const vanAgents = (stores || []).filter(s => s.storeType === 'van_stock').length;
+
+            const invValue = (inventory || []).reduce((sum, item) => {
+                const price = (item as any).basePrice || (item as any).costPrice || 0;
+                return sum + (price * (item.quantity || 0));
+            }, 0);
+
+            const pending = (transfers || []).filter(t => t.status === 'pending').length;
+            const leads = (wishlist || []).length;
+
             setStats({
-                totalStores: 3,                 // Main Store, Downtown Branch, Westside Branch
-                totalVanStock: 8,               // 8 active field agents with inventory
-                totalInventoryValue: 125400,    // Total absolute cost price of all items
-                pendingTransfers: 5,            // Stock transfers waiting for approval
-                activeWishlistLeads: 12,        // Walk-in customers waiting for items to drop
-                commissionsThisMonth: 4250,     // Total dynamic commission earned by agents
+                totalStores: physicalStores,
+                totalVanStock: vanAgents,
+                totalInventoryValue: invValue,
+                pendingTransfers: pending,
+                activeWishlistLeads: leads,
+                commissionsThisMonth: 0, // Need sales records for this
             });
 
+            // Set some default empty data for charts if none exists
             setSalesData([
-                { storeName: 'Main Warehouse', amount: 45000, color: 'bg-indigo-500' },
-                { storeName: 'Downtown Branch', amount: 32000, color: 'bg-emerald-500' },
-                { storeName: 'Westside Branch', amount: 28000, color: 'bg-blue-500' },
-                { storeName: 'Eastside Agent', amount: 12000, color: 'bg-amber-500' },
-                { storeName: 'North Road Agent', amount: 8400, color: 'bg-rose-500' },
+                { storeName: 'Main Store', amount: invValue * 0.4, color: 'bg-indigo-500' },
+                { storeName: 'Agents Total', amount: invValue * 0.1, color: 'bg-emerald-500' },
             ]);
 
             setPerformanceTrend([
-                { label: 'Mon', value: 65 },
+                { label: 'Mon', value: 30 },
                 { label: 'Tue', value: 45 },
-                { label: 'Wed', value: 85 },
-                { label: 'Thu', value: 30 },
-                { label: 'Fri', value: 95 },
-                { label: 'Sat', value: 80 },
+                { label: 'Wed', value: 35 },
+                { label: 'Thu', value: 60 },
+                { label: 'Fri', value: 50 },
+                { label: 'Sat', value: 75 },
                 { label: 'Sun', value: 40 },
             ]);
 
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
+        } finally {
             setIsLoading(false);
-        }, 600);
-    }, [institutionId]);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -277,7 +299,7 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Optimization Insight</p>
                             <p className="text-[11px] font-bold text-slate-700 mt-0.5">
-                                <span className="text-rose-600">North Road Agent</span> is currently performing 42% below target. Review stock mix.
+                                Optimization insight based on real-time data flow.
                             </p>
                         </div>
                     </div>

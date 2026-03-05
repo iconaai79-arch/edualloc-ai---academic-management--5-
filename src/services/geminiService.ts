@@ -485,7 +485,7 @@ export const analyzeCarWashCustomerSpreadsheet = async (headers: string[]): Prom
 export const analyzeRetailInventorySpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
     try {
         checkAiAvailable();
-        const prompt = `Map these spreadsheet headers to retail inventory fields: name, sku, category, srpPrice, costPrice, quantity, unit, description. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
+        const prompt = `Map these spreadsheet headers to retail inventory fields: name, sku, barcode, category, srpPrice, costPrice, quantity, unit, description. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
         const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
         return sanitizeAndParseJson(response.text || "{}");
     } catch (error) {

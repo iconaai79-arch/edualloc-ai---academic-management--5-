@@ -5,8 +5,8 @@ import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from '../icons/
 import { analyzeRetailInventorySpreadsheet } from '../../services/geminiService';
 import * as XLSX from 'xlsx';
 
-type RetailInventoryMappingField = 'name' | 'sku' | 'category' | 'srpPrice' | 'costPrice' | 'quantity' | 'unit' | 'description';
-const ALL_RETAIL_MAPPING_FIELDS: RetailInventoryMappingField[] = ['name', 'sku', 'category', 'srpPrice', 'costPrice', 'quantity', 'unit', 'description'];
+type RetailInventoryMappingField = 'name' | 'sku' | 'barcode' | 'category' | 'srpPrice' | 'costPrice' | 'quantity' | 'unit' | 'description';
+const ALL_RETAIL_MAPPING_FIELDS: RetailInventoryMappingField[] = ['name', 'sku', 'barcode', 'category', 'srpPrice', 'costPrice', 'quantity', 'unit', 'description'];
 const REQUIRED_RETAIL_MAPPING_FIELDS: RetailInventoryMappingField[] = ['name', 'category', 'srpPrice', 'quantity'];
 
 interface SmartRetailInventoryImporterModalProps {
@@ -95,6 +95,7 @@ export const SmartRetailInventoryImporterModal: React.FC<SmartRetailInventoryImp
                 }
 
                 const sku = userMapping.sku ? String(row[userMapping.sku] || '') : '';
+                const barcode = userMapping.barcode ? String(row[userMapping.barcode] || '') : '';
                 const costPrice = userMapping.costPrice ? parseFloat(row[userMapping.costPrice]) || 0 : 0;
                 const unit = userMapping.unit ? String(row[userMapping.unit] || 'pcs') : 'pcs';
                 const description = userMapping.description ? String(row[userMapping.description] || '') : '';
@@ -102,6 +103,7 @@ export const SmartRetailInventoryImporterModal: React.FC<SmartRetailInventoryImp
                 validItems.push({
                     name: String(name).trim(),
                     sku: sku.trim() || `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                    barcode: barcode.trim(),
                     category: String(category).trim(),
                     srpPrice,
                     costPrice,

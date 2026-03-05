@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiService } from '../../services/apiService';
 import { RetailInventoryItem, RetailStore, User } from '../../types';
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store } from 'lucide-react';
+import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard } from 'lucide-react';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -12,47 +12,38 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
     const [activeStore, setActiveStore] = useState<RetailStore | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [products, setProducts] = useState<RetailInventoryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Cart state
-    const [cart, setCart] = useState<{ item: any, quantity: number, finalPrice: number }[]>([]);
+    const [cart, setCart] = useState<{ item: RetailInventoryItem, quantity: number, finalPrice: number }[]>([]);
+
+    // Checkout state
+    const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+    const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', email: '' });
+    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [checkoutSuccess, setCheckoutSuccess] = useState<any>(null);
 
     // Selected item for pricing negotiation
-    const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | null>(null);
     const [negotiatedPrice, setNegotiatedPrice] = useState<string>('');
 
-    // Mock products
-    const [products] = useState([
-        {
-            id: 'prod-1',
-            name: 'iPhone 15 Pro Max',
-            category: 'Smartphones',
-            basePrice: 1050,
-            srpPrice: 1200,
-            unit: 'pc',
-            availableStock: 5,
-            isSerialized: true
-        },
-        {
-            id: 'prod-2',
-            name: 'HP LaserJet Pro M404n',
-            category: 'Printers',
-            basePrice: 220,
-            srpPrice: 280,
-            unit: 'pc',
-            availableStock: 12,
-            isSerialized: true
-        },
-        {
-            id: 'prod-3',
-            name: 'Original HP 59A Toner',
-            category: 'Accessories',
-            basePrice: 85,
-            srpPrice: 110,
-            unit: 'pc',
-            availableStock: 45,
-            isSerialized: false
+    useEffect(() => {
+        fetchProducts();
+    }, [institutionId]);
+
+    const fetchProducts = async () => {
+        setIsLoading(true);
+        try {
+            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId);
+            if (data) setProducts(data);
+        } catch (err) {
+            console.error("Fetch products error:", err);
+        } finally {
+            setIsLoading(false);
         }
-    ]);
+    };
 
     // Determine available modes based on user role (Mock Logic)
     useEffect(() => {
@@ -71,8 +62,9 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
             return;
         }
 
-        if (numPrice < selectedItem.basePrice) {
-            alert(`Price cannot be below the Base Price of $${selectedItem.basePrice}`);
+        const basePrice = (selectedItem as any).basePrice || (selectedItem as any).costPrice || 0;
+        if (numPrice < basePrice) {
+            alert(`Price cannot be below the Base Price of $${basePrice}`);
             return;
         }
 
@@ -93,7 +85,90 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     };
 
     const totalAmount = cart.reduce((sum, cartItem) => sum + (cartItem.finalPrice * cartItem.quantity), 0);
-    const totalCommission = cart.reduce((sum, cartItem) => sum + ((cartItem.finalPrice - cartItem.item.basePrice) * cartItem.quantity), 0);
+    const totalCommission = cart.reduce((sum, cartItem) => {
+        const basePrice = (cartItem.item as any).basePrice || (cartItem.item as any).costPrice || 0;
+        return sum + ((cartItem.finalPrice - basePrice) * cartItem.quantity);
+    }, 0);
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+        setIsProcessing(true);
+
+        try {
+            const saleData = {
+                institutionId,
+                storeId: activeStore?.id || (activeMode === 'shop' ? 'main_store' : `agent_${currentUser.id}`),
+                agentId: activeMode === 'field' ? currentUser.id : undefined,
+                totalAmount,
+                paymentMethod,
+                customerName: customerInfo.name,
+                customerPhone: customerInfo.phone,
+                customerEmail: customerInfo.email,
+                items: cart.map(c => ({
+                    itemId: c.item.id,
+                    name: c.item.name,
+                    quantity: c.quantity,
+                    unitPrice: c.finalPrice
+                })),
+                createdAt: new Date().toISOString()
+            };
+
+            const savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
+
+            if (savedSale && (savedSale as any).id) {
+                // Save commissions if any
+                for (const c of cart) {
+                    const basePrice = (c.item as any).basePrice || (c.item as any).costPrice || 0;
+                    if (c.finalPrice > basePrice) {
+                        await apiService.saveModuleRecord('retail_commission_ledger', {
+                            institutionId,
+                            agentId: currentUser.id,
+                            saleId: (savedSale as any).id,
+                            itemId: c.item.id,
+                            basePrice,
+                            soldPrice: c.finalPrice,
+                            commissionAmount: (c.finalPrice - basePrice) * c.quantity,
+                            isPaid: false,
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                }
+
+                // Mock notifications
+                if (customerInfo.phone) {
+                    console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for $${totalAmount}`);
+                }
+                if (customerInfo.email) {
+                    console.log(`[Mock Email] Sending invoice to ${customerInfo.email}`);
+                }
+
+                setCheckoutSuccess(savedSale);
+                setCart([]);
+            }
+
+        } catch (err) {
+            console.error("Checkout error:", err);
+            alert("Failed to process checkout");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        p.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-slate-200">
+                <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4 text-xs font-black uppercase tracking-widest text-slate-400">Loading Inventory...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-12rem)] min-h-[600px]">
@@ -149,7 +224,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 {/* Product Grid */}
                 <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                        {products.map(product => (
+                        {filteredProducts.map(product => (
                             <div
                                 key={product.id}
                                 onClick={() => {
@@ -161,7 +236,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 <div>
                                     <div className="flex justify-between items-start mb-2">
                                         <span className="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded-full">{product.category}</span>
-                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">{product.availableStock} in stock</span>
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">{product.quantity} in stock</span>
                                     </div>
                                     <h3 className="font-semibold text-slate-800 line-clamp-2 leading-tight">{product.name}</h3>
                                 </div>
@@ -169,7 +244,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 <div className="mt-4 pt-4 border-t border-slate-100">
                                     <p className="text-2xl font-bold text-blue-600">${product.srpPrice}</p>
                                     <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                        <Tag className="w-3 h-3" /> Base: ${product.basePrice}
+                                        <Tag className="w-3 h-3" /> Base: ${(product as any).basePrice || (product as any).costPrice || 0}
                                     </p>
                                 </div>
                             </div>
@@ -212,20 +287,20 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                     <span className="text-sm font-medium">Your Commission:</span>
                                 </div>
                                 <span className="text-lg font-bold text-emerald-600">
-                                    ${Math.max(0, parseFloat(negotiatedPrice || '0') - selectedItem.basePrice).toFixed(2)}
+                                    ${Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)).toFixed(2)}
                                 </span>
                             </div>
 
-                            {parseFloat(negotiatedPrice) < selectedItem.basePrice && (
+                            {parseFloat(negotiatedPrice) < ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0) && (
                                 <div className="flex gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                    <p>Cannot sell below the Base Price of ${selectedItem.basePrice}. Manager override required.</p>
+                                    <p>Cannot sell below the Base Price of ${((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)}. Manager override required.</p>
                                 </div>
                             )}
 
                             <button
                                 onClick={addToCart}
-                                disabled={parseFloat(negotiatedPrice) < selectedItem.basePrice}
+                                disabled={parseFloat(negotiatedPrice) < ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)}
                                 className="w-full py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 Add to Cart
@@ -254,9 +329,6 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                         <p className="font-semibold text-slate-800 text-sm truncate">{cartItem.item.name}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-xs text-slate-500">${cartItem.finalPrice} x {cartItem.quantity}</span>
-                                            {cartItem.item.isSerialized && (
-                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-mono">Select Serial</span>
-                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -291,18 +363,125 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                     </div>
 
                     <button
+                        onClick={() => setIsCheckoutModalOpen(true)}
                         disabled={cart.length === 0}
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         <Calculator className="w-5 h-5" />
-                        Complete Checkout
+                        Checkout
                     </button>
                 </div>
             </div>
+
+            {/* Checkout Modal */}
+            {isCheckoutModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+                        {checkoutSuccess ? (
+                            <div className="p-8 text-center">
+                                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-slate-800 mb-2">Checkout Complete!</h3>
+                                {customerInfo.phone && <p className="text-slate-600 text-sm mb-1">SMS Receipt sent to {customerInfo.phone}</p>}
+                                {customerInfo.email && <p className="text-slate-600 text-sm mb-4">Invoice emailed to {customerInfo.email}</p>}
+                                <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-6 cursor-pointer hover:underline">View in Customer Portal</p>
+                                <button
+                                    onClick={() => {
+                                        setCheckoutSuccess(null);
+                                        setIsCheckoutModalOpen(false);
+                                        setCustomerInfo({ name: '', phone: '', email: '' });
+                                    }}
+                                    className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-colors"
+                                >
+                                    New Sale
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 className="font-bold text-lg">Finalize Sale</h3>
+                                    <button onClick={() => setIsCheckoutModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Customer Name</label>
+                                        <input
+                                            type="text"
+                                            value={customerInfo.name}
+                                            onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                                            className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Phone</label>
+                                            <input
+                                                type="tel"
+                                                value={customerInfo.phone}
+                                                onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-sm"
+                                                placeholder="For SMS receipt"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Email</label>
+                                            <input
+                                                type="email"
+                                                value={customerInfo.email}
+                                                onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                                                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-sm"
+                                                placeholder="For Invoice"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Payment Method</label>
+                                        <div className="flex gap-2 text-sm font-medium">
+                                            {['cash', 'mpesa', 'card'].map(method => (
+                                                <button
+                                                    key={method}
+                                                    onClick={() => setPaymentMethod(method)}
+                                                    className={`flex-1 py-2 rounded-lg capitalize border ${paymentMethod === method ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-inner' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                                                >
+                                                    {method}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 mt-6 border-t border-slate-100 flex justify-between items-center">
+                                        <span className="text-slate-500">Total charge</span>
+                                        <span className="text-2xl font-black text-slate-800">${totalAmount.toFixed(2)}</span>
+                                    </div>
+
+                                    <button
+                                        onClick={handleCheckout}
+                                        disabled={isProcessing}
+                                        className="w-full py-4 mt-2 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        {isProcessing ? (
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <>
+                                                <CreditCard className="w-5 h-5" />
+                                                Process Payment
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 // Inline missing icon
 const Target = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;
-const X = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>;

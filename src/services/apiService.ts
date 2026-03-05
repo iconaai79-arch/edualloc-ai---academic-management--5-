@@ -289,27 +289,28 @@ export const apiService = {
         }
     }
     ,
-    async saveModuleRecord<T = any>(module: string, data: T): Promise<void> {
+    async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
         const payload = toSnakeCase(data);
 
         if (!_supabase) {
             ls.upsert(module, payload);
-            return;
+            return toCamelCase(payload);
         }
 
         try {
-            const { error } = await _supabase.from(module as any).upsert(payload).select();
+            const { data: savedData, error } = await _supabase.from(module as any).upsert(payload).select();
 
             if (error) {
                 console.error(`Save Error [${module}]:`, error);
                 throw new Error(`Failed to save ${module}: ${error.message} (${error.code})`);
             }
+            return savedData ? toCamelCase(savedData[0]) : null;
         } catch (e: any) {
             // Network error or Supabase unreachable - fallback to localStorage
             if (e.message?.includes('fetch') || e.message?.includes('network')) {
                 console.warn(`Supabase unreachable for ${module}, using localStorage fallback`);
                 ls.upsert(module, payload);
-                return;
+                return toCamelCase(payload);
             }
             // Re-throw other errors
             throw e;

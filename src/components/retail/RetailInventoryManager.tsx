@@ -57,6 +57,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         unit: 'pcs',
         imageUrl: '',
         description: '',
+        barcode: '',
         marketplaceEnabled: true
     });
 
@@ -124,6 +125,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 unit: 'pcs',
                 imageUrl: '',
                 description: '',
+                barcode: '',
                 marketplaceEnabled: true
             });
             fetchInventory();
@@ -195,6 +197,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                             unit: 'pcs',
                             imageUrl: '',
                             description: '',
+                            barcode: '',
                             marketplaceEnabled: true
                         });
                         setIsAddModalOpen(true);
@@ -494,6 +497,19 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                     >
                                         {formData.marketplaceEnabled ? 'LIVE ON MARKET' : 'PRIVATE ENTRY'}
                                     </button>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Barcode (Scan to Register)</label>
+                                    <div className="relative">
+                                        <Tag className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
+                                        <input
+                                            type="text"
+                                            value={formData.barcode || ''}
+                                            onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                                            className="w-full pl-14 pr-5 py-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="Scan barcode here..."
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">SKU / ID</label>

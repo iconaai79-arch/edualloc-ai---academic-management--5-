@@ -16,7 +16,7 @@ import {
     Package,
     ArrowUpRight
 } from 'lucide-react';
-import { User, ServiceBooking, Institution } from '../../types';
+import { User, ServiceBooking, Institution, RetailSale } from '../../types';
 import { apiService } from '../../services/apiService';
 
 interface RetailCustomerPortalProps {
@@ -28,26 +28,43 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
     const isCarWash = currentInstitution?.businessSubType === 'Car Wash';
     const [activeTab, setActiveTab] = useState<'overview' | 'booking' | 'wallet' | 'loyalty'>('overview');
     const [bookings, setBookings] = useState<ServiceBooking[]>([]);
+    const [sales, setSales] = useState<RetailSale[]>([]);
     const [points, setPoints] = useState(currentUser.loyaltyPoints || 0);
     const [walletBalance, setWalletBalance] = useState(currentUser.walletBalance || 0);
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
     useEffect(() => {
-        // Mock data or fetch from API if implemented
-        setBookings([
-            {
-                id: 'bk_1',
-                customerName: currentUser.name,
-                customerPhone: currentUser.phoneNumber,
-                serviceType: isCarWash ? 'Executive Car Wash' : 'Standard Product Order',
-                bookingDate: '2026-03-05',
-                bookingTime: '10:00 AM',
-                status: 'confirmed',
-                institutionId: currentUser.institutionId,
-                createdAt: new Date().toISOString()
+        const loadCustomerData = async () => {
+            // Mock Bookings
+            setBookings([
+                {
+                    id: 'bk_1',
+                    customerName: currentUser.name,
+                    customerPhone: currentUser.phoneNumber,
+                    serviceType: isCarWash ? 'Executive Car Wash' : 'Standard Product Order',
+                    bookingDate: '2026-03-05',
+                    bookingTime: '10:00 AM',
+                    status: 'confirmed',
+                    institutionId: currentUser.institutionId,
+                    createdAt: new Date().toISOString()
+                }
+            ]);
+
+            // Fetch actual sales where customer matches
+            try {
+                const allSales = await apiService.fetchModuleRecords<RetailSale>('retail_sales', currentUser.institutionId);
+                const customerSales = allSales.filter(s =>
+                    (s.customerPhone && s.customerPhone === currentUser.phoneNumber) ||
+                    (s.customerEmail && s.customerEmail === currentUser.email)
+                ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                setSales(customerSales);
+            } catch (error) {
+                console.error("Failed to load customer sales:", error);
             }
-        ]);
-    }, [currentUser]);
+        };
+
+        loadCustomerData();
+    }, [currentUser, isCarWash]);
 
     const stats = [
         { label: 'Wallet Balance', value: `KES ${walletBalance.toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -244,18 +261,47 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                     </div>
                                     <span className="text-sm font-black text-emerald-600">+500</span>
                                 </div>
-                                <div className="flex items-center justify-between py-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-600 flex items-center justify-center">
-                                            <Package className="w-4 h-4" />
+                                {/* Show actual recent sales in the wallet history if any exist */}
+                                {sales.slice(0, 3).map(sale => (
+                                    <div key={sale.id} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                                <Package className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">
+                                                    {sale.items.length > 0 ? sale.items[0].name : 'Retail Purchase'}
+                                                    {sale.items.length > 1 && ` +${sale.items.length - 1} more`}
+                                                </p>
+                                                <p className="text-xs text-slate-500">{new Date(sale.createdAt).toLocaleDateString()}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-bold">{isCarWash ? 'Standard Wash' : 'Grocery Bundle'}</p>
-                                            <p className="text-[10px] text-slate-400">Mar 01, 2026</p>
+                                        <div className="text-right">
+                                            <span className="text-sm font-black text-slate-800">-${sale.totalAmount.toFixed(2)}</span>
+                                            <button
+                                                className="block text-[10px] uppercase font-bold text-indigo-600 tracking-widest hover:underline mt-1"
+                                                onClick={() => alert(`Downloading Invoice for Sale \nTotal: $${sale.totalAmount}\nItems: ${sale.items.map(i => i.name).join(', ')}`)}
+                                            >
+                                                Receipt
+                                            </button>
                                         </div>
                                     </div>
-                                    <span className="text-sm font-black text-slate-600">-250</span>
-                                </div>
+                                ))}
+
+                                {sales.length === 0 && (
+                                    <div className="flex items-center justify-between py-2 opacity-50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-600 flex items-center justify-center">
+                                                <Package className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold">{isCarWash ? 'Standard Wash' : 'Grocery Bundle'}</p>
+                                                <p className="text-[10px] text-slate-400">Mar 01, 2026</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-sm font-black text-slate-600">-250</span>
+                                    </div>
+                                )}
                             </div>
                         </section>
 
