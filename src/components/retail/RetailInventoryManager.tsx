@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
 import { RetailInventoryItem, RetailStore } from '../../types';
 import {
     Package,
@@ -12,8 +11,11 @@ import {
     Layers,
     DollarSign,
     X,
-    CheckCircle2
+    CheckCircle2,
+    Image as ImageIcon,
+    Upload
 } from 'lucide-react';
+import { apiService } from '../../services/apiService';
 
 interface RetailInventoryManagerProps {
     institutionId: string;
@@ -25,6 +27,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<RetailInventoryItem | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
@@ -35,7 +38,8 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         costPrice: 0,
         quantity: 0,
         reorderLevel: 5,
-        unit: 'pcs'
+        unit: 'pcs',
+        imageUrl: ''
     });
 
     useEffect(() => {
@@ -43,15 +47,10 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     }, [institutionId]);
 
     const fetchInventory = async () => {
-        if (!supabase) return;
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('retail_inventory')
-                .select('*')
-                .eq('institution_id', institutionId);
-
-            if (data) setItems(data);
+            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId);
+            setItems(data);
         } catch (err) {
             console.error("Fetch error:", err);
         } finally {
@@ -59,33 +58,44 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         }
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'png';
+            const path = `retail/${institutionId}/products/${timestamp}.${ext}`;
+
+            const publicUrl = await apiService.uploadFile('eduai', path, file);
+
+            if (publicUrl) {
+                setFormData(prev => ({ ...prev, imageUrl: publicUrl }));
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("Failed to upload image");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!supabase) return;
 
         try {
             const payload = {
                 ...formData,
-                institution_id: institutionId,
-                last_updated: new Date().toISOString()
+                institutionId,
+                lastUpdated: new Date().toISOString()
             };
 
-            if (editingItem) {
-                const { error } = await supabase
-                    .from('retail_inventory')
-                    .update(payload)
-                    .eq('id', editingItem.id);
-                if (error) throw error;
-            } else {
-                const { error } = await supabase
-                    .from('retail_inventory')
-                    .insert([payload]);
-                if (error) throw error;
-            }
+            await apiService.saveModuleRecord('retail_inventory', payload);
 
             setIsAddModalOpen(false);
             setEditingItem(null);
-            setFormData({ name: '', sku: '', category: '', srpPrice: 0, costPrice: 0, quantity: 0, reorderLevel: 5, unit: 'pcs' });
+            setFormData({ name: '', sku: '', category: '', srpPrice: 0, costPrice: 0, quantity: 0, reorderLevel: 5, unit: 'pcs', imageUrl: '' });
             fetchInventory();
         } catch (err) {
             console.error("Save error:", err);
@@ -94,16 +104,13 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     };
 
     const handleDelete = async (id: string) => {
-        if (!supabase || !window.confirm('Are you sure you want to delete this item?')) return;
+        if (!window.confirm('Are you sure you want to delete this item?')) return;
         try {
-            const { error } = await supabase
-                .from('retail_inventory')
-                .delete()
-                .eq('id', id);
-            if (error) throw error;
+            await apiService.deleteModuleRecord('retail_inventory', id);
             fetchInventory();
         } catch (err) {
             console.error("Delete error:", err);
+            alert('Failed to delete item');
         }
     };
 
@@ -173,8 +180,12 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                 <tr key={item.id} className="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600">
-                                                <Package className="w-6 h-6" />
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 overflow-hidden">
+                                                {item.imageUrl ? (
+                                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Package className="w-6 h-6" />
+                                                )}
                                             </div>
                                             <div>
                                                 <p className="font-black text-slate-900 dark:text-white uppercase text-xs tracking-tight">{item.name}</p>
@@ -249,6 +260,39 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                         </div>
 
                         <form onSubmit={handleSave} className="p-10 space-y-6">
+                            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2rem] bg-slate-50 dark:bg-slate-900/50 group relative overflow-hidden">
+                                {formData.imageUrl ? (
+                                    <>
+                                        <img src={formData.imageUrl} alt="Preview" className="w-32 h-32 object-cover rounded-2xl" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                                            className="absolute top-2 right-2 p-1 bg-white dark:bg-slate-800 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-4 h-4 text-slate-500" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                                            {isUploading ? (
+                                                <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Upload className="w-8 h-8 text-slate-300" />
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Click to upload product image</p>
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileUpload}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    disabled={isUploading}
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-2 col-span-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Item Name</label>
