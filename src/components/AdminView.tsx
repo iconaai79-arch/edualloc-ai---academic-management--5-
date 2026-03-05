@@ -312,7 +312,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
             { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            { id: 'transport', label: isRetailAgency ? 'Logistics' : 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
+            { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -330,7 +330,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Transport/Logistics
             if (tab.id === 'transport') {
-                return isEdu || isRetailAgency;
+                return isEdu;
             }
 
             // Retail & Procurement tabs
