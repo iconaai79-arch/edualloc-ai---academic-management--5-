@@ -273,7 +273,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [] } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -294,6 +294,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isRetailAgency = useMemo(() => {
         return props.currentInstitution?.businessSubType === 'Retail Agency';
     }, [props.currentInstitution]);
+
+    const isCoreAdmin = useMemo(() => {
+        const role = props.currentUser?.role;
+        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'dos', 'deputy'].includes(role || '');
+    }, [props.currentUser?.role]);
 
     const tabs = useMemo(() => {
         const baseTabs = [
@@ -492,16 +497,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         <p className="text-[10px] opacity-80 uppercase mt-1">Guided Generation</p>
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => setIsPerspectiveModalOpen(true)}
-                                    className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-                                        <EyeIcon className="w-6 h-6" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
-                                    <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
-                                </button>
+                                {isCoreAdmin && (
+                                    <button
+                                        onClick={() => setIsPerspectiveModalOpen(true)}
+                                        className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
+                                    >
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                                            <EyeIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Switch Perspective</span>
+                                        <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => handleQuickAction('users')}
                                     className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
