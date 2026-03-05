@@ -396,7 +396,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' }
     ].filter(opt => {
         if (isRetailAgency) {
-            return ['retail_agent', 'driver', 'customer', 'security', 'store'].includes(opt.role);
+            return ['retail_agent', 'customer'].includes(opt.role);
         }
         if (isEdu) {
             return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'driver', 'customer'].includes(opt.role);
