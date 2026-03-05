@@ -65,6 +65,69 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         fetchInventory();
     }, [institutionId]);
 
+    // Barcode Scanner Listener
+    useEffect(() => {
+        let buffer = '';
+        let lastKeyTime = Date.now();
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if focus is within an input or textarea
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+            const currentTime = Date.now();
+
+            // If more than 50ms has passed since the last key, it's likely human typing, so clear the buffer
+            if (currentTime - lastKeyTime > 50) {
+                buffer = '';
+            }
+
+            if (e.key === 'Enter' && buffer.length > 3) {
+                // A barcode was likely scanned
+                e.preventDefault();
+                const scannedBarcode = buffer;
+
+                const existingItem = items.find(item => item.barcode === scannedBarcode);
+
+                if (existingItem) {
+                    // Item exists, open edit modal
+                    setEditingItem(existingItem);
+                    setFormData(existingItem);
+                    setIsAddModalOpen(true);
+                } else {
+                    // New item
+                    setEditingItem(null);
+                    setFormData({
+                        name: '',
+                        sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                        category: 'Smartphones',
+                        srpPrice: 0,
+                        costPrice: 0,
+                        quantity: 1, // Default to 1 for quick scanning
+                        reorderLevel: 5,
+                        unit: 'pcs',
+                        imageUrl: '',
+                        description: '',
+                        barcode: scannedBarcode,
+                        marketplaceEnabled: true
+                    });
+                    setIsAddModalOpen(true);
+                }
+
+                buffer = ''; // Reset buffer after successful scan
+            } else if (e.key.length === 1) {
+                // Add regular characters to the buffer
+                buffer += e.key;
+            }
+
+            lastKeyTime = currentTime;
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [items]); // Re-bind when items change so we have the latest list to search
+
     const fetchInventory = async () => {
         setIsLoading(true);
         try {
@@ -188,7 +251,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                         setEditingItem(null);
                         setFormData({
                             name: '',
-                            sku: '',
+                            sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
                             category: 'Smartphones',
                             srpPrice: 0,
                             costPrice: 0,
