@@ -22,6 +22,17 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
         passkey: ''
     });
 
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [currentLocation, setCurrentLocation] = useState<Partial<RetailStore>>({
+        name: '',
+        storeType: 'branch_store',
+        location: '',
+        isActive: true,
+        latitude: undefined,
+        longitude: undefined
+    });
+
     useEffect(() => {
         fetchStores();
     }, [institutionId]);
@@ -74,6 +85,47 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
         setIsConfigModalOpen(true);
     };
 
+    const handleSaveLocation = async () => {
+        if (!currentLocation.name || !currentLocation.storeType) {
+            alert("Please provide a name and type for the location.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const newRecord = {
+                id: currentLocation.id || `loc_${Date.now()}`,
+                institutionId,
+                name: currentLocation.name,
+                storeType: currentLocation.storeType,
+                location: currentLocation.location || '',
+                latitude: currentLocation.latitude,
+                longitude: currentLocation.longitude,
+                isActive: currentLocation.isActive ?? true,
+                createdAt: currentLocation.createdAt || new Date().toISOString()
+            };
+
+            const saved = await apiService.saveModuleRecord('retail_stores', newRecord);
+
+            if (saved) {
+                if (currentLocation.id) {
+                    setStores(prev => prev.map(s => s.id === saved.id ? saved as RetailStore : s));
+                } else {
+                    setStores(prev => [...prev, saved as RetailStore]);
+                }
+                setIsAddModalOpen(false);
+                setCurrentLocation({
+                    name: '', storeType: 'branch_store', location: '', isActive: true, latitude: undefined, longitude: undefined
+                });
+            }
+        } catch (err) {
+            console.error("Save location error:", err);
+            alert("Failed to save location");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const filteredStores = stores.filter(store => {
         const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (store.location && store.location.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -89,7 +141,13 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                     <p className="text-slate-500 text-sm mt-1">Manage physical branches and van stock for field agents.</p>
                 </div>
 
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium">
+                <button
+                    onClick={() => {
+                        setCurrentLocation({ name: '', storeType: 'branch_store', location: '', isActive: true, latitude: undefined, longitude: undefined });
+                        setIsAddModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
                     <Plus className="w-4 h-4" />
                     Add Location
                 </button>
@@ -146,9 +204,16 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                                 <h3 className="font-semibold text-slate-800 text-lg pr-6 truncate">{store.name}</h3>
 
                                 <div className="mt-2 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                                        <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                        <span className="truncate">{store.location || 'No location set'}</span>
+                                    <div className="flex items-start gap-2 text-sm text-slate-500">
+                                        <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                                        <div className="flex flex-col">
+                                            <span className="truncate">{store.location || 'No location set'}</span>
+                                            {(store.latitude !== undefined && store.longitude !== undefined) && (
+                                                <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                    {store.latitude}, {store.longitude}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -270,6 +335,115 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                                     Save Configuration
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Location Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-fade-in-up">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="text-xl font-bold text-slate-800">
+                                {currentLocation.id ? 'Edit Location' : 'Add New Location'}
+                            </h3>
+                            <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <XCircle className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">Location Name *</label>
+                                <input
+                                    type="text"
+                                    value={currentLocation.name}
+                                    onChange={e => setCurrentLocation({ ...currentLocation, name: e.target.value })}
+                                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="e.g. Downtown Branch"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">Location Type *</label>
+                                <select
+                                    value={currentLocation.storeType}
+                                    onChange={e => setCurrentLocation({ ...currentLocation, storeType: e.target.value as any })}
+                                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                >
+                                    <option value="branch_store">Branch Store</option>
+                                    <option value="main_store">Main Store / HQ</option>
+                                    <option value="van_stock">Field Agent (Van Stock)</option>
+                                    <option value="warehouse">Warehouse</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-slate-700">Physical Address</label>
+                                <input
+                                    type="text"
+                                    value={currentLocation.location}
+                                    onChange={e => setCurrentLocation({ ...currentLocation, location: e.target.value })}
+                                    className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="e.g. 123 Business Avenue, Suite 100"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">Latitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={currentLocation.latitude || ''}
+                                        onChange={e => setCurrentLocation({ ...currentLocation, latitude: parseFloat(e.target.value) })}
+                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                                        placeholder="e.g. -1.2921"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700">Longitude</label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        value={currentLocation.longitude || ''}
+                                        onChange={e => setCurrentLocation({ ...currentLocation, longitude: parseFloat(e.target.value) })}
+                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
+                                        placeholder="e.g. 36.8219"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2">
+                                <input
+                                    type="checkbox"
+                                    id="isActiveLoc"
+                                    checked={currentLocation.isActive}
+                                    onChange={e => setCurrentLocation({ ...currentLocation, isActive: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                />
+                                <label htmlFor="isActiveLoc" className="text-sm font-medium text-slate-700 cursor-pointer">
+                                    Location is currently active
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsAddModalOpen(false)}
+                                className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveLocation}
+                                disabled={isSaving}
+                                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-70"
+                            >
+                                {isSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                Save Location
+                            </button>
                         </div>
                     </div>
                 </div>

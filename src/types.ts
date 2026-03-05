@@ -2082,6 +2082,8 @@ export interface RetailStore {
     name: string;
     storeType: RetailStoreType;
     location?: string;
+    latitude?: number;
+    longitude?: number;
     storeManagerId?: string; // Optional: user ID of the manager
     agentId?: string;        // If type='van_stock', the user ID of the field agent
     isActive: boolean;
