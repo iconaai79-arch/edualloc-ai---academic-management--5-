@@ -1595,7 +1595,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin'].includes(activeRole || '');
+    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -2224,6 +2224,7 @@ export const App: React.FC = () => {
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}
+                                    activeRole={activeRole}
                                     users={users}
                                     requests={requests}
                                     allocations={allocations}
@@ -2425,25 +2426,7 @@ export const App: React.FC = () => {
                                     demoDataGenerationMessage=""
                                     examTimetable={examTimetable}
                                     onSwitchPerspective={(role) => setImpersonatedRole(role)}
-                                    onWithdrawRequestStatus={async (id) => { }}
-                                    onManualInvoice={() => { }}
-                                    onUpdateCompanyDetails={async (d) => await apiService.saveCompanySettings(d)}
-                                    onAddInstitution={async (d) => { await apiService.saveInstitution({ ...d, id: (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)} ` } as any); loadData(); }}
-                                    onDeleteInstitution={onDeleteInstitution}
-                                    onToggleInstitutionStatus={onToggleInstitutionStatus}
-                                    onLoginAsAdmin={onLoginAsAdmin}
-                                    onGenerateReceipt={onGenerateReceipt}
-                                    assignments={assignments}
-                                    submissions={submissions}
-                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
-                                    onUpdateSubmission={async (id, data) => {
-                                        const sub = submissions.find(s => s.id === id);
-                                        if (sub) {
-                                            await apiService.saveModuleRecord('submissions', { ...sub, ...data, status: 'graded' });
-                                            loadData();
-                                        }
-                                    }}
+                                    activeRole={activeRole}
                                     isImpersonating={!!impersonatedRole}
                                     vehicles={vehicles}
                                     transportOnboarding={transportOnboarding}

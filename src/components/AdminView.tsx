@@ -52,7 +52,10 @@ import {
     BedIcon,
     CreditCardIcon,
     MapPinIcon,
-    HomeIcon
+    HomeIcon,
+    TruckIcon,
+    UserPlusIcon,
+    MagnifyingGlassIcon as SearchIcon
 } from './icons/index';
 import { Store as StoreIcon, ShoppingBag as ShoppingBagIcon } from 'lucide-react';
 import { DirectAssignModal } from './DirectAssignModal';
@@ -263,6 +266,7 @@ export interface AdminViewProps {
     retailStores?: RetailStore[];
     inventory?: RetailInventoryItem[];
     suppliers?: Supplier[];
+    activeRole?: Role;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -287,6 +291,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
     }, [props.currentInstitution]);
 
+    const isRetailAgency = useMemo(() => {
+        return props.currentInstitution?.businessSubType === 'Retail Agency';
+    }, [props.currentInstitution]);
+
     const tabs = useMemo(() => {
         const baseTabs = [
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
@@ -297,8 +305,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
+            { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
+            { id: 'transport', label: isRetailAgency ? 'Logistics' : 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -307,9 +316,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         const isBusiness = institutionType === 'Business';
 
         let filteredTabs = baseTabs.filter(tab => {
+            const roleToUse = props.activeRole || props.currentUser?.role;
+
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout', 'transport'].includes(tab.id)) {
+            if (['timetable', 'courses', 'leaveout'].includes(tab.id)) {
                 return isEdu;
+            }
+
+            // Transport/Logistics
+            if (tab.id === 'transport') {
+                return isEdu || isRetailAgency;
             }
 
             // Retail & Procurement tabs
@@ -321,11 +337,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 return true;
             }
 
+            // Customer Tab
+            if (tab.id === 'customers') {
+                return isRetailAgency;
+            }
+
             // Broadcaster tab
             if (tab.id === 'comms') {
-                if (props.currentUser?.role === 'super_admin') return true;
+                if (roleToUse === 'super_admin') return true;
                 if (institutionType === 'Broadcaster') return true;
-                return ['admin', 'head_teacher', 'deputy', 'dos', 'tto'].includes(props.currentUser?.role || '');
+                return ['admin', 'head_teacher', 'deputy', 'dos', 'tto', 'retail_agent'].includes(roleToUse || '');
             }
 
             return true;
@@ -364,13 +385,19 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
-        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
+        { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
+        { role: 'retail_agent', label: 'Agent Module', icon: <UserPlusIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
+        { role: 'driver', label: 'Driver Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-600' },
+        { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' }
     ].filter(opt => {
+        if (isRetailAgency) {
+            return ['retail_agent', 'driver', 'customer', 'security', 'store'].includes(opt.role);
+        }
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
+            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'driver', 'customer'].includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
-            return !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant'].includes(opt.role);
+            return !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer'].includes(opt.role);
         }
     });
 
@@ -675,6 +702,23 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onSendSms={props.onSendSms}
                         companyDetails={props.companyDetails}
                         currentInstitution={props.currentInstitution}
+                    />
+                )}
+
+                {activeTab === 'customers' && (
+                    <UserManager
+                        {...props}
+                        user={props.currentUser}
+                        showOnly="customer"
+                        onImportUsers={props.onImportUsers}
+                        onImportStudents={props.onImportStudents}
+                        onEditUser={props.onEditUser}
+                        onDeleteUser={props.onDeleteUser}
+                        onAddUser={props.onAddUser}
+                        onSendSms={props.onSendSms}
+                        companyDetails={props.companyDetails}
+                        currentInstitution={props.currentInstitution}
+                        isRetailAgency={isRetailAgency}
                     />
                 )}
 

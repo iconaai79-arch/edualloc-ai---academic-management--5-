@@ -801,6 +801,7 @@ interface UserManagerProps {
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     companyDetails?: CompanyDetails;
+    isRetailAgency?: boolean;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -809,10 +810,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         courses = [], subjects = [], onDirectAssign, onWithdrawRequest, onDeleteUser,
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
-        onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails
+        onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp
     } = props;
-
-    const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+    const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer'>(showOnly || 'staff');
     const [isAdding, setIsAdding] = useState(false);
