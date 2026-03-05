@@ -5,8 +5,9 @@ import { DualModePOS } from './DualModePOS';
 import { WishlistManager } from './WishlistManager';
 import { RetailExpenses } from './RetailExpenses';
 import { RetailRequisitions } from './RetailRequisitions';
+import { RetailInventoryManager } from './RetailInventoryManager';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition } from '../../types';
-import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText } from 'lucide-react';
+import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package } from 'lucide-react';
 
 interface RetailManagerProps {
     institutionId: string;
@@ -32,6 +33,12 @@ export function RetailManager(props: RetailManagerProps) {
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'dashboard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
                 >
                     <LayoutDashboard className="w-3.5 h-3.5" /> Overview
+                </button>
+                <button
+                    onClick={() => setActiveView('inventory')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'inventory' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
+                >
+                    <Package className="w-3.5 h-3.5" /> Product Catalog
                 </button>
                 <button
                     onClick={() => setActiveView('pos')}
@@ -93,11 +100,7 @@ export function RetailManager(props: RetailManagerProps) {
                 )}
 
                 {/* Placeholders for upcoming modules */}
-                {activeView === 'inventory' && (
-                    <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                        <p className="text-slate-500 font-medium">Central Inventory Module Coming Soon</p>
-                    </div>
-                )}
+                {activeView === 'inventory' && <RetailInventoryManager institutionId={institutionId} />}
                 {activeView === 'transfers' && (
                     <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
                         <p className="text-slate-500 font-medium">Stock Transfer Module Coming Soon</p>

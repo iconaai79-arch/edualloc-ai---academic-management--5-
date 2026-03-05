@@ -2104,15 +2104,18 @@ export interface RetailInventoryItem {
     id: string;
     institutionId: string;
     name: string;
+    sku: string;
     category: string;
     description?: string;
-    basePrice: number;       // The minimum acceptable selling price
-    srpPrice: number;        // Suggested Retail Price
+    costPrice: number;
+    basePrice: number;
+    srpPrice: number;
+    quantity: number;
     unit: string;
     imageUrl?: string;
     reorderLevel: number;
     marketplaceEnabled: boolean;
-    bufferStock: number;     // Quantity held back from online sales
+    bufferStock: number;
     createdAt: string;
 }
 
