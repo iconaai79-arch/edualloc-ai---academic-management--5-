@@ -131,29 +131,67 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                 {[
                                     ...cafeInventory.map(i => ({ ...i, source: 'cafe' as const })),
                                     ...retailInventory.map(i => ({ ...i, source: 'retail' as const, isAvailable: true }))
-                                ].map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => {
-                                            const existing = cart.find(c => c.itemId === item.id);
-                                            if (existing) {
-                                                setCart(cart.map(c => c.itemId === item.id ? { ...c, quantity: c.quantity + 1 } : c));
-                                            } else {
-                                                setCart([...cart, { itemId: item.id, name: item.name, quantity: 1, unitPrice: item.basePrice, source: item.source }]);
-                                            }
-                                        }}
-                                        className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all text-left flex flex-col justify-between min-h-[120px]"
-                                    >
-                                        <div>
-                                            <div className="flex justify-between items-start mb-1">
-                                                <p className="font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight">{item.name}</p>
-                                                {item.source === 'cafe' && <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1 rounded">Cafe</span>}
+                                ].map(item => {
+                                    const isCafe = 'source' in item && item.source === 'cafe';
+                                    const imageUrl = 'imageUrl' in item ? item.imageUrl : undefined;
+
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => {
+                                                const existing = cart.find(c => c.itemId === item.id);
+                                                if (existing) {
+                                                    setCart(cart.map(c => c.itemId === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+                                                } else {
+                                                    setCart([...cart, { itemId: item.id, name: item.name, quantity: 1, unitPrice: item.basePrice, source: isCafe ? 'cafe' : 'retail' }]);
+                                                }
+                                            }}
+                                            className={`group relative flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/10 transition-all text-left ${!item.isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            disabled={!item.isAvailable}
+                                        >
+                                            {/* Image Section */}
+                                            <div className="relative aspect-[4/3] w-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
+                                                {imageUrl ? (
+                                                    <img src={imageUrl} alt={item.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                ) : (
+                                                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                                        <span className="text-4xl">{isCafe ? '🍔' : '📦'}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Price Tag Overlay */}
+                                                <div className="absolute bottom-2 right-2 px-3 py-1 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-sm border border-slate-100 dark:border-slate-700">
+                                                    <p className="text-sm font-black text-blue-600 dark:text-blue-400">KES {item.basePrice}</p>
+                                                </div>
+
+                                                {/* Source Badge */}
+                                                <div className="absolute top-2 left-2">
+                                                    {isCafe ? (
+                                                        <span className="px-2 py-0.5 rounded-md bg-orange-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-orange-500/20">Cafe</span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 rounded-md bg-blue-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-500/20">Retail</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {!item.isAvailable && <p className="text-[10px] font-black text-rose-500 uppercase">Out of Stock</p>}
-                                        </div>
-                                        <p className="font-black text-blue-600 dark:text-blue-400 mt-2">KES {item.basePrice}</p>
-                                    </button>
-                                ))}
+
+                                            {/* Content Section */}
+                                            <div className="p-4 flex flex-col flex-1">
+                                                <h4 className="font-bold text-slate-800 dark:text-white leading-snug line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                    {item.name}
+                                                </h4>
+                                                {isCafe && (item as any).description && (
+                                                    <p className="text-[10px] text-slate-500 font-medium line-clamp-1">{(item as any).description}</p>
+                                                )}
+                                                {!item.isAvailable && (
+                                                    <p className="mt-auto text-[10px] font-black text-rose-500 uppercase tracking-widest pt-2">Out of Stock</p>
+                                                )}
+                                            </div>
+
+                                            {/* Hover Action Hint */}
+                                            <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none" />
+                                        </button>
+                                    );
+                                })}
                                 {cafeInventory.length === 0 && retailInventory.length === 0 && (
                                     <p className="col-span-full text-slate-500 font-medium text-center py-8">No menu items found.</p>
                                 )}
