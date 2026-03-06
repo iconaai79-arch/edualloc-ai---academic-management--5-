@@ -450,6 +450,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             await apiService.saveModuleRecord('carwash_jobs', job);
             setShowNewJobModal(false);
             setJobForm({ vehiclePlate: '', vehicleType: 'Sedan', packageId: '', addOns: [], attendantId: '', bayNumber: 1, paymentMethod: 'cash', customerId: '' });
+            onDataChange();
             loadData();
         } catch (e: any) {
             alert(e.message || 'Failed to create job');
@@ -485,6 +486,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             ...(status === 'ready' ? { completedAt: new Date().toISOString() } : {})
         };
         await apiService.saveModuleRecord('carwash_jobs', updated);
+        onDataChange();
         loadData();
     };
 
@@ -614,7 +616,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const items: any[] = [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }];
 
             // Add cafe items to the invoice
-            tabSales.forEach(sale => {
+            relevantOrders.forEach(sale => {
                 sale.items.forEach(item => {
                     items.push({
                         description: `${item.name} (Cafe)`,
@@ -764,6 +766,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     console.error('Failed to send payment confirmation SMS', e);
                 }
             }
+            onDataChange();
             loadData();
         } catch (e: any) {
             alert(e.message || 'Checkout failed');
@@ -2580,6 +2583,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             const updatedItems = targetOrder.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
                             await apiService.saveModuleRecord('cafe_orders', { ...targetOrder, items: updatedItems });
                         }
+                        onDataChange();
                         loadData();
                     }}
                 />
