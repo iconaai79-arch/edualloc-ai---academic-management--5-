@@ -42,8 +42,9 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                 throw new Error("Invalid total amount (NaN). Please check item prices.");
             }
 
+            const orderId = `co_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
             const order: any = {
-                id: `co_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`,
+                id: orderId,
                 institutionId: currentInstitution.id,
                 jobId: selectedJobId,
                 items: cart.map(item => ({

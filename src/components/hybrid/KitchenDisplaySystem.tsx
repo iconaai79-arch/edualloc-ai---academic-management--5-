@@ -38,7 +38,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                         quantity: item.quantity,
                         status: item.kitchenStatus,
                         orderTime: sale.createdAt,
-                        ticketId: sale.unifiedTabId || sale.id,
+                        ticketId: sale.id,
                         source: 'retail'
                     });
                 }
@@ -56,7 +56,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                         quantity: item.quantity,
                         status: item.kitchenStatus,
                         orderTime: order.createdAt,
-                        ticketId: order.jobId || order.id,
+                        ticketId: order.id,
                         source: 'cafe'
                     });
                 }
