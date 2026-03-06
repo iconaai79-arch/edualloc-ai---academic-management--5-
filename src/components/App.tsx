@@ -32,6 +32,7 @@ import { CarServiceView } from './carservice/CarServiceView';
 import ResellerDashboard from './ResellerDashboard';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
+import { getAdminRoleForInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
@@ -515,7 +516,7 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
                 apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
-                apiService.fetchVehicles(instId).catch(() => []),
+                apiService.fetchModuleRecords<TransportVehicle>('vehicles', instId).catch(() => []),
                 apiService.fetchTransportOnboarding(instId).catch(() => []),
                 apiService.fetchVehicleLogs(instId).catch(() => []),
             ]);
@@ -1372,7 +1373,7 @@ export const App: React.FC = () => {
                 ward: data.ward
             };
 
-            const adminRole: Role = (data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher';
+            const adminRole: Role = getAdminRoleForInstitution(newInstitution);
             const newAdmin: User = {
                 id: adminId,
                 name: data.adminName,
@@ -1429,7 +1430,7 @@ export const App: React.FC = () => {
                     countyId: data.countyId
                 };
 
-                const adminRole: Role = (data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher';
+                const adminRole: Role = getAdminRoleForInstitution(newInstitution);
                 const newAdmin: User = {
                     id: adminId,
                     name: data.adminName,
@@ -1540,7 +1541,7 @@ export const App: React.FC = () => {
                     useAllocationRequests: true,
                     resellerId: data.resellerId
                 };
-                const adminRole: Role = data.institutionType === 'Reseller' ? 'reseller' : ((data.institutionType === 'University' || data.institutionType === 'College') ? 'admin' : 'head_teacher');
+                const adminRole: Role = getAdminRoleForInstitution(newInstitution);
                 const newAdmin: User = { id: adminId, name: data.adminName, email: data.adminEmail, phoneNumber: data.institutionPhone, role: adminRole, institutionId: instId, password: generatedPassword, expertise: ['Administration'], staffId: 'ADMIN-01' };
                 await apiService.saveInstitution(newInstitution);
                 await apiService.saveUser(newAdmin);
@@ -2199,7 +2200,7 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    onDataChange={loadData}
+                                    onLogAction={handleLogAction}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
                                 <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />
@@ -2445,6 +2446,11 @@ export const App: React.FC = () => {
                                     onOnboardStudent={handleOnboardStudent}
                                     onOffboardStudent={handleOffboardStudent}
                                     onConfirmReceipt={handleConfirmReceipt}
+                                    onAddInstitution={() => { }}
+                                    onDeleteInstitution={() => { }}
+                                    onToggleInstitutionStatus={() => { }}
+                                    onLoginAsAdmin={() => { }}
+                                    onGenerateReceipt={() => { }}
                                 />
                             ) : (
                                 <LecturerView

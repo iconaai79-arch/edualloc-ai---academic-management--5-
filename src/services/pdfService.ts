@@ -1,9 +1,10 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
+import { formatRoleDisplayName } from '../utils/roleUtils';
 
 
 // Use a safer way to access the global jsPDF object which might be on window or just global
@@ -446,7 +447,8 @@ export const generateUserListPdf = async (
     logoUrl: string | null,
     footerImageUrl: string | null,
     departments: Department[],
-    courses: Course[]
+    courses: Course[],
+    institution: Institution
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -479,7 +481,7 @@ export const generateUserListPdf = async (
         return [
             u.name,
             u.gender || '-',
-            u.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            formatRoleDisplayName(u.role, institution),
             u.staffId,
             u.phoneNumber || u.email,
             deptOrCourse
@@ -2534,8 +2536,8 @@ export const generateMemberLibraryHistoryPdf = async (
 
     // Guard for member.role
     const roleText = (member.roles && member.roles.length > 0)
-        ? member.roles.join(', ').replace(/_/g, ' ').toUpperCase()
-        : (member.role ? member.role.replace(/_/g, ' ').toUpperCase() : 'N/A');
+        ? member.roles.map(r => formatRoleDisplayName(r as Role, institution)).join(', ').toUpperCase()
+        : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'N/A');
     doc.text(`Role: ${roleText}`, margin, tableStartY - 5);
 
     // Institution Contact Details
@@ -2620,10 +2622,11 @@ export const generateMemberLibraryHistoryPdf = async (
  */
 export const generateMemberQrCodesPdf = async (
     members: User[],
-    institutionName: string,
+    institution: Institution,
     letterheadConfig: LetterheadConfig | undefined,
     footerImageUrl: string | null
 ): Promise<Blob> => {
+    const institutionName = institution.name || 'Institution';
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF({
@@ -2704,7 +2707,7 @@ export const generateMemberQrCodesPdf = async (
                     doc.setFont('courier', 'normal');
                     doc.text(member.staffId || 'ID: Pending', x + (cellWidth / 2), y + 47, { align: 'center' });
                     doc.setFont('helvetica', 'normal');
-                    doc.text((member.role || 'Member').toUpperCase().replace(/_/g, ' '), x + (cellWidth / 2), y + 52, { align: 'center' });
+                    doc.text(formatRoleDisplayName(member.role, institution).toUpperCase(), x + (cellWidth / 2), y + 52, { align: 'center' });
 
                 } catch (err) {
                     console.error("QR Error for member:", member.name, err);

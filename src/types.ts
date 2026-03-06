@@ -2103,6 +2103,19 @@ export interface RetailExpense {
     recordedById: string;
 }
 
+export interface CafeMenuItem {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    basePrice: number;
+    category: string;
+    imageUrl?: string;
+    isAvailable: boolean;
+    sku?: string;
+    lastUpdated: string;
+}
+
 export interface RetailInventoryItem {
     id: string;
     institutionId: string;

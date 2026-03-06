@@ -8,8 +8,9 @@ import { RetailRequisitions } from './RetailRequisitions';
 import { RetailInventoryManager } from './RetailInventoryManager';
 import { RetailStockTransfers } from './RetailStockTransfers';
 import { RetailCommissionLedger } from './RetailCommissionLedger';
+import { CafeMenuManager } from '../hybrid/CafeMenuManager';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition } from '../../types';
-import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package, Truck } from 'lucide-react';
+import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package, Truck, Coffee } from 'lucide-react';
 
 interface RetailManagerProps {
     institutionId: string;
@@ -20,11 +21,16 @@ interface RetailManagerProps {
     onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
     requisitions?: Requisition[];
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    businessSubType?: string;
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition } = props;
-    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions'>('dashboard');
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition } = props;
+    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu'>('dashboard');
+
+    const isHospitality = businessSubType?.toLowerCase().includes('cafe') ||
+        businessSubType?.toLowerCase().includes('restaurant') ||
+        businessSubType?.toLowerCase().includes('eatery');
 
     return (
         <div className="space-y-6">
@@ -84,6 +90,14 @@ export function RetailManager(props: RetailManagerProps) {
                 >
                     <HandCoins className="w-3.5 h-3.5" /> Commissions
                 </button>
+                {isHospitality && (
+                    <button
+                        onClick={() => setActiveView('cafe_menu')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'cafe_menu' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
+                    >
+                        <Coffee className="w-3.5 h-3.5" /> Cafe Menu
+                    </button>
+                )}
             </div>
 
             <div className="animate-fade-in-up mt-4">
@@ -117,6 +131,7 @@ export function RetailManager(props: RetailManagerProps) {
                 {activeView === 'inventory' && <RetailInventoryManager institutionId={institutionId} />}
                 {activeView === 'transfers' && <RetailStockTransfers institutionId={institutionId} currentUser={currentUser} />}
                 {activeView === 'commissions' && <RetailCommissionLedger institutionId={institutionId} currentUser={currentUser} />}
+                {activeView === 'cafe_menu' && <CafeMenuManager institutionId={institutionId} />}
             </div>
         </div>
     );

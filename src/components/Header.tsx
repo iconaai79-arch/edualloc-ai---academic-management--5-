@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { getInitials } from '../utils/stringUtils';
+import { formatRoleDisplayName } from '../utils/roleUtils';
 import { ChevronDownIcon, ArrowRightOnRectangleIcon, PencilIcon, ClockIcon } from './icons/index';
 
 interface HeaderProps {
@@ -21,25 +22,9 @@ interface HeaderProps {
     onExitPerspective?: () => void;
 }
 
-const formatRoleName = (role?: Role, institutionType?: Institution['institutionType']): string => {
+const formatRoleName = (role?: Role, institution?: Institution | null): string => {
     if (!role) return 'User';
-    const isSchool = institutionType === 'Primary' || institutionType === 'Secondary';
-    if (isSchool) {
-        switch (role) {
-            case 'head_teacher': case 'admin': return 'Head Teacher';
-            case 'deputy': return 'Deputy';
-            case 'dos': case 'academics_officer': return 'DOS';
-            case 'teacher': case 'lecturer': return 'Teacher';
-            case 'boarding_master': return 'Boarding Manager';
-        }
-    }
-    switch (role) {
-        case 'admin': return 'Chair TTO';
-        case 'super_admin': return 'Super Admin';
-        case 'lecturer': return 'Lecturer';
-        case 'student': return 'Student';
-        default: return String(role).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    }
+    return formatRoleDisplayName(role, institution);
 };
 
 const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
@@ -212,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                                                     onClick={() => { onSwitchRole?.(r as Role); setIsMenuOpen(false); }}
                                                     className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all flex items-center justify-between group ${activeRole === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
                                                 >
-                                                    {formatRoleName(r as Role, currentInstitution?.institutionType)}
+                                                    {formatRoleName(r as Role, currentInstitution)}
                                                     {activeRole === r && (
                                                         <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                                                     )}

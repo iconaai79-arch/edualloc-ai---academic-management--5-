@@ -13,6 +13,7 @@ import {
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
+import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
 
 import * as XLSX from 'xlsx';
 
@@ -51,10 +52,8 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
     const availableRolesForImport = useMemo(() => {
-        if (currentUser.role === 'admin' || currentUser.role === 'head_teacher') return VALID_STAFF_ROLES;
-        if (currentUser.role === 'hod' || currentUser.role === 'tto' || currentUser.role === 'dos') return ['lecturer', 'teacher'];
-        return ['lecturer', 'teacher'];
-    }, [currentUser.role]);
+        return getRolesForInstitution(currentInstitution);
+    }, [currentInstitution]);
 
     const generateUniqueStaffId = (base: string, existingIds: Set<string>): string => {
         let newId = base;
@@ -319,7 +318,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                                                     {u.email}
                                                     {u.generatedEmail && <span className="ml-2 text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-bold">Generated</span>}
                                                 </td>
-                                                <td className="px-3 py-2 text-sm capitalize">{u.role.replace('_', ' ')}</td>
+                                                <td className="px-3 py-2 text-sm capitalize">{formatRoleDisplayName(u.role, currentInstitution)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -594,8 +593,8 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                             <div>
                                 <label className="block text-sm font-medium mb-1">Role</label>
                                 <select value={role} onChange={e => setRole(e.target.value as any)} className="form-select w-full">
-                                    {VALID_STAFF_ROLES.map(r => (
-                                        <option key={r} value={r}>{r.replace('_', ' ').toUpperCase()}</option>
+                                    {getRolesForInstitution(currentInstitution).map(r => (
+                                        <option key={r} value={r}>{formatRoleDisplayName(r, currentInstitution).toUpperCase()}</option>
                                     ))}
                                 </select>
                             </div>
@@ -658,7 +657,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                                         <div className="flex flex-wrap gap-1">
                                             {(Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role]).map((r, idx) => (
                                                 <span key={idx} className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                                    {r.replace('_', ' ')}
+                                                    {formatRoleDisplayName(r, currentInstitution)}
                                                 </span>
                                             ))}
                                         </div>

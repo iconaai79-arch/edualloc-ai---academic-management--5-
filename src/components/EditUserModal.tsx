@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
+import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
 
 interface EditUserModalProps {
   user: User;
@@ -177,10 +178,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <div className="md:col-span-2">
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-3 ml-1">Assigned Security Roles</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {(isRetailAgency
-                        ? ['admin', 'retail_agent', 'field_agent', 'customer', 'lead', 'store', 'security', 'info_desk', 'driver']
-                        : ['head_teacher', 'deputy', 'dos', 'teacher', 'admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'practice_teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master']
-                      ).map((r) => (
+                      {getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r)).map((r) => (
                         <label key={r} className={`flex items-center gap-2 p-3 rounded-2xl border transition-all cursor-pointer ${roles.includes(r as Role) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-800'}`}>
                           <input
                             type="checkbox"
@@ -189,7 +187,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                             className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           />
                           <span className={`text-[10px] font-bold uppercase tracking-tight ${roles.includes(r as Role) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
-                            {r.replace('_', ' ')}
+                            {formatRoleDisplayName(r as Role, currentInstitution)}
                           </span>
                         </label>
                       ))}

@@ -1,29 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
-import { RetailInventoryItem } from '../../types';
+import { CafeMenuItem } from '../../types';
 import { PlusIcon, TrashIcon, PencilIcon, XIcon, SearchIcon } from '../icons';
 
 interface CafeMenuManagerProps {
     institutionId: string;
+    onDataChange?: () => void;
 }
 
-export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId }) => {
-    const [items, setItems] = useState<RetailInventoryItem[]>([]);
+export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId, onDataChange }) => {
+    const [items, setItems] = useState<CafeMenuItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState<RetailInventoryItem | null>(null);
+    const [editingItem, setEditingItem] = useState<CafeMenuItem | null>(null);
 
-    const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
+    const [formData, setFormData] = useState<Partial<CafeMenuItem>>({
         name: '',
-        costPrice: 0,
+        description: '',
         basePrice: 0,
-        srpPrice: 0,
         category: 'Cafe',
-        quantity: 100, // Default to a high number for non-tracked stock like coffee
-        reorderLevel: 10,
-        unit: 'serving',
-        sku: '',
-        marketplaceEnabled: false
+        isAvailable: true,
+        sku: ''
     });
 
     useEffect(() => {
@@ -32,15 +29,8 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
 
     const loadMenu = async () => {
         try {
-            const allInventory = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
-            // Filter to only show items that are likely cafe/restaurant items
-            const cafeItems = allInventory.filter((item: RetailInventoryItem) =>
-                item.category?.toLowerCase().includes('cafe') ||
-                item.category?.toLowerCase().includes('food') ||
-                item.category?.toLowerCase().includes('beverage') ||
-                item.category?.toLowerCase().includes('restaurant')
-            );
-            setItems(cafeItems);
+            const menuItems = await apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', institutionId);
+            setItems(menuItems);
         } catch (error) {
             console.error("Failed to load cafe menu:", error);
         }
@@ -50,18 +40,17 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
         e.preventDefault();
         try {
             const payload = {
-                costPrice: 0,
-                reorderLevel: 10,
-                quantity: 100,
                 ...formData,
+                id: editingItem?.id || `cafe_${Date.now()}`,
                 sku: formData.sku || `CAFE-${Date.now()}`,
                 institutionId,
                 lastUpdated: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('retail_inventory_items', payload);
+            await apiService.saveModuleRecord('cafe_menu_items', payload);
             setIsModalOpen(false);
             setEditingItem(null);
             loadMenu();
+            if (onDataChange) onDataChange();
         } catch (error: any) {
             console.error("Failed to save menu item:", error);
             alert(`Error saving item: ${error?.message || JSON.stringify(error)}`);
@@ -71,8 +60,9 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
     const handleDelete = async (id: string) => {
         if (!window.confirm("Are you sure you want to delete this menu item?")) return;
         try {
-            await apiService.deleteModuleRecord('retail_inventory_items', id);
+            await apiService.deleteModuleRecord('cafe_menu_items', id);
             loadMenu();
+            if (onDataChange) onDataChange();
         } catch (error) {
             console.error("Failed to delete item:", error);
         }
@@ -102,7 +92,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                     <button
                         onClick={() => {
                             setEditingItem(null);
-                            setFormData({ name: '', costPrice: 0, basePrice: 0, srpPrice: 0, category: 'Cafe', quantity: 100, reorderLevel: 10, unit: 'serving', marketplaceEnabled: false, sku: '' });
+                            setFormData({ name: '', description: '', basePrice: 0, category: 'Cafe', isAvailable: true, sku: '' });
                             setIsModalOpen(true);
                         }}
                         className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition-all"
@@ -123,7 +113,10 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                         {filteredItems.map(item => (
                             <div key={item.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
                                 <div className="flex justify-between items-start mb-4">
-                                    <h3 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">{item.name}</h3>
+                                    <div className="flex flex-col">
+                                        <h3 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">{item.name}</h3>
+                                        {!item.isAvailable && <span className="text-red-500 text-[10px] font-black uppercase">Sold Out</span>}
+                                    </div>
                                     <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 text-[10px] font-black uppercase rounded-full">{item.category}</span>
                                 </div>
 
@@ -176,7 +169,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                                         required
                                         type="number"
                                         value={formData.basePrice}
-                                        onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value), srpPrice: Number(e.target.value) })}
+                                        onChange={e => setFormData({ ...formData, basePrice: Number(e.target.value) })}
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-900 border-none rounded-xl font-bold focus:ring-2 focus:ring-indigo-500"
                                     />
                                 </div>
@@ -192,6 +185,16 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                                         <option value="Restaurant">Restaurant Main</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="isAvailable"
+                                    checked={formData.isAvailable}
+                                    onChange={e => setFormData({ ...formData, isAvailable: e.target.checked })}
+                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <label htmlFor="isAvailable" className="text-sm font-bold text-slate-700 dark:text-slate-300">Available for Sale</label>
                             </div>
                             <div className="pt-6">
                                 <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest rounded-xl transition-all">

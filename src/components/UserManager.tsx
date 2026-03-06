@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES } from '../constants';
+import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
 import {
     PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
     CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
@@ -173,10 +174,12 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
     const availableRolesForImport = useMemo(() => {
-        if (currentUser?.role === 'admin' || currentUser?.role === 'head_teacher') return VALID_STAFF_ROLES;
-        if (currentUser?.role === 'hod' || currentUser?.role === 'tto' || currentUser?.role === 'dos') return ['lecturer', 'teacher'];
-        return ['lecturer', 'teacher'];
-    }, [currentUser?.role]);
+        const roles = getRolesForInstitution(currentInstitution);
+        if (currentUser?.role === 'admin' || currentUser?.role === 'head_teacher' || (currentUser?.role as string).includes('admin')) {
+            return roles;
+        }
+        return roles.filter(r => r !== 'admin' && !r.includes('admin'));
+    }, [currentUser?.role, currentInstitution]);
 
     const generateUniqueStaffId = (base: string, existingIds: Set<string>): string => {
         let newId = base;
@@ -1058,7 +1061,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 try {
                                     const blob = await generateMemberQrCodesPdf(
                                         filteredUsers,
-                                        currentInstitution?.name || 'Institution',
+                                        currentInstitution!,
                                         props.letterheadConfig,
                                         props.footerImageUrl
                                     );
@@ -1144,10 +1147,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <div className="md:col-span-2 lg:col-span-3">
                                         <label className="block text-sm font-medium mb-2">{activeTab === 'staff' ? 'Assigned Roles' : 'Category'}</label>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                            {activeTab === 'staff' && VALID_STAFF_ROLES.filter(r => {
-                                                if (isRetailAgency) return ['admin', 'retail_agent', 'field_agent', 'store', 'security', 'info_desk', 'driver'].includes(r);
-                                                return !['agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'customer', 'lead'].includes(r);
-                                            }).map(r => (
+                                            {activeTab === 'staff' && getRolesForInstitution(currentInstitution).filter(r => !['customer', 'lead'].includes(r)).map(r => (
                                                 <label key={r} className={`flex items-center gap-2 p-2 rounded-lg border transition-all cursor-pointer ${roles.includes(r) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
                                                     <input
                                                         type="checkbox"
@@ -1156,7 +1156,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         className="w-4 h-4 rounded border-slate-300 text-indigo-600"
                                                     />
                                                     <span className={`text-[10px] font-bold uppercase ${roles.includes(r) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-500'}`}>
-                                                        {r.replace('_', ' ')}
+                                                        {formatRoleDisplayName(r, currentInstitution)}
                                                     </span>
                                                 </label>
                                             ))}
@@ -1328,7 +1328,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                         <div className="flex flex-wrap gap-1">
                                             {(Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role]).map((r, idx) => (
                                                 <span key={idx} className="px-2 py-1 text-[10px] font-bold uppercase rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                                    {r.replace('_', ' ')}
+                                                    {formatRoleDisplayName(r, currentInstitution)}
                                                 </span>
                                             ))}
                                         </div>

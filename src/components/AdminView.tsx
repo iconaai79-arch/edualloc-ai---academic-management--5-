@@ -777,6 +777,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 {activeTab === 'retail' && (
                     <RetailManager
                         institutionId={props.currentInstitution!.id!}
+                        businessSubType={props.currentInstitution?.businessSubType}
                         currentUser={props.currentUser}
                         retailStores={retailStores}
                         inventory={inventory}

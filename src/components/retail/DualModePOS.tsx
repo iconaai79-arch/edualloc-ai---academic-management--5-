@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
-import { RetailInventoryItem, RetailStore, User } from '../../types';
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard, Printer } from 'lucide-react';
+import { RetailInventoryItem, RetailStore, User, CafeMenuItem } from '../../types';
+import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard, Printer, Coffee } from 'lucide-react';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -13,11 +13,11 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const [activeMode, setActiveMode] = useState<'shop' | 'field'>('shop');
     const [activeStore, setActiveStore] = useState<RetailStore | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [products, setProducts] = useState<RetailInventoryItem[]>([]);
+    const [products, setProducts] = useState<(RetailInventoryItem | CafeMenuItem)[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Cart state
-    const [cart, setCart] = useState<{ item: RetailInventoryItem, quantity: number, finalPrice: number }[]>([]);
+    const [cart, setCart] = useState<{ item: RetailInventoryItem | CafeMenuItem, quantity: number, finalPrice: number }[]>([]);
 
     // Checkout state
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -27,7 +27,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const [checkoutSuccess, setCheckoutSuccess] = useState<any>(null);
 
     // Selected item for pricing negotiation
-    const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | null>(null);
+    const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
     const [negotiatedPrice, setNegotiatedPrice] = useState<string>('');
 
     useEffect(() => {
@@ -37,8 +37,16 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const fetchProducts = async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
-            if (data) setProducts(data);
+            const [retailData, cafeData] = await Promise.all([
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
+                apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', institutionId)
+            ]);
+
+            const combined: (RetailInventoryItem | CafeMenuItem)[] = [
+                ...(retailData || []).map(p => ({ ...p, source: 'retail' })),
+                ...(cafeData || []).map(p => ({ ...p, source: 'cafe' }))
+            ];
+            setProducts(combined);
         } catch (err) {
             console.error("Fetch products error:", err);
         } finally {
@@ -63,7 +71,9 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
             return;
         }
 
-        const basePrice = (selectedItem as any).basePrice || (selectedItem as any).costPrice || 0;
+        const isCafe = (selectedItem as any).source === 'cafe';
+        const basePrice = isCafe ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0);
+
         if (numPrice < basePrice) {
             alert(`Price cannot be below the Base Price of $${basePrice}`);
             return;
@@ -87,7 +97,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
     const totalAmount = cart.reduce((sum, cartItem) => sum + (cartItem.finalPrice * cartItem.quantity), 0);
     const totalCommission = cart.reduce((sum, cartItem) => {
-        const basePrice = (cartItem.item as any).basePrice || (cartItem.item as any).costPrice || 0;
+        const isCafe = (cartItem.item as any).source === 'cafe';
+        const basePrice = isCafe ? (cartItem.item as any).basePrice : ((cartItem.item as any).basePrice || (cartItem.item as any).costPrice || 0);
         return sum + ((cartItem.finalPrice - basePrice) * cartItem.quantity);
     }, 0);
 
@@ -107,9 +118,10 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 customerEmail: customerInfo.email,
                 items: cart.map(c => ({
                     itemId: c.item.id,
-                    name: c.item.name,
+                    name: (c.item as any).source === 'cafe' ? `${c.item.name} (Cafe)` : c.item.name,
                     quantity: c.quantity,
-                    unitPrice: c.finalPrice
+                    unitPrice: c.finalPrice,
+                    source: (c.item as any).source
                 })),
                 createdAt: new Date().toISOString()
             };
@@ -119,7 +131,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
             if (savedSale && (savedSale as any).id) {
                 // Save commissions if any
                 for (const c of cart) {
-                    const basePrice = (c.item as any).basePrice || (c.item as any).costPrice || 0;
+                    const isCafe = (c.item as any).source === 'cafe';
+                    const basePrice = isCafe ? (c.item as any).basePrice : ((c.item as any).basePrice || (c.item as any).costPrice || 0);
                     if (c.finalPrice > basePrice) {
                         await apiService.saveModuleRecord('retail_commission_ledger', {
                             institutionId,
@@ -262,22 +275,28 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 key={product.id}
                                 onClick={() => {
                                     setSelectedItem(product);
-                                    setNegotiatedPrice(product.srpPrice.toString());
+                                    const initialPrice = (product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice;
+                                    setNegotiatedPrice(initialPrice.toString());
                                 }}
                                 className={`bg-white p-4 rounded-xl border ${selectedItem?.id === product.id ? 'border-blue-500 ring-1 ring-blue-500 shadow-md' : 'border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md'} cursor-pointer transition-all flex flex-col justify-between`}
                             >
                                 <div>
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded-full">{product.category}</span>
-                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">{product.quantity} in stock</span>
+                                        <div className="flex gap-1">
+                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${(product as any).source === 'cafe' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'}`}>
+                                                {(product as any).source === 'cafe' ? 'Cafe' : 'Retail'}
+                                            </span>
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">{product.category}</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{(product as any).source === 'cafe' ? 'Available' : `${(product as any).quantity} in stock`}</span>
                                     </div>
                                     <h3 className="font-semibold text-slate-800 line-clamp-2 leading-tight">{product.name}</h3>
                                 </div>
 
                                 <div className="mt-4 pt-4 border-t border-slate-100">
-                                    <p className="text-2xl font-bold text-blue-600">${product.srpPrice}</p>
-                                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                        <Tag className="w-3 h-3" /> Base: ${(product as any).basePrice || (product as any).costPrice || 0}
+                                    <p className="text-2xl font-black text-blue-600">${(product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice}</p>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 mt-1 flex items-center gap-1 tracking-widest">
+                                        <Tag className="w-3 h-3" /> Base: {(product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0)}
                                     </p>
                                 </div>
                             </div>
@@ -301,7 +320,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Selling Price (SRP: ${selectedItem.srpPrice})</label>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Selling Price (Market: ${(selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : (selectedItem as any).srpPrice})</label>
                                 <div className="relative">
                                     <DollarSign className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                                     <input
@@ -317,17 +336,17 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                             <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-emerald-100">
                                 <div className="flex items-center gap-2 text-emerald-700">
                                     <HandCoins className="w-4 h-4" />
-                                    <span className="text-sm font-medium">Your Commission:</span>
+                                    <span className="text-sm font-medium">Extra Earnings:</span>
                                 </div>
                                 <span className="text-lg font-bold text-emerald-600">
-                                    ${Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)).toFixed(2)}
+                                    ${Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))).toFixed(2)}
                                 </span>
                             </div>
 
-                            {parseFloat(negotiatedPrice) < ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0) && (
+                            {parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)) && (
                                 <div className="flex gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                    <p>Cannot sell below the Base Price of ${((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)}. Manager override required.</p>
+                                    <p>Price too low. Base price is ${((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))}</p>
                                 </div>
                             )}
 

@@ -16,6 +16,7 @@ import {
     generateInvoicePdfDataUri,
     generateReceiptPdfDataUri
 } from '../services/pdfService';
+import { formatRoleDisplayName } from '../utils/roleUtils';
 import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
@@ -92,7 +93,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
 }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board' | 'cafe_menu'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
@@ -120,6 +121,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
     const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
     const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
+    const [cafeInventory, setCafeInventory] = useState<CafeMenuItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -163,6 +165,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
     const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
     const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
+
+    const getJobTabTotal = (job: CarWashJob) => {
+        const tabSales = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
+        return (job.amountCharged || 0) + tabSales.reduce((sum, s) => sum + s.totalAmount, 0);
+    };
 
     // ── Profit Graph Calculations (Last 3 Months) ──
     const last3MonthsData = Array.from({ length: 3 }).map((_, i) => {
@@ -285,7 +292,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv, cInv] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -301,6 +308,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<CarWashPayroll>('carwash_payroll', institutionId),
                 apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
                 apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
+                apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', institutionId),
             ]);
             setPackages(pkgs || []);
             setCustomers(custs || []);
@@ -317,6 +325,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setPayroll(pyrl || []);
             setRetailSales(rSales || []);
             setRetailInventory(rInv || []);
+            setCafeInventory(cInv || []);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -479,9 +488,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         try {
             const customer = customers.find(c => c.id === job.customerId);
 
+            // Calculate linked cafe sales (tabs)
+            const tabSales = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
+            const tabTotal = tabSales.reduce((sum, s) => sum + s.totalAmount, 0);
+
             // Calculate discount and final amount
             let discountApplied = 0;
-            let finalAmountToPay = job.amountCharged;
+            let baseAmount = (job.amountCharged || 0) + tabTotal;
+            let finalAmountToPay = baseAmount;
             if (useLoyaltyPoints && customer && (customer.loyaltyPoints || 0) > 0) {
                 discountApplied = Math.min(finalAmountToPay, customer.loyaltyPoints || 0);
                 finalAmountToPay -= discountApplied;
@@ -492,18 +506,19 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 await onAddTransaction({
                     amount: finalAmountToPay,
                     phoneNumber: customer?.phoneNumber || '',
-                    description: `Car Wash: ${job.packageName} - ${job.vehiclePlate}`,
+                    description: `Car Wash + Cafe Tab: ${job.vehiclePlate}`,
                     institutionId,
                     userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
                 }, [
-                    { name: job.packageName, quantity: 1, unitPrice: job.amountCharged, total: finalAmountToPay }
+                    { name: `${job.packageName} (Wash)`, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged },
+                    ...tabSales.flatMap(s => s.items.map(i => ({ name: `${i.name} (Cafe)`, quantity: i.quantity, unitPrice: i.unitPrice, total: i.quantity * i.unitPrice })))
                 ]);
             } else if (finalAmountToPay > 0 || discountApplied > 0) {
                 // Create manual transaction record for cash/card/credit so it appears in the audit log
                 // Also create a "loyalty" log if fully paid by points (rare but possible)
                 const paymentDesc = discountApplied > 0
-                    ? `Car Wash (${method}): ${job.packageName} (Discount: KES ${discountApplied})`
-                    : `Car Wash (${method}): ${job.packageName} - ${job.vehiclePlate}`;
+                    ? `Car Wash & Cafe (${method}): ${job.vehiclePlate} (Discount: KES ${discountApplied})`
+                    : `Car Wash & Cafe (${method}): ${job.vehiclePlate}`;
 
                 if (finalAmountToPay > 0) {
                     await apiService.saveModuleRecord('mpesa_transactions', {
@@ -540,6 +555,11 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             };
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
+
+            // ── Update linked retail sales to the payment method used ──
+            for (const sale of tabSales) {
+                await apiService.saveModuleRecord('retail_sales', { ...sale, paymentMethod: method });
+            }
 
             // ── Loyalty Points Update ──
             if (customer) {
@@ -584,6 +604,19 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const rcptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
 
             const items: any[] = [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }];
+
+            // Add cafe items to the invoice
+            tabSales.forEach(sale => {
+                sale.items.forEach(item => {
+                    items.push({
+                        description: `${item.name} (Cafe)`,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        amount: item.quantity * item.unitPrice
+                    });
+                });
+            });
+
             if (discountApplied > 0) {
                 items.push({ description: `Loyalty Points Discount applied`, quantity: -1, unitPrice: discountApplied, amount: -discountApplied });
             }
@@ -1274,7 +1307,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${statusColor[job.status]}`}>{job.status.replace('_', ' ')}</span>
-                                            <span className="text-sm font-black text-emerald-600">KES {job.amountCharged}</span>
+                                            <span className="text-sm font-black text-emerald-600">KES {getJobTabTotal(job).toLocaleString()}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -1307,7 +1340,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                         <p className="text-[10px] text-slate-400">{job.packageName} · Bay {job.bayNumber}</p>
                                                         <p className="text-[10px] text-slate-400">{job.attendantName || 'Unassigned'}</p>
                                                     </div>
-                                                    <p className="font-black text-emerald-600 text-sm">KES {job.amountCharged.toLocaleString()}</p>
+                                                    <p className="font-black text-emerald-600 text-sm">KES {getJobTabTotal(job).toLocaleString()}</p>
                                                 </div>
                                                 <div className="flex gap-1 mt-2">
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'in_progress')} className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase">Start</button>}
@@ -1450,7 +1483,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <div key={att.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-5">
                                         <div className="flex items-center gap-3 mb-4">
                                             {att.profilePhotoUrl ? <img src={att.profilePhotoUrl} className="w-12 h-12 rounded-2xl object-cover" alt={att.name} /> : <div className="w-12 h-12 rounded-2xl bg-cyan-600 flex items-center justify-center text-white text-lg font-black">{att.name.charAt(0)}</div>}
-                                            <div><p className="font-black">{att.name}</p><p className="text-xs text-slate-400 capitalize">{att.role.replace(/_/g, ' ')}</p></div>
+                                            <div><p className="font-black">{att.name}</p><p className="text-xs text-slate-400 capitalize">{formatRoleDisplayName(att.role, currentInstitution)}</p></div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-center"><p className="text-2xl font-black text-cyan-600">{attJobs.length}</p><p className="text-[9px] font-black text-slate-400 uppercase">Jobs Done</p></div>
@@ -2517,6 +2550,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     currentInstitution={currentInstitution}
                     carWashJobs={jobs}
                     retailInventory={retailInventory}
+                    cafeInventory={cafeInventory}
                     retailSales={retailSales}
                     onLogAction={async () => { }}
                     onDataChange={loadData}
@@ -2542,7 +2576,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 />
             )}
             {!loading && activeTab === 'cafe_menu' && (
-                <CafeMenuManager institutionId={institutionId} />
+                <CafeMenuManager institutionId={institutionId} onDataChange={loadData} />
             )}
 
             <style>{`

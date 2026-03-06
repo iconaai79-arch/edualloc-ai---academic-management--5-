@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import type { User, Institution, CarWashJob, RetailSale, RetailSaleItem, RetailInventoryItem } from '../../types';
+import type { User, Institution, CarWashJob, RetailSale, RetailSaleItem, RetailInventoryItem, CafeMenuItem } from '../../types';
+import { apiService } from '../../services/apiService';
 import {
     ClockIcon, PlusIcon, ShoppingCartIcon, CheckCircleIcon,
     CurrencyIcon, ArchiveBoxIcon, XIcon
@@ -10,23 +11,59 @@ interface HybridPOSViewProps {
     currentInstitution: Institution;
     carWashJobs: CarWashJob[];
     retailInventory: RetailInventoryItem[];
+    cafeInventory: CafeMenuItem[];
     retailSales: RetailSale[];
     onLogAction: (action: string) => Promise<void>;
     onDataChange: () => Promise<void>;
 }
 
 export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
-    currentUser, currentInstitution, carWashJobs, retailInventory, retailSales, onLogAction, onDataChange
+    currentUser, currentInstitution, carWashJobs, retailInventory, cafeInventory, retailSales, onLogAction, onDataChange
 }) => {
     const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-    const [cart, setCart] = useState<RetailSaleItem[]>([]);
+    const [cart, setCart] = useState<(RetailSaleItem & { source: 'cafe' | 'retail' })[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Only active car wash jobs
     const activeJobs = useMemo(() => {
-        return carWashJobs.filter(job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'completed');
+        return carWashJobs.filter(job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'completed' || job.status === 'ready');
     }, [carWashJobs]);
 
     const activeJob = activeJobs.find(j => j.id === selectedJobId);
+
+    const handleSaveOrder = async (orderType: 'tab' | 'kitchen') => {
+        if (!selectedJobId || cart.length === 0) return;
+        setIsSaving(true);
+        try {
+            const sale: RetailSale = {
+                id: `rs_${Date.now()}`,
+                institutionId: currentInstitution.id,
+                storeId: 'hybrid_pos', // Virtual store for hybrid sales
+                totalAmount: cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0),
+                paymentMethod: 'tab', // Marked as tab to be paid later during car wash checkout
+                items: cart.map(item => ({
+                    itemId: item.itemId,
+                    name: item.name,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    kitchenStatus: (item.source === 'cafe' && orderType === 'kitchen') ? 'pending' : undefined
+                })),
+                createdAt: new Date().toISOString(),
+                unifiedTabId: selectedJobId
+            };
+
+            await apiService.saveModuleRecord('retail_sales', sale);
+            await onLogAction(`Added ${cart.length} items to tab for vehicle ${activeJob?.vehiclePlate}`);
+            setCart([]);
+            onDataChange();
+            alert(orderType === 'kitchen' ? 'Order sent to kitchen!' : 'Items added to tab!');
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save order');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     return (
         <div className="flex h-[calc(100vh-8rem)] bg-slate-50 dark:bg-slate-900 rounded-3xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-800">
@@ -45,15 +82,15 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                         <div
                             key={job.id}
                             onClick={() => setSelectedJobId(job.id)}
-                            className={`p - 4 rounded - 2xl border - 2 cursor - pointer transition - all ${selectedJobId === job.id
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedJobId === job.id
                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                 : 'border-transparent bg-slate-50 dark:bg-slate-900/50 hover:border-slate-300 dark:hover:border-slate-600'
-                                } `}
+                                }`}
                         >
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{job.vehiclePlate}</h3>
-                                <span className={`px - 2 py - 0.5 rounded - full text - [10px] font - black uppercase tracking - widest ${job.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
-                                    } `}>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${job.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
+                                    }`}>
                                     {job.status.replace('_', ' ')}
                                 </span>
                             </div>
@@ -82,7 +119,10 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                         <div className="flex-1 overflow-y-auto p-6">
                             <h3 className="text-lg font-black text-slate-800 dark:text-white mb-4">Cafe Menu</h3>
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                {retailInventory.map(item => (
+                                {[
+                                    ...cafeInventory.map(i => ({ ...i, source: 'cafe' as const })),
+                                    ...retailInventory.map(i => ({ ...i, source: 'retail' as const, isAvailable: true }))
+                                ].map(item => (
                                     <button
                                         key={item.id}
                                         onClick={() => {
@@ -90,17 +130,23 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                             if (existing) {
                                                 setCart(cart.map(c => c.itemId === item.id ? { ...c, quantity: c.quantity + 1 } : c));
                                             } else {
-                                                setCart([...cart, { itemId: item.id, name: item.name, quantity: 1, unitPrice: item.basePrice }]);
+                                                setCart([...cart, { itemId: item.id, name: item.name, quantity: 1, unitPrice: item.basePrice, source: item.source }]);
                                             }
                                         }}
                                         className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 transition-all text-left flex flex-col justify-between min-h-[120px]"
                                     >
-                                        <p className="font-bold text-slate-800 dark:text-white line-clamp-2">{item.name}</p>
+                                        <div>
+                                            <div className="flex justify-between items-start mb-1">
+                                                <p className="font-bold text-slate-800 dark:text-white line-clamp-2 leading-tight">{item.name}</p>
+                                                {item.source === 'cafe' && <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1 rounded">Cafe</span>}
+                                            </div>
+                                            {!item.isAvailable && <p className="text-[10px] font-black text-rose-500 uppercase">Out of Stock</p>}
+                                        </div>
                                         <p className="font-black text-blue-600 dark:text-blue-400 mt-2">KES {item.basePrice}</p>
                                     </button>
                                 ))}
-                                {retailInventory.length === 0 && (
-                                    <p className="col-span-full text-slate-500 font-medium text-center py-8">No retail inventory items found.</p>
+                                {cafeInventory.length === 0 && retailInventory.length === 0 && (
+                                    <p className="col-span-full text-slate-500 font-medium text-center py-8">No menu items found.</p>
                                 )}
                             </div>
                         </div>
@@ -149,14 +195,22 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                         KES {(activeJob?.amountCharged || 0) + cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0)}
                                     </p>
                                 </div>
-                                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-sm uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <button
+                                    onClick={() => handleSaveOrder('tab')}
+                                    disabled={isSaving || cart.length === 0}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
                                     <CheckCircleIcon className="w-5 h-5" />
-                                    Checkout Now
+                                    {isSaving ? 'Processing...' : 'Add to Tab'}
                                 </button>
                                 {/* Fire to kitchen button */}
-                                {cart.length > 0 && (
-                                    <button className="w-full mt-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-black text-xs uppercase tracking-widest py-3 rounded-xl active:scale-95 transition-all">
-                                        Send to Kitchen
+                                {cart.some(i => i.source === 'cafe') && (
+                                    <button
+                                        onClick={() => handleSaveOrder('kitchen')}
+                                        disabled={isSaving}
+                                        className="w-full mt-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-black text-xs uppercase tracking-widest py-3 rounded-xl active:scale-95 transition-all"
+                                    >
+                                        🔥 Fire to Kitchen
                                     </button>
                                 )}
                             </div>
