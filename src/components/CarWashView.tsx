@@ -20,7 +20,7 @@ import {
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
     BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
     EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon,
-    BuildingStorefrontIcon, FireIcon, TvIcon
+    ClipboardListIcon, EyeIcon
 } from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
@@ -1189,9 +1189,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
         { id: 'transactions', label: 'Bills & Payments', icon: <CurrencyIcon className="w-4 h-4" /> },
         { id: 'finance', label: 'Finance', icon: <BanknotesIcon className="w-4 h-4" /> },
-        { id: 'hybrid_pos', label: 'Hybrid POS', icon: <BuildingStorefrontIcon className="w-4 h-4" /> },
-        { id: 'kds', label: 'Kitchen Display', icon: <FireIcon className="w-4 h-4" /> },
-        { id: 'live_board', label: 'Live Board', icon: <ClockIcon className="w-4 h-4" /> },
+        { id: 'hybrid_pos', label: 'Hybrid POS', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
+        { id: 'kds', label: 'Kitchen Display', icon: <ClipboardListIcon className="w-4 h-4" /> },
+        { id: 'live_board', label: 'Live Board', icon: <EyeIcon className="w-4 h-4" /> },
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
     ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
 
