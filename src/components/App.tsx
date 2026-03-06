@@ -985,7 +985,7 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleAddVehicle = async (vehicle: Omit<Vehicle, 'id'>) => {
+    const handleAddVehicle = async (vehicle: Omit<TransportVehicle, 'id'>) => {
         try {
             await apiService.saveModuleRecord('vehicles', { ...vehicle, id: `vh_${Date.now()}` });
             await handleLogAction(`Registered vehicle: ${vehicle.plateNumber}`);
@@ -996,7 +996,7 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleUpdateVehicle = async (id: string, updates: Partial<Vehicle>) => {
+    const handleUpdateVehicle = async (id: string, updates: Partial<TransportVehicle>) => {
         try {
             const existing = vehicles.find(v => v.id === id);
             if (existing) {
@@ -1758,7 +1758,7 @@ export const App: React.FC = () => {
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
-                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
                                     onSendBulkCredentials={async (users, method) => {
                                         const res = await apiService.sendBulkCredentials(users, method);
                                         await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: `Sent bulk credentials to ${res.success_count} users via ${method}`, timestamp: new Date().toISOString() });
@@ -2122,7 +2122,7 @@ export const App: React.FC = () => {
                                     semesters={semesters}
                                     courses={courses}
                                     departments={departments}
-                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
                                 />
                             ) : activeRole === 'parent' ? (
 
@@ -2159,7 +2159,7 @@ export const App: React.FC = () => {
                                     semesters={semesters}
                                     courses={courses}
                                     departments={departments}
-                                    onLogAction={async (a) => apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() })}
+                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
                                     onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}
@@ -2199,7 +2199,6 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
-                                    inventory={inventory}
                                     onDataChange={loadData}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
@@ -2233,7 +2232,7 @@ export const App: React.FC = () => {
                             ) : isAdminCatchAll ? (
                                 <AdminView
                                     currentUser={currentUser}
-                                    activeRole={activeRole}
+                                    activeRole={activeRole || undefined}
                                     users={users}
                                     requests={requests}
                                     allocations={allocations}
