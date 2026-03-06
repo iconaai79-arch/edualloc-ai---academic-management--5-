@@ -7,6 +7,7 @@ import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporte
 import { HybridPOSView } from './hybrid/HybridPOSView';
 import { KitchenDisplaySystem } from './hybrid/KitchenDisplaySystem';
 import { CustomerStatusBoard } from './hybrid/CustomerStatusBoard';
+import { CafeMenuManager } from './hybrid/CafeMenuManager';
 import {
     generateCarWashTrialBalancePdf,
     generateCarWashCashbookPdf,
@@ -1192,6 +1193,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'hybrid_pos', label: 'Hybrid POS', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
         { id: 'kds', label: 'Kitchen Display', icon: <ClipboardListIcon className="w-4 h-4" /> },
         { id: 'live_board', label: 'Live Board', icon: <EyeIcon className="w-4 h-4" /> },
+        { id: 'cafe_menu', label: 'Cafe Menu', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
     ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
 
