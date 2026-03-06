@@ -2541,6 +2541,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     retailSales={retailSales}
                 />
             )}
+            {!loading && activeTab === 'cafe_menu' && (
+                <CafeMenuManager institutionId={institutionId} />
+            )}
 
             <style>{`
                 @keyframes pulse-subtle {
