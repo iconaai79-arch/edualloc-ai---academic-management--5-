@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, RetailSale, RetailInventoryItem } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, RetailSale, RetailInventoryItem, CafeOrder, CafeMenuItem } from '../types';
 import type { Invoice, Receipt } from '../types';
 import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
@@ -91,7 +91,8 @@ const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGrap
 
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, users, onDataChange,
-    onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
+    onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser,
+    cafeOrders
 }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board' | 'cafe_menu'>('dashboard');
@@ -294,7 +295,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv, cInv] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv, cInv, cOrders] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -329,7 +330,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setRetailSales(rSales || []);
             setRetailInventory(rInv || []);
             setCafeInventory(cInv || []);
-            setLocalCafeOrders(cafeOrdersList || []);
+            setLocalCafeOrders(cOrders || []);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
