@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { User } from '../../types';
-import { MegaphoneIcon, SearchIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, PhoneIcon } from '../icons';
+import { UsersIcon, SearchIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, PhoneIcon } from '../icons';
 
 interface CarServiceCRMProps {
     users: User[];
@@ -35,7 +35,7 @@ export const CarServiceCRM: React.FC<CarServiceCRMProps> = ({ users }) => {
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/20 dark:bg-slate-900/20">
                 {filteredCustomers.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center">
-                        <MegaphoneIcon className="w-16 h-16 text-slate-200 mb-4" />
+                        <UsersIcon className="w-16 h-16 text-slate-200 mb-4" />
                         <h3 className="text-lg font-black uppercase text-slate-800 dark:text-white">No Customers Found</h3>
                     </div>
                 ) : (
