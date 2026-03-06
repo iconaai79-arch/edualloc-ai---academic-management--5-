@@ -15,10 +15,12 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
 
     const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
         name: '',
+        costPrice: 0,
         basePrice: 0,
         srpPrice: 0,
         category: 'Cafe',
         quantity: 100, // Default to a high number for non-tracked stock like coffee
+        reorderLevel: 10,
         unit: 'serving',
         sku: '',
         marketplaceEnabled: false
@@ -48,6 +50,9 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
         e.preventDefault();
         try {
             const payload = {
+                costPrice: 0,
+                reorderLevel: 10,
+                quantity: 100,
                 ...formData,
                 sku: formData.sku || `CAFE-${Date.now()}`,
                 institutionId,
@@ -97,7 +102,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                     <button
                         onClick={() => {
                             setEditingItem(null);
-                            setFormData({ name: '', basePrice: 0, srpPrice: 0, category: 'Cafe', quantity: 100, unit: 'serving', marketplaceEnabled: false });
+                            setFormData({ name: '', costPrice: 0, basePrice: 0, srpPrice: 0, category: 'Cafe', quantity: 100, reorderLevel: 10, unit: 'serving', marketplaceEnabled: false, sku: '' });
                             setIsModalOpen(true);
                         }}
                         className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition-all"
