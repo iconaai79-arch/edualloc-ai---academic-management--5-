@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type {
     User, Department, Subject, Building, Room, AllocationRequest,
-    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, Vehicle, TransportOnboarding, VehicleLog,
+    TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, TransportVehicle, TransportOnboarding, VehicleLog,
     TimetableSettings, Course, AcademicYear, Semester, RequestStatus,
     Institution, Priority, CompanyDetails, MpesaTransaction,
     ExamTimetableSettings, AcademicLevel, StudentAttendance,
@@ -250,11 +250,11 @@ export interface AdminViewProps {
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
     onRefreshData?: () => void;
-    vehicles?: Vehicle[];
+    vehicles?: TransportVehicle[];
     transportOnboarding?: TransportOnboarding[];
     vehicleLogs?: VehicleLog[];
-    onAddVehicle?: (vehicle: Omit<Vehicle, 'id'>) => Promise<void>;
-    onUpdateVehicle?: (id: string, updates: Partial<Vehicle>) => Promise<void>;
+    onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
+    onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
     onDeleteVehicle?: (id: string) => Promise<void>;
     onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
     onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
