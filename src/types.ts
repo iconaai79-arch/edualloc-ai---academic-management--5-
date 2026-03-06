@@ -101,7 +101,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -2233,6 +2233,17 @@ export interface RetailSale {
     customerEmail?: string;
     createdAt: string;
     unifiedTabId?: string; // Links this sale to a CarWashJob for hybrid checkout
+}
+
+export interface CafeOrder {
+    id: string;
+    institutionId: string;
+    jobId: string;
+    items: RetailSaleItem[];
+    totalAmount: number;
+    status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+    paymentMethod: 'tab' | 'cash' | 'mpesa';
+    createdAt: string;
 }
 
 export interface ServiceBooking {

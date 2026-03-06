@@ -35,12 +35,17 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
         if (!selectedJobId || cart.length === 0) return;
         setIsSaving(true);
         try {
-            const sale: RetailSale = {
-                id: `rs_${Date.now()}`,
+            const calculatedTotal = cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+
+            // Safety check for NaN
+            if (isNaN(calculatedTotal)) {
+                throw new Error("Invalid total amount (NaN). Please check item prices.");
+            }
+
+            const order: any = {
+                id: `co_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`,
                 institutionId: currentInstitution.id,
-                storeId: 'hybrid_pos', // Virtual store for hybrid sales
-                totalAmount: cart.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0),
-                paymentMethod: 'tab', // Marked as tab to be paid later during car wash checkout
+                jobId: selectedJobId,
                 items: cart.map(item => ({
                     itemId: item.itemId,
                     name: item.name,
@@ -48,18 +53,21 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                     unitPrice: item.unitPrice,
                     kitchenStatus: (item.source === 'cafe' && orderType === 'kitchen') ? 'pending' : undefined
                 })),
-                createdAt: new Date().toISOString(),
-                unifiedTabId: selectedJobId
+                totalAmount: calculatedTotal,
+                status: orderType === 'kitchen' ? 'preparing' : 'pending',
+                paymentMethod: 'tab',
+                createdAt: new Date().toISOString()
             };
 
-            await apiService.saveModuleRecord('retail_sales', sale);
+            console.log("Saving Cafe Order:", order);
+            await apiService.saveModuleRecord('cafe_orders', order);
             await onLogAction(`Added ${cart.length} items to tab for vehicle ${activeJob?.vehiclePlate}`);
             setCart([]);
             onDataChange();
             alert(orderType === 'kitchen' ? 'Order sent to kitchen!' : 'Items added to tab!');
-        } catch (e) {
-            console.error(e);
-            alert('Failed to save order');
+        } catch (e: any) {
+            console.error("Save Order Error Details:", e);
+            alert(`Failed to save order: ${e.message || 'Unknown error'}`);
         } finally {
             setIsSaving(false);
         }

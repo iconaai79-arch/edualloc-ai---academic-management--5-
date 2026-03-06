@@ -232,6 +232,12 @@ export const apiService = {
             return null;
         }
     },
+    async saveUser(user: User): Promise<void> {
+        if (!_supabase) return;
+        const snakeData = toSnakeCase(user);
+        const { error } = await _supabase.from('users').upsert(snakeData);
+        if (error) throw error;
+    },
     async fetchModuleRecords<T>(module: string, institutionId?: string, countyId?: string): Promise<T[]> {
         const getFilterCol = (mod: string, type: 'institution' | 'county') => {
             if (type === 'institution') {

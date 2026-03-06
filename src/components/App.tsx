@@ -52,7 +52,7 @@ import type {
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -248,6 +248,8 @@ export const App: React.FC = () => {
     const [absenceRequests, setAbsenceRequests] = useState<AbsenceRequest[]>([]);
     const [contracts, setContracts] = useState<LecturerContract[]>([]);
     const [studentAttendances, setStudentAttendances] = useState<StudentAttendance[]>([]);
+    const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
+    const [cafeMenuItems, setCafeMenuItems] = useState<CafeMenuItem[]>([]);
     const [studentCheckIns, setStudentCheckIns] = useState<Record<string, string>>({});
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [vehicles, setVehicles] = useState<TransportVehicle[]>([]);
@@ -469,9 +471,7 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
 
-            setActivityLog(logs || []);
-
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -519,6 +519,8 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<TransportVehicle>('vehicles', instId).catch(() => []),
                 apiService.fetchTransportOnboarding(instId).catch(() => []),
                 apiService.fetchVehicleLogs(instId).catch(() => []),
+                apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', instId).catch(() => []),
+                apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
             ]);
 
 
@@ -548,6 +550,7 @@ export const App: React.FC = () => {
             setBooks(bks || []);
             setLibraryTransactions(ltx || []);
             setAppointments(apts || []);
+            setCafeMenuItems(cafe || []);
             setSuppliers(sups || []);
             setStockTransactions(stx || []);
             setBursaryApplications(bApps || []);
@@ -568,6 +571,7 @@ export const App: React.FC = () => {
             setVehicles(vhcls || []);
             setTransportOnboarding(tonb || []);
             setVehicleLogs(vlogs || []);
+            setCafeOrders(cOrders || []);
 
             setIsGeneratingDemoData(false);
         } catch (error) {
@@ -2194,6 +2198,7 @@ export const App: React.FC = () => {
                                         await apiService.registerUser(userData, activeInstitution?.name);
                                         loadData();
                                     }}
+                                    cafeOrders={cafeOrders}
                                 />
                             ) : (activeRole === 'mechanic_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car service') || activeInstitution?.businessSubType?.toLowerCase().includes('mechanic') || activeInstitution?.businessSubType?.toLowerCase().includes('auto repair')))) ? (
                                 <CarServiceView

@@ -1,41 +1,63 @@
 import React, { useMemo } from 'react';
-import type { RetailSale, User, Institution } from '../../types';
+import type { RetailSale, User, Institution, CafeOrder } from '../../types';
 import {
     ClockIcon, CheckCircleIcon,
     ArrowRightIcon
 } from '../icons';
 
 interface KitchenDisplaySystemProps {
-    retailSales: RetailSale[];
-    onUpdateItemStatus: (saleId: string, itemId: string, newStatus: 'pending' | 'preparing' | 'ready' | 'delivered') => Promise<void>;
+    retailSales?: RetailSale[];
+    cafeOrders?: CafeOrder[];
+    onUpdateItemStatus: (orderId: string, itemId: string, newStatus: 'pending' | 'preparing' | 'ready' | 'delivered', source: 'retail' | 'cafe') => Promise<void>;
 }
 
 export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
-    retailSales, onUpdateItemStatus
+    retailSales = [], cafeOrders = [], onUpdateItemStatus
 }) => {
-    // Flatten all items that have a kitchen status
+    // Flatten all items from both sources that have a kitchen status
     const foodItems = useMemo(() => {
         const items: Array<{
-            saleId: string;
+            orderId: string;
             itemId: string;
             name: string;
             quantity: number;
             status: 'pending' | 'preparing' | 'ready' | 'delivered';
             orderTime: string;
-            ticketId?: string; // e.g. connected Car wash unifiedTabId or Sale ID
+            ticketId?: string;
+            source: 'retail' | 'cafe';
         }> = [];
 
+        // 1. Add from retail sales
         retailSales.forEach(sale => {
             sale.items.forEach(item => {
                 if (item.kitchenStatus && item.kitchenStatus !== 'delivered') {
                     items.push({
-                        saleId: sale.id,
+                        orderId: sale.id,
                         itemId: item.itemId,
                         name: item.name,
                         quantity: item.quantity,
                         status: item.kitchenStatus,
                         orderTime: sale.createdAt,
-                        ticketId: sale.unifiedTabId || sale.id
+                        ticketId: sale.unifiedTabId || sale.id,
+                        source: 'retail'
+                    });
+                }
+            });
+        });
+
+        // 2. Add from dedicated cafe orders
+        cafeOrders.forEach(order => {
+            order.items.forEach(item => {
+                if (item.kitchenStatus && item.kitchenStatus !== 'delivered') {
+                    items.push({
+                        orderId: order.id,
+                        itemId: item.itemId,
+                        name: item.name,
+                        quantity: item.quantity,
+                        status: item.kitchenStatus,
+                        orderTime: order.createdAt,
+                        ticketId: order.jobId || order.id,
+                        source: 'cafe'
                     });
                 }
             });
@@ -43,7 +65,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
 
         // Sort by oldest first
         return items.sort((a, b) => new Date(a.orderTime).getTime() - new Date(b.orderTime).getTime());
-    }, [retailSales]);
+    }, [retailSales, cafeOrders]);
 
     const pendingItems = foodItems.filter(i => i.status === 'pending');
     const preparingItems = foodItems.filter(i => i.status === 'preparing');
@@ -76,7 +98,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                     items.map((item, idx) => {
                         const minsWaiting = Math.floor((new Date().getTime() - new Date(item.orderTime).getTime()) / 60000);
                         return (
-                            <div key={`${item.saleId}-${item.itemId}-${idx}`} className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div key={`${item.orderId}-${item.itemId}-${idx}`} className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-[10px] font-black tracking-widest uppercase">
                                         Ticket #{item.ticketId?.slice(-4)}
@@ -95,7 +117,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                                 </div>
                                 {nextAction && (
                                     <button
-                                        onClick={() => onUpdateItemStatus(item.saleId, item.itemId, nextAction.status)}
+                                        onClick={() => onUpdateItemStatus(item.orderId, item.itemId, nextAction.status, item.source)}
                                         className="w-full mt-4 py-3 rounded-xl bg-white dark:bg-slate-800 border-2 border-inherit font-black text-[10px] uppercase tracking-widest hover:bg-inherit hover:text-white transition-all flex justify-center items-center gap-2 group"
                                     >
                                         {nextAction.label}

@@ -43,6 +43,7 @@ interface CarWashViewProps {
     departments?: any[];
     courses?: any[];
     onRegisterUser?: (userData: Partial<User>) => Promise<void>;
+    cafeOrders?: CafeOrder[];
 }
 
 const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGraphValue: number }) => {
@@ -124,6 +125,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [cafeInventory, setCafeInventory] = useState<CafeMenuItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
+    const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [showNewJobModal, setShowNewJobModal] = useState(false);
@@ -167,8 +169,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
 
     const getJobTabTotal = (job: CarWashJob) => {
-        const tabSales = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
-        return (job.amountCharged || 0) + tabSales.reduce((sum, s) => sum + s.totalAmount, 0);
+        const relevantOrders = (cafeOrders || localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+        return (job.amountCharged || 0) + relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
     };
 
     // ── Profit Graph Calculations (Last 3 Months) ──
@@ -309,6 +311,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
                 apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                 apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', institutionId),
+                apiService.fetchModuleRecords<CafeOrder>('cafe_orders', institutionId),
             ]);
             setPackages(pkgs || []);
             setCustomers(custs || []);
@@ -326,6 +329,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setRetailSales(rSales || []);
             setRetailInventory(rInv || []);
             setCafeInventory(cInv || []);
+            setLocalCafeOrders(cafeOrdersList || []);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -488,9 +492,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         try {
             const customer = customers.find(c => c.id === job.customerId);
 
-            // Calculate linked cafe sales (tabs)
-            const tabSales = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
-            const tabTotal = tabSales.reduce((sum, s) => sum + s.totalAmount, 0);
+            // Calculate linked cafe orders (tabs)
+            const relevantOrders = (cafeOrders || localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
 
             // Calculate discount and final amount
             let discountApplied = 0;
@@ -511,7 +515,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     userId: users.some(u => u.id === currentUser.id) ? currentUser.id : undefined
                 }, [
                     { name: `${job.packageName} (Wash)`, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged },
-                    ...tabSales.flatMap(s => s.items.map(i => ({ name: `${i.name} (Cafe)`, quantity: i.quantity, unitPrice: i.unitPrice, total: i.quantity * i.unitPrice })))
+                    ...relevantOrders.flatMap(s => s.items.map(i => ({ name: `${i.name} (Cafe)`, quantity: i.quantity, unitPrice: i.unitPrice, total: i.quantity * i.unitPrice })))
                 ]);
             } else if (finalAmountToPay > 0 || discountApplied > 0) {
                 // Create manual transaction record for cash/card/credit so it appears in the audit log
@@ -556,9 +560,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
 
-            // ── Update linked retail sales to the payment method used ──
-            for (const sale of tabSales) {
-                await apiService.saveModuleRecord('retail_sales', { ...sale, paymentMethod: method });
+            // ── Update linked cafe orders to completed status ──
+            for (const order of relevantOrders) {
+                await apiService.saveModuleRecord('cafe_orders', { ...order, status: 'completed' });
             }
 
             // ── Loyalty Points Update ──
@@ -593,6 +597,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 'Job',
                 job.id
             );
+
+            // Record Cafe Revenue separate if needed, but for now it's grouped in wash revenue for simplicity
+            // or we could split it. Let's keep it simple as before but using the new source.
 
             setShowCheckoutModal(null);
             setShowFeedbackModal(updated);
@@ -2559,12 +2566,19 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {!loading && activeTab === 'kds' && (
                 <KitchenDisplaySystem
                     retailSales={retailSales}
-                    onUpdateItemStatus={async (saleId, itemId, newStatus) => {
-                        const targetSale = retailSales.find(s => s.id === saleId);
-                        if (!targetSale) return;
-
-                        const updatedItems = targetSale.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
-                        await apiService.saveModuleRecord('retail_sales', { ...targetSale, items: updatedItems });
+                    cafeOrders={cafeOrders || localCafeOrders}
+                    onUpdateItemStatus={async (orderId, itemId, newStatus, source) => {
+                        if (source === 'retail') {
+                            const targetSale = retailSales.find(s => s.id === orderId);
+                            if (!targetSale) return;
+                            const updatedItems = targetSale.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
+                            await apiService.saveModuleRecord('retail_sales', { ...targetSale, items: updatedItems });
+                        } else {
+                            const targetOrder = (cafeOrders || localCafeOrders).find(o => o.id === orderId);
+                            if (!targetOrder) return;
+                            const updatedItems = targetOrder.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
+                            await apiService.saveModuleRecord('cafe_orders', { ...targetOrder, items: updatedItems });
+                        }
                         loadData();
                     }}
                 />
