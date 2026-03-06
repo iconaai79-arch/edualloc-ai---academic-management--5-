@@ -170,7 +170,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
 
     const getJobTabTotal = (job: CarWashJob) => {
-        const relevantOrders = (cafeOrders || localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+        const relevantOrders = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
         return (job.amountCharged || 0) + relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
     };
 
@@ -494,7 +494,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const customer = customers.find(c => c.id === job.customerId);
 
             // Calculate linked cafe orders (tabs)
-            const relevantOrders = (cafeOrders || localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            const relevantOrders = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
             const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
 
             // Calculate discount and final amount
@@ -2567,7 +2567,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             {!loading && activeTab === 'kds' && (
                 <KitchenDisplaySystem
                     retailSales={retailSales}
-                    cafeOrders={cafeOrders || localCafeOrders}
+                    cafeOrders={cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders}
                     onUpdateItemStatus={async (orderId, itemId, newStatus, source) => {
                         if (source === 'retail') {
                             const targetSale = retailSales.find(s => s.id === orderId);
@@ -2575,7 +2575,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             const updatedItems = targetSale.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
                             await apiService.saveModuleRecord('retail_sales', { ...targetSale, items: updatedItems });
                         } else {
-                            const targetOrder = (cafeOrders || localCafeOrders).find(o => o.id === orderId);
+                            const targetOrder = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).find(o => o.id === orderId);
                             if (!targetOrder) return;
                             const updatedItems = targetOrder.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
                             await apiService.saveModuleRecord('cafe_orders', { ...targetOrder, items: updatedItems });

@@ -51,7 +51,7 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                     name: item.name,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
-                    kitchenStatus: (item.source === 'cafe' && orderType === 'kitchen') ? 'pending' : undefined
+                    kitchenStatus: orderType === 'kitchen' ? 'pending' : undefined
                 })),
                 totalAmount: calculatedTotal,
                 status: orderType === 'kitchen' ? 'preparing' : 'pending',
