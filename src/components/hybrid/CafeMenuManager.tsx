@@ -62,9 +62,9 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
             setIsModalOpen(false);
             setEditingItem(null);
             loadMenu();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save menu item:", error);
-            alert("Error saving item.");
+            alert(`Error saving item: ${error?.message || JSON.stringify(error)}`);
         }
     };
 
