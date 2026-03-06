@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { User, Institution, CarWashJob, RetailSale, RetailSaleItem, RetailInventoryItem, CafeMenuItem } from '../../types';
+import type { User, Institution, CarWashJob, RetailSale, RetailSaleItem, RetailInventoryItem, CafeMenuItem, CafeOrder } from '../../types';
 import { apiService } from '../../services/apiService';
 import {
     ClockIcon, PlusIcon, ShoppingCartIcon, CheckCircleIcon,
@@ -43,7 +43,7 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
             }
 
             const orderId = `co_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
-            const order: any = {
+            const order: CafeOrder = {
                 id: orderId,
                 institutionId: currentInstitution.id,
                 jobId: selectedJobId,
@@ -55,7 +55,7 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                     kitchenStatus: orderType === 'kitchen' ? 'pending' : undefined
                 })),
                 totalAmount: calculatedTotal,
-                status: orderType === 'kitchen' ? 'preparing' : 'pending',
+                status: orderType === 'kitchen' ? 'pending' : 'pending', // Both start as pending, KDS handles transitioning to preparing
                 paymentMethod: 'tab',
                 createdAt: new Date().toISOString()
             };
@@ -213,13 +213,13 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                     {isSaving ? 'Processing...' : 'Add to Tab'}
                                 </button>
                                 {/* Fire to kitchen button */}
-                                {cart.some(i => i.source === 'cafe') && (
+                                {cart.length > 0 && (
                                     <button
                                         onClick={() => handleSaveOrder('kitchen')}
                                         disabled={isSaving}
-                                        className="w-full mt-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-black text-xs uppercase tracking-widest py-3 rounded-xl active:scale-95 transition-all"
+                                        className="w-full mt-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-black text-xs uppercase tracking-widest py-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
                                     >
-                                        🔥 Fire to Kitchen
+                                        <span>🔥</span> Fire to Kitchen
                                     </button>
                                 )}
                             </div>
