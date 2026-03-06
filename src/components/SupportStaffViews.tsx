@@ -6,9 +6,9 @@ import type {
     PayrollRun, Invoice, Receipt, Course, FeeStructure, Semester, AcademicYear,
     CompanyDetails, MpesaTransaction, TimetableSettings, Building, Appointment,
     FinancialPeriod, InvoiceItem, Institution, TransactionStatus, BusinessDocument,
-    CountyInventoryItem, Department, TeacherCheckIn, TimeOffRequest,
+    CountyInventoryItem, Department, TeacherCheckIn, TimeOffRequest, StudentAttendance,
     StudentAbsenceRequest, LeaveOutRequest, BulletinItem, DocumentCollection,
-    WatchlistRecord, MaintenanceRequest, Vehicle, TransportOnboarding, VehicleLog
+    WatchlistRecord, MaintenanceRequest, TransportVehicle, TransportOnboarding, VehicleLog
 } from '../types';
 import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
@@ -111,7 +111,7 @@ export interface SupportStaffViewProps {
     onUpdateDocumentStatus?: (id: string, status: DocumentCollection['status']) => void;
     onAddMaintenanceRequest?: (req: Omit<MaintenanceRequest, 'id' | 'institutionId' | 'reportedAt'>) => void;
     studentAttendances?: StudentAttendance[];
-    vehicles?: Vehicle[];
+    vehicles?: TransportVehicle[];
     transportOnboarding?: TransportOnboarding[];
     vehicleLogs?: VehicleLog[];
     onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;

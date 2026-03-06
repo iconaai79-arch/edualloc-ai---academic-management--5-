@@ -5,14 +5,14 @@ import {
     CheckCircleIcon, XCircleIcon, CurrencyIcon, CalendarDaysIcon,
     ArrowPathIcon, PhoneIcon, MapPinIcon, PlusIcon, FileTextIcon
 } from './icons';
-import type { Vehicle, TransportOnboarding, User, Institution, TransportBill } from '../types';
+import type { TransportVehicle, TransportOnboarding, User, Institution, TransportBill } from '../types';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { apiService } from '../services/apiService';
 
 interface PrivateDriverBillingPortalProps {
     user: User;
     users: User[];
-    vehicles: Vehicle[];
+    vehicles: TransportVehicle[];
     transportOnboarding: TransportOnboarding[];
     currentInstitution: Institution;
     onOnboardStudent: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;

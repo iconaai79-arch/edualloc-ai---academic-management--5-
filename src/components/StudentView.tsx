@@ -13,6 +13,7 @@ import { StudentAbsenceRequestModal } from './StudentAbsenceRequestModal';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { TAAssignmentsView } from './TAAssignmentsView';
 import { NearbyClassesView } from './NearbyClassesView';
+import type { StudentAttendance } from '../types';
 
 // --- Enrollment Request Modal ---
 interface EnrollmentRequestModalProps {

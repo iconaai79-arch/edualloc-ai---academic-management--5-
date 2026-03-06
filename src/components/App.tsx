@@ -28,6 +28,7 @@ import { AgrovetView } from './AgrovetView';
 import { PropertyManagementView } from './PropertyManagementView';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
+import { CarServiceView } from './carservice/CarServiceView';
 import ResellerDashboard from './ResellerDashboard';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -49,8 +50,8 @@ import type {
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
-    Vehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger
+    TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -248,6 +249,7 @@ export const App: React.FC = () => {
     const [studentAttendances, setStudentAttendances] = useState<StudentAttendance[]>([]);
     const [studentCheckIns, setStudentCheckIns] = useState<Record<string, string>>({});
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
+    const [vehicles, setVehicles] = useState<TransportVehicle[]>([]);
     const [countyInventory, setCountyInventory] = useState<CountyInventoryItem[]>([]);
     const [countyInventoryCategories, setCountyInventoryCategories] = useState<CountyInventoryCategory[]>([]);
     const [countyStores, setCountyStores] = useState<CountyStore[]>([]);
@@ -274,7 +276,6 @@ export const App: React.FC = () => {
     const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
     const [teacherCheckIns, setTeacherCheckIns] = useState<TeacherCheckIn[]>([]);
     const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
-    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
     const [transportOnboarding, setTransportOnboarding] = useState<TransportOnboarding[]>([]);
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
 
@@ -2192,6 +2193,14 @@ export const App: React.FC = () => {
                                         await apiService.registerUser(userData, activeInstitution?.name);
                                         loadData();
                                     }}
+                                />
+                            ) : (activeRole === 'mechanic_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car service') || activeInstitution?.businessSubType?.toLowerCase().includes('mechanic') || activeInstitution?.businessSubType?.toLowerCase().includes('auto repair')))) ? (
+                                <CarServiceView
+                                    currentUser={currentUser}
+                                    currentInstitution={activeInstitution!}
+                                    users={users.filter(u => u.institutionId === currentUser.institutionId)}
+                                    inventory={inventory}
+                                    onDataChange={loadData}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
                                 <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />

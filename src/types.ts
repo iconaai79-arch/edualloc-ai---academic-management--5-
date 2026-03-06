@@ -1,6 +1,6 @@
 
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'carwash_admin' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'customer' | 'lead';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'carwash_admin' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead';
 
 
 export interface Unavailability {
@@ -542,7 +542,7 @@ export interface Assessment {
     createdAt: string;
 }
 
-export interface Vehicle {
+export interface TransportVehicle {
     id: string;
     institutionId: string;
     plateNumber: string;
@@ -557,7 +557,7 @@ export interface Vehicle {
 export interface TransportOnboarding {
     id: string;
     institutionId: string;
-    vehicleId?: string;
+    vehicleId?: string; // Reference to TransportVehicle
     studentId: string;
     direction: 'to_school' | 'from_school';
     status: 'pending' | 'onboarded' | 'offboarded' | 'received';
@@ -570,7 +570,7 @@ export interface TransportOnboarding {
 export interface VehicleLog {
     id: string;
     institutionId: string;
-    vehicleId: string;
+    vehicleId: string; // Reference to TransportVehicle
     eventType: 'entry' | 'exit';
     securityId?: string;
     timestamp: string;
@@ -1762,6 +1762,7 @@ export interface CarWashJob {
     paymentMethod: CarWashPaymentMethod;
     amountCharged: number;
     amountPaid: number;
+    unifiedTabId?: string; // Links this job to a RetailSale for hybrid checkout
     isLoyaltyRedemption: boolean;
     startedAt?: string;
     completedAt?: string;
@@ -2201,7 +2202,10 @@ export interface RetailSaleItem {
     quantity: number;
     unitPrice: number;
     serialNumber?: string;
+    kitchenStatus?: KitchenStatus; // For Kitchen Display System
 }
+
+export type KitchenStatus = 'pending' | 'preparing' | 'ready' | 'delivered';
 
 export interface RetailSale {
     id: string;
@@ -2215,6 +2219,7 @@ export interface RetailSale {
     customerPhone?: string;
     customerEmail?: string;
     createdAt: string;
+    unifiedTabId?: string; // Links this sale to a CarWashJob for hybrid checkout
 }
 
 export interface ServiceBooking {
@@ -2228,4 +2233,73 @@ export interface ServiceBooking {
     institutionId: string;
     notes?: string;
     createdAt: string;
+}
+
+// --- Car Service Center Models ---
+export interface Vehicle {
+    id: string;
+    institutionId: string;
+    make: string;
+    model: string;
+    year: number;
+    vin: string;
+    licensePlate: string;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    fleetCompany?: string; // For B2B
+    lastServiceDate?: string;
+    createdAt: string;
+    updatedAt: string;
+    notes?: string;
+}
+
+export interface ServiceJobItem {
+    id: string;
+    type: 'part' | 'labor' | 'sublet';
+    itemId?: string; // Reference to retail_inventory for parts
+    name: string;
+    description?: string;
+    quantity: number;
+    unitCost: number; // Internal cost
+    unitPrice: number; // Customer price
+    taxable: boolean;
+    technicianId?: string; // For tracking labor hours per tech
+}
+
+export type DVIStatus = 'green' | 'yellow' | 'red' | 'uninspected';
+
+export interface DigitalInspectionItem {
+    id: string;
+    category: 'Under Hood' | 'Under Vehicle' | 'Exterior' | 'Interior' | 'Brakes' | 'Tires';
+    name: string;
+    status: DVIStatus;
+    notes?: string;
+    recommendation?: string;
+    photoUrl?: string;
+}
+
+export interface RepairOrder {
+    id: string;
+    institutionId: string;
+    vehicleId: string;
+    customerId?: string; // If registered user
+    status: 'draft' | 'estimate' | 'approved' | 'in_progress' | 'waiting_on_parts' | 'ready' | 'completed' | 'invoiced';
+    mileageIn: number;
+    mileageOut?: number;
+    serviceAdvisorId: string; // The user who wrote the ticket
+    leadTechnicianId?: string; // Primary mechanic
+    bayNumber?: string;
+    customerComplaint: string;
+    inspectionItems: DigitalInspectionItem[];
+    jobItems: ServiceJobItem[];
+    subtotal: number;
+    taxTotal: number;
+    discountTotal: number;
+    grandTotal: number;
+    insuranceClaimNumber?: string; // For split billing
+    insuranceDeductible?: number;
+    createdAt: string;
+    updatedAt: string;
+    completedAt?: string;
 }

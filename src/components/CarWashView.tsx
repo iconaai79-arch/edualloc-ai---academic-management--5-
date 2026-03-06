@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, RetailSale, RetailInventoryItem } from '../types';
 import type { Invoice, Receipt } from '../types';
 import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
 import { SmartCarWashCustomerImporterModal } from './SmartCarWashCustomerImporterModal';
+import { HybridPOSView } from './hybrid/HybridPOSView';
+import { KitchenDisplaySystem } from './hybrid/KitchenDisplaySystem';
+import { CustomerStatusBoard } from './hybrid/CustomerStatusBoard';
 import {
     generateCarWashTrialBalancePdf,
     generateCarWashCashbookPdf,
@@ -16,7 +19,8 @@ import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
     BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
-    EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon
+    EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon,
+    BuildingStorefrontIcon, FireIcon, TvIcon
 } from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
@@ -87,7 +91,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser
 }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board'>('dashboard');
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
@@ -113,6 +117,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     });
 
     const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
+    const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
+    const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -278,7 +284,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -292,6 +298,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<CarWashJournalLine>('carwash_journal_lines', institutionId),
                 apiService.fetchModuleRecords<CarWashExpense>('carwash_expenses', institutionId),
                 apiService.fetchModuleRecords<CarWashPayroll>('carwash_payroll', institutionId),
+                apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId),
             ]);
             setPackages(pkgs || []);
             setCustomers(custs || []);
@@ -306,6 +314,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setJournalLines(jLines || []);
             setExpenses(exps || []);
             setPayroll(pyrl || []);
+            setRetailSales(rSales || []);
+            setRetailInventory(rInv || []);
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -1179,6 +1189,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'broadcast', label: 'Broadcast', icon: <EnvelopeIcon className="w-4 h-4" /> },
         { id: 'transactions', label: 'Bills & Payments', icon: <CurrencyIcon className="w-4 h-4" /> },
         { id: 'finance', label: 'Finance', icon: <BanknotesIcon className="w-4 h-4" /> },
+        { id: 'hybrid_pos', label: 'Hybrid POS', icon: <BuildingStorefrontIcon className="w-4 h-4" /> },
+        { id: 'kds', label: 'Kitchen Display', icon: <FireIcon className="w-4 h-4" /> },
+        { id: 'live_board', label: 'Live Board', icon: <ClockIcon className="w-4 h-4" /> },
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
     ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
 
@@ -2493,6 +2506,38 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Hybrid Views */}
+            {!loading && activeTab === 'hybrid_pos' && (
+                <HybridPOSView
+                    currentUser={currentUser}
+                    currentInstitution={currentInstitution}
+                    carWashJobs={jobs}
+                    retailInventory={retailInventory}
+                    retailSales={retailSales}
+                    onLogAction={async () => { }}
+                    onDataChange={loadData}
+                />
+            )}
+            {!loading && activeTab === 'kds' && (
+                <KitchenDisplaySystem
+                    retailSales={retailSales}
+                    onUpdateItemStatus={async (saleId, itemId, newStatus) => {
+                        const targetSale = retailSales.find(s => s.id === saleId);
+                        if (!targetSale) return;
+
+                        const updatedItems = targetSale.items.map(i => i.itemId === itemId ? { ...i, kitchenStatus: newStatus } : i);
+                        await apiService.saveModuleRecord('retail_sales', { ...targetSale, items: updatedItems });
+                        loadData();
+                    }}
+                />
+            )}
+            {!loading && activeTab === 'live_board' && (
+                <CustomerStatusBoard
+                    carWashJobs={jobs}
+                    retailSales={retailSales}
+                />
             )}
 
             <style>{`

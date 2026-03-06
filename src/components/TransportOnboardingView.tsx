@@ -4,10 +4,10 @@ import {
     TruckIcon, UserIcon, CheckCircleIcon,
     ArrowPathIcon, PhoneIcon, MapPinIcon
 } from './icons';
-import type { Vehicle, TransportOnboarding, User, Institution } from '../types';
+import type { TransportVehicle, TransportOnboarding, User, Institution } from '../types';
 
 interface TransportOnboardingViewProps {
-    vehicles: Vehicle[];
+    vehicles: TransportVehicle[];
     onboardingRecords: TransportOnboarding[];
     users: User[];
     currentUser: User;

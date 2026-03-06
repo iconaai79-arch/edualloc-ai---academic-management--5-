@@ -4,12 +4,12 @@ import {
     TruckIcon, MapPinIcon, CheckCircleIcon,
     ClockIcon, PhoneIcon, UserIcon
 } from './icons';
-import type { Vehicle, TransportOnboarding, User } from '../types';
+import type { TransportVehicle, TransportOnboarding, User } from '../types';
 
 interface StudentTransportTrackerProps {
     student: User;
     activeOnboarding?: TransportOnboarding;
-    assignedVehicle?: Vehicle;
+    assignedVehicle?: TransportVehicle;
     driver?: User;
     assistant?: User;
     onConfirmReceipt: (recordId: string) => Promise<void>;

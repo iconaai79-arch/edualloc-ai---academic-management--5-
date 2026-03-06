@@ -4,10 +4,10 @@ import {
     QrCodeIcon, SearchIcon, TruckIcon,
     ArrowRightOnRectangleIcon, ClockIcon, CheckCircleIcon
 } from './icons';
-import type { Vehicle, VehicleLog, User, Institution } from '../types';
+import type { TransportVehicle, VehicleLog, User, Institution } from '../types';
 
 interface SecurityGatePassViewProps {
-    vehicles: Vehicle[];
+    vehicles: TransportVehicle[];
     vehicleLogs: VehicleLog[];
     users: User[];
     currentUser: User;
@@ -20,7 +20,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [scanning, setScanning] = useState(false);
-    const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+    const [selectedVehicle, setSelectedVehicle] = useState<TransportVehicle | null>(null);
     const [notes, setNotes] = useState('');
 
     const filteredVehicles = vehicles.filter(v =>

@@ -3,17 +3,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     TruckIcon, PlusIcon, PencilIcon, TrashIcon,
     QrCodeIcon, UserIcon, CheckIcon, XIcon,
-    MagnifyingGlassIcon, UserPlusIcon, LinkIcon
+    MagnifyingGlassIcon, UserPlusIcon
 } from './icons';
-import type { Vehicle, User, Institution, UserUpdateData } from '../types';
+import type { TransportVehicle, User, Institution, UserUpdateData } from '../types';
 import { apiService } from '../services/apiService';
 
 interface TransportManagerProps {
-    vehicles: Vehicle[];
+    vehicles: TransportVehicle[];
     users: User[];
     currentInstitution: Institution;
-    onAddVehicle: (vehicle: Omit<Vehicle, 'id'>) => Promise<void>;
-    onUpdateVehicle: (id: string, updates: Partial<Vehicle>) => Promise<void>;
+    onAddVehicle: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
+    onUpdateVehicle: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
     onDeleteVehicle: (id: string) => Promise<void>;
     onAddUser?: (userData: any) => Promise<void>;
     onEditUser?: (userId: string, data: UserUpdateData) => Promise<void>;
@@ -31,7 +31,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [courseFilter, setCourseFilter] = useState('all');
 
     // Form data for Vehicle
-    const [formData, setFormData] = useState<Omit<Vehicle, 'id' | 'institutionId'>>({
+    const [formData, setFormData] = useState<Omit<TransportVehicle, 'id' | 'institutionId'>>({
         plateNumber: '',
         model: '',
         vehicleType: 'school',
@@ -146,7 +146,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         }
     };
 
-    const startEdit = (v: Vehicle) => {
+    const startEdit = (v: TransportVehicle) => {
         setEditingId(v.id);
         setFormData({
             plateNumber: v.plateNumber,
