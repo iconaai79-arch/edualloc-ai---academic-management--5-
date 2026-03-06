@@ -34,7 +34,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
             try {
                 const [salesData, invData, commData] = await Promise.all([
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
-                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId),
+                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                     apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId),
                 ]);
 

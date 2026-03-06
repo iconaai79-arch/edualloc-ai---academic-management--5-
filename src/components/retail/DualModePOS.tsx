@@ -37,7 +37,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const fetchProducts = async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId);
+            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
             if (data) setProducts(data);
         } catch (err) {
             console.error("Fetch products error:", err);

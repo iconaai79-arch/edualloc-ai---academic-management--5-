@@ -32,7 +32,7 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
         try {
             const [stores, inventory, transfers, wishlist] = await Promise.all([
                 apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                 apiService.fetchModuleRecords<RetailStockTransfer>('retail_stock_transfers', institutionId),
                 apiService.fetchModuleRecords<RetailWishlist>('retail_wishlist', institutionId)
             ]);

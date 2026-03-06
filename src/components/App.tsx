@@ -508,7 +508,7 @@ export const App: React.FC = () => {
                 apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
                 apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
                 apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', instId).catch(() => []),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', instId).catch(() => []),
                 apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
                 apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
                 apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),

@@ -31,7 +31,7 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
             const [transfersData, storesData, inventoryData] = await Promise.all([
                 apiService.fetchModuleRecords<RetailStockTransfer>('retail_stock_transfers', institutionId),
                 apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId)
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
             ]);
 
             if (transfersData) setTransfers(transfersData);

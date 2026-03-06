@@ -131,7 +131,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     const fetchInventory = async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId);
+            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
             setItems(data);
         } catch (err) {
             console.error("Fetch error:", err);
@@ -173,7 +173,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 lastUpdated: new Date().toISOString()
             };
 
-            await apiService.saveModuleRecord('retail_inventory', payload);
+            await apiService.saveModuleRecord('retail_inventory_items', payload);
 
             setIsAddModalOpen(false);
             setEditingItem(null);
@@ -201,7 +201,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     const handleDelete = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this item?')) return;
         try {
-            await apiService.deleteModuleRecord('retail_inventory', id);
+            await apiService.deleteModuleRecord('retail_inventory_items', id);
             fetchInventory();
         } catch (err) {
             console.error("Delete error:", err);
@@ -213,7 +213,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         try {
             // Save each item
             for (const item of items) {
-                await apiService.saveModuleRecord('retail_inventory', item);
+                await apiService.saveModuleRecord('retail_inventory_items', item);
             }
             fetchInventory();
             setIsImportModalOpen(false);

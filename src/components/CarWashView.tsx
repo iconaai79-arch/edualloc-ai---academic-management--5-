@@ -300,7 +300,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<CarWashExpense>('carwash_expenses', institutionId),
                 apiService.fetchModuleRecords<CarWashPayroll>('carwash_payroll', institutionId),
                 apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
             ]);
             setPackages(pkgs || []);
             setCustomers(custs || []);

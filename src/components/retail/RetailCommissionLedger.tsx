@@ -24,7 +24,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
         try {
             const [commData, invData] = await Promise.all([
                 apiService.fetchModuleRecords<CommissionType>('retail_commission_ledger', institutionId),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId)
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
             ]);
 
             if (commData) setCommissions(commData);

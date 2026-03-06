@@ -32,7 +32,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
 
     const loadMenu = async () => {
         try {
-            const allInventory = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory', institutionId);
+            const allInventory = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
             // Filter to only show items that are likely cafe/restaurant items
             const cafeItems = allInventory.filter((item: RetailInventoryItem) =>
                 item.category?.toLowerCase().includes('cafe') ||
@@ -58,7 +58,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
                 institutionId,
                 lastUpdated: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('retail_inventory', payload);
+            await apiService.saveModuleRecord('retail_inventory_items', payload);
             setIsModalOpen(false);
             setEditingItem(null);
             loadMenu();
@@ -71,7 +71,7 @@ export const CafeMenuManager: React.FC<CafeMenuManagerProps> = ({ institutionId 
     const handleDelete = async (id: string) => {
         if (!window.confirm("Are you sure you want to delete this menu item?")) return;
         try {
-            await apiService.deleteModuleRecord('retail_inventory', id);
+            await apiService.deleteModuleRecord('retail_inventory_items', id);
             loadMenu();
         } catch (error) {
             console.error("Failed to delete item:", error);
