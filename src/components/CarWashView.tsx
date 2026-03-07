@@ -139,6 +139,23 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [reportStartDate, setReportStartDate] = useState<string>('');
     const [reportEndDate, setReportEndDate] = useState<string>('');
 
+    const [payrlForm, setPayrlForm] = useState({
+        staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
+        nssf: 0, shif: 0, paye: 0, housingLevy: 0,
+        periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
+        periodEnd: new Date().toISOString().split('T')[0]
+    });
+
+    const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
+    const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
+    const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
+    const [cafeInventory, setCafeInventory] = useState<CafeMenuItem[]>([]);
+    const [addOns, setAddOns] = useState<CarWashAddOn[]>([]);
+    const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
+    const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
+    const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+
     const filteredJobs = useMemo(() => {
         return jobs.filter(j => {
             if (!j.createdAt) return true;
@@ -158,23 +175,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             return true;
         });
     }, [feedbacks, reportStartDate, reportEndDate]);
-
-    const [payrlForm, setPayrlForm] = useState({
-        staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
-        nssf: 0, shif: 0, paye: 0, housingLevy: 0,
-        periodStart: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
-        periodEnd: new Date().toISOString().split('T')[0]
-    });
-
-    const [inventory, setInventory] = useState<CarWashInventoryItem[]>([]);
-    const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
-    const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
-    const [cafeInventory, setCafeInventory] = useState<CafeMenuItem[]>([]);
-    const [addOns, setAddOns] = useState<CarWashAddOn[]>([]);
-    const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
-    const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
-    const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
-    const [loading, setLoading] = useState(true);
 
 
     const [showNewJobModal, setShowNewJobModal] = useState(false);
