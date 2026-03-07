@@ -170,8 +170,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
 
     const getJobTabTotal = (job: CarWashJob) => {
-        const relevantOrders = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
-        return (job.amountCharged || 0) + relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
+        const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+        const relevantRetail = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
+        const tabTotal = [...relevantCafe, ...relevantRetail].reduce((sum, s) => sum + s.totalAmount, 0);
+        return (job.amountCharged || 0) + tabTotal;
     };
 
     // ── Profit Graph Calculations (Last 3 Months) ──
@@ -495,8 +497,10 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         try {
             const customer = customers.find(c => c.id === job.customerId);
 
-            // Calculate linked cafe orders (tabs)
-            const relevantOrders = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            // Calculate linked cafe orders (tabs) from both new dedicated table and legacy retail sales
+            const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            const relevantRetail = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
+            const relevantOrders = [...relevantCafe, ...relevantRetail];
             const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
 
             // Calculate discount and final amount
@@ -564,8 +568,13 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             await apiService.saveModuleRecord('carwash_jobs', updated);
 
             // ── Update linked cafe orders to completed status ──
-            for (const order of relevantOrders) {
+            for (const order of relevantCafe) {
                 await apiService.saveModuleRecord('cafe_orders', { ...order, status: 'completed' });
+            }
+
+            // Link retail sales to the same payment method used for the wash if they were on tab
+            for (const sale of relevantRetail) {
+                await apiService.saveModuleRecord('retail_sales', { ...sale, paymentMethod: method });
             }
 
             // ── Loyalty Points Update ──
