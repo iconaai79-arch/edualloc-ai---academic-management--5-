@@ -124,16 +124,21 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
     const [retailInventory, setRetailInventory] = useState<RetailInventoryItem[]>([]);
     const [cafeInventory, setCafeInventory] = useState<CafeMenuItem[]>([]);
+    const [addOns, setAddOns] = useState<CarWashAddOn[]>([]);
     const [feedbacks, setFeedbacks] = useState<CarWashFeedback[]>([]);
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
     const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
     const [loading, setLoading] = useState(true);
 
+
     const [showNewJobModal, setShowNewJobModal] = useState(false);
     const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
     const [showNewPackageModal, setShowNewPackageModal] = useState(false);
+    const [showNewAddOnModal, setShowNewAddOnModal] = useState(false);
+    const [addOnForm, setAddOnForm] = useState({ name: '', description: '', price: 0, isActive: true, editingId: undefined as string | undefined });
     const [showNewInventoryModal, setShowNewInventoryModal] = useState(false);
     const [showNewStaffModal, setShowNewStaffModal] = useState(false);
+
     const [showSmartImporter, setShowSmartImporter] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState<CarWashJob | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState<CarWashJob | null>(null);
@@ -297,7 +302,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv, cInv, cOrders] = await Promise.all([
+            const [pkgs, custs, vehs, jobList, trans, inv, fbs, shiftList, accs, jEntries, jLines, exps, pyrl, rSales, rInv, cInv, cOrders, ads] = await Promise.all([
                 apiService.fetchModuleRecords<CarWashPackage>('carwash_packages', institutionId),
                 apiService.fetchModuleRecords<CarWashCustomer>('carwash_customers', institutionId),
                 apiService.fetchModuleRecords<CarWashVehicle>('carwash_vehicles', institutionId),
@@ -315,7 +320,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                 apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', institutionId),
                 apiService.fetchModuleRecords<CafeOrder>('cafe_orders', institutionId),
+                apiService.fetchModuleRecords<CarWashAddOn>('carwash_add_ons', institutionId),
             ]);
+
             setPackages(pkgs || []);
             setCustomers(custs || []);
             setVehicles(vehs || []);
@@ -333,7 +340,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setRetailInventory(rInv || []);
             setCafeInventory(cInv || []);
             setLocalCafeOrders(cOrders || []);
+            setAddOns(ads || []);
         } catch (e) { console.error(e); }
+
         setLoading(false);
     };
 
@@ -438,16 +447,21 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         if (!jobForm.packageId) return alert('Select a package');
         const pkg = packages.find(p => p.id === jobForm.packageId);
         if (!pkg) return;
-        const price = pkg.pricing[jobForm.vehicleType] || 0;
+        const packagePrice = pkg.pricing[jobForm.vehicleType] || 0;
+        const selectedAddOns = addOns.filter(ao => jobForm.addOns.includes(ao.name));
+        const addOnsPrice = selectedAddOns.reduce((sum, ao) => sum + (ao.price || 0), 0);
+        const totalPrice = packagePrice + addOnsPrice;
+
         const job: CarWashJob = {
             id: `cwj_${Date.now()}`, institutionId, vehiclePlate: jobForm.vehicleType === 'Other' && !jobForm.vehiclePlate ? 'N/A' : jobForm.vehiclePlate.toUpperCase(), vehicleType: jobForm.vehicleType,
             packageId: jobForm.packageId, packageName: pkg.name, addOns: jobForm.addOns,
             attendantId: users.some(u => u.id === jobForm.attendantId) ? jobForm.attendantId : undefined,
             attendantName: attendants.find(a => a.id === jobForm.attendantId)?.name,
             bayNumber: jobForm.bayNumber, status: 'queued', paymentMethod: jobForm.paymentMethod,
-            amountCharged: price, amountPaid: 0, isLoyaltyRedemption: false, createdAt: new Date().toISOString(),
+            amountCharged: totalPrice, amountPaid: 0, isLoyaltyRedemption: false, createdAt: new Date().toISOString(),
             customerId: jobForm.customerId || undefined,
         };
+
         try {
             await apiService.saveModuleRecord('carwash_jobs', job);
             setShowNewJobModal(false);
@@ -971,6 +985,51 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         }
     };
 
+    // ── Add-on Handlers ──
+    const handleEditAddOn = (ao: CarWashAddOn) => {
+        setAddOnForm({
+            name: ao.name,
+            description: ao.description || '',
+            price: ao.price,
+            isActive: ao.isActive,
+            editingId: ao.id
+        });
+        setShowNewAddOnModal(true);
+    };
+
+    const handleCreateAddOn = async () => {
+        if (!addOnForm.name) return;
+        try {
+            const ao: CarWashAddOn = {
+                id: addOnForm.editingId || `cwa_${Date.now()}`,
+                institutionId,
+                name: addOnForm.name,
+                description: addOnForm.description,
+                price: addOnForm.price,
+                isActive: addOnForm.isActive,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('carwash_add_ons', ao);
+            setShowNewAddOnModal(false);
+            setAddOnForm({ name: '', description: '', price: 0, isActive: true, editingId: undefined });
+            loadData();
+        } catch (e: any) {
+            console.error("Save Add-on Error:", e);
+            alert(`Failed to save add-on: ${e.message || JSON.stringify(e) || 'Unknown error'}`);
+        }
+    };
+
+    const handleDeleteAddOn = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this add-on?')) return;
+        try {
+            await apiService.deleteModuleRecord('carwash_add_ons', id);
+            loadData();
+        } catch (e: any) {
+            alert(`Failed to delete: ${e.message}`);
+        }
+    };
+
+
     // ── Inventory Form ──
     const [invForm, setInvForm] = useState({ name: '', unit: 'litres', currentStock: 0, reorderLevel: 5, costPerUnit: 0, category: 'chemical' as CarWashInventoryItem['category'] });
     const handleCreateInventory = async () => {
@@ -1226,7 +1285,6 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     const inputCls = 'w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl text-sm font-semibold outline-none transition-all';
     const labelCls = 'block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 tracking-widest';
-
     const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', ready: 'bg-purple-100 text-purple-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
 
     const tabs = [
@@ -1247,6 +1305,15 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'cafe_menu', label: 'Cafe Menu', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
     ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
+
+    const checkoutOrders = showCheckoutModal ? [
+        ...(cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === showCheckoutModal.id && s.paymentMethod === 'tab'),
+        ...retailSales.filter(s => s.unifiedTabId === showCheckoutModal.id && s.paymentMethod === 'tab')
+    ] : [];
+    const checkoutTabTotal = checkoutOrders.reduce((sum, s) => sum + s.totalAmount, 0);
+    const checkoutGrandTotal = showCheckoutModal ? (showCheckoutModal.amountCharged || 0) + checkoutTabTotal : 0;
+
+
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
@@ -1426,7 +1493,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 )}
 
                 {/* SERVICES */}
-                {!loading && activeTab === 'services' && (
+                <div className="space-y-8">
+                    {/* Service Packages */}
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-black uppercase">Service Packages</h2>
@@ -1434,7 +1502,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {packages.map(pkg => (
-                                <div key={pkg.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                <div key={pkg.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                                     <div className="h-2" style={{ background: pkg.color || '#6366f1' }} />
                                     <div className="p-5">
                                         <div className="flex justify-between items-start mb-2">
@@ -1449,7 +1517,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
                                         <div className="space-y-1">
                                             {Object.entries(pkg.pricing).map(([type, price]) => (
-                                                <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {price.toLocaleString()}</span></div>
+                                                <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {(price as number).toLocaleString()}</span></div>
                                             ))}
                                         </div>
                                         {pkg.includesInterior && <p className="text-[9px] font-black text-cyan-600 mt-2 uppercase">✓ Includes Interior Cleaning</p>}
@@ -1459,7 +1527,48 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             {packages.length === 0 && <div className="col-span-3 text-center py-20 text-slate-400"><SparklesIcon className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-bold">No packages yet. Add your first service.</p></div>}
                         </div>
                     </div>
-                )}
+
+                    {/* Service Add-ons */}
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-black uppercase">Service Add-ons</h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fixed price items added to any package</p>
+                            </div>
+                            <button
+                                onClick={() => { setAddOnForm({ name: '', description: '', price: 0, isActive: true, editingId: undefined }); setShowNewAddOnModal(true); }}
+                                className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-cyan-600 border-2 border-cyan-600 rounded-xl font-black text-sm uppercase shadow-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-all"
+                            >
+                                <PlusIcon className="w-4 h-4" /> New Add-on
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {addOns.map(ao => (
+                                <div key={ao.id} className={`bg-white dark:bg-slate-800 rounded-2xl border ${ao.isActive ? 'border-slate-100 dark:border-slate-700' : 'border-slate-200 dark:border-slate-800 opacity-60'} p-5 relative group`}>
+                                    <div className="flex justify-between items-start mb-1">
+                                        <h3 className="font-black text-sm">{ao.name}</h3>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleEditAddOn(ao)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-600"><Cog8ToothIcon className="w-3.5 h-3.5" /></button>
+                                            <button onClick={() => handleDeleteAddOn(ao.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-600"><XIcon className="w-3.5 h-3.5" /></button>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mb-2 truncate" title={ao.description}>{ao.description || 'No description'}</p>
+                                    <div className="flex justify-between items-center mt-auto">
+                                        <span className="text-base font-black text-cyan-600">KES {ao.price.toLocaleString()}</span>
+                                        {!ao.isActive && <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">Inactive</span>}
+                                    </div>
+                                </div>
+                            ))}
+                            {addOns.length === 0 && (
+                                <div className="col-span-full py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400">
+                                    <SparklesIcon className="w-8 h-8 mb-2 opacity-20" />
+                                    <p className="text-xs font-bold uppercase tracking-widest">No add-ons defined</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
 
                 {/* INVENTORY */}
                 {!loading && activeTab === 'inventory' && (
@@ -1689,9 +1798,15 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                             <span>Included</span>
                                         </div>
                                     ))}
+                                    {checkoutOrders.flatMap(s => s.items).map((item, idx) => (
+                                        <div key={idx} className="flex justify-between text-xs font-bold text-slate-400">
+                                            <span>+ {item.name} (Tab)</span>
+                                            <span>KES {(item.quantity * item.unitPrice).toLocaleString()}</span>
+                                        </div>
+                                    ))}
                                     <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                         <span className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-widest">Total Payable</span>
-                                        <span className="text-2xl font-black text-emerald-600">KES {(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
+                                        <span className="text-2xl font-black text-emerald-600">KES {checkoutGrandTotal.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1727,7 +1842,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         {useLoyaltyPoints && (
                                             <div className="mt-4 pt-4 border-t border-amber-200/50 dark:border-amber-800/50 flex justify-between items-center animate-in slide-in-from-top-2">
                                                 <span className="text-xs font-black text-amber-800 dark:text-amber-500 uppercase tracking-widest">Discount Applied:</span>
-                                                <span className="text-lg font-black text-rose-600">- KES {Math.min(showCheckoutModal.amountCharged, customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()}</span>
+                                                <span className="text-lg font-black text-rose-600">- KES {Math.min(checkoutGrandTotal, customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0).toLocaleString()}</span>
                                             </div>
                                         )}
                                     </div>
@@ -1737,7 +1852,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     <div className="flex justify-between items-center px-4 py-3 bg-slate-900 text-white rounded-2xl">
                                         <span className="text-xs font-black uppercase tracking-widest text-slate-400">Final Amount Required:</span>
                                         <span className="text-xl font-black text-emerald-400">
-                                            KES {Math.max(0, showCheckoutModal.amountCharged - (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)).toLocaleString()}
+                                            KES {Math.max(0, checkoutGrandTotal - (customers.find(c => c.id === showCheckoutModal.customerId)?.loyaltyPoints || 0)).toLocaleString()}
                                         </span>
                                     </div>
                                 )}
@@ -1810,7 +1925,23 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             </div>
                             <div><label className={labelCls}>Attendant</label><select className={inputCls} value={jobForm.attendantId} onChange={e => setJobForm({ ...jobForm, attendantId: e.target.value })}><option value="">-- Unassigned --</option>{attendants.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
                             <div><label className={labelCls}>Payment Method</label><select className={inputCls} value={jobForm.paymentMethod} onChange={e => setJobForm({ ...jobForm, paymentMethod: e.target.value as CarWashPaymentMethod })}>{PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
-                            <div><label className={labelCls}>Add-ons</label><div className="flex flex-wrap gap-2">{ADD_ONS.map(ao => <button key={ao} type="button" onClick={() => setJobForm(prev => ({ ...prev, addOns: prev.addOns.includes(ao) ? prev.addOns.filter(x => x !== ao) : [...prev.addOns, ao] }))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${jobForm.addOns.includes(ao) ? 'bg-cyan-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>{ao}</button>)}</div></div>
+                            <div>
+                                <label className={labelCls}>Add-ons</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {addOns.filter(ao => ao.isActive).map(ao => (
+                                        <button
+                                            key={ao.id}
+                                            type="button"
+                                            onClick={() => setJobForm(prev => ({ ...prev, addOns: prev.addOns.includes(ao.name) ? prev.addOns.filter(x => x !== ao.name) : [...prev.addOns, ao.name] }))}
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all ${jobForm.addOns.includes(ao.name) ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200'}`}
+                                        >
+                                            {ao.name} (KES {ao.price})
+                                        </button>
+                                    ))}
+                                    {addOns.filter(ao => ao.isActive).length === 0 && <p className="text-[10px] font-bold text-slate-400 italic">No add-ons available</p>}
+                                </div>
+                            </div>
+
                         </div>
                         <div className="px-6 pb-6 flex gap-3"><button onClick={() => setShowNewJobModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button><button onClick={handleCreateJob} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow">Add to Queue</button></div>
                     </div>
@@ -1866,7 +1997,45 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 </div>
             )}
 
+            {showNewAddOnModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center">
+                            <h3 className="text-lg font-black text-white uppercase">{addOnForm.editingId ? 'Edit Add-on' : 'New Add-on'}</h3>
+                            <button onClick={() => setShowNewAddOnModal(false)}><XIcon className="w-5 h-5 text-white" /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className={labelCls}>Add-on Name</label>
+                                <input className={inputCls} value={addOnForm.name} onChange={e => setAddOnForm({ ...addOnForm, name: e.target.value })} placeholder="e.g. Engine Wash" />
+                            </div>
+                            <div>
+                                <label className={labelCls}>Description</label>
+                                <input className={inputCls} value={addOnForm.description} onChange={e => setAddOnForm({ ...addOnForm, description: e.target.value })} placeholder="Optional details..." />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className={labelCls}>Price (KES)</label>
+                                    <input type="number" className={inputCls} value={addOnForm.price} onChange={e => setAddOnForm({ ...addOnForm, price: +e.target.value })} />
+                                </div>
+                                <div className="flex items-end pb-3">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" checked={addOnForm.isActive} onChange={e => setAddOnForm({ ...addOnForm, isActive: e.target.checked })} />
+                                        <span className="text-[10px] font-black uppercase text-slate-500 group-hover:text-cyan-600 transition-colors">Active</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6 flex gap-3">
+                            <button onClick={() => setShowNewAddOnModal(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-black text-sm uppercase">Cancel</button>
+                            <button onClick={handleCreateAddOn} className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-cyan-600/20 hover:shadow-cyan-600/40 transition-all active:scale-95">{addOnForm.editingId ? 'Save Changes' : 'Save Add-on'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* INVENTORY MODAL */}
+
             {showNewInventoryModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">

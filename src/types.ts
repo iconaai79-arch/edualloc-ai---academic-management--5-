@@ -1721,6 +1721,17 @@ export interface CarWashPackage {
     commissionValue?: number;
 }
 
+export interface CarWashAddOn {
+    id: string;
+    institutionId: string;
+    name: string;
+    description?: string;
+    price: number;
+    isActive: boolean;
+    createdAt: string;
+}
+
+
 export interface CarWashCustomer {
     id: string;
     institutionId: string;
