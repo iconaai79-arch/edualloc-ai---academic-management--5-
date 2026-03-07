@@ -24,6 +24,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
             status: 'pending' | 'preparing' | 'ready' | 'delivered';
             orderTime: string;
             ticketId?: string;
+            waiterName?: string;
             source: 'retail' | 'cafe';
         }> = [];
 
@@ -63,6 +64,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                         status: item.kitchenStatus,
                         orderTime: order.createdAt,
                         ticketId: order.id,
+                        waiterName: order.waiterName,
                         source: 'cafe'
                     });
                 }
@@ -96,7 +98,7 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
 
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                 {items.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-30 text-center">
+                    <div className="h-full flex-1 flex flex-col items-center justify-center opacity-30 text-center">
                         {icon}
                         <p className="mt-2 text-sm font-bold uppercase tracking-widest">No Items</p>
                     </div>
@@ -113,6 +115,12 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
                                         <ClockIcon className="w-3 h-3" /> {minsWaiting}m
                                     </span>
                                 </div>
+                                {item.waiterName && (
+                                    <div className="mb-2 flex items-center gap-1.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Waiter:</span>
+                                        <span className="text-[10px] font-black text-blue-600 uppercase">{item.waiterName}</span>
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-black">
                                         {item.quantity}x

@@ -914,6 +914,23 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleDownloadReceipt = async (receipt: Receipt) => {
+        try {
+            const institution = institutions.find((i: Institution) => i.id === receipt.institutionId) || institutions[0];
+            const job = jobs.find(j => j.id === receipt.relatedTransactionId);
+            // Assuming there's a service method to generate/download the receipt
+            // This part would typically involve calling a backend endpoint or generating a PDF client-side
+            // For now, let's just log and simulate a download.
+            console.log(`Downloading receipt for transaction ${receipt.relatedTransactionId}`);
+            // Example: apiService.downloadReceipt(receipt.id);
+            alert(`Simulating download for receipt ID: ${receipt.id}. Institution: ${institution?.name}, Job: ${job?.name}`);
+            await handleLogAction(`Downloaded receipt for transaction: ${receipt.relatedTransactionId}`);
+        } catch (error) {
+            console.error('Error downloading receipt:', error);
+            alert('Failed to download receipt. Please try again.');
+        }
+    };
+
     const handleLogAction = async (action: string) => {
         if (!currentUser) return;
         const institution = institutions.find(i => i.id === currentUser.institutionId);
@@ -2208,7 +2225,16 @@ export const App: React.FC = () => {
                                     onLogAction={handleLogAction}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
-                                <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />
+                                (activeRole === 'carwash_customer' || (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
+                                    <CarWashCustomerPortal
+                                        currentUser={currentUser}
+                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                        cafeOrders={cafeOrders}
+                                        retailSales={retailSales}
+                                    />
+                                ) : (
+                                    <RetailCustomerPortal currentUser={currentUser} currentInstitution={activeInstitution!} />
+                                )
                             ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                 <AgrovetView
                                     currentUser={currentUser}

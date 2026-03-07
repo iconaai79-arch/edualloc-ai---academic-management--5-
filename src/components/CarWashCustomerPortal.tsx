@@ -10,15 +10,19 @@ import {
 
 interface CarWashCustomerPortalProps {
     currentUser: User;
+    onAddTransaction?: (data: any, items?: any[]) => Promise<void>;
+    cafeOrders?: any[];
+    retailSales?: any[];
 }
 
-export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ currentUser }) => {
+export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ currentUser, onAddTransaction, cafeOrders = [], retailSales = [] }) => {
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [receipts, setReceipts] = useState<Receipt[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [totalLoyaltyPoints, setTotalLoyaltyPoints] = useState(0);
+    const [isProcessingPayment, setIsProcessingPayment] = useState<string | null>(null);
 
     const loadData = async () => {
         setRefreshing(true);
@@ -70,9 +74,56 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
 
     const getInstitutionName = (id: string) => institutions.find(i => i.id === id)?.name || 'Unknown Car Wash';
 
+    const handlePayment = async (job: CarWashJob) => {
+        if (!onAddTransaction) {
+            alert("Payment system not configured.");
+            return;
+        }
+
+        setIsProcessingPayment(job.id);
+        try {
+            // Calculate linked cafe orders (tabs)
+            const relevantCafe = cafeOrders.filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
+            const relevantRetail = retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab');
+            const relevantOrders = [...relevantCafe, ...relevantRetail];
+            const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
+            const finalAmountToPay = (job.amountCharged || 0) + tabTotal;
+
+            if (finalAmountToPay <= 0) {
+                alert("Nothing to pay.");
+                return;
+            }
+
+            const currentInst = institutions.find((i: Institution) => i.id === job.institutionId);
+
+            await onAddTransaction({
+                amount: finalAmountToPay,
+                phoneNumber: currentUser.phoneNumber || '',
+                description: `Self Checkout: ${job.vehiclePlate}`,
+                institutionId: job.institutionId,
+                userId: currentUser.id
+            }, [
+                { name: `${job.packageName} (Wash)`, quantity: 1, unitPrice: job.amountCharged, total: job.amountCharged },
+                ...relevantOrders.flatMap((s: any) => s.items.map((i: any) => ({ name: `${i.name} (Cafe)`, quantity: i.quantity, unitPrice: i.unitPrice, total: i.quantity * i.unitPrice })))
+            ]);
+
+            alert("M-Pesa STK Push initiated! Please check your phone to complete payment.");
+
+            // Poll for completion or just refresh after a delay
+            setTimeout(() => {
+                loadData();
+            }, 5000);
+
+        } catch (e: any) {
+            console.error("Payment Error:", e);
+            alert(e.message || "Failed to initiate M-Pesa payment.");
+        } finally {
+            setIsProcessingPayment(null);
+        }
+    };
     const handleDownloadReceipt = async (receipt: Receipt) => {
         try {
-            const institution = institutions.find(i => i.id === receipt.institutionId) || institutions[0];
+            const institution = institutions.find((i: Institution) => i.id === receipt.institutionId) || institutions[0];
             const job = jobs.find(j => j.id === receipt.relatedTransactionId);
 
             // Dummy transaction data to satisfy generator (portal doesn't fetch mpesa tracking atm)
@@ -252,7 +303,19 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
                                         <div className="w-10 h-10 bg-emerald-500 text-white rounded-full flex items-center justify-center font-black">!</div>
                                         <div>
                                             <p className="text-xs font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-widest">Your car is ready!</p>
-                                            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold">Please proceed to the waiting bay for checkout. Amount due: KES {job.amountCharged.toLocaleString()}</p>
+                                            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold mb-3">Please proceed to the waiting bay or pay here. Total Amount: KES {((job.amountCharged || 0) + (cafeOrders.filter(s => s.jobId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0)) + (retailSales.filter(s => s.unifiedTabId === job.id && s.paymentMethod === 'tab').reduce((sum, s) => sum + s.totalAmount, 0))).toLocaleString()}</p>
+
+                                            <button
+                                                onClick={() => handlePayment(job)}
+                                                disabled={isProcessingPayment === job.id}
+                                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                            >
+                                                {isProcessingPayment === job.id ? (
+                                                    <><ArrowPathIcon className="w-4 h-4 animate-spin" /> Processing...</>
+                                                ) : (
+                                                    <><CurrencyIcon className="w-4 h-4" /> Pay via M-Pesa</>
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
                                 )}

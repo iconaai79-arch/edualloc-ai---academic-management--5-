@@ -172,7 +172,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const activeJobs = jobs.filter(j => j.status === 'queued' || j.status === 'in_progress' || j.status === 'ready');
     const lowStock = inventory.filter(i => i.currentStock <= i.reorderLevel);
     const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
-    const attendants = users.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant');
+    const staff = users.filter(u =>
+        u.role === 'carwash_admin' ||
+        u.role === 'carwash_cashier' ||
+        u.role === 'carwash_waiter' ||
+        u.role === 'carwash_attendant'
+    );
+    const attendants = staff.filter(u => u.role === 'carwash_admin' || u.role === 'carwash_attendant' || u.role === 'carwash_cashier' || u.role === 'carwash_waiter');
+    const waiters = staff.filter(u => u.role === 'carwash_waiter' || u.role === 'carwash_admin');
 
     const getJobTabTotal = (job: CarWashJob) => {
         const relevantCafe = (cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === job.id && s.paymentMethod === 'tab');
@@ -285,8 +292,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 logoUrl: brandingForm.logoUrl,
                 footerImageUrl: brandingForm.footerImageUrl,
                 letterheadConfig: {
-                    headerImageUrl: brandingForm.headerImageUrl,
-                    stampImageUrl: brandingForm.stampImageUrl
+                    headerImageUrl: brandingForm.letterheadConfig.headerImageUrl,
+                    stampImageUrl: brandingForm.letterheadConfig.stampImageUrl
                 }
             };
             await apiService.saveModuleRecord('institutions', updatedInst);
@@ -1510,7 +1517,13 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                                 <div className="flex gap-1 mt-2">
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'in_progress')} className="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-black uppercase">Start</button>}
                                                     {status === 'in_progress' && <button onClick={() => updateJobStatus(job, 'ready')} className="flex-1 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-black uppercase">Finish</button>}
-                                                    {status === 'ready' && <button onClick={() => updateJobStatus(job, 'completed')} className="flex-1 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase">Checkout</button>}
+                                                    {status === 'ready' && (
+                                                        ['carwash_admin', 'carwash_cashier', 'admin', 'super_admin'].includes(currentUser.role) ? (
+                                                            <button onClick={() => updateJobStatus(job, 'completed')} className="flex-1 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase shadow-sm border border-emerald-200 hover:bg-emerald-200 transition-all">Checkout</button>
+                                                        ) : (
+                                                            <div className="flex-1 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-[8px] font-black uppercase flex items-center justify-center text-center leading-tight px-1">Awaiting Cashier</div>
+                                                        )
+                                                    )}
                                                     {status === 'queued' && <button onClick={() => updateJobStatus(job, 'cancelled')} className="py-1.5 px-2 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase">✕</button>}
                                                 </div>
                                             </div>
@@ -1640,7 +1653,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         </div>
                                     </div>
                                 ))}
-                                {addOns.length === 0 && (
+                                {addOns.filter(ao => ao.isActive).length === 0 && (
                                     <div className="col-span-full py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400">
                                         <SparklesIcon className="w-8 h-8 mb-2 opacity-20" />
                                         <p className="text-xs font-bold uppercase tracking-widest">No add-ons defined</p>
@@ -1872,7 +1885,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-sm font-bold">
                                         <span className="text-slate-500">{showCheckoutModal.packageName} ({showCheckoutModal.vehicleType})</span>
-                                        <span className="text-slate-700 dark:text-white">KES {(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
+                                        <span className="text-slate-700 dark:text-white">KES ${(showCheckoutModal.amountCharged || 0).toLocaleString()}</span>
                                     </div>
                                     {showCheckoutModal.addOns.map(ao => (
                                         <div key={ao} className="flex justify-between text-xs font-bold text-slate-400">
@@ -2207,7 +2220,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             <div><label className={labelCls}>Name</label><input value={staffForm.name} onChange={e => setStaffForm({ ...staffForm, name: e.target.value })} className={inputCls} placeholder="e.g. John Doe" /></div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className={labelCls}>Phone</label><input value={staffForm.phoneNumber} onChange={e => setStaffForm({ ...staffForm, phoneNumber: e.target.value })} className={inputCls} placeholder="07XX..." /></div>
-                                <div><label className={labelCls}>Role</label><select value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })} className={inputCls}><option value="carwash_attendant">Attendant</option><option value="carwash_admin">Admin</option></select></div>
+                                <div><label className={labelCls}>Role</label><select value={staffForm.role} onChange={e => setStaffForm({ ...staffForm, role: e.target.value })} className={inputCls}>
+                                    <option value="carwash_admin">Admin</option>
+                                    <option value="carwash_cashier">Cashier</option>
+                                    <option value="carwash_waiter">Waiter</option>
+                                    <option value="carwash_attendant">Attendant</option>
+                                </select></div>
                             </div>
                             <div><label className={labelCls}>Email (Optional)</label><input value={staffForm.email} onChange={e => setStaffForm({ ...staffForm, email: e.target.value })} className={inputCls} placeholder="john@example.com" /></div>
                             <div><label className={labelCls}>Initial Password</label><input value={staffForm.password} onChange={e => setStaffForm({ ...staffForm, password: e.target.value })} className={inputCls} placeholder="Required" /></div>
@@ -2865,6 +2883,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     retailInventory={retailInventory}
                     cafeInventory={cafeInventory}
                     retailSales={retailSales}
+                    waiters={waiters}
                     onLogAction={async () => { }}
                     onDataChange={loadData}
                 />
