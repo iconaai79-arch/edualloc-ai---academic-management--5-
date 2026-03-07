@@ -30,7 +30,10 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
         // 1. Add from retail sales
         retailSales.forEach(sale => {
             sale.items.forEach(item => {
-                if (item.kitchenStatus && item.kitchenStatus !== 'delivered') {
+                const isService = item.name.toLowerCase().includes('service package') ||
+                    item.name.toLowerCase().includes('wash service');
+
+                if (item.kitchenStatus && item.kitchenStatus !== 'delivered' && !isService) {
                     items.push({
                         orderId: sale.id,
                         itemId: item.itemId,
@@ -48,7 +51,10 @@ export const KitchenDisplaySystem: React.FC<KitchenDisplaySystemProps> = ({
         // 2. Add from dedicated cafe orders
         cafeOrders.forEach(order => {
             order.items.forEach(item => {
-                if (item.kitchenStatus && item.kitchenStatus !== 'delivered') {
+                const isService = item.name.toLowerCase().includes('service package') ||
+                    item.name.toLowerCase().includes('wash service');
+
+                if (item.kitchenStatus && item.kitchenStatus !== 'delivered' && !isService) {
                     items.push({
                         orderId: order.id,
                         itemId: item.itemId,
