@@ -131,7 +131,10 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
                                 {[
                                     ...cafeInventory.map(i => ({ ...i, source: 'cafe' as const })),
                                     ...retailInventory.map(i => ({ ...i, source: 'retail' as const, isAvailable: true }))
-                                ].map(item => {
+                                ].filter(item => {
+                                    const name = item.name.toLowerCase();
+                                    return !name.includes('service package') && !name.includes('wash service');
+                                }).map(item => {
                                     const isCafe = 'source' in item && item.source === 'cafe';
                                     const imageUrl = 'imageUrl' in item ? item.imageUrl : undefined;
 
