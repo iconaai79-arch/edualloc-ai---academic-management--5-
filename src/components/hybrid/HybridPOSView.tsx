@@ -28,7 +28,7 @@ export const HybridPOSView: React.FC<HybridPOSViewProps> = ({
 
     // Only active car wash jobs
     const activeJobs = useMemo(() => {
-        return carWashJobs.filter(job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'completed' || job.status === 'ready');
+        return carWashJobs.filter(job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'ready');
     }, [carWashJobs]);
 
     const activeJob = activeJobs.find(j => j.id === selectedJobId);
