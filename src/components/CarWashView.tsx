@@ -636,7 +636,28 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const invNumber = `INV-${Date.now().toString().slice(-6)}`;
             const rcptNumber = `RCPT-${Date.now().toString().slice(-6)}`;
 
-            const items: any[] = [{ description: `${job.packageName} - ${job.vehiclePlate}`, quantity: 1, unitPrice: job.amountCharged, amount: job.amountCharged }];
+            const pkgPrice = packages.find(p => p.id === job.packageId)?.pricing[job.vehicleType] || 0;
+            const items: any[] = [{
+                description: `${job.packageName} - ${job.vehiclePlate} (${job.vehicleType})`,
+                quantity: 1,
+                unitPrice: pkgPrice,
+                amount: pkgPrice
+            }];
+
+            // Add itemized add-ons to the invoice
+            if (job.addOns && job.addOns.length > 0) {
+                job.addOns.forEach(addOnName => {
+                    const addOn = addOns.find(ao => ao.name === addOnName);
+                    if (addOn) {
+                        items.push({
+                            description: `${addOn.name} (Add-on)`,
+                            quantity: 1,
+                            unitPrice: addOn.price,
+                            amount: addOn.price
+                        });
+                    }
+                });
+            }
 
             // Add cafe items to the invoice
             relevantOrders.forEach(sale => {
@@ -678,8 +699,21 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 invoiceId: invoiceId
             };
 
-            await apiService.saveModuleRecord('invoices', invoice);
-            await apiService.saveModuleRecord('receipts', receipt);
+            try {
+                await apiService.saveModuleRecord('invoices', invoice);
+                // Only save receipt if invoice saved successfully to maintain FK integrity
+                await apiService.saveModuleRecord('receipts', receipt);
+            } catch (billingError: any) {
+                console.error("Billing Save Error:", billingError);
+                // If it's a 23503, it means the invoice wasn't committed fast enough for the receipt
+                // We can try a small delay or just notify the user it's partially saved
+                if (billingError.message.includes('23503')) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    await apiService.saveModuleRecord('receipts', receipt);
+                } else {
+                    throw billingError;
+                }
+            }
 
             // ── Email Notification ──
             if (customer && customer.email) {
