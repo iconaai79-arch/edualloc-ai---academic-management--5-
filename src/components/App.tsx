@@ -864,25 +864,6 @@ export const App: React.FC = () => {
         loadData();
     };
 
-    const handleAddAcademicLevel = async (name: string) => {
-        const id = `alvl_${Date.now()}`;
-        await apiService.saveModuleRecord('academic_levels', { id, name, institutionId: currentUser?.institutionId });
-        loadData();
-    };
-
-    const handleUpdateAcademicLevel = async (id: string, name: string) => {
-        const existing = academicLevels.find(l => l.id === id);
-        if (existing) {
-            await apiService.saveModuleRecord('academic_levels', { ...existing, name, id });
-            loadData();
-        }
-    };
-
-    const handleDeleteAcademicLevel = async (id: string) => {
-        await apiService.deleteModuleRecord('academic_levels', id);
-        loadData();
-    };
-
     // --- User Handlers ---
 
     const onImportUsers = async (data: any[]) => {
