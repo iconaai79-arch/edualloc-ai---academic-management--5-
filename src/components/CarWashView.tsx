@@ -139,6 +139,26 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [reportStartDate, setReportStartDate] = useState<string>('');
     const [reportEndDate, setReportEndDate] = useState<string>('');
 
+    const filteredJobs = useMemo(() => {
+        return jobs.filter(j => {
+            if (!j.createdAt) return true;
+            const jobDate = j.createdAt.split('T')[0];
+            if (reportStartDate && jobDate < reportStartDate) return false;
+            if (reportEndDate && jobDate > reportEndDate) return false;
+            return true;
+        });
+    }, [jobs, reportStartDate, reportEndDate]);
+
+    const filteredFeedbacks = useMemo(() => {
+        return feedbacks.filter(f => {
+            if (!f.createdAt) return true;
+            const fbDate = f.createdAt.split('T')[0];
+            if (reportStartDate && fbDate < reportStartDate) return false;
+            if (reportEndDate && fbDate > reportEndDate) return false;
+            return true;
+        });
+    }, [feedbacks, reportStartDate, reportEndDate]);
+
     const [payrlForm, setPayrlForm] = useState({
         staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
         nssf: 0, shif: 0, paye: 0, housingLevy: 0,
