@@ -384,6 +384,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
+    const [resettingPasswordFor, setResettingPasswordFor] = useState<Institution | null>(null);
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
 
     // Commission Disbursement State
     const [disburseReseller, setDisburseReseller] = useState<Institution | null>(null);
@@ -717,6 +719,61 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             alert(`Disbursement failed: ${error.message}`);
         } finally {
             setIsDisbursing(false);
+        }
+    };
+
+    const handleResetTenantPassword = async (institution: Institution) => {
+        if (!institution) return;
+        setIsResettingPassword(true);
+        try {
+            // 1. Identify the primary admin user for this institution
+            const institutionAdmin = users.find(u => u.institutionId === institution.id && (u.role === 'admin' || u.email === institution.email));
+
+            if (!institutionAdmin) {
+                alert(`No primary administrator found for ${institution.name}. Cannot reset password.`);
+                return;
+            }
+
+            // 2. Generate a new secure password
+            const { generateAlphanumericCode } = await import('../utils/stringUtils');
+            const newPassword = generateAlphanumericCode(8);
+
+            // 3. Update the password in database
+            await apiService.updateUserPassword(institutionAdmin.id, newPassword);
+
+            // 4. Notify via SMS if phone number exists
+            if (onSendSms && institutionAdmin.phoneNumber) {
+                const smsMessage = `CREDENTIAL RESET: Your ${institution.name} admin password has been reset. 
+Login: ${institutionAdmin.email}
+New Pass: ${newPassword}
+Please change it after login.`;
+                await onSendSms(institutionAdmin.phoneNumber, smsMessage, institution.smsConfig || smsConfig, 1, institution.id);
+            }
+
+            // 5. Notify via Email
+            try {
+                await apiService.sendEmail(
+                    institutionAdmin.email,
+                    'Administrative Password Reset',
+                    `Hello ${institutionAdmin.name},\n\nYour administrator password for ${institution.name} has been reset by the System Super Admin.\n\nNew Credentials:\nEmail: ${institutionAdmin.email}\nPassword: ${newPassword}\n\nPlease log in and update your password immediately.\n\nRegards,\nEduAi Support Team`,
+                    localEmailConfig
+                );
+            } catch (emailErr) {
+                console.warn("Failed to send reset email:", emailErr);
+            }
+
+            // 6. Log the action
+            if (props.onLogAction) {
+                await props.onLogAction(`Reset administrative password for ${institution.name} (${institutionAdmin.email})`);
+            }
+
+            alert(`Password for ${institutionAdmin.name} has been reset successfully. Notifications dispatched via SMS and Email.`);
+            setResettingPasswordFor(null);
+        } catch (error: any) {
+            console.error("Password reset error:", error);
+            alert(`Failed to reset password: ${error.message || 'Database error'}`);
+        } finally {
+            setIsResettingPassword(false);
         }
     };
 
@@ -1271,7 +1328,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                                                             <button onClick={() => setEditingInstitution(inst)} className="flex items-center gap-1 text-slate-600 hover:text-slate-900 font-black text-[10px] uppercase tracking-tighter bg-slate-100 px-2 py-1 rounded-lg">
                                                                 Edit
                                                             </button>
+                                                            <button
+                                                                onClick={() => setResettingPasswordFor(inst)}
+                                                                className="flex items-center gap-1 text-red-600 hover:text-red-900 font-black text-[10px] uppercase tracking-tighter bg-red-50 px-2 py-1 rounded-lg"
+                                                            >
+                                                                <LockClosedIcon className="w-3 h-3" />
+                                                                Reset Pass
+                                                            </button>
                                                             <button onClick={() => onToggleInstitutionStatus(inst.id)} className="text-yellow-600 hover:text-yellow-900 font-bold text-[10px] uppercase tracking-tighter">
+
                                                                 {inst.status === 'suspended' ? 'Resume' : 'Suspend'}
                                                             </button>
                                                         </div>
@@ -3293,6 +3358,53 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                         </div>
                         <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 text-center">
                             <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this institution.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Password Reset Confirmation Modal ── */}
+            {resettingPasswordFor && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setResettingPasswordFor(null)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-red-50/50 dark:bg-red-900/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600">
+                                    <LockClosedIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-red-900 dark:text-red-200">Reset Admin Password</h3>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{resettingPasswordFor.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setResettingPasswordFor(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/50">
+                                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                    You are about to reset the primary administrator's password. A new random password will be generated and sent via **SMS** and **Email** to the tenant.
+                                </p>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                This action is irreversible and will lock the user out of their current session until they use the new credentials.
+                            </p>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setResettingPasswordFor(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button
+                                disabled={isResettingPassword}
+                                onClick={() => handleResetTenantPassword(resettingPasswordFor)}
+                                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-100 dark:shadow-none transition-all active:scale-95 flex items-center gap-2"
+                            >
+                                {isResettingPassword ? (
+                                    <>
+                                        <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                        Resetting…
+                                    </>
+                                ) : (
+                                    'Reset Password Now'
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
