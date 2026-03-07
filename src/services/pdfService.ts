@@ -1,5 +1,5 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -2940,7 +2940,8 @@ export const generateCarWashOperationalSummaryPdf = async (
     addOns: CarWashAddOn[],
     institution: Institution,
     letterheadConfig: LetterheadConfig | undefined,
-    footerImageUrl: string | null
+    footerImageUrl: string | null,
+    reportsTab: 'all' | 'revenue' | 'staff' | 'customers' | 'services' | 'feedback' = 'all'
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -2956,7 +2957,13 @@ export const generateCarWashOperationalSummaryPdf = async (
 
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text("OPERATIONAL SUMMARY REPORT", pageWidth / 2, yPos, { align: 'center' });
+
+    let title = "OPERATIONAL SUMMARY REPORT";
+    if (reportsTab !== 'all') {
+        title = `${reportsTab.toUpperCase()} REPORT`;
+    }
+
+    doc.text(title, pageWidth / 2, yPos, { align: 'center' });
     yPos += 15;
 
     doc.setFontSize(10);
@@ -2964,102 +2971,140 @@ export const generateCarWashOperationalSummaryPdf = async (
     doc.text(`Report Period: All Time (Generated on ${new Date().toLocaleDateString()})`, margin, yPos);
     yPos += 10;
 
+    let sectionNum = 1;
+
     // 1. REVENUE OVERVIEW
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("1. Revenue Overview", margin, yPos);
-    yPos += 6;
+    if (reportsTab === 'all' || reportsTab === 'revenue') {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionNum++}. Revenue Overview`, margin, yPos);
+        yPos += 6;
 
-    const completedJobs = jobs.filter(j => j.status === 'completed');
-    const totalRev = completedJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+        const completedJobs = jobs.filter(j => j.status === 'completed');
+        const totalRev = completedJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
 
-    const revBody = [
-        ['Total Completed Washes', completedJobs.length.toString()],
-        ['Gross Revenue (KES)', totalRev.toLocaleString()],
-        ['Average Ticket Size (KES)', (totalRev / (completedJobs.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })]
-    ];
+        const revBody = [
+            ['Total Completed Washes', completedJobs.length.toString()],
+            ['Gross Revenue (KES)', totalRev.toLocaleString()],
+            ['Average Ticket Size (KES)', (totalRev / (completedJobs.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })]
+        ];
 
-    doc.autoTable({
-        startY: yPos,
-        body: revBody,
-        theme: 'plain',
-        styles: { fontSize: 10 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
-    });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+        doc.autoTable({
+            startY: yPos,
+            body: revBody,
+            theme: 'plain',
+            styles: { fontSize: 10 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
 
     // 2. STAFF PERFORMANCE
-    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("2. Staff Efficiency", margin, yPos);
-    yPos += 6;
+    if (reportsTab === 'all' || reportsTab === 'staff') {
+        if (reportsTab === 'all' && yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
 
-    const attendants = users.filter(u => u.role === 'carwash_attendant' || u.role === 'carwash_admin' || u.role === 'carwash_cashier');
-    const staffData = attendants.map(att => {
-        const attJobs = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
-        const rev = attJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
-        const attFeedbacks = feedbacks.filter(f => attJobs.some(j => j.id === f.jobId));
-        const rating = attFeedbacks.length ? (attFeedbacks.reduce((s, f) => s + f.rating, 0) / attFeedbacks.length).toFixed(1) : '—';
-        return [att.name, attJobs.length, rev.toLocaleString(), rating];
-    });
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionNum++}. Staff Efficiency`, margin, yPos);
+        yPos += 6;
 
-    doc.autoTable({
-        startY: yPos,
-        head: [['Staff Member', 'Washes', 'Revenue (KES)', 'Avg Rating']],
-        body: staffData,
-        theme: 'grid',
-        headStyles: { fillColor: [45, 55, 72] },
-        styles: { fontSize: 9 }
-    });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+        const attendants = users.filter(u => u.role === 'carwash_attendant' || u.role === 'carwash_admin' || u.role === 'carwash_cashier');
+        const staffData = attendants.map(att => {
+            const attJobs = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
+            const rev = attJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+            const attFeedbacks = feedbacks.filter(f => attJobs.some(j => j.id === f.jobId));
+            const rating = attFeedbacks.length ? (attFeedbacks.reduce((s, f) => s + f.rating, 0) / attFeedbacks.length).toFixed(1) : '—';
+            return [att.name, attJobs.length.toString(), rev.toLocaleString(), rating];
+        });
+
+        doc.autoTable({
+            startY: yPos,
+            head: [['Staff Member', 'Washes', 'Revenue (KES)', 'Avg Rating']],
+            body: staffData.length > 0 ? staffData : [['No staff data', '', '', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72] },
+            styles: { fontSize: 9 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // CUSTOMER INSIGHTS
+    if (reportsTab === 'all' || reportsTab === 'customers') {
+        if (reportsTab === 'all' && yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionNum++}. Customer Insights`, margin, yPos);
+        yPos += 6;
+
+        const customerData = customers.map(c => {
+            const cj = jobs.filter(j => j.customerId === c.id && j.status === 'completed');
+            const totalSpent = cj.reduce((s, j) => s + (j.amountPaid || 0), 0);
+            return [c.name, cj.length.toString(), totalSpent.toLocaleString(), c.loyaltyStamps.toString()];
+        }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, ''))).slice(0, 15);
+
+        doc.autoTable({
+            startY: yPos,
+            head: [['Customer Name', 'Washes', 'Total Spent (KES)', 'Loyalty Points']],
+            body: customerData.length > 0 ? customerData : [['No customers found', '', '', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72] },
+            styles: { fontSize: 9 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
 
     // 3. SERVICE MIX
-    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("3. Service Mix Performance", margin, yPos);
-    yPos += 6;
+    if (reportsTab === 'all' || reportsTab === 'services') {
+        if (reportsTab === 'all' && yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionNum++}. Service Mix Performance`, margin, yPos);
+        yPos += 6;
 
-    const serviceData = packages.map(pkg => {
-        const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
-        const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
-        return [pkg.name, pkgJobs.length, rev.toLocaleString()];
-    }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, '')));
+        const serviceData = packages.map(pkg => {
+            const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
+            const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+            return [pkg.name, pkgJobs.length.toString(), rev.toLocaleString()];
+        }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, '')));
 
-    doc.autoTable({
-        startY: yPos,
-        head: [['Package Name', 'Bookings', 'Total Revenue (KES)']],
-        body: serviceData,
-        theme: 'grid',
-        headStyles: { fillColor: [45, 55, 72] },
-        styles: { fontSize: 9 }
-    });
-    yPos = (doc as any).lastAutoTable.finalY + 10;
+        doc.autoTable({
+            startY: yPos,
+            head: [['Package Name', 'Bookings', 'Total Revenue (KES)']],
+            body: serviceData.length > 0 ? serviceData : [['No packages found', '', '']],
+            theme: 'grid',
+            headStyles: { fillColor: [45, 55, 72] },
+            styles: { fontSize: 9 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    }
 
     // 4. CUSTOMER SATISFACTION
-    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text("4. Customer Sentiment", margin, yPos);
-    yPos += 6;
+    if (reportsTab === 'all' || reportsTab === 'feedback') {
+        if (reportsTab === 'all' && yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${sectionNum++}. Customer Sentiment`, margin, yPos);
+        yPos += 6;
 
-    const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
-    const sentimentBody = [
-        ['Overall CSAT Score', `${avgRating} / 5.0`],
-        ['Total Reviews Received', feedbacks.length.toString()],
-        ['Positive Reviews (4-5★)', feedbacks.filter(f => f.rating >= 4).length.toString()],
-        ['Critical Reviews (1-2★)', feedbacks.filter(f => f.rating <= 2).length.toString()]
-    ];
+        const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
+        const sentimentBody = [
+            ['Overall CSAT Score', `${avgRating} / 5.0`],
+            ['Total Reviews Received', feedbacks.length.toString()],
+            ['Positive Reviews (4-5★)', feedbacks.filter(f => f.rating >= 4).length.toString()],
+            ['Critical Reviews (1-2★)', feedbacks.filter(f => f.rating <= 2).length.toString()]
+        ];
 
-    doc.autoTable({
-        startY: yPos,
-        body: sentimentBody,
-        theme: 'plain',
-        styles: { fontSize: 10 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
-    });
+        doc.autoTable({
+            startY: yPos,
+            body: sentimentBody,
+            theme: 'plain',
+            styles: { fontSize: 10 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
+        });
+    }
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+

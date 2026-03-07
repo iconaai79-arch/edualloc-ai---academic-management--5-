@@ -461,11 +461,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 addOns,
                 currentInstitution,
                 currentInstitution.letterheadConfig,
-                currentInstitution.footerImageUrl || ''
+                currentInstitution.footerImageUrl || '',
+                reportsTab
             );
             setPdfPreviewUrl(dataUri);
-            setPdfPreviewTitle("Operational Summary Report Preview");
-            setPdfFileName(`Operational-Report-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
+
+            const titlePrefix = reportsTab.charAt(0).toUpperCase() + reportsTab.slice(1);
+            setPdfPreviewTitle(`${titlePrefix} Report Preview`);
+            setPdfFileName(`CarWash-${titlePrefix}-Report-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
         } catch (e) {
             console.error(e);
             alert('Failed to generate Operational Report PDF');
