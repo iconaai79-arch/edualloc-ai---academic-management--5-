@@ -1780,10 +1780,10 @@ export const App: React.FC = () => {
                                     getLecturerById={getLecturerById}
                                     getSubjectById={getSubjectById}
                                     getRoomById={getRoomById}
-                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
+                                    onLogAction={handleLogAction}
                                     onSendBulkCredentials={async (users, method) => {
                                         const res = await apiService.sendBulkCredentials(users, method);
-                                        await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: activeInstitution?.id || currentUser!.institutionId, action: `Sent bulk credentials to ${res.success_count} users via ${method}`, timestamp: new Date().toISOString() });
+                                        await handleLogAction(`Sent bulk credentials to ${res.success_count} users via ${method}`);
                                         return res;
                                     }}
                                     smsConfig={companyDetails.smsConfig}
@@ -2144,7 +2144,7 @@ export const App: React.FC = () => {
                                     semesters={semesters}
                                     courses={courses}
                                     departments={departments}
-                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
+                                    onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'parent' ? (
 
@@ -2181,7 +2181,7 @@ export const App: React.FC = () => {
                                     semesters={semesters}
                                     courses={courses}
                                     departments={departments}
-                                    onLogAction={async (a) => { await apiService.saveModuleRecord('activity_log', { id: `log_${Date.now()}`, userId: currentUser!.id, userName: currentUser!.name, institutionId: currentUser!.institutionId, action: a, timestamp: new Date().toISOString() }); }}
+                                    onLogAction={handleLogAction}
                                     onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
                                     onEditUser={onEditUser}
                                     onDeleteUser={onDeleteUser}

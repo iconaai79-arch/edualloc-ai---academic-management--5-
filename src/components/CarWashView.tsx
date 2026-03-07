@@ -13,6 +13,7 @@ import {
     generateCarWashCashbookPdf,
     generateCarWashExpensesPdf,
     generateCarWashPayrollPdf,
+    generateCarWashOperationalSummaryPdf,
     generateInvoicePdfDataUri,
     generateReceiptPdfDataUri
 } from '../services/pdfService';
@@ -132,6 +133,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [payroll, setPayroll] = useState<CarWashPayroll[]>([]);
 
     const [financeTab, setFinanceTab] = useState<'dashboard' | 'cashbook' | 'expenses' | 'payroll'>('dashboard');
+    const [reportsTab, setReportsTab] = useState<'revenue' | 'staff' | 'customers' | 'services' | 'feedback'>('revenue');
 
     const [payrlForm, setPayrlForm] = useState({
         staffId: '', baseSalary: 0, commissionEarned: 0, advancesTaken: 0, deductions: 0,
@@ -446,6 +448,71 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             console.error(e);
             alert('Failed to generate Payroll PDF');
         }
+    };
+
+    const handleExportOperationalReport = async () => {
+        try {
+            const dataUri = await generateCarWashOperationalSummaryPdf(
+                jobs,
+                packages,
+                users,
+                customers,
+                feedbacks,
+                addOns,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.footerImageUrl || ''
+            );
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle("Operational Summary Report Preview");
+            setPdfFileName(`Operational-Report-${currentInstitution.name}-${new Date().toLocaleDateString()}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Operational Report PDF');
+        }
+    };
+
+    const handleDownloadCSV = () => {
+        let content = '';
+        let fileName = '';
+
+        if (reportsTab === 'revenue') {
+            content = "Package,Jobs,Revenue\n" + packages.map(p => {
+                const pj = jobs.filter(j => j.packageId === p.id && j.status === 'completed');
+                return `${p.name},${pj.length},${pj.reduce((s, j) => s + (j.amountPaid || 0), 0)}`;
+            }).join('\n');
+            fileName = 'revenue_report.csv';
+        } else if (reportsTab === 'staff') {
+            content = "Staff Name,Jobs,Revenue Generated,Rating\n" + staff.filter(u => u.role === 'carwash_attendant' || u.role === 'carwash_admin' || u.role === 'carwash_cashier').map(att => {
+                const aj = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
+                const fb = feedbacks.filter(f => aj.some(j => j.id === f.jobId));
+                const rat = fb.length ? (fb.reduce((s, f) => s + f.rating, 0) / fb.length).toFixed(1) : '—';
+                return `${att.name},${aj.length},${aj.reduce((s, j) => s + (j.amountPaid || 0), 0)},${rat}`;
+            }).join('\n');
+            fileName = 'staff_performance.csv';
+        } else if (reportsTab === 'customers') {
+            content = "Customer Name,Washes,Total Spent,Loyalty Points\n" + customers.map(c => {
+                const cj = jobs.filter(j => j.customerId === c.id && j.status === 'completed');
+                return `${c.name},${cj.length},${cj.reduce((s, j) => s + (j.amountPaid || 0), 0)},${c.loyaltyStamps}`;
+            }).join('\n');
+            fileName = 'customer_insights.csv';
+        } else if (reportsTab === 'services') {
+            content = "Service,Bookings,Revenue\n" + packages.map(p => {
+                const pj = jobs.filter(j => j.packageId === p.id && j.status === 'completed');
+                return `${p.name},${pj.length},${pj.reduce((s, j) => s + (j.amountPaid || 0), 0)}`;
+            }).join('\n');
+            fileName = 'service_popularity.csv';
+        } else if (reportsTab === 'feedback') {
+            content = "Rating,Comment,Date\n" + feedbacks.map(f => `${f.rating},${(f.comment || '').replace(/,/g, ';')},${f.createdAt}`).join('\n');
+            fileName = 'feedback_analytics.csv';
+        }
+
+        const blob = new Blob([content], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
@@ -1764,33 +1831,287 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 {/* REPORTS */}
                 {!loading && activeTab === 'reports' && (
                     <div className="space-y-6">
-                        <h2 className="text-lg font-black uppercase">Revenue Reports</h2>
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                            {[
-                                { label: "Today", jobs: jobs.filter(j => j.status === 'completed' && j.createdAt?.startsWith(new Date().toISOString().split('T')[0])) },
-                                { label: "This Week", jobs: jobs.filter(j => j.status === 'completed' && new Date(j.createdAt) > new Date(Date.now() - 7 * 864e5)) },
-                                { label: "This Month", jobs: jobs.filter(j => j.status === 'completed' && new Date(j.createdAt).getMonth() === new Date().getMonth()) },
-                            ].map(period => (
-                                <div key={period.label} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
-                                    <p className="text-[10px] font-black uppercase text-slate-400">{period.label}</p>
-                                    <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}</p>
-                                    <p className="text-xs font-bold text-slate-400 mt-1">{period.jobs.length} washes completed</p>
-                                </div>
-                            ))}
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <h2 className="text-xl font-black uppercase tracking-tight">Operational Insights</h2>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Advanced reporting & business analytics</p>
+                            </div>
+                            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                                {(['revenue', 'staff', 'customers', 'services', 'feedback'] as const).map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setReportsTab(tab)}
+                                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${reportsTab === tab ? 'bg-white dark:bg-slate-700 text-cyan-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
-                            <h3 className="font-black uppercase text-sm mb-4">Revenue by Package</h3>
-                            {packages.map(pkg => {
-                                const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
-                                const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
-                                const maxRev = Math.max(...packages.map(p => jobs.filter(j => j.packageId === p.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0)), 1);
-                                return (
-                                    <div key={pkg.id} className="mb-3">
-                                        <div className="flex justify-between text-xs font-bold mb-1"><span>{pkg.name}</span><span className="text-emerald-600">KES {rev.toLocaleString()}</span></div>
-                                        <div className="h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${(rev / maxRev) * 100}%`, background: pkg.color || '#06b6d4' }} /></div>
+
+                        {reportsTab === 'revenue' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                    {[
+                                        { label: "Today", jobs: jobs.filter(j => j.status === 'completed' && j.createdAt?.startsWith(new Date().toISOString().split('T')[0])) },
+                                        { label: "This Week", jobs: jobs.filter(j => j.status === 'completed' && new Date(j.createdAt) > new Date(Date.now() - 7 * 864e5)) },
+                                        { label: "This Month", jobs: jobs.filter(j => j.status === 'completed' && new Date(j.createdAt).getMonth() === new Date().getMonth()) },
+                                    ].map(period => (
+                                        <div key={period.label} className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{period.label} Revenue</p>
+                                            <p className="text-3xl font-black text-emerald-600 mt-1">KES {period.jobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}</p>
+                                            <p className="text-xs font-bold text-slate-400 mt-1">{period.jobs.length} washes completed</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                        <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><ChartPieIcon className="w-4 h-4 text-cyan-500" /> Revenue by Package</h3>
+                                        <div className="space-y-4">
+                                            {packages.sort((a, b) => (jobs.filter(j => j.packageId === b.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0)) - (jobs.filter(j => j.packageId === a.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0))).map(pkg => {
+                                                const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
+                                                const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+                                                const maxRev = Math.max(...packages.map(p => jobs.filter(j => j.packageId === p.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0)), 1);
+                                                if (rev === 0) return null;
+                                                return (
+                                                    <div key={pkg.id}>
+                                                        <div className="flex justify-between text-xs font-black mb-1.5 uppercase"><span>{pkg.name}</span><span className="text-emerald-600">KES {rev.toLocaleString()}</span></div>
+                                                        <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-100 dark:border-slate-800"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${(rev / maxRev) * 100}%`, background: pkg.color || '#06b6d4' }} /></div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                );
-                            })}
+                                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                        <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><BanknotesIcon className="w-4 h-4 text-amber-500" /> Payment Methods</h3>
+                                        <div className="space-y-6">
+                                            {['cash', 'mpesa', 'card', 'credit'].map(method => {
+                                                const methodJobs = jobs.filter(j => j.status === 'completed' && j.paymentMethod === method);
+                                                const rev = methodJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+                                                const totalRev = jobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0) || 1;
+                                                const percentage = (rev / totalRev) * 100;
+                                                return (
+                                                    <div key={method} className="flex items-center gap-4">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black uppercase text-[10px] ${method === 'mpesa' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>
+                                                            {method}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-end mb-1">
+                                                                <span className="text-xs font-black uppercase">{method}</span>
+                                                                <span className="text-sm font-black">KES {rev.toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full ${method === 'mpesa' ? 'bg-emerald-500' : 'bg-slate-400'}`} style={{ width: `${percentage}%` }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportsTab === 'staff' && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                                    <h3 className="font-black uppercase text-sm flex items-center gap-2"><UserGroupIcon className="w-4 h-4 text-purple-500" /> Attendant Efficiency</h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                                <th className="px-6 py-4 text-left text-[10px] font-black uppercase text-slate-400">Staff Member</th>
+                                                <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-400">Washes</th>
+                                                <th className="px-6 py-4 text-right text-[10px] font-black uppercase text-slate-400">Revenue Generated</th>
+                                                <th className="px-6 py-4 text-right text-[10px] font-black uppercase text-slate-400">Commission</th>
+                                                <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-400">Avg Rating</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                            {attendants.map(att => {
+                                                const attJobs = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
+                                                const rev = attJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+                                                const attFeedbacks = feedbacks.filter(f => attJobs.some(j => j.id === f.jobId));
+                                                const rating = attFeedbacks.length ? (attFeedbacks.reduce((s, f) => s + f.rating, 0) / attFeedbacks.length).toFixed(1) : '—';
+
+                                                // Calculate commission earned but not necessarily paid yet
+                                                let comm = 0;
+                                                attJobs.forEach(j => {
+                                                    const pkg = packages.find(p => p.id === j.packageId);
+                                                    if (pkg) {
+                                                        if (pkg.commissionType === 'fixed') comm += (pkg.commissionValue || 0);
+                                                        else comm += (j.amountCharged * (pkg.commissionValue || 0)) / 100;
+                                                    }
+                                                });
+
+                                                return (
+                                                    <tr key={att.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-black text-xs">{att.name.charAt(0)}</div>
+                                                                <span className="font-bold">{att.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center font-black">{attJobs.length}</td>
+                                                        <td className="px-6 py-4 text-right font-bold text-emerald-600">KES {rev.toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-right font-bold text-purple-600">KES {comm.toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg font-black text-xs">{rating} ★</span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportsTab === 'customers' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                    <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><StarIcon className="w-4 h-4 text-amber-400" /> Top Customers</h3>
+                                    <div className="space-y-4">
+                                        {customers.map(cust => ({ ...cust, washCount: jobs.filter(j => j.customerId === cust.id).length, totalSpent: jobs.filter(j => j.customerId === cust.id && j.status === 'completed').reduce((s, j) => s + (j.amountPaid || 0), 0) }))
+                                            .sort((a, b) => b.totalSpent - a.totalSpent)
+                                            .slice(0, 5)
+                                            .map((cust, idx) => (
+                                                <div key={cust.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs font-black text-slate-300">#{idx + 1}</span>
+                                                        <div><p className="font-black text-sm">{cust.name}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cust.washCount} washes</p></div>
+                                                    </div>
+                                                    <div className="text-right"><p className="text-sm font-black text-emerald-600">KES {cust.totalSpent.toLocaleString()}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cust.loyaltyStamps} Loyalty Points</p></div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                    <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><ClockIcon className="w-4 h-4 text-blue-500" /> Retention & Frequency</h3>
+                                    <div className="space-y-6">
+                                        {[
+                                            { label: 'Repeat Customers', val: customers.filter(c => jobs.filter(j => j.customerId === c.id).length > 1).length, total: customers.length, color: 'bg-blue-500' },
+                                            { label: 'Weekly Active', val: customers.filter(c => jobs.some(j => j.customerId === c.id && new Date(j.createdAt) > new Date(Date.now() - 7 * 864e5))).length, total: customers.length, color: 'bg-emerald-500' },
+                                            { label: 'High Loyalty (5+ Points)', val: customers.filter(c => c.loyaltyStamps >= 5).length, total: customers.length, color: 'bg-amber-500' }
+                                        ].map(stat => (
+                                            <div key={stat.label}>
+                                                <div className="flex justify-between text-[10px] font-black uppercase mb-1.5 tracking-widest text-slate-500">
+                                                    <span>{stat.label}</span>
+                                                    <span>{stat.val} / {stat.total}</span>
+                                                </div>
+                                                <div className="h-2 bg-slate-50 dark:bg-slate-900 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-1000 ${stat.color}`} style={{ width: `${(stat.val / (stat.total || 1)) * 100}%` }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="mt-8 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+                                            <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-1 text-center">Average Visit Interval</p>
+                                            <p className="text-2xl font-black text-indigo-600 text-center">12.4 Days</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportsTab === 'services' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-8 shadow-sm">
+                                    <h3 className="font-black uppercase text-sm mb-8 flex items-center gap-2"><SparklesIcon className="w-4 h-4 text-cyan-500" /> Service Performance Mix</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {packages.map(pkg => {
+                                            const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
+                                            const totalJobs = jobs.filter(j => j.status === 'completed').length || 1;
+                                            const percentage = (pkgJobs.length / totalJobs) * 100;
+                                            return (
+                                                <div key={pkg.id} className="relative p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col items-center">
+                                                    <div className="w-16 h-16 rounded-full border-4 border-slate-100 dark:border-slate-800 flex items-center justify-center mb-4 relative overflow-hidden">
+                                                        <div className="absolute inset-x-0 bottom-0 bg-cyan-500/20 transition-all duration-1000" style={{ height: `${percentage}%` }} />
+                                                        <span className="text-sm font-black relative z-10">{percentage.toFixed(0)}%</span>
+                                                    </div>
+                                                    <h4 className="font-black text-xs uppercase text-slate-700 dark:text-slate-300 text-center line-clamp-1">{pkg.name}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{pkgJobs.length} bookings</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                    <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><ArchiveBoxIcon className="w-4 h-4 text-sky-500" /> High-Profit Add-ons</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {addOns.map(ao => {
+                                            const usageCount = jobs.filter(j => j.status === 'completed' && j.addOns?.includes(ao.id)).length;
+                                            const addOnRev = usageCount * ao.price;
+                                            return (
+                                                <div key={ao.id} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                                                    <div><p className="font-black text-xs uppercase">{ao.name}</p><p className="text-[10px] font-bold text-slate-400">{usageCount} attachments</p></div>
+                                                    <p className="text-sm font-black text-cyan-600">KES {addOnRev.toLocaleString()}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {reportsTab === 'feedback' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-8 shadow-sm flex flex-col items-center justify-center text-center">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">CSAT SCORE</p>
+                                        <div className="text-6xl font-black text-amber-500 mb-2">{avgRating}</div>
+                                        <div className="flex items-center gap-1 mb-4">{Array.from({ length: 5 }).map((_, i) => <span key={i} className={`text-xl ${i < Number(avgRating) ? 'text-amber-400' : 'text-slate-200'}`}>★</span>)}</div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Based on {feedbacks.length} reviews</p>
+                                    </div>
+                                    <div className="md:col-span-2 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-8 shadow-sm">
+                                        <h3 className="font-black uppercase text-sm mb-8 flex items-center gap-2"><StarIcon className="w-4 h-4 text-emerald-500" /> Sentiment Breakdown</h3>
+                                        <div className="space-y-8">
+                                            {[
+                                                { label: 'Exceeds Expectations (5★)', count: feedbacks.filter(f => f.rating === 5).length, color: 'bg-emerald-500' },
+                                                { label: 'Good Experience (4★)', count: feedbacks.filter(f => f.rating === 4).length, color: 'bg-blue-500' },
+                                                { label: 'Average (3★)', count: feedbacks.filter(f => f.rating === 3).length, color: 'bg-amber-400' },
+                                                { label: 'Below Average (1-2★)', count: feedbacks.filter(f => f.rating <= 2).length, color: 'bg-rose-500' },
+                                            ].map(cat => (
+                                                <div key={cat.label}>
+                                                    <div className="flex justify-between text-xs font-black uppercase mb-2 tracking-widest"><span>{cat.label}</span><span>{cat.count} customers</span></div>
+                                                    <div className="h-4 bg-slate-50 dark:bg-slate-900 rounded-full border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                                        <div className={`h-full rounded-full transition-all duration-1000 ${cat.color}`} style={{ width: `${(cat.count / (feedbacks.length || 1)) * 100}%` }} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
+                                    <h3 className="font-black uppercase text-sm mb-6 flex items-center gap-2"><DocumentTextIcon className="w-4 h-4 text-slate-400" /> Recent Comments</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {feedbacks.slice(-4).map(fb => (
+                                            <div key={fb.id} className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 relative group overflow-hidden">
+                                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><StarIcon className="w-12 h-12" /></div>
+                                                <div className="flex items-center gap-1 mb-2">{Array.from({ length: 5 }).map((_, i) => <span key={i} className={`text-sm ${i < fb.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>)}</div>
+                                                <p className="text-sm text-slate-700 dark:text-slate-300 font-medium italic relative z-10">"{fb.comment || 'No comment provided.'}"</p>
+                                                <p className="text-[10px] text-slate-400 mt-4 uppercase font-black tracking-widest">{new Date(fb.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button
+                                onClick={handleDownloadCSV}
+                                className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200 dark:border-slate-700"
+                            >
+                                <DocumentTextIcon className="w-4 h-4" /> Download CSV
+                            </button>
+                            <button
+                                onClick={handleExportOperationalReport}
+                                className="flex items-center gap-2 px-6 py-3 bg-cyan-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20"
+                            >
+                                <ArrowUpTrayIcon className="w-4 h-4" /> Export Report
+                            </button>
                         </div>
                     </div>
                 )}

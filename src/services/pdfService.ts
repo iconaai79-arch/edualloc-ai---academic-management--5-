@@ -2930,3 +2930,136 @@ export const generateCarWashPayrollPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+export const generateCarWashOperationalSummaryPdf = async (
+    jobs: CarWashJob[],
+    packages: CarWashPackage[],
+    users: User[],
+    customers: CarWashCustomer[],
+    feedbacks: CarWashFeedback[],
+    addOns: CarWashAddOn[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text("OPERATIONAL SUMMARY REPORT", pageWidth / 2, yPos, { align: 'center' });
+    yPos += 15;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Report Period: All Time (Generated on ${new Date().toLocaleDateString()})`, margin, yPos);
+    yPos += 10;
+
+    // 1. REVENUE OVERVIEW
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("1. Revenue Overview", margin, yPos);
+    yPos += 6;
+
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+    const totalRev = completedJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+
+    const revBody = [
+        ['Total Completed Washes', completedJobs.length.toString()],
+        ['Gross Revenue (KES)', totalRev.toLocaleString()],
+        ['Average Ticket Size (KES)', (totalRev / (completedJobs.length || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })]
+    ];
+
+    doc.autoTable({
+        startY: yPos,
+        body: revBody,
+        theme: 'plain',
+        styles: { fontSize: 10 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // 2. STAFF PERFORMANCE
+    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("2. Staff Efficiency", margin, yPos);
+    yPos += 6;
+
+    const attendants = users.filter(u => u.role === 'carwash_attendant' || u.role === 'carwash_admin' || u.role === 'carwash_cashier');
+    const staffData = attendants.map(att => {
+        const attJobs = jobs.filter(j => j.attendantId === att.id && j.status === 'completed');
+        const rev = attJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+        const attFeedbacks = feedbacks.filter(f => attJobs.some(j => j.id === f.jobId));
+        const rating = attFeedbacks.length ? (attFeedbacks.reduce((s, f) => s + f.rating, 0) / attFeedbacks.length).toFixed(1) : '—';
+        return [att.name, attJobs.length, rev.toLocaleString(), rating];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Staff Member', 'Washes', 'Revenue (KES)', 'Avg Rating']],
+        body: staffData,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 9 }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // 3. SERVICE MIX
+    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("3. Service Mix Performance", margin, yPos);
+    yPos += 6;
+
+    const serviceData = packages.map(pkg => {
+        const pkgJobs = jobs.filter(j => j.packageId === pkg.id && j.status === 'completed');
+        const rev = pkgJobs.reduce((s, j) => s + (j.amountPaid || 0), 0);
+        return [pkg.name, pkgJobs.length, rev.toLocaleString()];
+    }).sort((a, b) => Number(b[2].replace(/,/g, '')) - Number(a[2].replace(/,/g, '')));
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Package Name', 'Bookings', 'Total Revenue (KES)']],
+        body: serviceData,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 9 }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // 4. CUSTOMER SATISFACTION
+    if (yPos > 240) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text("4. Customer Sentiment", margin, yPos);
+    yPos += 6;
+
+    const avgRating = feedbacks.length ? (feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length).toFixed(1) : '—';
+    const sentimentBody = [
+        ['Overall CSAT Score', `${avgRating} / 5.0`],
+        ['Total Reviews Received', feedbacks.length.toString()],
+        ['Positive Reviews (4-5★)', feedbacks.filter(f => f.rating >= 4).length.toString()],
+        ['Critical Reviews (1-2★)', feedbacks.filter(f => f.rating <= 2).length.toString()]
+    ];
+
+    doc.autoTable({
+        startY: yPos,
+        body: sentimentBody,
+        theme: 'plain',
+        styles: { fontSize: 10 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 100 } }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
