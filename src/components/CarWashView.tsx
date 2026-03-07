@@ -443,6 +443,52 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
     // ── New Job Modal State ──
     const [jobForm, setJobForm] = useState({ vehiclePlate: '', vehicleType: 'Sedan' as CarWashVehicleType, packageId: '', addOns: [] as string[], attendantId: '', bayNumber: 1, paymentMethod: 'cash' as CarWashPaymentMethod, customerId: '' });
+    const [clientSearchQuery, setClientSearchQuery] = useState('');
+    const returningClients = useMemo(() => {
+        if (!clientSearchQuery || clientSearchQuery.length < 2) return [];
+        const q = clientSearchQuery.toLowerCase();
+        const matches: Array<{ id: string, name: string, phone: string, plate: string, type: CarWashVehicleType }> = [];
+
+        vehicles.forEach(v => {
+            if (v.plateNumber.toLowerCase().includes(q)) {
+                const owner = customers.find(c => c.id === v.customerId);
+                matches.push({
+                    id: owner?.id || '',
+                    name: owner?.name || 'Unknown',
+                    phone: owner?.phoneNumber || 'N/A',
+                    plate: v.plateNumber,
+                    type: v.vehicleType as CarWashVehicleType
+                });
+            }
+        });
+
+        customers.forEach(c => {
+            if (c.phoneNumber?.includes(q) || (c.name && c.name.toLowerCase().includes(q))) {
+                const vehiclesForCust = vehicles.filter(v => v.customerId === c.id);
+                vehiclesForCust.forEach(v => {
+                    if (!matches.some(m => m.plate === v.plateNumber)) {
+                        matches.push({
+                            id: c.id,
+                            name: c.name,
+                            phone: c.phoneNumber || 'N/A',
+                            plate: v.plateNumber,
+                            type: v.vehicleType as CarWashVehicleType
+                        });
+                    }
+                });
+                if (vehiclesForCust.length === 0 && !matches.some(m => m.id === c.id)) {
+                    matches.push({
+                        id: c.id,
+                        name: c.name,
+                        phone: c.phoneNumber || 'N/A',
+                        plate: 'N/A',
+                        type: 'Sedan'
+                    });
+                }
+            }
+        });
+        return matches.slice(0, 5);
+    }, [clientSearchQuery, customers, vehicles]);
     const handleCreateJob = async () => {
         if (!jobForm.packageId) return alert('Select a package');
         const pkg = packages.find(p => p.id === jobForm.packageId);
@@ -1935,6 +1981,50 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
                         <div className="bg-cyan-600 px-6 py-5 flex justify-between items-center"><h3 className="text-lg font-black text-white uppercase">New Wash Job</h3><button onClick={() => setShowNewJobModal(false)}><XIcon className="w-5 h-5 text-white" /></button></div>
                         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            {/* Client Search */}
+                            <div className="relative">
+                                <label className={labelCls}>Search Returning Client (Plate/Phone)</label>
+                                <div className="relative">
+                                    <SearchIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        className={`${inputCls} pl-10`}
+                                        value={clientSearchQuery}
+                                        onChange={e => setClientSearchQuery(e.target.value)}
+                                        placeholder="Type plate number or phone..."
+                                    />
+                                </div>
+                                {returningClients.length > 0 && (
+                                    <div className="absolute z-[110] left-0 right-0 mt-1 bg-white dark:bg-slate-800 border-2 border-cyan-500/20 rounded-2xl shadow-2xl overflow-hidden">
+                                        {returningClients.map((client, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setJobForm({
+                                                        ...jobForm,
+                                                        vehiclePlate: client.plate !== 'N/A' ? client.plate : jobForm.vehiclePlate,
+                                                        vehicleType: client.type,
+                                                        customerId: client.id
+                                                    });
+                                                    setClientSearchQuery('');
+                                                }}
+                                                className="w-full px-4 py-3 text-left hover:bg-cyan-50 dark:hover:bg-cyan-900/20 border-b last:border-0 border-slate-100 dark:border-slate-700 transition-colors"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-black text-xs text-slate-800 dark:text-white uppercase">{client.name}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{client.phone}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-black text-xs text-cyan-600 uppercase">{client.plate}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{client.type}</p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             <div><label className={labelCls}>{jobForm.vehicleType === 'Other' ? 'Item Name / Identifier (optional)' : 'Vehicle Plate'}</label><input className={inputCls} value={jobForm.vehiclePlate} onChange={e => setJobForm({ ...jobForm, vehiclePlate: e.target.value })} placeholder={jobForm.vehicleType === 'Other' ? 'e.g. Living Room Carpet' : 'e.g. KCA 123A'} /></div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div><label className={labelCls}>Vehicle Type</label><select className={inputCls} value={jobForm.vehicleType} onChange={e => setJobForm({ ...jobForm, vehicleType: e.target.value as CarWashVehicleType })}>{VEHICLE_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
