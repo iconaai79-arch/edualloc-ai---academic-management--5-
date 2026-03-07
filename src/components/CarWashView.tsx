@@ -14,6 +14,7 @@ import {
     generateCarWashExpensesPdf,
     generateCarWashPayrollPdf,
     generateCarWashOperationalSummaryPdf,
+    generateCarWashBillsAndPaymentsPdf,
     generateInvoicePdfDataUri,
     generateReceiptPdfDataUri
 } from '../services/pdfService';
@@ -498,6 +499,28 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         } catch (e) {
             console.error(e);
             alert('Failed to generate Operational Report PDF');
+        }
+    };
+
+    const handleExportBillsAndPayments = async () => {
+        try {
+            const dataUri = await generateCarWashBillsAndPaymentsPdf(
+                filteredJobs,
+                customers,
+                packages,
+                currentInstitution,
+                currentInstitution.letterheadConfig,
+                currentInstitution.footerImageUrl || '',
+                reportStartDate || undefined,
+                reportEndDate || undefined
+            );
+            setPdfPreviewUrl(dataUri);
+            setPdfPreviewTitle('Bills & Payments Report Preview');
+            const dateTag = reportStartDate ? `${reportStartDate}_${reportEndDate || 'now'}` : 'All-Time';
+            setPdfFileName(`CarWash-Bills-Payments-${dateTag}-${currentInstitution.name}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate Bills & Payments PDF');
         }
     };
 
@@ -2143,12 +2166,18 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                 </div>
                             )}
 
-                            <div className="flex justify-end gap-2 pt-4">
+                            <div className="flex flex-wrap justify-end gap-2 pt-4">
                                 <button
                                     onClick={handleDownloadCSV}
                                     className="flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200 dark:border-slate-700"
                                 >
                                     <DocumentTextIcon className="w-4 h-4" /> Download CSV
+                                </button>
+                                <button
+                                    onClick={handleExportBillsAndPayments}
+                                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                                >
+                                    <BanknotesIcon className="w-4 h-4" /> Bills & Payments
                                 </button>
                                 <button
                                     onClick={handleExportOperationalReport}

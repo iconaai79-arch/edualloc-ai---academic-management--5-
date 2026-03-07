@@ -3120,3 +3120,123 @@ export const generateCarWashOperationalSummaryPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateCarWashBillsAndPaymentsPdf = async (
+    jobs: CarWashJob[],
+    customers: CarWashCustomer[],
+    packages: CarWashPackage[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null,
+    startDate?: string,
+    endDate?: string
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error('jsPDF library not available.');
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILLS & PAYMENTS REPORT', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    let periodLabel = 'All Time';
+    if (startDate && endDate) {
+        periodLabel = `${new Date(startDate + 'T00:00:00').toLocaleDateString()} \u2013 ${new Date(endDate + 'T00:00:00').toLocaleDateString()}`;
+    } else if (startDate) {
+        periodLabel = `From ${new Date(startDate + 'T00:00:00').toLocaleDateString()}`;
+    } else if (endDate) {
+        periodLabel = `Up to ${new Date(endDate + 'T00:00:00').toLocaleDateString()}`;
+    }
+    doc.text(`Report Period: ${periodLabel}   |   Generated: ${new Date().toLocaleDateString()}`, margin, yPos);
+    yPos += 12;
+
+    const completed = jobs.filter(j => j.status === 'completed');
+    const totalBilled = completed.reduce((s, j) => s + (j.amountCharged || 0), 0);
+    const totalPaid = completed.reduce((s, j) => s + (j.amountPaid || 0), 0);
+    const totalBalance = totalBilled - totalPaid;
+    const cashJobs = completed.filter(j => j.paymentMethod === 'cash');
+    const mpesaJobs = completed.filter(j => j.paymentMethod === 'mpesa');
+    const cardJobs = completed.filter(j => j.paymentMethod === 'card');
+    const creditJobs = completed.filter(j => j.paymentMethod === 'credit');
+
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('1. Summary', margin, yPos);
+    yPos += 6;
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Metric', 'Value']],
+        body: [
+            ['Total Jobs (Period)', jobs.length.toString()],
+            ['Completed Jobs', completed.length.toString()],
+            ['Total Billed (KES)', totalBilled.toLocaleString()],
+            ['Total Collected (KES)', totalPaid.toLocaleString()],
+            ['Outstanding Balance (KES)', totalBalance.toLocaleString()],
+            ['Cash', `${cashJobs.length} jobs \u2014 KES ${cashJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
+            ['M-Pesa', `${mpesaJobs.length} jobs \u2014 KES ${mpesaJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
+            ['Card', `${cardJobs.length} jobs \u2014 KES ${cardJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
+            ['Credit / Unpaid', `${creditJobs.length} jobs \u2014 KES ${creditJobs.reduce((s, j) => s + (j.amountPaid || 0), 0).toLocaleString()}`],
+        ],
+        theme: 'striped',
+        headStyles: { fillColor: [6, 182, 212], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 14;
+
+    if (yPos > 230) { doc.addPage(); yPos = setupPdfHeader(doc, headerImg); }
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('2. Itemised Transactions', margin, yPos);
+    yPos += 6;
+
+    const jobRows = jobs.map(j => {
+        const customer = customers.find(c => c.id === j.customerId);
+        const pkg = packages.find(p => p.id === j.packageId);
+        return [
+            j.createdAt ? new Date(j.createdAt).toLocaleDateString() : '—',
+            customer?.name || '—',
+            customer?.phoneNumber || '—',
+            pkg?.name || '\u2014',
+            j.status || '\u2014',
+            `KES ${(j.amountCharged || 0).toLocaleString()}`,
+            `KES ${(j.amountPaid || 0).toLocaleString()}`,
+            j.paymentMethod ? j.paymentMethod.toUpperCase() : '\u2014',
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: [['Date', 'Customer', 'Phone', 'Package', 'Status', 'Billed', 'Paid', 'Method']],
+        body: jobRows,
+        theme: 'striped',
+        headStyles: { fillColor: [6, 182, 212], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 2 },
+        columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 26 },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 18 },
+            6: { cellWidth: 18 },
+            7: { cellWidth: 18 },
+        },
+        didDrawPage: () => { yPos = setupPdfHeader(doc, headerImg); }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
