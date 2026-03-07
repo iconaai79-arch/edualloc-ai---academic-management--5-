@@ -95,7 +95,27 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     cafeOrders
 }) => {
     const institutionId = currentInstitution.id;
+    const [perspective, setPerspective] = useState<'admin' | 'attendant' | 'waiter' | 'cashier'>(() => {
+        if (currentUser.role === 'carwash_attendant') return 'attendant';
+        if (currentUser.role === 'carwash_waiter') return 'waiter';
+        if (currentUser.role === 'carwash_cashier') return 'cashier';
+        return 'admin';
+    });
     const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board' | 'cafe_menu'>('dashboard');
+
+    useEffect(() => {
+        // Redir if active tab not available in perspective
+        const availableInPerspective: Record<string, string[]> = {
+            admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'settings', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
+            attendant: ['dashboard', 'queue', 'services', 'inventory', 'feedback'],
+            waiter: ['queue', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
+            cashier: ['dashboard', 'queue', 'customers', 'transactions', 'finance']
+        };
+
+        if (!availableInPerspective[perspective].includes(activeTab)) {
+            setActiveTab(availableInPerspective[perspective][0] as any);
+        }
+    }, [perspective]);
 
     const [packages, setPackages] = useState<CarWashPackage[]>([]);
     const [customers, setCustomers] = useState<CarWashCustomer[]>([]);
@@ -1374,6 +1394,13 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const labelCls = 'block text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 tracking-widest';
     const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', ready: 'bg-purple-100 text-purple-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
 
+    const perspectiveTabs: Record<string, string[]> = {
+        admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu', 'settings'],
+        attendant: ['dashboard', 'queue', 'services', 'inventory', 'feedback'],
+        waiter: ['queue', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
+        cashier: ['dashboard', 'queue', 'customers', 'transactions', 'finance']
+    };
+
     const tabs = [
         { id: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-4 h-4" /> },
         { id: 'queue', label: 'Queue & Bays', icon: <ClockIcon className="w-4 h-4" /> },
@@ -1391,7 +1418,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'live_board', label: 'Live Board', icon: <EyeIcon className="w-4 h-4" /> },
         { id: 'cafe_menu', label: 'Cafe Menu', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
-    ].filter(Boolean) as { id: string, label: string, icon: React.ReactNode }[];
+    ].filter(t => t && perspectiveTabs[perspective].includes(t.id)) as { id: string, label: string, icon: React.ReactNode }[];
 
     const checkoutOrders = showCheckoutModal ? [
         ...(cafeOrders && cafeOrders.length > 0 ? cafeOrders : localCafeOrders).filter(s => s.jobId === showCheckoutModal.id && s.paymentMethod === 'tab'),
@@ -1410,9 +1437,25 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     <h1 className="text-2xl font-black text-white uppercase tracking-tighter">🚗 {currentInstitution.name}</h1>
                     <p className="text-xs font-bold text-cyan-200 uppercase tracking-widest mt-0.5">Car Wash Management System</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {lowStock.length > 0 && <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase rounded-full animate-pulse">{lowStock.length} Low Stock</span>}
-                    <span className="px-3 py-1.5 bg-white/20 text-white text-[10px] font-black uppercase rounded-full">{activeJobs.length} Active Jobs</span>
+                <div className="flex flex-col items-end gap-2 text-right">
+                    <div className="flex items-center gap-3">
+                        {lowStock.length > 0 && <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase rounded-full animate-pulse">{lowStock.length} Low Stock</span>}
+                        <span className="px-3 py-1.5 bg-white/20 text-white text-[10px] font-black uppercase rounded-full">{activeJobs.length} Active Jobs</span>
+                    </div>
+
+                    {(currentUser.role === 'admin' || currentUser.role === 'carwash_admin') && (
+                        <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
+                            {(['admin', 'attendant', 'waiter', 'cashier'] as const).map(p => (
+                                <button
+                                    key={p}
+                                    onClick={() => setPerspective(p)}
+                                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${perspective === p ? 'bg-white text-cyan-700 shadow-sm' : 'text-white/60 hover:text-white'}`}
+                                >
+                                    {p}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
