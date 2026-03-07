@@ -1573,81 +1573,83 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 )}
 
                 {/* SERVICES */}
-                <div className="space-y-8">
-                    {/* Service Packages */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-lg font-black uppercase">Service Packages</h2>
-                            <button onClick={() => { setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], commissionType: 'percentage', commissionValue: 0, editingId: undefined }); setShowNewPackageModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
+                {!loading && activeTab === 'services' && (
+                    <div className="space-y-8">
+                        {/* Service Packages */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-lg font-black uppercase">Service Packages</h2>
+                                <button onClick={() => { setPkgForm({ name: '', description: '', pricing: {}, estimatedMinutes: 30, includesInterior: false, color: PACKAGE_COLORS[0], commissionType: 'percentage', commissionValue: 0, editingId: undefined }); setShowNewPackageModal(true); }} className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-xl font-black text-sm uppercase shadow hover:bg-cyan-700 transition-all"><PlusIcon className="w-4 h-4" /> New Package</button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {packages.map(pkg => (
+                                    <div key={pkg.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                        <div className="h-2" style={{ background: pkg.color || '#6366f1' }} />
+                                        <div className="p-5">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-black text-base">{pkg.name}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => handleEditPackage(pkg)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-cyan-600 transition-all" title="Edit Package">
+                                                        <Cog8ToothIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">{pkg.estimatedMinutes} min</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
+                                            <div className="space-y-1">
+                                                {Object.entries(pkg.pricing).map(([type, price]) => (
+                                                    <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {(price as number).toLocaleString()}</span></div>
+                                                ))}
+                                            </div>
+                                            {pkg.includesInterior && <p className="text-[9px] font-black text-cyan-600 mt-2 uppercase">✓ Includes Interior Cleaning</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                                {packages.length === 0 && <div className="col-span-3 text-center py-20 text-slate-400"><SparklesIcon className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-bold">No packages yet. Add your first service.</p></div>}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {packages.map(pkg => (
-                                <div key={pkg.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="h-2" style={{ background: pkg.color || '#6366f1' }} />
-                                    <div className="p-5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-black text-base">{pkg.name}</h3>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => handleEditPackage(pkg)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-cyan-600 transition-all" title="Edit Package">
-                                                    <Cog8ToothIcon className="w-4 h-4" />
-                                                </button>
-                                                <span className="text-[9px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">{pkg.estimatedMinutes} min</span>
+
+                        {/* Service Add-ons */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-lg font-black uppercase">Service Add-ons</h2>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fixed price items added to any package</p>
+                                </div>
+                                <button
+                                    onClick={() => { setAddOnForm({ name: '', description: '', price: 0, isActive: true, editingId: undefined }); setShowNewAddOnModal(true); }}
+                                    className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-cyan-600 border-2 border-cyan-600 rounded-xl font-black text-sm uppercase shadow-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-all"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> New Add-on
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {addOns.map(ao => (
+                                    <div key={ao.id} className={`bg-white dark:bg-slate-800 rounded-2xl border ${ao.isActive ? 'border-slate-100 dark:border-slate-700' : 'border-slate-200 dark:border-slate-800 opacity-60'} p-5 relative group`}>
+                                        <div className="flex justify-between items-start mb-1">
+                                            <h3 className="font-black text-sm">{ao.name}</h3>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => handleEditAddOn(ao)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-600"><Cog8ToothIcon className="w-3.5 h-3.5" /></button>
+                                                <button onClick={() => handleDeleteAddOn(ao.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-600"><XIcon className="w-3.5 h-3.5" /></button>
                                             </div>
                                         </div>
-                                        <p className="text-xs text-slate-400 mb-3">{pkg.description}</p>
-                                        <div className="space-y-1">
-                                            {Object.entries(pkg.pricing).map(([type, price]) => (
-                                                <div key={type} className="flex justify-between text-xs"><span className="font-semibold">{type}</span><span className="font-black text-emerald-600">KES {(price as number).toLocaleString()}</span></div>
-                                            ))}
+                                        <p className="text-[10px] text-slate-400 mb-2 truncate" title={ao.description}>{ao.description || 'No description'}</p>
+                                        <div className="flex justify-between items-center mt-auto">
+                                            <span className="text-base font-black text-cyan-600">KES {ao.price.toLocaleString()}</span>
+                                            {!ao.isActive && <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">Inactive</span>}
                                         </div>
-                                        {pkg.includesInterior && <p className="text-[9px] font-black text-cyan-600 mt-2 uppercase">✓ Includes Interior Cleaning</p>}
                                     </div>
-                                </div>
-                            ))}
-                            {packages.length === 0 && <div className="col-span-3 text-center py-20 text-slate-400"><SparklesIcon className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-bold">No packages yet. Add your first service.</p></div>}
-                        </div>
-                    </div>
-
-                    {/* Service Add-ons */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h2 className="text-lg font-black uppercase">Service Add-ons</h2>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fixed price items added to any package</p>
+                                ))}
+                                {addOns.length === 0 && (
+                                    <div className="col-span-full py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400">
+                                        <SparklesIcon className="w-8 h-8 mb-2 opacity-20" />
+                                        <p className="text-xs font-bold uppercase tracking-widest">No add-ons defined</p>
+                                    </div>
+                                )}
                             </div>
-                            <button
-                                onClick={() => { setAddOnForm({ name: '', description: '', price: 0, isActive: true, editingId: undefined }); setShowNewAddOnModal(true); }}
-                                className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-800 text-cyan-600 border-2 border-cyan-600 rounded-xl font-black text-sm uppercase shadow-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-all"
-                            >
-                                <PlusIcon className="w-4 h-4" /> New Add-on
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {addOns.map(ao => (
-                                <div key={ao.id} className={`bg-white dark:bg-slate-800 rounded-2xl border ${ao.isActive ? 'border-slate-100 dark:border-slate-700' : 'border-slate-200 dark:border-slate-800 opacity-60'} p-5 relative group`}>
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h3 className="font-black text-sm">{ao.name}</h3>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleEditAddOn(ao)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-cyan-600"><Cog8ToothIcon className="w-3.5 h-3.5" /></button>
-                                            <button onClick={() => handleDeleteAddOn(ao.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-600"><XIcon className="w-3.5 h-3.5" /></button>
-                                        </div>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mb-2 truncate" title={ao.description}>{ao.description || 'No description'}</p>
-                                    <div className="flex justify-between items-center mt-auto">
-                                        <span className="text-base font-black text-cyan-600">KES {ao.price.toLocaleString()}</span>
-                                        {!ao.isActive && <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">Inactive</span>}
-                                    </div>
-                                </div>
-                            ))}
-                            {addOns.length === 0 && (
-                                <div className="col-span-full py-12 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400">
-                                    <SparklesIcon className="w-8 h-8 mb-2 opacity-20" />
-                                    <p className="text-xs font-bold uppercase tracking-widest">No add-ons defined</p>
-                                </div>
-                            )}
                         </div>
                     </div>
-                </div>
+                )}
 
 
                 {/* INVENTORY */}
