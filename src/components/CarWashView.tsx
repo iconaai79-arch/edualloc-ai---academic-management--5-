@@ -664,10 +664,8 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 invoiceId: invoiceId
             };
 
-            await Promise.all([
-                apiService.saveModuleRecord('invoices', invoice),
-                apiService.saveModuleRecord('receipts', receipt)
-            ]);
+            await apiService.saveModuleRecord('invoices', invoice);
+            await apiService.saveModuleRecord('receipts', receipt);
 
             // ── Email Notification ──
             if (customer && customer.email) {
