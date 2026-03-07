@@ -486,7 +486,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 currentInstitution,
                 currentInstitution.letterheadConfig,
                 currentInstitution.footerImageUrl || '',
-                reportsTab
+                reportsTab,
+                reportStartDate || undefined,
+                reportEndDate || undefined
             );
             setPdfPreviewUrl(dataUri);
 

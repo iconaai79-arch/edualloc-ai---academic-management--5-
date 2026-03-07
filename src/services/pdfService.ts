@@ -2941,7 +2941,9 @@ export const generateCarWashOperationalSummaryPdf = async (
     institution: Institution,
     letterheadConfig: LetterheadConfig | undefined,
     footerImageUrl: string | null,
-    reportsTab: 'all' | 'revenue' | 'staff' | 'customers' | 'services' | 'feedback' = 'all'
+    reportsTab: 'all' | 'revenue' | 'staff' | 'customers' | 'services' | 'feedback' = 'all',
+    startDate?: string,
+    endDate?: string
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -2968,7 +2970,17 @@ export const generateCarWashOperationalSummaryPdf = async (
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Report Period: All Time (Generated on ${new Date().toLocaleDateString()})`, margin, yPos);
+
+    let periodLabel = 'All Time';
+    if (startDate && endDate) {
+        periodLabel = `${new Date(startDate + 'T00:00:00').toLocaleDateString()} – ${new Date(endDate + 'T00:00:00').toLocaleDateString()}`;
+    } else if (startDate) {
+        periodLabel = `From ${new Date(startDate + 'T00:00:00').toLocaleDateString()}`;
+    } else if (endDate) {
+        periodLabel = `Up to ${new Date(endDate + 'T00:00:00').toLocaleDateString()}`;
+    }
+
+    doc.text(`Report Period: ${periodLabel}   |   Generated: ${new Date().toLocaleDateString()}`, margin, yPos);
     yPos += 10;
 
     let sectionNum = 1;
