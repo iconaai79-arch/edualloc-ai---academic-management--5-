@@ -739,7 +739,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             const newPassword = generateAlphanumericCode(8);
 
             // 3. Update the password in database
-            await apiService.updateUserPassword(institutionAdmin.id, newPassword);
+            await apiService.saveUser({ ...institutionAdmin, password: newPassword, passwordLastUpdated: new Date().toISOString() });
 
             // 4. Notify via SMS if phone number exists
             if (onSendSms && institutionAdmin.phoneNumber) {
@@ -2015,6 +2015,17 @@ Please change it after login.`;
 
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                             <div className="space-y-6">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Application Title</label>
+                                                    <input
+                                                        type="text"
+                                                        value={localCompanyInfo.applicationTitle}
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, applicationTitle: e.target.value })}
+                                                        className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                        placeholder="e.g. EduAlloc AI"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400 mt-2 ml-1 italic font-medium uppercase tracking-tighter">System Branding: This title is displayed on platform headers and reports.</p>
+                                                </div>
                                                 <div>
                                                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label>
                                                     <div className="flex gap-4 items-center">
