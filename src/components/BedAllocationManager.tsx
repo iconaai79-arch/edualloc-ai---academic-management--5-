@@ -220,12 +220,19 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const filteredStudents = useMemo(() => {
         return students.filter(student => {
-            const searchLower = searchTerm.toLowerCase();
+            const searchLower = (searchTerm || '').toLowerCase().trim();
             const matchesSearch = (student.name || '').toLowerCase().includes(searchLower) ||
                 (student.email || '').toLowerCase().includes(searchLower) ||
                 (student.staffId || '').toLowerCase().includes(searchLower);
-            const isUnallocated = !allocations.some(a => a.studentId === student.id && a.status === 'Active');
-            return matchesSearch && isUnallocated;
+
+            // Robust allocation check
+            const studentId = (student.id || '').toString().trim();
+            const matchingAllocation = allocations.find(a => {
+                const allocStudentId = (a.studentId || '').toString().trim();
+                return (allocStudentId === studentId) && (a.status === 'Active');
+            });
+
+            return matchesSearch && !matchingAllocation;
         });
     }, [students, searchTerm, allocations]);
 

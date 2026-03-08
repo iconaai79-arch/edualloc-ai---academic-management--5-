@@ -1189,9 +1189,9 @@ export const apiService = {
                     usersAllocatedByFkey:users!allocated_by(name),
                     boardingBeds:boarding_beds(
                         bed_number,
-                        boarding_rooms(
+                        boardingRooms:boarding_rooms(
                             room_number,
-                            boarding_houses(name, institution_id)
+                            boardingHouses:boarding_houses(name, institution_id)
                         )
                     ),
                     boarding_checkins(id),
