@@ -197,11 +197,18 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
         if (!confirm(`Revoke allocation for ${allocation.studentName}?`)) return;
 
         try {
-            await apiService.saveModuleRecord('bed_allocations', {
-                ...allocation,
-                institutionId: currentInstitution.id,
-                status: 'Cancelled' as const
-            } as any);
+            await apiService.createBedAllocation({
+                id: allocation.id,
+                bed_id: allocation.bedId,
+                student_id: allocation.studentId,
+                institution_id: currentInstitution.id,
+                allocated_by: currentUser.id,
+                allocation_date: allocation.allocationDate,
+                term: allocation.term,
+                academic_year: allocation.academicYear,
+                status: 'Cancelled',
+                notes: allocation.notes
+            });
 
             await onLogAction(`Deallocated ${allocation.studentName} from bed ${allocation.bedNumber}`);
             loadData();
@@ -361,7 +368,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                 {allocation.hasCheckedIn ? 'IN QUARTERS' : 'NOT ARRIVED'}
                             </div>
 
-                            <div className="flex gap-3 pt-6 border-t border-slate-100 dark:border-slate-800 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex gap-3 pt-6 border-t border-slate-100 dark:border-slate-800 transition-all">
                                 <button
                                     onClick={() => handleDeallocate(allocation)}
                                     className="flex-1 py-3 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[9px] font-black uppercase tracking-[0.15em] rounded-xl transition-all"
