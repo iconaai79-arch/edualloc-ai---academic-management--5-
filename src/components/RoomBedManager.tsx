@@ -154,7 +154,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                 ...roomFormData,
                 houseId: selectedHouseId,
                 institutionId: currentInstitution.id,
-                id: editingRoom ? editingRoom.id : `room_${Date.now()}`
+                id: editingRoom ? editingRoom.id : `room_${Math.random().toString(36).substring(2, 10)}`
             };
 
             await apiService.saveModuleRecord('boarding_rooms', payload);
@@ -163,8 +163,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setShowRoomModal(false);
             loadRooms();
             onDataChange();
-        } catch (error) {
-            alert('Failed to save room details. Please try again.');
+        } catch (error: any) {
+            console.error('Error saving room:', error);
+            alert(`Failed to save room details: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -212,7 +213,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                 ...bedFormData,
                 roomId: selectedRoomId,
                 institutionId: currentInstitution.id,
-                id: editingBed ? editingBed.id : `bed_${Date.now()}`
+                id: editingBed ? editingBed.id : `bed_${Math.random().toString(36).substring(2, 10)}`
             };
 
             await apiService.saveModuleRecord('boarding_beds', payload);
@@ -221,8 +222,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setShowBedModal(false);
             loadRooms();
             onDataChange();
-        } catch (error) {
-            alert('Failed to save bed details.');
+        } catch (error: any) {
+            console.error('Error saving bed:', error);
+            alert(`Failed to save bed details: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -260,8 +262,9 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             setShowBulkBedModal(false);
             loadRooms();
             onDataChange();
-        } catch (error) {
-            alert('Mass provisioning failed. Check connection.');
+        } catch (error: any) {
+            console.error('Bulk provision failed:', error);
+            alert(`Mass provisioning failed: ${error.message || 'Unknown error'}`);
         }
     };
 
