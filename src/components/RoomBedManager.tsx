@@ -149,6 +149,11 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             return;
         }
 
+        if (!currentInstitution.id) {
+            alert('Error: Institution ID is missing. Please refresh and try again.');
+            return;
+        }
+
         try {
             const payload = {
                 ...roomFormData,
@@ -206,7 +211,12 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
 
     const handleBedSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedRoomId) return;
+        if (!selectedRoom) return;
+
+        if (!currentInstitution.id) {
+            alert('Error: Institution ID is missing. Please refresh and try again.');
+            return;
+        }
 
         try {
             const payload = {
@@ -231,6 +241,11 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     const handleBulkBedSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedRoomId || !selectedRoom) return;
+
+        if (!currentInstitution.id) {
+            alert('Error: Institution ID is missing. Please refresh and try again.');
+            return;
+        }
 
         const currentBedCount = selectedRoom.beds.length;
         if (currentBedCount + bulkBedData.count > selectedRoom.capacity) {
