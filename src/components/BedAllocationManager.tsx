@@ -85,14 +85,20 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const loadAvailableBeds = async () => {
         const data = await apiService.fetchAvailableBeds(currentInstitution.id);
-        const beds = (data || []).map((bed: any) => ({
-            ...bed,
-            roomNumber: bed.boardingRooms?.roomNumber || 'N/A',
-            roomId: bed.boardingRooms?.id,
-            houseName: bed.boardingRooms?.boardingHouses?.name || 'N/A',
-            houseGender: bed.boardingRooms?.boardingHouses?.gender || 'Mixed',
-            houseId: bed.boardingRooms?.boardingHouses?.id
-        }));
+        const beds = (data || []).map((bed: any) => {
+            // Handle both object and array return types from Supabase joins
+            const room = Array.isArray(bed.boardingRooms) ? bed.boardingRooms[0] : bed.boardingRooms;
+            const house = room ? (Array.isArray(room.boardingHouses) ? room.boardingHouses[0] : room.boardingHouses) : null;
+
+            return {
+                ...bed,
+                roomNumber: room?.roomNumber || 'Unknown Room',
+                roomId: room?.id || '',
+                houseName: house?.name || 'Unknown House',
+                houseGender: house?.gender || 'Mixed',
+                houseId: house?.id || ''
+            };
+        });
         setAvailableBeds(beds);
     };
 
