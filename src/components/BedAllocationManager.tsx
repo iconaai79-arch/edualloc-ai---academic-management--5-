@@ -142,7 +142,14 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
     };
 
     const handleAllocateBed = async () => {
-        if (!selectedStudent || !selectedBed) return;
+        if (!selectedStudent) {
+            alert('Error: No student selected.');
+            return;
+        }
+        if (!selectedBed) {
+            alert('Please click on an available bed to select it first.');
+            return;
+        }
 
         // Gender validation
         if (!isGenderMatch(selectedBed.houseGender, selectedStudent.gender)) {
@@ -471,8 +478,10 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                     </button>
                                     <button
                                         onClick={handleAllocateBed}
-                                        disabled={!selectedBed}
-                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] shadow-2xl shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all disabled:opacity-30 flex items-center justify-center gap-3"
+                                        className={`flex-[2] py-5 text-white rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl flex items-center justify-center gap-3 transition-all ${selectedBed
+                                                ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                                                : 'bg-indigo-400 cursor-not-allowed opacity-80'
+                                            }`}
                                     >
                                         EXECUTE PLACEMENT <ArrowRightIcon className="w-5 h-5" />
                                     </button>
