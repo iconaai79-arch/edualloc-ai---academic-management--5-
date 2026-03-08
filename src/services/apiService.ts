@@ -1144,10 +1144,10 @@ export const apiService = {
                 .from('boarding_beds')
                 .select(`
                     *,
-                    boarding_rooms(
+                    boarding_rooms!inner(
                         id,
                         room_number,
-                        boarding_houses(
+                        boarding_houses!inner(
                             id,
                             name,
                             gender,
@@ -1156,7 +1156,7 @@ export const apiService = {
                     )
                 `)
                 .eq('status', 'Available')
-                .eq('institution_id', institutionId);
+                .eq('boarding_rooms.boarding_houses.institution_id', institutionId);
             if (error) throw error;
             return toCamelCase(data) || [];
         } catch (e) { return []; }

@@ -26,6 +26,14 @@ interface AvailableBed extends BoardingBed {
     houseId: string;
 }
 
+const isGenderMatch = (houseGender: string | undefined, studentGender: string | undefined) => {
+    if (!houseGender || houseGender === 'Mixed') return true;
+    if (!studentGender) return true; // Fail open if student gender is missing
+    if (houseGender === 'Boys' && studentGender === 'Male') return true;
+    if (houseGender === 'Girls' && studentGender === 'Female') return true;
+    return false;
+};
+
 const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
     currentUser,
     currentInstitution,
@@ -137,8 +145,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
         if (!selectedStudent || !selectedBed) return;
 
         // Gender validation
-        if (selectedBed.houseGender !== 'Mixed' && selectedStudent.gender !== selectedBed.houseGender) {
-            alert(`Gender Mismatch: Cannot allocate a ${selectedStudent.gender} student to a ${selectedBed.houseGender} house.`);
+        if (!isGenderMatch(selectedBed.houseGender, selectedStudent.gender)) {
+            alert(`Gender Mismatch: Cannot allocate a ${selectedStudent.gender || 'Unknown'} student to a ${selectedBed.houseGender} house.`);
             return;
         }
 
@@ -423,7 +431,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-                                    {availableBeds.filter(b => b.houseGender === 'Mixed' || b.houseGender === selectedStudent.gender).map((bed) => (
+                                    {availableBeds.filter(b => isGenderMatch(b.houseGender, selectedStudent.gender)).map((bed) => (
                                         <button
                                             key={bed.id}
                                             onClick={() => setSelectedBed(bed)}
