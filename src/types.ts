@@ -1826,6 +1826,9 @@ export interface CarWashSettings {
     stampsForFreeWash: number;
     redeemValuePerPoint: number;
     isLoyaltyEnabled: boolean;
+    logoUrl?: string;
+    receiptHeader?: string;
+    receiptFooter?: string;
     createdAt: string;
     updatedAt: string;
 }

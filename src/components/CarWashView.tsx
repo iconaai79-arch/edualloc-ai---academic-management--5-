@@ -3348,29 +3348,28 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
                                             <label className={labelCls}>Branch Logo URL</label>
                                             <div className="flex gap-4 items-center">
-                                                <input value={brandingForm.logoUrl} onChange={e => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900'} placeholder="https://..." />
+                                                <input value={settingsForm.logoUrl || ''} onChange={e => setSettingsForm({ ...settingsForm, logoUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900'} placeholder="https://..." />
                                                 <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 p-2 flex items-center justify-center shadow-sm">
-                                                    {brandingForm.logoUrl ? <img src={brandingForm.logoUrl} className="max-h-full max-w-full object-contain" alt="Logo" /> : <SparklesIcon className="w-6 h-6 text-slate-200" />}
+                                                    {settingsForm.logoUrl ? <img src={settingsForm.logoUrl} className="max-h-full max-w-full object-contain" alt="Logo" /> : <SparklesIcon className="w-6 h-6 text-slate-200" />}
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
-                                            <label className={labelCls}>Letterhead Header URL</label>
-                                            <input value={brandingForm.headerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, headerImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Banner for official invoices" />
-                                            {brandingForm.headerImageUrl && <img src={brandingForm.headerImageUrl} className="h-24 w-full object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Header" />}
+                                            <label className={labelCls}>Receipt Header Image URL</label>
+                                            <input value={settingsForm.receiptHeader || ''} onChange={e => setSettingsForm({ ...settingsForm, receiptHeader: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Banner for official invoices" />
+                                            {settingsForm.receiptHeader && <img src={settingsForm.receiptHeader} className="h-24 w-full object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Header" />}
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
-                                                <label className={labelCls}>Footer Image</label>
-                                                <input value={brandingForm.footerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, footerImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Small footer graphic" />
-                                                {brandingForm.footerImageUrl && <img src={brandingForm.footerImageUrl} className="h-12 w-full object-contain rounded-xl bg-white" alt="Footer" />}
+                                                <label className={labelCls}>Receipt Footer Image URL</label>
+                                                <input value={settingsForm.receiptFooter || ''} onChange={e => setSettingsForm({ ...settingsForm, receiptFooter: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Small footer graphic" />
+                                                {settingsForm.receiptFooter && <img src={settingsForm.receiptFooter} className="h-12 w-full object-contain rounded-xl bg-white" alt="Footer" />}
                                             </div>
-                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
-                                                <label className={labelCls}>Branch Stamp</label>
-                                                <input value={brandingForm.stampImageUrl} onChange={e => setBrandingForm({ ...brandingForm, stampImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Circular official stamp" />
-                                                {brandingForm.stampImageUrl && <img src={brandingForm.stampImageUrl} className="h-16 w-16 mx-auto object-contain bg-white rounded-full p-2 border border-slate-100" alt="Stamp" />}
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200 opacity-50 cursor-not-allowed">
+                                                <label className={labelCls}>Branch Stamp (Institution Global Only)</label>
+                                                <input disabled className={inputCls + ' bg-slate-100 dark:bg-slate-800 mb-3 text-slate-400'} placeholder="Manage in Admin settings" />
                                             </div>
                                         </div>
                                     </div>
