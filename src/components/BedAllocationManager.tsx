@@ -175,8 +175,11 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             await onLogAction(`Allocated bed ${selectedBed.bedNumber} in ${selectedBed.houseName} to ${selectedStudent.name}`);
 
             setShowAllocationModal(false);
-            loadData();
+            setSelectedStudent(null);
+            setSelectedBed(null);
+            await loadData(); // await so waitlist re-renders immediately
             onDataChange();
+            alert(`✅ Success! ${selectedStudent.name} has been allocated Bed ${selectedBed.bedNumber} in ${selectedBed.houseName}. They have been removed from the waiting list.`);
         } catch (error: any) {
             console.error('Allocation Error:', error);
             alert(`Allocation failed: ${error.message || 'Unknown error'}`);
