@@ -159,19 +159,19 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
         try {
             const payload = {
-                bedId: selectedBed.id,
-                studentId: selectedStudent.id,
-                institutionId: currentInstitution.id,
-                allocatedBy: currentUser.id,
-                allocationDate: new Date().toISOString().split('T')[0],
+                id: `allocation_${Date.now()}`,
+                bed_id: selectedBed.id,
+                student_id: selectedStudent.id,
+                institution_id: currentInstitution.id,
+                allocated_by: currentUser.id,
+                allocation_date: new Date().toISOString().split('T')[0],
                 term: allocationForm.term,
-                academicYear: allocationForm.academicYear,
-                status: 'Active' as const,
-                notes: allocationForm.notes,
-                id: `allocation_${Date.now()}`
+                academic_year: allocationForm.academicYear,
+                status: 'Active',
+                notes: allocationForm.notes || null
             };
 
-            await apiService.saveModuleRecord('bed_allocations', payload);
+            await apiService.createBedAllocation(payload);
             await onLogAction(`Allocated bed ${selectedBed.bedNumber} in ${selectedBed.houseName} to ${selectedStudent.name}`);
 
             setShowAllocationModal(false);

@@ -295,6 +295,23 @@ export const apiService = {
         }
     }
     ,
+    async createBedAllocation(payload: {
+        id: string; bed_id: string; student_id: string; institution_id: string;
+        allocated_by: string; allocation_date: string; term: string;
+        academic_year: string; status: string; notes?: string | null;
+    }): Promise<any> {
+        if (!_supabase) {
+            return this.saveModuleRecord('bed_allocations', toCamelCase(payload));
+        }
+        const { data, error } = await _supabase.rpc('create_bed_allocation', {
+            allocation_data: payload
+        });
+        if (error) {
+            console.error('RPC createBedAllocation error:', error);
+            throw new Error(`Failed to save bed_allocations: ${error.message} (${error.code})`);
+        }
+        return data;
+    },
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
         const payload = toSnakeCase(data);
 
