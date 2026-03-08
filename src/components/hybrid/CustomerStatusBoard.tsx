@@ -10,9 +10,9 @@ interface CustomerStatusBoardProps {
 export const CustomerStatusBoard: React.FC<CustomerStatusBoardProps> = ({
     carWashJobs, retailSales
 }) => {
-    // Active jobs only for the board
+    // Active jobs only for the board — completed/cancelled jobs (checked-out) are excluded
     const activeJobs = carWashJobs.filter(
-        job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'completed'
+        job => job.status === 'in_progress' || job.status === 'queued' || job.status === 'ready'
     );
 
     // Food orders that are preparing or ready

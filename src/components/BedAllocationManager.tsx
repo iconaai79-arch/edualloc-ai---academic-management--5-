@@ -140,6 +140,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             const payload = {
                 bedId: selectedBed.id,
                 studentId: selectedStudent.id,
+                institutionId: currentInstitution.id,
                 allocatedBy: currentUser.id,
                 allocationDate: new Date().toISOString().split('T')[0],
                 term: allocationForm.term,
@@ -166,6 +167,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
         try {
             await apiService.saveModuleRecord('bed_allocations', {
                 ...allocation,
+                institutionId: currentInstitution.id,
                 status: 'Cancelled' as const
             } as any);
 

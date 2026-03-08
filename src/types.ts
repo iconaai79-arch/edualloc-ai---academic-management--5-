@@ -1818,6 +1818,18 @@ export interface CarWashShiftLog {
     date: string;
 }
 
+export interface CarWashSettings {
+    id: string;
+    institutionId: string;
+    pointsPerKes: number;
+    stampsPerWash: number;
+    stampsForFreeWash: number;
+    redeemValuePerPoint: number;
+    isLoyaltyEnabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // ============================================================================
 // AGROVET MODULE TYPES
 // ============================================================================

@@ -115,6 +115,7 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
             if (editingLog) {
                 const payload: any = {
                     ...formData,
+                    institutionId: currentInstitution.id,
                     houseId: formData.houseId || null,
                     roomId: formData.roomId || null,
                     bedId: formData.bedId || null,
@@ -132,12 +133,12 @@ const BoardingMaintenanceManager: React.FC<BoardingMaintenanceManagerProps> = ({
             } else {
                 const payload = {
                     ...formData,
+                    institutionId: currentInstitution.id,
                     houseId: formData.houseId || null,
                     roomId: formData.roomId || null,
                     bedId: formData.bedId || null,
-                    reportedBy: currentUser.id,
                     reportedDate: new Date().toISOString().split('T')[0],
-                    id: `log_${Date.now()}`
+                    id: crypto.randomUUID?.() || `log_${Date.now()}`
                 };
 
                 await apiService.saveModuleRecord('boarding_maintenance_logs', payload);

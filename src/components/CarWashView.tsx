@@ -24,7 +24,7 @@ import {
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
     BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
     EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon,
-    ClipboardListIcon, EyeIcon
+    ClipboardListIcon, EyeIcon, TrendingUpIcon, GiftIcon
 } from './icons/index';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
@@ -91,6 +91,110 @@ const AnimatedProfitBar = ({ d, i, maxGraphValue }: { d: any, i: number, maxGrap
     );
 };
 
+const ModernTrendChart = ({ data, height = 200 }: { data: { label: string, revenue: number, expense: number }[], height?: number }) => {
+    const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.expense)), 1);
+    const padding = 20;
+    const width = 600;
+    const innerWidth = width - padding * 2;
+    const innerHeight = height - padding * 2;
+
+    const getX = (index: number) => padding + (index * (innerWidth / (data.length - 1)));
+    const getY = (val: number) => padding + innerHeight - (val / maxVal) * innerHeight;
+
+    const revPoints = data.map((d, i) => `${getX(i)},${getY(d.revenue)}`).join(' ');
+    const expPoints = data.map((d, i) => `${getX(i)},${getY(d.expense)}`).join(' ');
+
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full drop-shadow-2xl overflow-visible">
+            <defs>
+                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            {/* Grid Lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map(p => {
+                const y = padding + innerHeight * p;
+                return <line key={p} x1={padding} y1={y} x2={width - padding} y2={y} stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeDasharray="4" />;
+            })}
+            {/* Revenue Area */}
+            <path d={`M ${padding},${padding + innerHeight} ${revPoints} L ${width - padding},${padding + innerHeight} Z`} fill="url(#revGrad)" className="transition-all duration-1000" />
+            <polyline points={revPoints} fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
+            {/* Expense Area */}
+            <path d={`M ${padding},${padding + innerHeight} ${expPoints} L ${width - padding},${padding + innerHeight} Z`} fill="url(#expGrad)" className="transition-all duration-1000" />
+            <polyline points={expPoints} fill="none" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="transition-all duration-1000" />
+            {/* Data Points */}
+            {data.map((d, i) => (
+                <g key={i} className="group/dot">
+                    <circle cx={getX(i)} cy={getY(d.revenue)} r="4" fill="#10b981" stroke="white" strokeWidth="2" className="cursor-pointer" />
+                    <circle cx={getX(i)} cy={getY(d.expense)} r="4" fill="#f59e0b" stroke="white" strokeWidth="2" className="cursor-pointer" />
+                    <text x={getX(i)} y={height} textAnchor="middle" className="text-[8px] font-black uppercase text-slate-400 fill-current capitalize">{d.label}</text>
+                </g>
+            ))}
+        </svg>
+    );
+};
+
+const PackageDonutChart = ({ data }: { data: { name: string, value: number, color: string }[] }) => {
+    const total = data.reduce((s, i) => s + i.value, 0);
+    const size = 200;
+    const radius = 80;
+    const thickness = 25;
+    const center = size / 2;
+    let currentAngle = -90;
+
+    return (
+        <svg viewBox={`0 0 ${size} ${size}`} className="w-48 h-48 drop-shadow-xl animate-spin-slow">
+            {data.map((item, i) => {
+                const angle = (item.value / total) * 360;
+                const x1 = center + radius * Math.cos((currentAngle * Math.PI) / 180);
+                const y1 = center + radius * Math.sin((currentAngle * Math.PI) / 180);
+                const x2 = center + radius * Math.cos(((currentAngle + angle) * Math.PI) / 180);
+                const y2 = center + radius * Math.sin(((currentAngle + angle) * Math.PI) / 180);
+                const largeArc = angle > 180 ? 1 : 0;
+                const d = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
+                const path = <path key={i} d={d} fill="none" stroke={item.color} strokeWidth={thickness} strokeLinecap="round" className="transition-all duration-700" />;
+                currentAngle += angle;
+                return path;
+            })}
+            <text x="50%" y="45%" textAnchor="middle" dy=".3em" className="text-[10px] font-black uppercase text-slate-400 fill-current">Total Volume</text>
+            <text x="50%" y="60%" textAnchor="middle" dy=".3em" className="text-xl font-black text-slate-900 dark:text-white fill-current">{total}</text>
+        </svg>
+    );
+};
+
+const ActivityHeatmap = ({ data }: { data: number[][] }) => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const maxVal = Math.max(...data.flat(), 1);
+
+    return (
+        <div className="grid grid-cols-8 gap-1.5 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <div />
+            {Array.from({ length: 7 }).map((_, i) => <div key={i} className="text-[8px] font-black uppercase text-slate-400 text-center">{days[i]}</div>)}
+            {[0, 1, 2, 3].map(row => (
+                <React.Fragment key={row}>
+                    <div className="text-[8px] font-black uppercase text-slate-400 flex items-center">{row * 6}h</div>
+                    {Array.from({ length: 7 }).map((_, col) => {
+                        const val = data[row][col] || 0;
+                        const opacity = Math.max(0.05, val / maxVal);
+                        return (
+                            <div key={col} className="aspect-square rounded-md transition-all hover:scale-110 cursor-help relative group" style={{ backgroundColor: `rgba(6, 182, 212, ${opacity})` }}>
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[8px] font-black px-2 py-1 rounded whitespace-nowrap z-10 transition-opacity">
+                                    {val} Jobs in this slot
+                                </div>
+                            </div>
+                        );
+                    })}
+                </React.Fragment>
+            ))}
+        </div>
+    );
+};
+
 export const CarWashView: React.FC<CarWashViewProps> = ({
     currentUser, currentInstitution, users, onDataChange,
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser,
@@ -103,12 +207,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         if (currentUser.role === 'carwash_cashier') return 'cashier';
         return 'admin';
     });
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board' | 'cafe_menu'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'queue' | 'customers' | 'services' | 'inventory' | 'staff' | 'reports' | 'feedback' | 'broadcast' | 'transactions' | 'finance' | 'settings' | 'hybrid_pos' | 'kds' | 'live_board' | 'cafe_menu' | 'config'>('dashboard');
 
     useEffect(() => {
         // Redir if active tab not available in perspective
         const availableInPerspective: Record<string, string[]> = {
-            admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'settings', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
+            admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'settings', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu', 'config'],
             attendant: ['dashboard', 'queue', 'services', 'inventory', 'feedback'],
             waiter: ['queue', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
             cashier: ['dashboard', 'queue', 'customers', 'transactions', 'finance']
@@ -134,7 +238,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [payroll, setPayroll] = useState<CarWashPayroll[]>([]);
 
     const [financeTab, setFinanceTab] = useState<'dashboard' | 'cashbook' | 'expenses' | 'payroll'>('dashboard');
-    const [reportsTab, setReportsTab] = useState<'revenue' | 'staff' | 'customers' | 'services' | 'feedback'>('revenue');
+    const [reportsTab, setReportsTab] = useState<'revenue' | 'staff' | 'customers' | 'services' | 'feedback' | 'trends'>('revenue');
 
     // Report Date Filter State
     const [reportStartDate, setReportStartDate] = useState<string>('');
@@ -156,6 +260,15 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const [shifts, setShifts] = useState<CarWashShiftLog[]>([]);
     const [localCafeOrders, setLocalCafeOrders] = useState<CafeOrder[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const [carWashSettings, setCarWashSettings] = useState<CarWashSettings | null>(null);
+    const [settingsForm, setSettingsForm] = useState<Partial<CarWashSettings>>({
+        pointsPerKes: 1,
+        stampsPerWash: 1,
+        stampsForFreeWash: 10,
+        redeemValuePerPoint: 1,
+        isLoyaltyEnabled: true
+    });
 
     const filteredJobs = useMemo(() => {
         return jobs.filter(j => {
@@ -339,15 +452,26 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 logoUrl: brandingForm.logoUrl,
                 footerImageUrl: brandingForm.footerImageUrl,
                 letterheadConfig: {
-                    headerImageUrl: brandingForm.letterheadConfig.headerImageUrl,
-                    stampImageUrl: brandingForm.letterheadConfig.stampImageUrl
+                    headerImageUrl: brandingForm.headerImageUrl,
+                    stampImageUrl: brandingForm.stampImageUrl
                 }
             };
             await apiService.saveModuleRecord('institutions', updatedInst);
-            alert('Branding updated successfully!');
+
+            // Save Car Wash Settings
+            const settingsToSave = {
+                ...settingsForm,
+                id: carWashSettings?.id || `cw_settings_${institutionId}`,
+                institutionId,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('carwash_settings', settingsToSave);
+
+            alert('Configuration updated successfully!');
             onDataChange();
+            loadData();
         } catch (e) {
-            alert('Failed to update branding');
+            alert('Failed to update configuration');
         }
     };
 
@@ -395,6 +519,12 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             setCafeInventory(cInv || []);
             setLocalCafeOrders(cOrders || []);
             setAddOns(ads || []);
+
+            const settings = await apiService.fetchModuleRecords<CarWashSettings>('carwash_settings', institutionId);
+            if (settings && settings.length > 0) {
+                setCarWashSettings(settings[0]);
+                setSettingsForm(settings[0]);
+            }
         } catch (e) { console.error(e); }
 
         setLoading(false);
@@ -710,11 +840,15 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             const tabTotal = relevantOrders.reduce((sum, s) => sum + s.totalAmount, 0);
 
             // Calculate discount and final amount
-            let discountApplied = 0;
             let baseAmount = (job.amountCharged || 0) + tabTotal;
             let finalAmountToPay = baseAmount;
-            if (useLoyaltyPoints && customer && (customer.loyaltyPoints || 0) > 0) {
-                discountApplied = Math.min(finalAmountToPay, customer.loyaltyPoints || 0);
+
+            const useLoyalty = carWashSettings?.isLoyaltyEnabled ?? true;
+            const redeemValue = carWashSettings?.redeemValuePerPoint ?? 1;
+
+            if (useLoyalty && customer && (customer.loyaltyPoints || 0) > 0) {
+                const pointsValue = (customer.loyaltyPoints || 0) * redeemValue;
+                discountApplied = Math.min(finalAmountToPay, pointsValue);
                 finalAmountToPay -= discountApplied;
             }
 
@@ -785,21 +919,25 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             // ── Loyalty Points Update ──
             if (customer) {
-                // Points Earned = 1 Point per KES paid in cash (exclude discounted amount)
-                const pointsEarned = finalAmountToPay;
+                const pointsPerKes = carWashSettings?.pointsPerKes ?? 1;
+                const stampsPerWash = carWashSettings?.stampsPerWash ?? 1;
+                const stampsThreshold = carWashSettings?.stampsForFreeWash ?? 10;
+                const redeemValue = carWashSettings?.redeemValuePerPoint ?? 1;
+
+                // Points Earned = x Points per KES paid in cash (exclude discounted amount)
+                const pointsEarned = finalAmountToPay * pointsPerKes;
 
                 const existingStamps = customer.loyaltyStamps || 0;
-                let newStamps = existingStamps + 1;
+                let newStamps = existingStamps + stampsPerWash;
 
-                const remainingPoints = discountApplied > 0
-                    ? (customer.loyaltyPoints || 0) - discountApplied
-                    : (customer.loyaltyPoints || 0);
+                const pointsSpent = discountApplied / redeemValue;
+                const remainingPoints = (customer.loyaltyPoints || 0) - pointsSpent;
 
                 const finalLoyaltyPoints = remainingPoints + pointsEarned;
 
                 const updatedCustomer = {
                     ...customer,
-                    loyaltyStamps: newStamps >= 10 ? 0 : newStamps,
+                    loyaltyStamps: newStamps >= stampsThreshold ? 0 : newStamps,
                     loyaltyPoints: finalLoyaltyPoints
                 };
                 await apiService.saveModuleRecord('carwash_customers', updatedCustomer);
@@ -926,7 +1064,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                     INVOICE NO: ${invNumber}
                     RECEIPT NO: ${rcptNumber}
                     
-                    Your new Loyalty Points balance is: ${(customer.loyaltyPoints || 0) + finalAmountToPay - (useLoyaltyPoints ? discountApplied : 0)} PTS
+                    Your new Loyalty Points balance is: ${((customer.loyaltyPoints || 0) + (finalAmountToPay * (carWashSettings?.pointsPerKes ?? 1)) - (discountApplied / (carWashSettings?.redeemValuePerPoint ?? 1))).toLocaleString()} PTS
                     
                     We appreciate your business!
                     
@@ -1903,7 +2041,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                         )}
                                     </div>
                                     <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto overflow-x-auto no-scrollbar">
-                                        {(['revenue', 'staff', 'customers', 'services', 'feedback'] as const).map(tab => (
+                                        {(['revenue', 'trends', 'staff', 'customers', 'services', 'feedback'] as const).map(tab => (
                                             <button
                                                 key={tab}
                                                 onClick={() => setReportsTab(tab)}
@@ -1915,6 +2053,94 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                                     </div>
                                 </div>
                             </div>
+
+                            {reportsTab === 'trends' && (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-10 shadow-xl shadow-slate-100/50 dark:shadow-none min-h-[400px]">
+                                            <div className="flex justify-between items-center mb-10">
+                                                <div>
+                                                    <h3 className="text-xl font-black uppercase tracking-tight">Revenue x Expense Flux</h3>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">3-Month Performance Intelligence</p>
+                                                </div>
+                                                <TrendingUpIcon className="w-8 h-8 text-emerald-500" />
+                                            </div>
+                                            <div className="h-64 mt-10">
+                                                <ModernTrendChart data={last3MonthsData} />
+                                            </div>
+                                            <div className="flex justify-center gap-10 mt-10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-4 h-4 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
+                                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Total Revenue</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-4 h-4 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50" />
+                                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Operational Costs</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-8">
+                                            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden group">
+                                                <div className="absolute top-0 right-0 p-10">
+                                                    <SparklesIcon className="w-12 h-12 text-cyan-400/20 group-hover:scale-125 transition-transform duration-500" />
+                                                </div>
+                                                <div className="relative z-10 flex flex-col justify-between h-full">
+                                                    <div>
+                                                        <h4 className="text-2xl font-black uppercase tracking-tight">Strategic Mix</h4>
+                                                        <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mt-2">Package Utilization Density</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-10 mt-10">
+                                                        <PackageDonutChart data={packages.map((p, i) => ({
+                                                            name: p.name,
+                                                            value: filteredJobs.filter(j => j.packageId === p.id && j.status === 'completed').length,
+                                                            color: PACKAGE_COLORS[i % PACKAGE_COLORS.length]
+                                                        })).filter(i => i.value > 0)} />
+                                                        <div className="space-y-3 flex-1">
+                                                            {packages.map((p, i) => {
+                                                                const count = filteredJobs.filter(j => j.packageId === p.id && j.status === 'completed').length;
+                                                                if (count === 0) return null;
+                                                                return (
+                                                                    <div key={p.id} className="flex justify-between items-center bg-white/5 p-3 rounded-xl backdrop-blur-sm border border-white/5">
+                                                                        <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PACKAGE_COLORS[i % PACKAGE_COLORS.length] }}></div>
+                                                                            {p.name}
+                                                                        </span>
+                                                                        <span className="text-xs font-black">{count}</span>
+                                                                    </div>
+                                                                );
+                                                            }).filter(Boolean).slice(0, 4)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-10 shadow-xl shadow-slate-100/50 dark:shadow-none">
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div>
+                                                        <h4 className="text-lg font-black uppercase tracking-tight">Operational Heatmap</h4>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Peak Processing Synchronization</p>
+                                                    </div>
+                                                    <ClockIcon className="w-6 h-6 text-slate-300" />
+                                                </div>
+                                                <ActivityHeatmap data={
+                                                    Array.from({ length: 4 }).map((_, r) =>
+                                                        Array.from({ length: 7 }).map((_, c) => {
+                                                            return filteredJobs.filter(j => {
+                                                                if (!j.createdAt) return false;
+                                                                const date = new Date(j.createdAt);
+                                                                const day = (date.getDay() + 6) % 7; // Mon=0
+                                                                const hour = date.getHours();
+                                                                return day === c && Math.floor(hour / 6) === r;
+                                                            }).length;
+                                                        })
+                                                    )
+                                                } />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {reportsTab === 'revenue' && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -3083,92 +3309,167 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                 </div>
             )}
 
-            {/* SETTINGS */}
-            {!loading && activeTab === 'settings' && (
-                <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-2xl">
-                                <Cog8ToothIcon className="w-6 h-6 text-cyan-600" />
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-black uppercase tracking-tight">Branch Settings</h2>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage branding and document identity</p>
-                            </div>
-                        </div>
+            {/* PORTAL CONFIG */}
+            {!loading && activeTab === 'config' && (
+                <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-10 border border-slate-100 dark:border-slate-700 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 border-b pb-2">Logos & Images</h3>
-
-                                <div>
-                                    <label className={labelCls}>Branch Logo URL</label>
-                                    <div className="flex gap-3">
-                                        <input value={brandingForm.logoUrl} onChange={e => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })} className={inputCls} placeholder="https://..." />
-                                        {brandingForm.logoUrl && <img src={brandingForm.logoUrl} className="w-12 h-12 rounded-xl object-contain bg-slate-50" alt="Logo" />}
-                                    </div>
+                        <div className="flex items-center justify-between mb-10 relative z-10">
+                            <div className="flex items-center gap-5">
+                                <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+                                    <Cog8ToothIcon className="w-8 h-8 text-white" />
                                 </div>
-
                                 <div>
-                                    <label className={labelCls}>Letterhead Header URL</label>
-                                    <input value={brandingForm.headerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, headerImageUrl: e.target.value })} className={inputCls} placeholder="Header image for invoices" />
-                                    {brandingForm.headerImageUrl && <img src={brandingForm.headerImageUrl} className="mt-2 h-20 w-full object-contain rounded-xl bg-slate-50" alt="Header" />}
-                                </div>
-
-                                <div>
-                                    <label className={labelCls}>Footer Image URL</label>
-                                    <input value={brandingForm.footerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, footerImageUrl: e.target.value })} className={inputCls} placeholder="Footer image for documents" />
-                                    {brandingForm.footerImageUrl && <img src={brandingForm.footerImageUrl} className="mt-2 h-16 w-full object-contain rounded-xl bg-slate-50" alt="Footer" />}
-                                </div>
-
-                                <div>
-                                    <label className={labelCls}>Stamp Image URL</label>
-                                    <input value={brandingForm.stampImageUrl} onChange={e => setBrandingForm({ ...brandingForm, stampImageUrl: e.target.value })} className={inputCls} placeholder="Official stamp image" />
-                                    {brandingForm.stampImageUrl && <img src={brandingForm.stampImageUrl} className="mt-2 w-20 h-20 object-contain rounded-xl bg-slate-50" alt="Stamp" />}
+                                    <h2 className="text-2xl font-black uppercase tracking-tight italic">Portal Configuration</h2>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manage branding & loyalty ecosystem</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 border-b pb-2">Module Info</h3>
-                                <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-cyan-600 flex items-center justify-center text-white">
-                                            <SparklesIcon className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <p className="font-black text-sm">{currentInstitution.name}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{currentInstitution.institutionType} · Car Wash</p>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-500 font-bold uppercase">Active Packages</span>
-                                            <span className="font-black">{packages.length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-500 font-bold uppercase">Staff Count</span>
-                                            <span className="font-black">{attendants.length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-500 font-bold uppercase">Total Washes</span>
-                                            <span className="font-black">{jobs.length}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-6 bg-blue-50 dark:bg-blue-900/20 rounded-[2rem] border border-blue-100 dark:border-blue-800">
-                                    <h4 className="text-[10px] font-black uppercase text-blue-700 mb-2 tracking-widest">Automation Note</h4>
-                                    <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
-                                        Commissions are automatically calculated based on package settings when a job is completed. These are aggregated during the monthly payroll run for each staff member.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-12 flex justify-end">
-                            <button onClick={handleSaveBranding} className="px-10 py-4 bg-cyan-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 btn-save-animate">
-                                Save Branch Branding
+                            <button onClick={handleSaveBranding} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95 flex items-center gap-3 group">
+                                <SparklesIcon className="w-5 h-5 group-hover:animate-pulse" />
+                                Save Configuration
                             </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
+                            {/* Left: Branding */}
+                            <div className="space-y-8">
+                                <section>
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-blue-600 mb-6 flex items-center gap-3">
+                                        <span className="w-8 h-0.5 bg-blue-600"></span>
+                                        Visual Identity
+                                    </h3>
+
+                                    <div className="grid grid-cols-1 gap-6">
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
+                                            <label className={labelCls}>Branch Logo URL</label>
+                                            <div className="flex gap-4 items-center">
+                                                <input value={brandingForm.logoUrl} onChange={e => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900'} placeholder="https://..." />
+                                                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 p-2 flex items-center justify-center shadow-sm">
+                                                    {brandingForm.logoUrl ? <img src={brandingForm.logoUrl} className="max-h-full max-w-full object-contain" alt="Logo" /> : <SparklesIcon className="w-6 h-6 text-slate-200" />}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
+                                            <label className={labelCls}>Letterhead Header URL</label>
+                                            <input value={brandingForm.headerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, headerImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Banner for official invoices" />
+                                            {brandingForm.headerImageUrl && <img src={brandingForm.headerImageUrl} className="h-24 w-full object-cover rounded-2xl border border-slate-200 shadow-sm" alt="Header" />}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
+                                                <label className={labelCls}>Footer Image</label>
+                                                <input value={brandingForm.footerImageUrl} onChange={e => setBrandingForm({ ...brandingForm, footerImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Small footer graphic" />
+                                                {brandingForm.footerImageUrl && <img src={brandingForm.footerImageUrl} className="h-12 w-full object-contain rounded-xl bg-white" alt="Footer" />}
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-blue-200">
+                                                <label className={labelCls}>Branch Stamp</label>
+                                                <input value={brandingForm.stampImageUrl} onChange={e => setBrandingForm({ ...brandingForm, stampImageUrl: e.target.value })} className={inputCls + ' bg-white dark:bg-slate-900 mb-3'} placeholder="Circular official stamp" />
+                                                {brandingForm.stampImageUrl && <img src={brandingForm.stampImageUrl} className="h-16 w-16 mx-auto object-contain bg-white rounded-full p-2 border border-slate-100" alt="Stamp" />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+
+                            {/* Right: Loyalty Logic */}
+                            <div className="space-y-8">
+                                <section>
+                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-6 flex items-center gap-3">
+                                        <span className="w-8 h-0.5 bg-emerald-600"></span>
+                                        Loyalty Engine
+                                    </h3>
+
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 space-y-8 shadow-inner">
+                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                                            <div>
+                                                <p className="font-black text-sm uppercase">Activate Loyalty System</p>
+                                                <p className="text-[10px] font-bold text-slate-400">Award points and stamps per transaction</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setSettingsForm({ ...settingsForm, isLoyaltyEnabled: !settingsForm.isLoyaltyEnabled })}
+                                                className={`w-14 h-8 rounded-full transition-all flex items-center px-1 ${settingsForm.isLoyaltyEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                                            >
+                                                <div className={`w-6 h-6 bg-white rounded-full shadow-md transition-all ${settingsForm.isLoyaltyEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className={labelCls + ' text-emerald-600'}>Points per KES</label>
+                                                <div className="relative">
+                                                    <StarIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={settingsForm.pointsPerKes}
+                                                        onChange={e => setSettingsForm({ ...settingsForm, pointsPerKes: parseFloat(e.target.value) })}
+                                                        className={inputCls + ' pl-12 bg-white dark:bg-slate-900 font-black'}
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] font-medium text-slate-400 italic">pts awarded / currency unit</p>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className={labelCls + ' text-emerald-600'}>Point Value (KES)</label>
+                                                <div className="relative">
+                                                    <BanknotesIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500" />
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={settingsForm.redeemValuePerPoint}
+                                                        onChange={e => setSettingsForm({ ...settingsForm, redeemValuePerPoint: parseFloat(e.target.value) })}
+                                                        className={inputCls + ' pl-12 bg-white dark:bg-slate-900 font-black'}
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] font-medium text-slate-400 italic">KES value for 1 point</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className={labelCls + ' text-blue-600'}>Stamps / Wash</label>
+                                                <div className="relative">
+                                                    <SparklesIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" />
+                                                    <input
+                                                        type="number"
+                                                        value={settingsForm.stampsPerWash}
+                                                        onChange={e => setSettingsForm({ ...settingsForm, stampsPerWash: parseInt(e.target.value) })}
+                                                        className={inputCls + ' pl-12 bg-white dark:bg-slate-900 font-black'}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className={labelCls + ' text-blue-600'}>Free Wash Goal</label>
+                                                <div className="relative">
+                                                    <GiftIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" />
+                                                    <input
+                                                        type="number"
+                                                        value={settingsForm.stampsForFreeWash}
+                                                        onChange={e => setSettingsForm({ ...settingsForm, stampsForFreeWash: parseInt(e.target.value) })}
+                                                        className={inputCls + ' pl-12 bg-white dark:bg-slate-900 font-black'}
+                                                    />
+                                                </div>
+                                                <p className="text-[9px] font-medium text-slate-400 italic">stamps needed for free wash</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5 bg-emerald-50 dark:bg-emerald-900/20 rounded-3xl border border-emerald-100 dark:border-emerald-800 flex items-start gap-4">
+                                            <ChartBarIcon className="w-5 h-5 text-emerald-600 shrink-0 mt-1" />
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">Ecosystem Math</p>
+                                                <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed font-medium italic">
+                                                    A KES 1,000 wash will award <span className="font-black">{(1000 * (settingsForm.pointsPerKes || 0)).toLocaleString()} points</span>.
+                                                    Redeeming them later gives a <span className="font-black">KES {(1000 * (settingsForm.pointsPerKes || 0) * (settingsForm.redeemValuePerPoint || 0)).toLocaleString()}</span> discount.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
                 </div>

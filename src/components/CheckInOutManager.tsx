@@ -135,13 +135,14 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
             const payload = {
                 allocationId: selectedAllocation.id,
                 studentId: selectedAllocation.studentId,
+                institutionId: currentInstitution.id,
                 checkInDate: now.toISOString().split('T')[0],
                 checkInTime: now.toTimeString().split(' ')[0],
                 checkedInBy: currentUser.id,
                 conditionNotes: checkInForm.conditionNotes,
                 itemsInventory: checkInForm.itemsInventory,
                 photoUrl: checkInForm.photoUrl,
-                id: `checkin_${Date.now()} `
+                id: crypto.randomUUID?.() || `checkin_${Date.now()}`
             };
 
             await apiService.saveModuleRecord('boarding_checkins', payload);
@@ -164,6 +165,7 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
             const payload = {
                 allocationId: selectedAllocation.id,
                 studentId: selectedAllocation.studentId,
+                institutionId: currentInstitution.id,
                 checkOutDate: now.toISOString().split('T')[0],
                 checkOutTime: now.toTimeString().split(' ')[0],
                 checkedOutBy: currentUser.id,
@@ -171,7 +173,7 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
                 damageReport: checkOutForm.damageReport,
                 clearanceStatus: checkOutForm.clearanceStatus,
                 photoUrl: checkOutForm.photoUrl,
-                id: `checkout_${Date.now()} `
+                id: crypto.randomUUID?.() || `checkout_${Date.now()}`
             };
 
             await apiService.saveModuleRecord('boarding_checkouts', payload);
@@ -179,6 +181,7 @@ const CheckInOutManager: React.FC<CheckInOutManagerProps> = ({
             // Auto-complete allocation
             await apiService.saveModuleRecord('bed_allocations', {
                 ...selectedAllocation,
+                institutionId: currentInstitution.id,
                 status: 'Completed' as const
             } as any);
 

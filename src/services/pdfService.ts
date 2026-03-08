@@ -3240,3 +3240,100 @@ export const generateCarWashBillsAndPaymentsPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+export const generateBoardingReportPdf = async (
+    data: any[],
+    title: string,
+    reportType: string,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null,
+    institution: Institution
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF({ orientation: 'landscape' });
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text(title, margin, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+    yPos += 12;
+
+    let head: string[][] = [];
+    let body: any[][] = [];
+
+    if (reportType === 'Occupancy') {
+        head = [['House', 'Gender', 'Capacity', 'Occupied', 'Available', 'Rate %']];
+        body = data.map(i => [
+            i.name,
+            i.gender,
+            i.capacity,
+            i.occupiedBeds,
+            i.availableBeds,
+            `${i.occupancyRate}%`
+        ]);
+    } else if (reportType === 'Allocations') {
+        head = [['Student', 'House', 'Room', 'Bed', 'Term', 'Year', 'Date']];
+        body = data.map(i => [
+            i.studentName || 'N/A',
+            i.houseName || 'N/A',
+            i.roomNumber || 'N/A',
+            i.bedNumber || 'N/A',
+            i.term,
+            i.academicYear,
+            i.allocationDate
+        ]);
+    } else if (reportType === 'Maintenance') {
+        head = [['Issue', 'Location', 'Priority', 'Status', 'Reported By', 'Date']];
+        body = data.map(i => [
+            i.issueDescription,
+            `${i.houseName || 'Common'} - ${i.roomNumber || 'N/A'}`,
+            i.priority,
+            i.status,
+            i.reportedByName,
+            i.reportedDate
+        ]);
+    } else if (reportType === 'Check-ins' || reportType === 'Check-outs') {
+        head = [['Student', 'House', 'Room', 'Bed', 'Date', 'Time', 'By']];
+        body = data.map(i => [
+            i.studentName || 'N/A',
+            i.houseName || 'N/A',
+            i.roomNumber || 'N/A',
+            i.bedNumber || 'N/A',
+            reportType === 'Check-ins' ? i.checkInDate : i.checkOutDate,
+            reportType === 'Check-ins' ? i.checkInTime || '-' : i.checkOutTime || '-',
+            reportType === 'Check-ins' ? i.checkedInByName || '-' : i.checkedOutByName || '-'
+        ]);
+    } else {
+        // Fallback or generic table
+        if (data.length > 0) {
+            const keys = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
+            head = [keys.map(k => k.replace(/([A-Z])/g, ' $1').toUpperCase())];
+            body = data.map(i => keys.map(k => String(i[k])));
+        }
+    }
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+        didDrawPage: () => setupPdfFooter(doc, footerImg)
+    });
+
+    return doc.output('bloburl');
+};

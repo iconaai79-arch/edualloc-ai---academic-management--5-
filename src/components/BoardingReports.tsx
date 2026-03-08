@@ -6,6 +6,9 @@ import {
     ChartPieIcon, TrendingUpIcon, ShieldIcon, AlertTriangleIcon,
     DownloadIcon as ArrowDownTrayIcon, PaperAirplaneIcon as ShareIcon, PrinterIcon, ChevronRightIcon
 } from './icons';
+import { apiService } from '../services/apiService';
+import { generateBoardingReportPdf } from '../services/pdfService';
+import { exportBoardingToExcel, exportBoardingSummaryToExcel } from '../utils/boardingExportUtils';
 
 interface BoardingReportsProps {
     currentUser: User;
@@ -27,34 +30,89 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
     });
     const [loading, setLoading] = useState(false);
     const [reportData, setReportData] = useState<any>(null);
+    const [companySettings, setCompanySettings] = useState<any>(null);
 
     useEffect(() => {
         loadReportData();
+        loadCompanySettings();
     }, [selectedReport, dateRange]);
+
+    const loadCompanySettings = async () => {
+        const settings = await apiService.fetchCompanySettings();
+        setCompanySettings(settings);
+    };
 
     const loadReportData = async () => {
         setLoading(true);
         try {
             await onLogAction(`Intelligence: Generated ${selectedReport} report`);
 
-            // Artificial delay for futuristic feel
-            await new Promise(resolve => setTimeout(resolve, 800));
+            if (selectedReport === 'summary') {
+                const [houses, allocations, maintenance, checkins, checkouts] = await Promise.all([
+                    apiService.fetchModuleRecords<any>('boarding_houses', currentInstitution.id),
+                    apiService.fetchBedAllocations(currentInstitution.id),
+                    apiService.fetchMaintenanceLogs(currentInstitution.id),
+                    apiService.fetchBoardingCheckIns(currentInstitution.id),
+                    apiService.fetchBoardingCheckOuts(currentInstitution.id)
+                ]);
 
-            setReportData({
-                summary: {
-                    totalHouses: 4,
-                    totalRooms: 48,
-                    totalBeds: 480,
-                    occupiedBeds: 408,
-                    availableBeds: 72,
-                    occupancyRate: 85,
-                    activeAllocations: 408,
-                    checkInsThisPeriod: 156,
-                    checkOutsThisPeriod: 23,
-                    maintenanceIssues: 12,
-                    healthScore: 94
+                // Calculate summary stats
+                const totalHouses = houses?.length || 0;
+                let totalRooms = 0;
+                let totalBeds = 0;
+                let occupiedBeds = 0;
+
+                houses?.forEach((h: any) => {
+                    totalRooms += h.totalRooms || 0;
+                    totalBeds += h.capacity || 0;
+                    occupiedBeds += h.occupiedBeds || 0;
+                });
+
+                const summary = {
+                    totalHouses,
+                    totalRooms,
+                    totalBeds,
+                    occupiedBeds,
+                    availableBeds: totalBeds - occupiedBeds,
+                    occupancyRate: totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0,
+                    activeAllocations: allocations?.filter((a: any) => a.status === 'Active').length || 0,
+                    checkInsThisPeriod: checkins?.length || 0,
+                    checkOutsThisPeriod: checkouts?.length || 0,
+                    maintenanceIssues: maintenance?.filter((m: any) => m.status !== 'Resolved').length || 0,
+                    healthScore: 95 // Hardcoded logic or calculated based on maintenance
+                };
+
+                setReportData({ summary, raw: { houses, allocations, maintenance, checkins, checkouts } });
+            } else {
+                let data: any[] = [];
+                switch (selectedReport) {
+                    case 'occupancy':
+                        data = await apiService.fetchModuleRecords<any>('boarding_houses', currentInstitution.id);
+                        break;
+                    case 'allocations':
+                        data = await apiService.fetchBedAllocations(currentInstitution.id);
+                        break;
+                    case 'checkins':
+                        data = await apiService.fetchBoardingCheckIns(currentInstitution.id);
+                        break;
+                    case 'checkouts':
+                        data = await apiService.fetchBoardingCheckOuts(currentInstitution.id);
+                        break;
+                    case 'maintenance':
+                        data = await apiService.fetchMaintenanceLogs(currentInstitution.id);
+                        break;
                 }
-            });
+
+                // Filter by date if applicable
+                const filteredData = data.filter((item: any) => {
+                    const dateStr = item.checkInDate || item.checkOutDate || item.reportedDate || item.allocationDate || item.created_at;
+                    if (!dateStr) return true;
+                    const itemDate = new Date(dateStr);
+                    return itemDate >= new Date(dateRange.startDate) && itemDate <= new Date(dateRange.endDate);
+                });
+
+                setReportData({ list: filteredData });
+            }
         } catch (error) {
             console.error('Data Synthesis Failure:', error);
         } finally {
@@ -62,9 +120,40 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
         }
     };
 
-    const handleExport = (format: 'PDF' | 'EXCEL') => {
-        onLogAction(`Export: Synchronized ${selectedReport} to ${format}`);
-        alert(`Initializing Binary ${format} Stream...`);
+    const handleExport = async (format: 'PDF' | 'EXCEL') => {
+        if (!reportData) return;
+
+        const fileName = `Boarding_${selectedReport}_Report`;
+        const title = `${selectedReport.toUpperCase()} INTELLIGENCE REPORT`;
+
+        try {
+            if (format === 'PDF') {
+                const dataToExport = selectedReport === 'summary' ? reportData.raw.houses : reportData.list;
+                const pdfUrl = await generateBoardingReportPdf(
+                    dataToExport,
+                    title,
+                    selectedReport.charAt(0).toUpperCase() + selectedReport.slice(1),
+                    companySettings?.letterheadConfig,
+                    companySettings?.footerImageUrl,
+                    currentInstitution
+                );
+                window.open(pdfUrl, '_blank');
+            } else {
+                if (selectedReport === 'summary') {
+                    exportBoardingSummaryToExcel({
+                        houses: reportData.raw.houses,
+                        rooms: [], // Add if needed
+                        beds: [], // Add if needed
+                        allocations: reportData.raw.allocations
+                    });
+                } else {
+                    exportBoardingToExcel(reportData.list, fileName, selectedReport);
+                }
+            }
+            await onLogAction(`Export: Synchronized ${selectedReport} to ${format}`);
+        } catch (error) {
+            alert('Export Failure: Unable to generate binary stream.');
+        }
     };
 
     const renderSummaryReport = () => (
@@ -171,15 +260,44 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
         </div>
     );
 
-    const renderPlaceholder = (type: string) => (
-        <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-2 border-dashed border-slate-100 dark:border-slate-800 animate-fade-in">
-            <BarChart3Icon className="w-24 h-24 text-slate-100 dark:text-slate-900 mx-auto mb-10" />
-            <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">{type} Intelligence Vector</h4>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.3em] max-w-md mx-auto leading-relaxed">
-                Advanced data synthesis for {type.toLowerCase()} analytics is being synchronized. Switch to Summary for active pulse.
-            </p>
-        </div>
-    );
+    const renderDataTable = (type: string, data: any[]) => {
+        if (!data || data.length === 0) {
+            return (
+                <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-2 border-dashed border-slate-100 dark:border-slate-800 animate-fade-in">
+                    <BarChart3Icon className="w-24 h-24 text-slate-100 dark:text-slate-900 mx-auto mb-10" />
+                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">No Data Detected</h4>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.3em] max-w-md mx-auto leading-relaxed">
+                        No {type.toLowerCase()} records found for the selected time phase.
+                    </p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="bg-white dark:bg-slate-800 rounded-[3rem] overflow-hidden shadow-xl shadow-slate-100/50 dark:shadow-none border border-slate-50 dark:border-slate-700">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                                {Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object' && !['id', 'institutionId', 'created_at', 'updated_at'].includes(k)).map(key => (
+                                    <th key={key} className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">{key.replace(/([A-Z])/g, ' $1')}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                            {data.map((row, i) => (
+                                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-all">
+                                    {Object.keys(row).filter(k => typeof row[k] !== 'object' && !['id', 'institutionId', 'created_at', 'updated_at'].includes(k)).map(key => (
+                                        <td key={key} className="px-8 py-6 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">{String(row[key])}</td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-12 animate-fade-in">
@@ -266,8 +384,8 @@ const BoardingReports: React.FC<BoardingReportsProps> = ({
                     </div>
                 ) : (
                     <>
-                        {selectedReport === 'summary' && renderSummaryReport()}
-                        {selectedReport !== 'summary' && renderPlaceholder(selectedReport.toUpperCase())}
+                        {selectedReport === 'summary' && reportData?.summary && renderSummaryReport()}
+                        {selectedReport !== 'summary' && renderDataTable(selectedReport, reportData?.list || [])}
                     </>
                 )}
             </div>

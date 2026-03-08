@@ -153,6 +153,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             const payload = {
                 ...roomFormData,
                 houseId: selectedHouseId,
+                institutionId: currentInstitution.id,
                 id: editingRoom ? editingRoom.id : `room_${Date.now()}`
             };
 
@@ -210,6 +211,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
             const payload = {
                 ...bedFormData,
                 roomId: selectedRoomId,
+                institutionId: currentInstitution.id,
                 id: editingBed ? editingBed.id : `bed_${Date.now()}`
             };
 
@@ -241,6 +243,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                 newBeds.push({
                     id: `bed_${Date.now()}_${i}`,
                     roomId: selectedRoomId,
+                    institutionId: currentInstitution.id,
                     bedNumber: `${bulkBedData.prefix}${String(num).padStart(2, '0')}`,
                     status: 'Available' as BedStatus,
                     condition: 'Good' as BedCondition,
@@ -350,7 +353,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                             </div>
                         ) : rooms.length === 0 ? (
                             <div className="py-24 text-center bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
-                                <InfoCircleIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                <InformationCircleIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No rooms found in house architecture</p>
                             </div>
                         ) : (
