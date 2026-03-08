@@ -107,7 +107,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
 
         setSubmitting(true);
         try {
-            const id = `lo_${Date.now()} `;
+            const id = `lo_${Date.now()}`;
             const newRequest: LeaveOutRequest = {
                 id,
                 institutionId: currentInstitution.id,
