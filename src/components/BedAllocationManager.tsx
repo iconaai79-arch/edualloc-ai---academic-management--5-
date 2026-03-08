@@ -157,6 +157,13 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             return;
         }
 
+        // Double-allocation safety check
+        const alreadyAllocated = allocations.find(a => a.studentId === selectedStudent.id && a.status === 'Active');
+        if (alreadyAllocated) {
+            alert(`Error: ${selectedStudent.name} is already allocated to Bed ${alreadyAllocated.bedNumber} in ${alreadyAllocated.houseName}. You must revoke their current allocation before assigning a new one.`);
+            return;
+        }
+
         try {
             const payload = {
                 id: `allocation_${Date.now()}`,
