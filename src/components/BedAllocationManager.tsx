@@ -427,8 +427,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                             </div>
 
                             {/* Right Panel: Selection */}
-                            <div className="lg:col-span-8 p-12 overflow-y-auto custom-scrollbar">
-                                <div className="flex justify-between items-center mb-10">
+                            <div className="lg:col-span-8 overflow-hidden flex flex-col relative bg-white dark:bg-slate-900">
+                                {/* Header */}
+                                <div className="p-12 pb-6 flex justify-between items-center flex-shrink-0 border-b border-slate-100 dark:border-slate-800/50">
                                     <div>
                                         <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Available Station</h4>
                                         <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Found {availableBeds.length} compatible units</p>
@@ -438,39 +439,43 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-                                    {availableBeds.filter(b => isGenderMatch(b.houseGender, selectedStudent.gender)).map((bed) => (
-                                        <button
-                                            key={bed.id}
-                                            onClick={() => setSelectedBed(bed)}
-                                            className={`p-6 rounded-[2rem] border-2 transition-all text-left group ${selectedBed?.id === bed.id
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100'
-                                                : 'bg-white dark:bg-slate-950 border-slate-50 dark:border-slate-800 hover:border-indigo-100'
-                                                }`}
-                                        >
-                                            <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${selectedBed?.id === bed.id ? 'text-white/60' : 'text-slate-400'}`}>
-                                                {bed.houseName}
-                                            </p>
-                                            <p className="text-sm font-black uppercase tracking-tight mb-2">Room {bed.roomNumber}</p>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <BedIcon className={`w-4 h-4 ${selectedBed?.id === bed.id ? 'text-white' : 'text-indigo-600'}`} />
-                                                    <span className="text-xs font-black">BED {bed.bedNumber}</span>
+                                {/* Scrollable Beds List */}
+                                <div className="p-12 pt-6 overflow-y-auto custom-scrollbar flex-grow">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {availableBeds.filter(b => isGenderMatch(b.houseGender, selectedStudent.gender)).map((bed) => (
+                                            <button
+                                                key={bed.id}
+                                                onClick={() => setSelectedBed(bed)}
+                                                className={`p-6 rounded-[2rem] border-2 transition-all text-left group ${selectedBed?.id === bed.id
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100'
+                                                    : 'bg-white dark:bg-slate-950 border-slate-50 dark:border-slate-800 hover:border-indigo-100'
+                                                    }`}
+                                            >
+                                                <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${selectedBed?.id === bed.id ? 'text-white/60' : 'text-slate-400'}`}>
+                                                    {bed.houseName}
+                                                </p>
+                                                <p className="text-sm font-black uppercase tracking-tight mb-2">Room {bed.roomNumber}</p>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <BedIcon className={`w-4 h-4 ${selectedBed?.id === bed.id ? 'text-white' : 'text-indigo-600'}`} />
+                                                        <span className="text-xs font-black">BED {bed.bedNumber}</span>
+                                                    </div>
+                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-md ${selectedBed?.id === bed.id ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                                                        {bed.houseGender}
+                                                    </span>
                                                 </div>
-                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-md ${selectedBed?.id === bed.id ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                                                    {bed.houseGender}
-                                                </span>
+                                            </button>
+                                        ))}
+                                        {availableBeds.length === 0 && (
+                                            <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-950 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-widest">
+                                                Architecture Exhausted: No available beds in {selectedStudent.gender} housing
                                             </div>
-                                        </button>
-                                    ))}
-                                    {availableBeds.length === 0 && (
-                                        <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-950 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 uppercase text-[10px] font-black tracking-widest">
-                                            Architecture Exhausted: No available beds in {selectedStudent.gender} housing
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="flex flex-col sm:flex-row gap-6">
+                                {/* Sticky Footer */}
+                                <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl flex-shrink-0 flex flex-col sm:flex-row gap-6 relative z-10 w-full shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.05)] dark:shadow-none">
                                     <button
                                         onClick={() => setShowAllocationModal(false)}
                                         className="flex-1 py-5 bg-slate-50 dark:bg-slate-800 text-slate-400 rounded-3xl text-[10px] font-black uppercase tracking-[0.3em]"
