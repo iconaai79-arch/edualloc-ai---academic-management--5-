@@ -1185,19 +1185,19 @@ export const apiService = {
                 .from('bed_allocations')
                 .select(`
                     *,
-                    users!bed_allocations_student_id_fkey(name, email, gender),
-                    users!bed_allocations_allocated_by_fkey(name),
-                    boarding_beds!inner(
+                    usersStudentIdFkey:users!student_id(name, email, gender),
+                    usersAllocatedByFkey:users!allocated_by(name),
+                    boardingBeds:boarding_beds(
                         bed_number,
-                        boarding_rooms!inner(
+                        boarding_rooms(
                             room_number,
-                            boarding_houses!inner(name, institution_id)
+                            boarding_houses(name, institution_id)
                         )
                     ),
                     boarding_checkins(id),
                     boarding_checkouts(id)
                 `)
-                .eq('boarding_beds.boarding_rooms.boarding_houses.institution_id', institutionId)
+                .eq('institution_id', institutionId)
                 .order('allocation_date', { ascending: false });
             if (error) throw error;
             return toCamelCase(data) || [];
