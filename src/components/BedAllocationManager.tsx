@@ -177,8 +177,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             setShowAllocationModal(false);
             loadData();
             onDataChange();
-        } catch (error) {
-            alert('Allocation failed. Please verify student status.');
+        } catch (error: any) {
+            console.error('Allocation Error:', error);
+            alert(`Allocation failed: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -479,8 +480,8 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
                                     <button
                                         onClick={handleAllocateBed}
                                         className={`flex-[2] py-5 text-white rounded-3xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl flex items-center justify-center gap-3 transition-all ${selectedBed
-                                                ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
-                                                : 'bg-indigo-400 cursor-not-allowed opacity-80'
+                                            ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                                            : 'bg-indigo-400 cursor-not-allowed opacity-80'
                                             }`}
                                     >
                                         EXECUTE PLACEMENT <ArrowRightIcon className="w-5 h-5" />
