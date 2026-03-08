@@ -181,8 +181,10 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const filteredStudents = useMemo(() => {
         return students.filter(student => {
-            const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                student.email?.toLowerCase().includes(searchTerm.toLowerCase());
+            const searchLower = searchTerm.toLowerCase();
+            const matchesSearch = (student.name || '').toLowerCase().includes(searchLower) ||
+                (student.email || '').toLowerCase().includes(searchLower) ||
+                (student.staffId || '').toLowerCase().includes(searchLower);
             const isUnallocated = !allocations.some(a => a.studentId === student.id && a.status === 'Active');
             return matchesSearch && isUnallocated;
         });
@@ -190,7 +192,9 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
 
     const filteredAllocations = useMemo(() => {
         return allocations.filter(a => {
-            const matchesSearch = a.studentName.toLowerCase().includes(searchTerm.toLowerCase());
+            const searchLower = searchTerm.toLowerCase();
+            const matchesSearch = (a.studentName || '').toLowerCase().includes(searchLower) ||
+                (a.studentId || '').toLowerCase().includes(searchLower);
             const matchesHouse = houseFilter === 'all' || a.houseName === houseFilter;
             const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
             return matchesSearch && matchesHouse && matchesStatus;
