@@ -228,7 +228,7 @@ const BedAllocationManager: React.FC<BedAllocationManagerProps> = ({
             // Robust allocation check
             const studentId = (student.id || '').toString().trim();
             const matchingAllocation = allocations.find(a => {
-                const allocStudentId = (a.studentId || '').toString().trim();
+                const allocStudentId = (a.studentId || (a as any).student_id || '').toString().trim();
                 return (allocStudentId === studentId) && (a.status === 'Active');
             });
 

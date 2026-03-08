@@ -232,12 +232,6 @@ export const apiService = {
             return null;
         }
     },
-    async saveUser(user: User): Promise<void> {
-        if (!_supabase) return;
-        const snakeData = toSnakeCase(user);
-        const { error } = await _supabase.from('users').upsert(snakeData);
-        if (error) throw error;
-    },
     async fetchModuleRecords<T>(module: string, institutionId?: string, countyId?: string): Promise<T[]> {
         const getFilterCol = (mod: string, type: 'institution' | 'county') => {
             if (type === 'institution') {
@@ -1197,11 +1191,23 @@ export const apiService = {
                     boarding_checkins(id),
                     boarding_checkouts(id)
                 `)
-                .eq('institution_id', institutionId)
                 .order('allocation_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+
+            if (error) {
+                console.error('Fetch Bed Allocations Error:', error);
+                throw error;
+            }
+
+            // Filter in-memory to be safer, or let RLS handle it
+            const filtered = (data || []).filter((a: any) =>
+                !a.institution_id || a.institution_id === institutionId
+            );
+
+            return toCamelCase(filtered) || [];
+        } catch (e) {
+            console.error('Fetch Bed Allocations Exception:', e);
+            return [];
+        }
     },
     async fetchMaintenanceLogs(institutionId: string): Promise<any[]> {
         if (!_supabase) return [];
