@@ -254,14 +254,22 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
         }
 
         try {
+            const currentBedNumbers = selectedRoom.beds.map(b => b.bedNumber.toLowerCase());
             const newBeds = [];
             for (let i = 0; i < bulkBedData.count; i++) {
                 const num = bulkBedData.startNumber + i;
+                const newBedNumber = `${bulkBedData.prefix}${String(num).padStart(2, '0')}`;
+
+                if (currentBedNumbers.includes(newBedNumber.toLowerCase())) {
+                    alert(`Validation Failed: Bed number "${newBedNumber}" already exists in this room. Please choose a different start number or prefix.`);
+                    return;
+                }
+
                 newBeds.push({
                     id: `bed_${Date.now()}_${i}`,
                     roomId: selectedRoomId,
                     institutionId: currentInstitution.id,
-                    bedNumber: `${bulkBedData.prefix}${String(num).padStart(2, '0')}`,
+                    bedNumber: newBedNumber,
                     status: 'Available' as BedStatus,
                     condition: 'Good' as BedCondition,
                     notes: 'Bulk created'
