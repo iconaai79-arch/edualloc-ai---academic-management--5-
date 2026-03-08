@@ -39,6 +39,7 @@ export { SunIcon } from './SunIcon';
 export { UserIcon } from './UserIcon';
 export { UserGroupIcon } from './UserGroupIcon';
 export { XIcon } from './XIcon';
+export { GiftIcon } from './GiftIcon';
 export { CreditCardIcon } from './CreditCardIcon';
 export { ChartBarIcon } from './ChartBarIcon';
 export { RectangleStackIcon } from './RectangleStackIcon';
