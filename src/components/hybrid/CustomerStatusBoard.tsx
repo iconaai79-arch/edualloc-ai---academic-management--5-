@@ -44,6 +44,7 @@ export const CustomerStatusBoard: React.FC<CustomerStatusBoardProps> = ({
         switch (status) {
             case 'queued': return <span className="text-slate-400">Waiting</span>;
             case 'in_progress': return <span className="text-blue-400 animate-pulse">Washing...</span>;
+            case 'ready':
             case 'completed': return <span className="text-emerald-400 font-extrabold">READY</span>;
             default: return <span className="text-slate-500">{status}</span>;
         }

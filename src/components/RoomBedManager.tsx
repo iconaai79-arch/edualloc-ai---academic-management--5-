@@ -458,7 +458,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                                             onClick={() => handleOpenBedModal()}
                                             className="px-5 py-2.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
                                         >
-                                            Manual Provision
+                                            <PlusIcon className="w-3 h-3 inline-block mr-1 mb-0.5" /> Add Bed
                                         </button>
                                     </div>
                                 </div>
@@ -522,10 +522,12 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                         ) : (
                             <div className="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/10 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 py-32 group hover:border-indigo-100 transition-all">
                                 <div className="w-24 h-24 bg-white dark:bg-slate-800 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-sm group-hover:scale-110 transition-all">
-                                    <ListIcon className="w-10 h-10 text-indigo-600 opacity-20" />
+                                    <BedIcon className="w-10 h-10 text-indigo-600 opacity-20" />
                                 </div>
-                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-widest mb-2">Architectural Breakdown</h4>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Select a room from the left axis to manage beds</p>
+                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-widest mb-2">Inventory Management</h4>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 max-w-xs text-center">
+                                    Please select a room from the list on the left to add or manage beds within that unit.
+                                </p>
                             </div>
                         )}
                     </div>

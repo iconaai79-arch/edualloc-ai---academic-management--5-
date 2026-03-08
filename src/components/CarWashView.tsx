@@ -907,14 +907,16 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
 
             await apiService.saveModuleRecord('carwash_jobs', updated);
 
-            // ── Update linked cafe orders to completed status ──
+            // ── Update linked cafe orders to completed status & mark as delivered ──
             for (const order of relevantCafe) {
-                await apiService.saveModuleRecord('cafe_orders', { ...order, status: 'completed' });
+                const updatedItems = order.items.map(i => i.kitchenStatus ? { ...i, kitchenStatus: 'delivered' as const } : i);
+                await apiService.saveModuleRecord('cafe_orders', { ...order, status: 'completed', items: updatedItems });
             }
 
-            // Link retail sales to the same payment method used for the wash if they were on tab
+            // Link retail sales to the same payment method used for the wash if they were on tab & mark as delivered
             for (const sale of relevantRetail) {
-                await apiService.saveModuleRecord('retail_sales', { ...sale, paymentMethod: method });
+                const updatedItems = sale.items.map(i => i.kitchenStatus ? { ...i, kitchenStatus: 'delivered' as const } : i);
+                await apiService.saveModuleRecord('retail_sales', { ...sale, paymentMethod: method, items: updatedItems });
             }
 
             // ── Loyalty Points Update ──
@@ -1652,7 +1654,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
     const statusColor: Record<CarWashJob['status'], string> = { queued: 'bg-amber-100 text-amber-700', in_progress: 'bg-blue-100 text-blue-700', ready: 'bg-purple-100 text-purple-700', completed: 'bg-emerald-100 text-emerald-700', cancelled: 'bg-red-100 text-red-700' };
 
     const perspectiveTabs: Record<string, string[]> = {
-        admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu', 'settings'],
+        admin: ['dashboard', 'queue', 'customers', 'services', 'inventory', 'staff', 'reports', 'feedback', 'broadcast', 'transactions', 'finance', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu', 'settings', 'config'],
         attendant: ['dashboard', 'queue', 'services', 'inventory', 'feedback'],
         waiter: ['queue', 'hybrid_pos', 'kds', 'live_board', 'cafe_menu'],
         cashier: ['dashboard', 'queue', 'customers', 'transactions', 'finance']
@@ -1674,6 +1676,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
         { id: 'kds', label: 'Kitchen Display', icon: <ClipboardListIcon className="w-4 h-4" /> },
         { id: 'live_board', label: 'Live Board', icon: <EyeIcon className="w-4 h-4" /> },
         { id: 'cafe_menu', label: 'Cafe Menu', icon: <ArchiveBoxIcon className="w-4 h-4" /> },
+        currentUser.role === 'carwash_admin' || currentUser.role === 'admin' || currentUser.role === 'super_admin' ? { id: 'config', label: 'Config', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
         currentUser.role === 'carwash_admin' ? { id: 'settings', label: 'Settings', icon: <Cog8ToothIcon className="w-4 h-4" /> } : null,
     ].filter(t => t && perspectiveTabs[perspective].includes(t.id)) as { id: string, label: string, icon: React.ReactNode }[];
 
