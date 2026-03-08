@@ -38,6 +38,8 @@ interface BoardingMasterViewProps {
     logoUrl?: string | null;
     footerImageUrl?: string | null;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
+    onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
+    onDeleteParent?: (studentId: string, parentId: string) => void;
 }
 
 
@@ -63,7 +65,9 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
     letterheadConfig,
     logoUrl,
     footerImageUrl,
-    onSendSms
+    onSendSms,
+    onAddParent,
+    onDeleteParent
 }) => {
 
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
@@ -486,6 +490,8 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         showOnly="student"
                         allocations={[]} // Optional for student view in this context
                         onWithdrawRequest={() => { }}
+                        onAddParent={onAddParent}
+                        onDeleteParent={onDeleteParent}
                     />
                 )}
             </div>

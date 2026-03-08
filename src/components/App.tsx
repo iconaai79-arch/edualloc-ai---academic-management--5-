@@ -2192,6 +2192,8 @@ export const App: React.FC = () => {
                                     logoUrl={activeLogoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
+                                    onDeleteParent={() => { }}
                                 />
 
                             ) : (activeRole === 'carwash_admin' || (isAdminCatchAll && (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash')))) ? (
