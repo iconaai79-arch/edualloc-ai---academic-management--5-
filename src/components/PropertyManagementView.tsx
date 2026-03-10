@@ -11,7 +11,7 @@ import {
     ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
-    MpesaIcon, BanknotesIcon, PencilIcon
+    MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon
 } from './icons/index';
 
 interface PropertyManagementViewProps {
