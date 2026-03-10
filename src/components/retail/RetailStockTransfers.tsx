@@ -20,6 +20,8 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
     const [destStoreId, setDestStoreId] = useState('');
     const [selectedItems, setSelectedItems] = useState<{ itemId: string, quantity: number }[]>([]);
     const [notes, setNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
 
     useEffect(() => {
         fetchData();
@@ -46,10 +48,16 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
 
     const handleCreateTransfer = async () => {
         if (!sourceStoreId || !destStoreId || selectedItems.length === 0) {
-            alert("Please fill in all required fields.");
+            setSubmitError(!sourceStoreId ? 'Please select a Source Store.' : !destStoreId ? 'Please select a Destination Store.' : 'Please add at least one item to transfer.');
+            return;
+        }
+        if (sourceStoreId === destStoreId) {
+            setSubmitError('Source and Destination stores cannot be the same.');
             return;
         }
 
+        setIsSubmitting(true);
+        setSubmitError('');
         try {
             const newTransfer = {
                 institutionId,
@@ -64,7 +72,6 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
             const savedTransfer = await apiService.saveModuleRecord<RetailStockTransfer>('retail_stock_transfers', newTransfer);
 
             if (savedTransfer && (savedTransfer as any).id) {
-                // Save transfer items
                 const transferItems = selectedItems.map(item => ({
                     transferId: (savedTransfer as any).id,
                     itemId: item.itemId,
@@ -76,9 +83,21 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                 setIsCreateModalOpen(false);
                 fetchData();
                 resetForm();
+            } else {
+                setSubmitError('Transfer could not be saved. Please check your store setup and try again.');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Create transfer error:", err);
+            const msg = err?.message || '';
+            if (msg.includes('uuid')) {
+                setSubmitError('System ID error: Ensure stores are properly configured with valid IDs.');
+            } else if (msg.includes('foreign key') || msg.includes('23503')) {
+                setSubmitError('Reference error: One of the selected stores or items no longer exists.');
+            } else {
+                setSubmitError(`Failed to submit: ${msg || 'Unknown error. Please try again.'}`);
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -104,6 +123,7 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
         setDestStoreId('');
         setSelectedItems([]);
         setNotes('');
+        setSubmitError('');
     };
 
     const getStatusStyles = (status: string) => {
@@ -348,19 +368,33 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                             </div>
                         </div>
 
-                        <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                            <button
-                                onClick={() => setIsCreateModalOpen(false)}
-                                className="px-6 py-3 text-sm font-bold text-slate-500 uppercase tracking-widest hover:text-slate-800 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleCreateTransfer}
-                                className="px-8 py-3 bg-indigo-600 text-white text-sm font-black uppercase tracking-widest rounded-xl shadow-lg hover:shadow-indigo-200/50 hover:-translate-y-0.5 transition-all"
-                            >
-                                Submit Transfer Request
-                            </button>
+                        <div className="p-8 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                            {submitError && (
+                                <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
+                                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                                    <p className="text-xs font-bold text-rose-700">{submitError}</p>
+                                </div>
+                            )}
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => { setIsCreateModalOpen(false); resetForm(); }}
+                                    className="px-6 py-3 text-sm font-bold text-slate-500 uppercase tracking-widest hover:text-slate-800 transition-colors"
+                                    disabled={isSubmitting}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreateTransfer}
+                                    disabled={isSubmitting}
+                                    className={`px-8 py-3 text-sm font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2 ${isSubmitting
+                                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                            : 'bg-indigo-600 text-white hover:shadow-indigo-200/50 hover:-translate-y-0.5'
+                                        }`}
+                                >
+                                    {isSubmitting && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                    {isSubmitting ? 'Submitting...' : 'Submit Transfer Request'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
