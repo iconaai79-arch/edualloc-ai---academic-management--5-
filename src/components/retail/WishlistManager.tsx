@@ -13,6 +13,7 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'urgent' | 'casual' | 'matched'>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'Open' | 'Closed'>('Open');
 
     useEffect(() => {
         fetchLeads();
@@ -22,8 +23,13 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
         setIsLoading(true);
         try {
             const data = await apiService.fetchModuleRecords<RetailWishlist>('retail_wishlist', institutionId);
+            // Default status to 'Open' for records without it
+            const normalizedData = data.map(l => ({
+                ...l,
+                status: l.status || 'Open'
+            }));
             // Sort by latest first
-            const sortedData = data.sort((a, b) =>
+            const sortedData = normalizedData.sort((a, b) =>
                 new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
             setLeads(sortedData);
@@ -31,6 +37,17 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
             console.error('Failed to fetch leads:', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleCloseLead = async (leadId: string) => {
+        try {
+            await apiService.saveModuleRecord('retail_wishlist', { id: leadId, status: 'Closed' });
+            // Update local state
+            setLeads(leads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
+        } catch (error) {
+            console.error('Failed to close lead:', error);
+            alert('Failed to close lead. Please try again.');
         }
     };
 
@@ -46,7 +63,9 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                 ? lead.isMatched
                 : lead.urgency === filter && !lead.isMatched;
 
-        return matchesSearch && matchesFilter;
+        const matchesStatus = lead.status === statusFilter;
+
+        return matchesSearch && matchesFilter && matchesStatus;
     });
 
     return (
@@ -83,7 +102,20 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                         onClick={() => setFilter('matched')}
                         className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${filter === 'matched' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                     >
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Stock Matched ({leads.filter(l => l.isMatched).length})
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Stock Matched ({leads.filter(l => l.isMatched && l.status === statusFilter).length})
+                    </button>
+                    <div className="w-px h-6 bg-slate-200 mx-2 hidden md:block"></div>
+                    <button
+                        onClick={() => setStatusFilter('Open')}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${statusFilter === 'Open' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        Open
+                    </button>
+                    <button
+                        onClick={() => setStatusFilter('Closed')}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${statusFilter === 'Closed' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        Closed
                     </button>
                 </div>
 
@@ -160,13 +192,21 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                             </div>
 
                             {/* Actions Footer */}
-                            <div className="border-t border-slate-100 bg-slate-50/50 p-4 flex gap-3">
+                            <div className="border-t border-slate-100 bg-slate-50/50 p-4 flex flex-wrap gap-3">
                                 <button className="flex-1 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors flex items-center justify-center gap-2">
                                     <Phone className="w-4 h-4" /> Call Client
                                 </button>
                                 <button className="flex-1 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow transition-all flex items-center justify-center gap-2">
                                     <MessageSquare className="w-4 h-4" /> WhatsApp
                                 </button>
+                                {lead.status !== 'Closed' && (
+                                    <button
+                                        onClick={() => handleCloseLead(lead.id)}
+                                        className="w-full py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 hover:text-slate-800 transition-colors flex items-center justify-center gap-2 mt-1"
+                                    >
+                                        <CheckCircle2 className="w-4 h-4" /> Close Lead
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}

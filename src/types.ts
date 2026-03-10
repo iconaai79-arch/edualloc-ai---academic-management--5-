@@ -2231,6 +2231,7 @@ export interface RetailWishlist {
     urgency: RetailWishlistUrgency;
     capturedById: string;    // User ID of the agent who logged the lead
     isMatched: boolean;
+    status?: 'Open' | 'Closed';
     notifiedAt?: string;
     createdAt: string;
 }

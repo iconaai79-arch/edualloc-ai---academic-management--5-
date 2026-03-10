@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     User, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
-    Institution
+    Institution, AppNotification
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
     HomeIcon, CreditCardIcon, WrenchIcon, FileTextIcon,
     BellIcon, UserIcon, ArrowRightOnRectangleIcon, ArrowRightIcon
 } from './icons/index';
+import { NotificationBell } from './NotificationBell';
 
 interface TenantPortalViewProps {
     currentUser: User;
@@ -26,6 +27,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({ currentUser,
     const [tickets, setTickets] = useState<PMTicket[]>([]);
     const [units, setUnits] = useState<PMUnit[]>([]);
     const [properties, setProperties] = useState<PMProperty[]>([]);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     useEffect(() => {
         const loadTenantData = async () => {
@@ -62,8 +64,32 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({ currentUser,
             }
         };
 
+        const loadNotifications = async () => {
+            try {
+                const data = await apiService.fetchNotifications(currentUser.id);
+                setNotifications(data);
+            } catch (err) {
+                console.error("Failed to load notifications:", err);
+            }
+        };
+
         loadTenantData();
+        loadNotifications();
     }, [currentUser, currentInstitution]);
+
+    const handleMarkAsRead = async (id?: string) => {
+        try {
+            if (id) {
+                await apiService.markNotificationAsRead(id);
+                setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
+            } else {
+                await apiService.markAllNotificationsAsRead(currentUser.id);
+                setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+            }
+        } catch (err) {
+            console.error("Failed to mark notification as read:", err);
+        }
+    };
 
     const activeLease = leases.find(l => l.status === 'Active');
     const property = activeLease ? properties.find(p => p.id === (units.find(u => u.id === activeLease.unitId)?.propertyId)) : null;
@@ -158,10 +184,10 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({ currentUser,
                         <p className="text-slate-400 font-medium">Welcome back, {currentUser.name.split(' ')[0]}!</p>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button className="w-12 h-12 bg-white rounded-2xl border border-slate-100 flex items-center justify-center relative shadow-sm hover:shadow-md transition-all">
-                            <BellIcon className="w-5 h-5 text-slate-400" />
-                            <span className="absolute top-3 right-3 w-2 h-2 bg-indigo-600 rounded-full border-2 border-white"></span>
-                        </button>
+                        <NotificationBell
+                            notifications={notifications}
+                            onMarkAsRead={handleMarkAsRead}
+                        />
                     </div>
                 </header>
 

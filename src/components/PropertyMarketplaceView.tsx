@@ -44,6 +44,28 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         setInquirySuccess(false);
     };
 
+    const createMarketplaceNotification = async (institutionId: string, message: string, type: string, link?: string) => {
+        try {
+            // Fetch all users for this institution to notify them
+            const users = await apiService.fetchUsers(institutionId);
+            const notifications = users.map(user => ({
+                id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                userId: user.id,
+                institutionId: institutionId,
+                message,
+                type,
+                link,
+                isRead: false,
+                timestamp: new Date().toISOString()
+            }));
+
+            // Save notifications for all users
+            await Promise.all(notifications.map(n => apiService.saveModuleRecord('app_notifications', n)));
+        } catch (err) {
+            console.error('Failed to create marketplace notifications:', err);
+        }
+    };
+
     const handleSubmitInquiry = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inquiryListing && !inquiryProduct) return;
@@ -86,6 +108,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 };
 
                 await apiService.saveModuleRecord('pm_inquiries', pmInquiry);
+
+                // Send bell notifications to institutional staff
+                await createMarketplaceNotification(
+                    inquiryListing.institutionId,
+                    `New inquiry from ${inquiryName} for property: ${inquiryListing.title}`,
+                    'property_inquiry'
+                );
             } else if (inquiryProduct) {
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {
@@ -94,7 +123,9 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,
+                    capturedById: 'system', // Marketplace captured
                     urgency: 'urgent',
+                    status: 'Open',
                     createdAt: new Date().toISOString()
                 };
 
@@ -121,6 +152,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         console.warn('Inquiry email notification failed:', emailErr);
                     }
                 }
+
+                // Send bell notifications to institutional staff
+                await createMarketplaceNotification(
+                    inquiryProduct.institutionId,
+                    `New lead from ${inquiryName} for product: ${inquiryProduct.name}`,
+                    'retail_lead'
+                );
             }
 
             setInquirySuccess(true);

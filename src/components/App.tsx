@@ -283,6 +283,7 @@ export const App: React.FC = () => {
     const [observationNotes, setObservationNotes] = useState<ObservationNote[]>([]);
     const [transportOnboarding, setTransportOnboarding] = useState<TransportOnboarding[]>([]);
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -410,7 +411,7 @@ export const App: React.FC = () => {
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
-            const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs] = await Promise.all([
+            const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
@@ -428,6 +429,7 @@ export const App: React.FC = () => {
                 apiService.fetchTransactions(instId).catch(() => []),
                 apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
                 apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
+                currentUser ? apiService.fetchNotifications(currentUser.id).catch(() => []) : Promise.resolve([]),
             ]);
 
             if (insts && insts.length > 0) setInstitutions(insts);
@@ -472,6 +474,7 @@ export const App: React.FC = () => {
             setTransactions(txns || []);
             setReceipts(recs || []);
             setActivityLog(logs || []);
+            setNotifications(notifs || []);
 
             const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
@@ -1307,6 +1310,15 @@ export const App: React.FC = () => {
         }
     }, [currentUser, loadData]);
 
+    const handleMarkNotificationAsRead = useCallback(async (id: string) => {
+        try {
+            await apiService.markNotificationAsRead(id);
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+        } catch (error) {
+            console.error("Failed to mark notification as read:", error);
+        }
+    }, []);
+
     const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
         try {
             console.log('🏛️ Adding county with data:', data);
@@ -1698,8 +1710,8 @@ export const App: React.FC = () => {
                             onEditProfile={() => setIsProfileModalOpen(true)}
                             logoUrl={activeInstitution?.logoUrl || companyDetails.logoUrl}
                             systemLogoUrl={companyDetails.logoUrl}
-                            notifications={[]}
-                            onMarkAsRead={() => { }}
+                            notifications={notifications}
+                            onMarkAsRead={handleMarkNotificationAsRead}
                             currentInstitution={activeInstitution}
                             isApiOnline={isApiOnline}
                             applicationTitle={companyDetails.applicationTitle}

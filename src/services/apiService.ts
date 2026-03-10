@@ -350,6 +350,25 @@ export const apiService = {
             throw e;
         }
     },
+    async fetchNotifications(userId: string): Promise<AppNotification[]> {
+        if (!_supabase) return ls.get('app_notifications').filter((n: any) => n.user_id === userId).map(toCamelCase);
+        const { data, error } = await _supabase.from('app_notifications').select('*').eq('user_id', userId);
+        if (error) throw error;
+        return data ? toCamelCase(data) : [];
+    },
+    async markNotificationAsRead(id: string): Promise<void> {
+        await this.saveModuleRecord('app_notifications', { id, isRead: true } as any);
+    },
+    async markAllNotificationsAsRead(userId: string): Promise<void> {
+        if (!_supabase) {
+            const records = ls.get('app_notifications');
+            const updated = records.map((n: any) => n.user_id === userId ? { ...n, is_read: true } : n);
+            ls.set('app_notifications', updated);
+            return;
+        }
+        const { error } = await _supabase.from('app_notifications').update({ is_read: true }).eq('user_id', userId);
+        if (error) throw error;
+    },
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {
             ls.delete(module, id);
