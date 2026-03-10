@@ -2534,11 +2534,11 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text(`Name: ${member.name}`, margin, tableStartY - 5);
     doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
 
-    // Guard for member.role
+    // Guard for member.role - Fixed positioning to avoid overlap with Name
     const roleText = (member.roles && member.roles.length > 0)
         ? member.roles.map(r => formatRoleDisplayName(r as Role, institution)).join(', ').toUpperCase()
         : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'N/A');
-    doc.text(`Role: ${roleText}`, margin, tableStartY - 5);
+    doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
 
     // Institution Contact Details
     doc.setFont('helvetica', 'italic');
@@ -2553,7 +2553,7 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text('BOOK CIRCULATION HISTORY', margin, tableY - 5);
 
     const transactionBody = transactions.map(t => ([
-        new Date(t.issueDate).toLocaleDateString(),
+        t.issueDate ? new Date(t.issueDate).toLocaleDateString() : 'N/A',
         getBookTitle(t.bookId),
         t.returnDate ? new Date(t.returnDate).toLocaleDateString() : 'NOT RETURNED',
         (t.status || 'unknown').toUpperCase()
@@ -2570,7 +2570,7 @@ export const generateMemberLibraryHistoryPdf = async (
             styles: { fontSize: 8 }
         });
 
-        tableY = (doc as any).lastAutoTable.finalY + 20;
+        tableY = ((doc as any).lastAutoTable?.finalY || tableY) + 20;
     } else {
         tableY += 20;
     }
@@ -2605,11 +2605,12 @@ export const generateMemberLibraryHistoryPdf = async (
     }
 
     const totalDue = fines.reduce((acc, f) => acc + (Number(f.amount || 0) - Number(f.paidAmount || 0)), 0);
-    const finalY = (doc as any).lastAutoTable?.finalY || tableY;
+    const finalY = (doc as any).lastAutoTable?.finalY || (tableY + 10);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 50, finalY + 10);
+    doc.setTextColor(0, 0, 0); // Reset color
+    doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 55, finalY + 10);
     doc.setTextColor(totalDue > 0 ? [200, 0, 0] : [0, 100, 0]);
     doc.text(`KES ${totalDue.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
 
