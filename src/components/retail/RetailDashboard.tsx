@@ -41,7 +41,7 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
             const vanAgents = (stores || []).filter(s => s.storeType === 'van_stock').length;
 
             const invValue = (inventory || []).reduce((sum, item) => {
-                const price = (item as any).basePrice || (item as any).costPrice || 0;
+                const price = (item as any).srpPrice || (item as any).basePrice || (item as any).costPrice || 0;
                 return sum + (price * (item.quantity || 0));
             }, 0);
 
@@ -136,7 +136,7 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                         <div>
                             <p className="text-sm font-medium text-slate-500 mb-1">Total Inventory Value</p>
                             <h3 className="text-3xl font-bold text-slate-800">
-                                ${stats.totalInventoryValue.toLocaleString()}
+                                KES {stats.totalInventoryValue.toLocaleString()}
                             </h3>
                             <p className="text-xs text-slate-400 mt-2">Across all stores and agents</p>
                         </div>
@@ -152,7 +152,7 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                         <div>
                             <p className="text-sm font-medium text-slate-500 mb-1">Agent Commissions (Mtd)</p>
                             <h3 className="text-3xl font-bold text-slate-800">
-                                ${stats.commissionsThisMonth.toLocaleString()}
+                                KES {stats.commissionsThisMonth.toLocaleString()}
                             </h3>
                             <p className="text-xs text-slate-400 mt-2">Dynamic pricing margin splits</p>
                         </div>

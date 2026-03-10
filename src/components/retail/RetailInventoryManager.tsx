@@ -9,7 +9,7 @@ import {
     AlertTriangle,
     Tag,
     Layers,
-    DollarSign,
+    Banknote,
     X,
     CheckCircle2,
     Image as ImageIcon,
@@ -530,9 +530,9 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
 
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pt-6 border-t border-slate-50 dark:border-slate-700">
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Retail Price</label>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Retail Price (KES)</label>
                                     <div className="relative">
-                                        <DollarSign className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
+                                        <Banknote className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
                                         <input
                                             required
                                             type="number"

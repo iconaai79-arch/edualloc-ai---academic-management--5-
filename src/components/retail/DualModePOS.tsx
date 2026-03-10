@@ -75,7 +75,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         const basePrice = isCafe ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0);
 
         if (numPrice < basePrice) {
-            alert(`Price cannot be below the Base Price of $${basePrice}`);
+            alert(`Price cannot be below the Base Price of KES ${basePrice}`);
             return;
         }
 
@@ -150,7 +150,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                 // Mock notifications
                 if (customerInfo.phone) {
-                    console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for $${totalAmount}`);
+                    console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for KES ${totalAmount}`);
                 }
                 if (customerInfo.email) {
                     console.log(`[Mock Email] Sending invoice to ${customerInfo.email}`);
@@ -202,8 +202,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
     const filteredProducts = products.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (p.sku?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        ((p as any).barcode && (p as any).barcode.toLowerCase().includes(searchQuery.toLowerCase())) ||
         p.category?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -294,9 +294,9 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                 </div>
 
                                 <div className="mt-4 pt-4 border-t border-slate-100">
-                                    <p className="text-2xl font-black text-blue-600">${(product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice}</p>
+                                    <p className="text-2xl font-black text-blue-600">KES {(product as any).source === 'cafe' ? (product as any).basePrice : (product as any).srpPrice}</p>
                                     <p className="text-[10px] font-black uppercase text-slate-400 mt-1 flex items-center gap-1 tracking-widest">
-                                        <Tag className="w-3 h-3" /> Base: {(product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0)}
+                                        <Tag className="w-3 h-3" /> Base: KES {(product as any).source === 'cafe' ? (product as any).basePrice : ((product as any).basePrice || (product as any).costPrice || 0)}
                                     </p>
                                 </div>
                             </div>
@@ -320,9 +320,9 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Selling Price (Market: ${(selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : (selectedItem as any).srpPrice})</label>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Selling Price (Market: KES {(selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : (selectedItem as any).srpPrice})</label>
                                 <div className="relative">
-                                    <DollarSign className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                    <HandCoins className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                                     <input
                                         type="number"
                                         value={negotiatedPrice}
@@ -339,14 +339,14 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                     <span className="text-sm font-medium">Extra Earnings:</span>
                                 </div>
                                 <span className="text-lg font-bold text-emerald-600">
-                                    ${Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))).toFixed(2)}
+                                    KES {Math.max(0, parseFloat(negotiatedPrice || '0') - ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))).toFixed(2)}
                                 </span>
                             </div>
 
                             {parseFloat(negotiatedPrice) < ((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0)) && (
                                 <div className="flex gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                    <p>Price too low. Base price is ${((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))}</p>
+                                    <p>Price too low. Base price is KES {((selectedItem as any).source === 'cafe' ? (selectedItem as any).basePrice : ((selectedItem as any).basePrice || (selectedItem as any).costPrice || 0))}</p>
                                 </div>
                             )}
 
@@ -380,11 +380,11 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                     <div className="flex-1">
                                         <p className="font-semibold text-slate-800 text-sm truncate">{cartItem.item.name}</p>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs text-slate-500">${cartItem.finalPrice} x {cartItem.quantity}</span>
+                                            <span className="text-xs text-slate-500">KES {cartItem.finalPrice} x {cartItem.quantity}</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="font-bold text-slate-800">${cartItem.finalPrice * cartItem.quantity}</span>
+                                        <span className="font-bold text-slate-800">KES {cartItem.finalPrice * cartItem.quantity}</span>
                                         <button onClick={() => removeFromCart(idx)} className="text-slate-400 hover:text-red-500 transition-colors">
                                             <X className="w-4 h-4" />
                                         </button>
@@ -406,12 +406,12 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                     <div className="flex justify-between items-center mb-6 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
                         <span className="font-semibold text-sm flex items-center gap-2"><HandCoins className="w-4 h-4" /> Estimated Commission</span>
-                        <span className="font-bold">${totalCommission.toFixed(2)}</span>
+                        <span className="font-bold">KES {totalCommission.toFixed(2)}</span>
                     </div>
 
                     <div className="flex justify-between items-center mb-6">
                         <span className="text-slate-800 font-bold text-xl">Total due</span>
-                        <span className="text-blue-600 font-black text-3xl">${totalAmount.toFixed(2)}</span>
+                        <span className="text-blue-600 font-black text-3xl">KES {totalAmount.toFixed(2)}</span>
                     </div>
 
                     <button
@@ -508,7 +508,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                                     <div className="pt-4 mt-6 border-t border-slate-100 flex justify-between items-center">
                                         <span className="text-slate-500">Total charge</span>
-                                        <span className="text-2xl font-black text-slate-800">${totalAmount.toFixed(2)}</span>
+                                        <span className="text-2xl font-black text-slate-800">KES {totalAmount.toFixed(2)}</span>
                                     </div>
 
                                     <button

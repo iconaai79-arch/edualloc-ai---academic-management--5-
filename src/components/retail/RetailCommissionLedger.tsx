@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailCommissionLedger as CommissionType, User, RetailInventoryItem } from '../../types';
-import { HandCoins, DollarSign, Calendar, User as UserIcon, Tag, CheckCircle2, AlertCircle, Search, Filter, ArrowUpRight } from 'lucide-react';
+import { HandCoins, Banknote, Calendar, User as UserIcon, Tag, CheckCircle2, AlertCircle, Search, Filter, ArrowUpRight } from 'lucide-react';
 
 interface RetailCommissionLedgerProps {
     institutionId: string;
@@ -101,7 +101,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Earned (Gross)</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-slate-900">${totalEarned.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-slate-900">KES {totalEarned.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
                             <HandCoins className="w-5 h-5" />
                         </div>
@@ -111,7 +111,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Pending Payouts</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-amber-600">${totalPending.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-amber-600">KES {totalPending.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
                             <Clock className="w-5 h-5" />
                         </div>
@@ -121,7 +121,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 border-l-4 border-l-emerald-500">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Settled</p>
                     <div className="flex justify-between items-end">
-                        <h3 className="text-3xl font-black text-emerald-600">${totalPaid.toLocaleString()}</h3>
+                        <h3 className="text-3xl font-black text-emerald-600">KES {totalPaid.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
                             <CheckCircle2 className="w-5 h-5" />
                         </div>
@@ -179,12 +179,12 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                                         </td>
                                         <td className="px-8 py-5 text-right font-mono text-xs">
                                             <div className="flex flex-col items-end">
-                                                <span className="text-slate-400">${comm.basePrice.toFixed(2)}</span>
-                                                <span className="text-slate-900 font-black tracking-tight">${comm.soldPrice.toFixed(2)}</span>
+                                                <span className="text-slate-400">KES {comm.basePrice.toFixed(2)}</span>
+                                                <span className="text-slate-900 font-black tracking-tight">KES {comm.soldPrice.toFixed(2)}</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <span className="text-lg font-black text-slate-900">${comm.commissionAmount.toFixed(2)}</span>
+                                            <span className="text-lg font-black text-slate-900">KES {comm.commissionAmount.toFixed(2)}</span>
                                         </td>
                                         <td className="px-8 py-5">
                                             <div className="flex flex-col items-center gap-2">
@@ -223,7 +223,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                     <div className="max-w-md">
                         <h3 className="text-xl font-black uppercase tracking-tight">Agent Performance Insight</h3>
                         <p className="text-indigo-100 text-sm font-medium mt-3 leading-relaxed">
-                            Field agents are currently averaging <span className="text-white font-black underline decoration-amber-400 decoration-2">18.4% margin</span> above base price. The top performing agent is <span className="text-white font-black">Admin One</span> with $1,240 in commissions today.
+                            Field agents are currently averaging <span className="text-white font-black underline decoration-amber-400 decoration-2">18.4% margin</span> above base price. The top performing agent is <span className="text-white font-black">Admin One</span> with KES 1,240 in commissions today.
                         </p>
                         <button className="mt-8 flex items-center gap-2 px-6 py-3 bg-white text-indigo-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform shadow-lg">
                             Download Ledger Report
@@ -231,7 +231,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                         </button>
                     </div>
                     <div className="hidden lg:block">
-                        <DollarSign className="w-32 h-32 text-white/10 -mr-10 -mt-10" />
+                        <Banknote className="w-32 h-32 text-white/10 -mr-10 -mt-10" />
                     </div>
                 </div>
             </div>
