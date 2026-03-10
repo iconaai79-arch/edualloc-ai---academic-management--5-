@@ -205,8 +205,29 @@ export const apiService = {
     },
     async uploadFile(bucket: string, path: string, file: File): Promise<string | null> {
         try {
+            // 1. Try Local Upload (cPanel PHP Handler)
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.url) {
+                        return result.url;
+                    }
+                }
+            } catch (localErr) {
+                console.warn("Local upload failed, falling back to Supabase:", localErr);
+            }
+
+            // 2. Fallback: Supabase Storage
             if (!_supabase) {
-                // FALLBACK: Return as base64 for local development/offline mode
+                // Return as base64 for local development/offline mode
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result as string);
