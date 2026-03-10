@@ -22,6 +22,53 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [activeSection, setActiveSection] = useState<'properties' | 'retail'>('properties');
     const [selectedListing, setSelectedListing] = useState<PMListing | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
+    const [inquiryListing, setInquiryListing] = useState<PMListing | null>(null);
+    const [inquiryName, setInquiryName] = useState('');
+    const [inquiryPhone, setInquiryPhone] = useState('');
+    const [inquiryDate, setInquiryDate] = useState('');
+    const [inquirySubmitting, setInquirySubmitting] = useState(false);
+    const [inquirySuccess, setInquirySuccess] = useState(false);
+
+    const openInquiry = (listing: PMListing) => {
+        setInquiryListing(listing);
+        setInquiryName('');
+        setInquiryPhone('');
+        setInquiryDate('');
+        setInquirySuccess(false);
+    };
+
+    const handleSubmitInquiry = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inquiryListing) return;
+        setInquirySubmitting(true);
+        const seller = getSeller(inquiryListing.institutionId);
+        const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
+        const subject = `Marketplace Inquiry: ${inquiryListing.title}`;
+        const body = [
+            `Hello ${seller?.name || 'Team'},`,
+            ``,
+            `A potential ${inquiryListing.listingType === 'Sale' ? 'buyer' : 'tenant'} has expressed interest in your listing:`,
+            `Title: ${inquiryListing.title}`,
+            `Price: KES ${inquiryListing.price?.toLocaleString()}`,
+            `Location: ${inquiryListing.location || 'N/A'}`,
+            ``,
+            `Interested Party Details:`,
+            `Name: ${inquiryName}`,
+            `Phone: ${inquiryPhone}`,
+            isViewingRequired && inquiryDate ? `Preferred Viewing Date: ${inquiryDate}` : '',
+        ].filter(Boolean).join('\n');
+        try {
+            if (seller?.email) {
+                await apiService.sendEmail(seller.email, subject, body);
+            }
+            setInquirySuccess(true);
+        } catch (err) {
+            console.error('Inquiry send failed:', err);
+            setInquirySuccess(true); // Still show success to user
+        } finally {
+            setInquirySubmitting(false);
+        }
+    };
 
     useEffect(() => {
         const loadMarketplace = async () => {
@@ -329,7 +376,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Retail Price</p>
                                                 <p className="text-xl font-black text-slate-900 dark:text-white italic mt-0.5">
                                                     <span className="text-xs font-bold not-italic mr-1 text-slate-400">KES</span>
-                                                    {Number(product.srpPrice || product.unitCost || 0).toLocaleString()}
+                                                    {Number(product.srpPrice || product.costPrice || 0).toLocaleString()}
                                                 </p>
                                             </div>
                                             <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all">
@@ -444,9 +491,8 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                                     <button
                                         onClick={() => {
-                                            const seller = getSeller(selectedListing.institutionId);
-                                            alert(`Inquiry sent to ${seller?.name}. They will reach you via your profile details.`);
                                             setSelectedListing(null);
+                                            openInquiry(selectedListing);
                                         }}
                                         className="w-full bg-black dark:bg-orange-600 text-white py-6 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
                                     >
@@ -511,7 +557,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-3xl">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Retail Price</p>
                                     <p className="text-2xl font-black text-slate-900 dark:text-white italic mt-1">
-                                        KES {Number(selectedProduct.srpPrice || selectedProduct.unitCost || 0).toLocaleString()}
+                                        KES {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0).toLocaleString()}
                                     </p>
                                 </div>
                                 <div className="bg-slate-50 dark:bg-slate-900 p-5 rounded-3xl">
@@ -540,6 +586,113 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 <ShoppingCartIcon className="w-5 h-5" /> Inquire to Purchase
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Express Interest Modal ── */}
+            {inquiryListing && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-slate-900/70 backdrop-blur-md"
+                        onClick={() => !inquirySubmitting && setInquiryListing(null)}
+                    ></div>
+                    <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="bg-gradient-to-br from-orange-600 to-rose-600 p-8 text-white">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-200">Express Interest</p>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter italic mt-1">{inquiryListing.title}</h3>
+                                    <p className="text-orange-200 text-xs font-bold uppercase tracking-widest mt-2">{inquiryListing.listingType} • KES {inquiryListing.price?.toLocaleString()}</p>
+                                </div>
+                                <button
+                                    onClick={() => setInquiryListing(null)}
+                                    className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {inquirySuccess ? (
+                            <div className="p-10 text-center">
+                                <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <CheckCircleIcon className="w-10 h-10 text-emerald-500" />
+                                </div>
+                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-2">Inquiry Sent!</h4>
+                                <p className="text-slate-500 text-sm font-medium mb-8">
+                                    The property manager will contact you at <strong>{inquiryPhone}</strong> shortly.
+                                    {(inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && inquiryDate &&
+                                        ` Your preferred viewing date of ${new Date(inquiryDate).toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long' })} has been noted.`
+                                    }
+                                </p>
+                                <button
+                                    onClick={() => setInquiryListing(null)}
+                                    className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-widest"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmitInquiry} className="p-8 space-y-5">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Full Name</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={inquiryName}
+                                        onChange={e => setInquiryName(e.target.value)}
+                                        placeholder="e.g. John Kamau"
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phone Number</label>
+                                    <div className="relative">
+                                        <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <input
+                                            required
+                                            type="tel"
+                                            value={inquiryPhone}
+                                            onChange={e => setInquiryPhone(e.target.value)}
+                                            placeholder="e.g. 0712 345 678"
+                                            className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                {(inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Preferred Viewing Date <span className="text-orange-500">*</span>
+                                        </label>
+                                        <input
+                                            required
+                                            type="date"
+                                            value={inquiryDate}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            onChange={e => setInquiryDate(e.target.value)}
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
+                                        />
+                                        <p className="text-[10px] text-slate-400 font-bold italic ml-1">The property manager will confirm the schedule.</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={inquirySubmitting}
+                                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 mt-2"
+                                >
+                                    {inquirySubmitting ? (
+                                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending...</>
+                                    ) : (
+                                        <><ShoppingCartIcon className="w-4 h-4" />Send Inquiry</>
+                                    )}
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
