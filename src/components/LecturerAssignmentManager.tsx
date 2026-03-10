@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import type { Assignment, Submission, Subject, User, SubmissionStatus } from '../types';
+import { apiService } from '../services/apiService';
 // Added XIcon to the imports
 import { PlusIcon, DocumentArrowDownIcon, XIcon } from './icons';
 import { Tooltip } from './Tooltip';
@@ -18,10 +19,10 @@ interface LecturerAssignmentManagerProps {
 const SubmissionStatusBadge: React.FC<{ status: SubmissionStatus }> = ({ status }) => {
     const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize";
     if (status === 'graded') {
-      return <span className={`${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300`}>{status}</span>;
+        return <span className={`${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300`}>{status}</span>;
     }
     if (status === 'late') {
-      return <span className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300`}>{status}</span>;
+        return <span className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300`}>{status}</span>;
     }
     return <span className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300`}>{status}</span>;
 };
@@ -38,7 +39,7 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
     const [subjectFilter, setSubjectFilter] = useState('all');
 
     const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
-    
+
     type SubmissionUpdate = { grade?: string; feedback?: string };
     const [submissionUpdates, setSubmissionUpdates] = useState<Record<string, SubmissionUpdate>>({});
 
@@ -53,18 +54,22 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
         setIsUploading(true);
 
         try {
-            const fileDataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = (error) => reject(error);
-            });
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'pdf';
+            const path = `assignments/${user.institutionId}/${user.id}/${timestamp}.${ext}`;
+
+            const uploadedUrl = await apiService.uploadFile('eduai', path, file);
+
+            if (!uploadedUrl) {
+                alert("Failed to upload assignment file.");
+                return;
+            }
 
             onAddAssignment({
                 lecturerId: user.id,
                 subjectId,
                 title,
-                fileDataUrl,
+                fileDataUrl: uploadedUrl,
                 fileName: file.name,
                 fileType: file.type,
                 // FIXED: Populated both due_date and dueDate to match type definition
@@ -80,12 +85,12 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
             setIsAdding(false);
         } catch (error) {
             console.error("File upload failed:", error);
-            alert("There was an error reading the file. Please try again.");
+            alert("There was an error uploading the file. Please try again.");
         } finally {
             setIsUploading(false);
         }
     };
-    
+
     const handleSubmissionUpdate = (submissionId: string, field: 'grade' | 'feedback', value: string) => {
         const originalSubmission = submissions.find(s => s.id === submissionId);
         setSubmissionUpdates(prev => ({
@@ -96,7 +101,7 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
             }
         }));
     };
-    
+
     const handleSaveGrades = () => {
         Object.entries(submissionUpdates).forEach(([submissionId, updates]) => {
             const submissionUpdate = updates as SubmissionUpdate;
@@ -106,7 +111,7 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
                 if (submissionUpdate.grade !== undefined && submissionUpdate.grade !== originalSubmission?.grade) {
                     dataToUpdate.grade = submissionUpdate.grade;
                 }
-                 if (submissionUpdate.feedback !== undefined && submissionUpdate.feedback !== originalSubmission?.feedback) {
+                if (submissionUpdate.feedback !== undefined && submissionUpdate.feedback !== originalSubmission?.feedback) {
                     dataToUpdate.feedback = submissionUpdate.feedback;
                 }
                 if (Object.keys(dataToUpdate).length > 0) {
@@ -154,7 +159,7 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
                 .dark .form-input, .dark .form-select { border-color: #4b5563; background-color: #374151; color: white; }
                 .file-input { display: block; width: 100%; text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[var(--color-primary)]/10 file:text-[var(--color-primary)] hover:file:bg-[var(--color-primary)]/20 dark:file:bg-slate-700 dark:file:text-slate-200 dark:hover:file:bg-slate-600; }
             `}</style>
-            
+
             {!viewingAssignment ? (
                 <>
                     <div className="flex justify-between items-center">
@@ -238,7 +243,7 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm mb-6 border border-slate-200 dark:border-slate-700">
                         <h3 className="text-xl font-bold">{viewingAssignment.title}</h3>
                         <p className="text-sm text-slate-500 mt-1">
-                            {allocatedSubjects.find(s => s.id === viewingAssignment.subjectId)?.name} | 
+                            {allocatedSubjects.find(s => s.id === viewingAssignment.subjectId)?.name} |
                             Submissions: {submissions.filter(s => s.assignmentId === viewingAssignment.id).length}
                         </p>
                     </div>
@@ -262,18 +267,18 @@ export const LecturerAssignmentManager: React.FC<LecturerAssignmentManagerProps>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(sub.submittedAt).toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap"><SubmissionStatusBadge status={sub.status} /></td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <input 
-                                                type="text" 
-                                                value={submissionUpdates[sub.id]?.grade ?? sub.grade ?? ''} 
+                                            <input
+                                                type="text"
+                                                value={submissionUpdates[sub.id]?.grade ?? sub.grade ?? ''}
                                                 onChange={e => handleSubmissionUpdate(sub.id, 'grade', e.target.value)}
                                                 className="form-input w-20 text-center"
                                                 placeholder="Grade"
                                             />
                                         </td>
                                         <td className="px-6 py-4">
-                                            <input 
-                                                type="text" 
-                                                value={submissionUpdates[sub.id]?.feedback ?? sub.feedback ?? ''} 
+                                            <input
+                                                type="text"
+                                                value={submissionUpdates[sub.id]?.feedback ?? sub.feedback ?? ''}
                                                 onChange={e => handleSubmissionUpdate(sub.id, 'feedback', e.target.value)}
                                                 className="form-input min-w-[200px]"
                                                 placeholder="Enter feedback..."

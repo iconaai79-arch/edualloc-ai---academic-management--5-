@@ -413,21 +413,28 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         setNewTeacherRule({ type: 'max_consecutive_lessons', value: 2 });
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            if (type === 'logo') props.onUpdateLogo?.(dataUrl);
-            if (type === 'letterhead') {
-                const currentConfig = props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null };
-                props.onSaveLetterheadConfig?.({ ...currentConfig, headerImageUrl: dataUrl });
+        try {
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'jpg';
+            const path = `branding/${props.currentInstitution?.id || 'global'}/${type}_${timestamp}.${ext}`;
+
+            const publicUrl = await apiService.uploadFile('eduai', path, file);
+            if (publicUrl) {
+                if (type === 'logo') props.onUpdateLogo?.(publicUrl);
+                if (type === 'letterhead') {
+                    const currentConfig = props.letterheadConfig || { headerImageUrl: null, stampImageUrl: null };
+                    props.onSaveLetterheadConfig?.({ ...currentConfig, headerImageUrl: publicUrl });
+                }
+                if (type === 'footer') props.onUpdateFooterImage?.(publicUrl);
             }
-            if (type === 'footer') props.onUpdateFooterImage?.(dataUrl);
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(`Institution ${type} upload error:`, err);
+            alert(`Failed to upload ${type}.`);
+        }
     };
 
     const [localCompanyInfo, setLocalCompanyInfo] = useState({
@@ -576,23 +583,30 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         }
     };
 
-    const handleLocalImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+    const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: dataUrl }));
-            if (type === 'letterhead') {
-                setLocalCompanyInfo((prev: any) => ({
-                    ...prev,
-                    letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl }
-                }));
+        try {
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'jpg';
+            const path = `global_branding/platform/${type}_${timestamp}.${ext}`;
+
+            const publicUrl = await apiService.uploadFile('eduai', path, file);
+            if (publicUrl) {
+                if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: publicUrl }));
+                if (type === 'letterhead') {
+                    setLocalCompanyInfo((prev: any) => ({
+                        ...prev,
+                        letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: publicUrl }
+                    }));
+                }
+                if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: publicUrl }));
             }
-            if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: dataUrl }));
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(`Global ${type} upload error:`, err);
+            alert(`Failed to upload ${type}.`);
+        }
     };
 
     const mainTabs = useMemo(() => {

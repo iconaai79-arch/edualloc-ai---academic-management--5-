@@ -209,8 +209,14 @@ export const apiService = {
             const formData = new FormData();
             formData.append('file', file);
 
+            // Get explicit upload URL if provided, otherwise default to relative path
+            const cpanelUploadUrl = getSafeEnv('CPANEL_UPLOAD_URL') || '/upload.php';
+            const absoluteUploadUrl = cpanelUploadUrl.startsWith('http')
+                ? cpanelUploadUrl
+                : `${window.location.origin}${cpanelUploadUrl.startsWith('/') ? '' : '/'}${cpanelUploadUrl}`;
+
             try {
-                const response = await fetch('/upload.php', {
+                const response = await fetch(absoluteUploadUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -220,9 +226,12 @@ export const apiService = {
                     if (result.success && result.url) {
                         return result.url;
                     }
+                } else {
+                    const errorText = await response.text();
+                    console.error("cPanel upload returned non-OK status:", response.status, errorText);
                 }
             } catch (localErr) {
-                console.warn("Local upload failed, falling back to Supabase:", localErr);
+                console.warn("Local upload failed, checking fallback:", localErr);
             }
 
             // 2. Fallback: Supabase Storage

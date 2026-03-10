@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { User, ProfileUpdateData, PasswordUpdateData } from '../types';
+import { apiService } from '../services/apiService';
 
 interface ProfileModalProps {
   currentUser: User;
@@ -40,7 +41,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
     }
   }, [currentUser]);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -49,17 +50,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ currentUser, onClose
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setProfilePhotoUrl(reader.result);
+    try {
+      const timestamp = Date.now();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `profiles/${currentUser.id}/${timestamp}.${ext}`;
+
+      const publicUrl = await apiService.uploadFile('eduai', path, file);
+      if (publicUrl) {
+        setProfilePhotoUrl(publicUrl);
       }
-    };
-    reader.onerror = (error) => {
-      console.error("Error reading file:", error);
-      alert("Failed to read the selected file.");
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Profile photo upload error:", err);
+      alert("Failed to upload profile photo.");
+    }
 
     e.target.value = '';
   };

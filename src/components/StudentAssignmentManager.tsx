@@ -1,6 +1,6 @@
-
 import React, { useState, useRef, useMemo } from 'react';
 import type { Assignment, Submission, Subject, User, SubmissionStatus } from '../types';
+import { apiService } from '../services/apiService';
 import { DocumentArrowDownIcon, PrinterIcon, CheckIcon } from './icons';
 
 interface StudentAssignmentManagerProps {
@@ -75,7 +75,7 @@ const AssignmentItem: React.FC<{
                 )}
             </div>
             {submission ? (
-                 <div className="mt-4 flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-md text-green-800 bg-green-100 dark:bg-green-900/50 dark:text-green-300">
+                <div className="mt-4 flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-md text-green-800 bg-green-100 dark:bg-green-900/50 dark:text-green-300">
                     <CheckIcon className="w-5 h-5" />
                     Submitted on {new Date(submission.submittedAt).toLocaleDateString()}
                 </div>
@@ -133,9 +133,18 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
         }
 
         setIsUploading(true);
-        const reader = new FileReader();
-        reader.readAsDataURL(fileToSubmit);
-        reader.onload = () => {
+        try {
+            const timestamp = Date.now();
+            const ext = fileToSubmit.name.split('.').pop() || 'pdf';
+            const path = `submissions/${assignment.institutionId}/${assignmentId}/${user.id}/${timestamp}.${ext}`;
+
+            const uploadedUrl = await apiService.uploadFile('eduai', path, fileToSubmit);
+
+            if (!uploadedUrl) {
+                alert("Failed to upload submission.");
+                return;
+            }
+
             /* FIXED: Changed dueDate to due_date to match type definition */
             const isLate = new Date() > new Date(assignment.due_date);
             const status: SubmissionStatus = isLate ? 'late' : 'submitted';
@@ -143,26 +152,25 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
             onAddSubmission({
                 assignmentId,
                 studentId: user.id,
-                fileDataUrl: reader.result as string,
+                fileDataUrl: uploadedUrl,
                 fileName: fileToSubmit.name,
                 fileType: fileToSubmit.type,
                 submittedAt: new Date().toISOString(),
                 status,
             });
-            setIsUploading(false);
             setSubmittingId(null);
             setFile(null);
-        };
-        reader.onerror = (error) => {
-            console.error('Error reading file:', error);
+        } catch (error) {
+            console.error('Error uploading submission:', error);
             alert('Failed to upload submission.');
+        } finally {
             setIsUploading(false);
-        };
+        }
     };
 
     return (
         <div className="space-y-8">
-             <style>{`
+            <style>{`
                 .btn-primary { padding: 0.5rem 1rem; background-color: var(--color-primary); color: white; border-radius: 0.375rem; font-weight: 500; border: none; cursor: pointer; }
                 .btn-primary:hover:not(:disabled) { filter: brightness(0.9); }
                 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -194,17 +202,17 @@ export const StudentAssignmentManager: React.FC<StudentAssignmentManagerProps> =
             <section>
                 <h3 className="text-xl font-semibold mb-4">Submitted Assignments ({submittedAssignments.length})</h3>
                 <ul className="space-y-4">
-                     {submittedAssignments.length > 0 ? submittedAssignments.map(asg => (
+                    {submittedAssignments.length > 0 ? submittedAssignments.map(asg => (
                         <AssignmentItem
                             key={asg.id}
                             assignment={asg}
                             subject={getSubjectById(asg.subjectId)}
                             lecturer={getLecturerById(asg.lecturerId)}
                             submission={studentSubmissions.find(s => s.assignmentId === asg.id)}
-                            onSelectFile={() => {}}
+                            onSelectFile={() => { }}
                             isUploading={false}
                             submittingId={null}
-                            startSubmission={() => {}}
+                            startSubmission={() => { }}
                         />
                     )) : (
                         <li className="p-6 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-lg shadow-sm">

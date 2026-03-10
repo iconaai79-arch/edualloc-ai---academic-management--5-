@@ -979,28 +979,36 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (newListingImages.length + files.length > 5) {
             alert('You can only upload up to 5 images per listing.');
             return;
         }
 
-        files.forEach(file => {
+        for (const file of files) {
             if (file.size > 2 * 1024 * 1024) {
                 alert(`File ${file.name} is larger than 2MB.`);
-                return;
+                continue;
             }
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const base64String = reader.result as string;
-                setNewListingImages(prev => {
-                    const next = [...prev, base64String];
-                    return next.slice(0, 5);
-                });
-            };
-            if (file) reader.readAsDataURL(file);
-        });
+
+            try {
+                const timestamp = Date.now();
+                const ext = file.name.split('.').pop() || 'jpg';
+                const path = `marketplace/${institutionId}/listings/${timestamp}_${Math.random().toString(36).substring(7)}.${ext}`;
+
+                const publicUrl = await apiService.uploadFile('eduai', path, file);
+                if (publicUrl) {
+                    setNewListingImages(prev => {
+                        const next = [...prev, publicUrl];
+                        return next.slice(0, 5);
+                    });
+                }
+            } catch (err) {
+                console.error("Marketplace image upload error:", err);
+                alert(`Failed to upload ${file.name}`);
+            }
+        }
     };
 
     const handleSaveListing = async (data: any) => {

@@ -499,23 +499,30 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     }, [companyDetails]);
 
-    const handleLocalImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+    const handleLocalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: dataUrl }));
-            if (type === 'letterhead') {
-                setLocalCompanyInfo((prev: any) => ({
-                    ...prev,
-                    letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: dataUrl }
-                }));
+        try {
+            const timestamp = Date.now();
+            const ext = file.name.split('.').pop() || 'jpg';
+            const path = `global_branding/${type}_${timestamp}.${ext}`;
+
+            const publicUrl = await apiService.uploadFile('eduai', path, file);
+            if (publicUrl) {
+                if (type === 'logo') setLocalCompanyInfo((prev: any) => ({ ...prev, logoUrl: publicUrl }));
+                if (type === 'letterhead') {
+                    setLocalCompanyInfo((prev: any) => ({
+                        ...prev,
+                        letterheadConfig: { ...prev.letterheadConfig, headerImageUrl: publicUrl }
+                    }));
+                }
+                if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: publicUrl }));
             }
-            if (type === 'footer') setLocalCompanyInfo((prev: any) => ({ ...prev, footerImageUrl: dataUrl }));
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            console.error(`Global platform ${type} upload error:`, err);
+            alert(`Failed to upload ${type}.`);
+        }
     };
 
     const handleSaveGlobalConfigs = async () => {
