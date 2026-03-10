@@ -2263,10 +2263,25 @@ export interface RetailSaleItem {
 
 export type KitchenStatus = 'pending' | 'preparing' | 'ready' | 'delivered';
 
+export interface RetailCustomer {
+    id: string;
+    institutionId: string;
+    name: string;
+    phone_number?: string;
+    phoneNumber?: string; // Standardize if possible, but keep both for compatibility
+    email?: string;
+    loyaltyPoints: number;
+    totalSpent: number;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface RetailSale {
     id: string;
     institutionId: string;
     storeId: string;
+    customerId?: string;      // Linked customer
     agentId?: string;        // Present if sold by a van agent
     totalAmount: number;
     paymentMethod: string;

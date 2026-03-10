@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
-import { RetailInventoryItem, RetailStore, User, CafeMenuItem } from '../../types';
+import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
 import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard, Printer, Coffee } from 'lucide-react';
 
 interface DualModePOSProps {
@@ -30,9 +29,24 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
     const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
     const [negotiatedPrice, setNegotiatedPrice] = useState<string>('');
 
+    // CRM state
+    const [allCustomers, setAllCustomers] = useState<RetailCustomer[]>([]);
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null>(null);
+
     useEffect(() => {
         fetchProducts();
+        fetchCustomers();
     }, [institutionId]);
+
+    const fetchCustomers = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords<RetailCustomer>('retail_customers', institutionId);
+            setAllCustomers(data || []);
+        } catch (err) {
+            console.error("Fetch customers error:", err);
+        }
+    };
 
     const fetchProducts = async () => {
         setIsLoading(true);
@@ -107,10 +121,38 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         setIsProcessing(true);
 
         try {
+            // CRM Logic: Save or Update Customer and Loyalty
+            let finalCustomerId = selectedCustomer?.id;
+            const loyaltyPointsEarned = Math.floor(totalAmount / 100);
+
+            if (customerInfo.name || customerInfo.phone) {
+                const customerData: any = {
+                    institutionId,
+                    name: customerInfo.name || 'Walk-in Customer',
+                    phoneNumber: customerInfo.phone,
+                    email: customerInfo.email,
+                    totalSpent: (selectedCustomer?.totalSpent || 0) + totalAmount,
+                    loyaltyPoints: (selectedCustomer?.loyaltyPoints || 0) + loyaltyPointsEarned,
+                    updatedAt: new Date().toISOString()
+                };
+
+                if (selectedCustomer) {
+                    customerData.id = selectedCustomer.id;
+                } else {
+                    customerData.createdAt = new Date().toISOString();
+                }
+
+                const savedCustomer: any = await apiService.saveModuleRecord('retail_customers', customerData);
+                if (savedCustomer && savedCustomer.id) {
+                    finalCustomerId = savedCustomer.id;
+                }
+            }
+
             const saleData = {
                 institutionId,
                 storeId: activeStore?.id || (activeMode === 'shop' ? 'main_store' : `agent_${currentUser.id}`),
                 agentId: activeMode === 'field' ? currentUser.id : undefined,
+                customerId: finalCustomerId,
                 totalAmount,
                 paymentMethod,
                 customerName: customerInfo.name,
@@ -190,6 +232,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                 setCheckoutSuccess(savedSale);
                 setCart([]);
+                fetchCustomers(); // Refresh list to catch new/updated customer
             }
 
         } catch (err) {
@@ -479,6 +522,8 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                         setCheckoutSuccess(null);
                                         setIsCheckoutModalOpen(false);
                                         setCustomerInfo({ name: '', phone: '', email: '' });
+                                        setSelectedCustomer(null);
+                                        setCustomerSearch('');
                                     }}
                                     className="w-full py-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase text-[12px] tracking-[0.4em] rounded-[1.5rem] hover:scale-105 transition-all shadow-xl"
                                 >
@@ -504,39 +549,109 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
                                 <div className="p-10 space-y-8">
                                     <div className="space-y-6">
-                                        <div className="space-y-3">
-                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Entity Identifier</label>
-                                            <input
-                                                type="text"
-                                                value={customerInfo.name}
-                                                onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                                                className="w-full px-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
-                                                placeholder="Enter Customer Name (Optional)"
-                                            />
+                                        <div className="space-y-4">
+                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Search Existing Customer</label>
+                                            <div className="relative">
+                                                <Search className="w-5 h-5 absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    value={customerSearch}
+                                                    onChange={e => setCustomerSearch(e.target.value)}
+                                                    className="w-full pl-16 pr-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
+                                                    placeholder="Phone or Name..."
+                                                />
+                                                {customerSearch && (
+                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 max-h-48 overflow-y-auto z-50 p-2 space-y-1">
+                                                        {allCustomers
+                                                            .filter(c =>
+                                                                c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                                                                (c.phoneNumber && c.phoneNumber.includes(customerSearch))
+                                                            )
+                                                            .map(c => (
+                                                                <button
+                                                                    key={c.id}
+                                                                    onClick={() => {
+                                                                        setSelectedCustomer(c);
+                                                                        setCustomerInfo({ name: c.name, phone: c.phoneNumber || '', email: c.email || '' });
+                                                                        setCustomerSearch('');
+                                                                    }}
+                                                                    className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors flex justify-between items-center"
+                                                                >
+                                                                    <div>
+                                                                        <p className="text-xs font-black uppercase text-slate-900 dark:text-white">{c.name}</p>
+                                                                        <p className="text-[10px] text-slate-400 font-bold">{c.phoneNumber || 'No Phone'}</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-[10px] font-black text-indigo-600">{c.loyaltyPoints} PTS</p>
+                                                                    </div>
+                                                                </button>
+                                                            ))
+                                                        }
+                                                        <button
+                                                            onClick={() => setCustomerSearch('')}
+                                                            className="w-full p-2 text-[10px] font-bold text-slate-400 hover:text-indigo-500"
+                                                        >
+                                                            Clear Search
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="space-y-3">
-                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Comms Channel</label>
-                                                <input
-                                                    type="tel"
-                                                    value={customerInfo.phone}
-                                                    onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                                                    className="w-full px-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
-                                                    placeholder="+254..."
-                                                />
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center px-4">
+                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">Identity Record</label>
+                                                {selectedCustomer && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedCustomer(null);
+                                                            setCustomerInfo({ name: '', phone: '', email: '' });
+                                                        }}
+                                                        className="text-[8px] font-black uppercase tracking-widest text-rose-500 hover:underline"
+                                                    >
+                                                        Clear Selection
+                                                    </button>
+                                                )}
                                             </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">E-Matrix</label>
+                                            <div className="space-y-4">
                                                 <input
-                                                    type="email"
-                                                    value={customerInfo.email}
-                                                    onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })}
-                                                    className="w-full px-8 py-5 bg-slate-100/50 dark:bg-slate-800/50 border-none rounded-[1.5rem] focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-300 transition-all"
-                                                    placeholder="Invoicing..."
+                                                    type="text"
+                                                    value={customerInfo.name}
+                                                    onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                                                    className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                    placeholder="Customer Name"
                                                 />
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <input
+                                                        type="tel"
+                                                        value={customerInfo.phone}
+                                                        onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                                                        className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                        placeholder="Phone Number"
+                                                    />
+                                                    <input
+                                                        type="email"
+                                                        value={customerInfo.email}
+                                                        onChange={e => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                                                        className={`w-full px-8 py-5 border-none rounded-[1.5rem] focus:ring-4 outline-none text-sm font-black transition-all ${selectedCustomer ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 ring-2 ring-indigo-500/20' : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-indigo-500/10'}`}
+                                                        placeholder="Email Address"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {selectedCustomer && (
+                                            <div className="p-6 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 flex justify-between items-center animate-in slide-in-from-top-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 mb-1">Loyalty Wallet</span>
+                                                    <span className="text-xl font-black text-indigo-600">{selectedCustomer.loyaltyPoints} PTS</span>
+                                                </div>
+                                                <div className="text-right flex flex-col items-end">
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 mb-1">Incoming</span>
+                                                    <span className="text-xl font-black text-emerald-600">+{Math.floor(totalAmount / 100)} PTS</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-4">
