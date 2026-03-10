@@ -74,6 +74,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                 // Save inquiry to database for portal management
                 const pmInquiry = {
+                    id: `inq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: inquiryListing.institutionId,
                     listingId: inquiryListing.id,
                     customerName: inquiryName,
@@ -88,6 +89,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             } else if (inquiryProduct) {
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {
+                    id: `wish_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: inquiryProduct.institutionId,
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
