@@ -61,11 +61,11 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
     const productSalesCount: Record<string, { name: string, qty: number, revenue: number }> = {};
     sales.forEach(sale => {
         sale.items.forEach(item => {
-            if (!productSalesCount[item.id]) {
-                productSalesCount[item.id] = { name: item.name, qty: 0, revenue: 0 };
+            if (!productSalesCount[item.itemId]) {
+                productSalesCount[item.itemId] = { name: item.name, qty: 0, revenue: 0 };
             }
-            productSalesCount[item.id].qty += item.quantity;
-            productSalesCount[item.id].revenue += item.total;
+            productSalesCount[item.itemId].qty += item.quantity;
+            productSalesCount[item.itemId].revenue += (item.unitPrice * item.quantity);
         });
     });
 
@@ -100,9 +100,9 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
 
     // Add sales data
     sales.forEach(sale => {
-        if (agentStats[sale.recordedById]) {
-            agentStats[sale.recordedById].salesCount += 1;
-            agentStats[sale.recordedById].totalRevenue += sale.totalAmount;
+        if (sale.agentId && agentStats[sale.agentId]) {
+            agentStats[sale.agentId].salesCount += 1;
+            agentStats[sale.agentId].totalRevenue += sale.totalAmount;
         }
     });
 
@@ -110,7 +110,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
     commissions.forEach(comm => {
         if (agentStats[comm.agentId]) {
             agentStats[comm.agentId].totalCommission += comm.commissionAmount;
-            if (comm.status === 'awaiting_payout') {
+            if (!comm.isPaid) {
                 agentStats[comm.agentId].pendingCommission += comm.commissionAmount;
             }
         }
@@ -172,7 +172,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Gross Revenue</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">${totalRevenue.toLocaleString()}</h3>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalRevenue.toLocaleString()}</h3>
                                     <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
                                         <ArrowUpRight className="w-3 h-3" /> +12.5% this week
                                     </div>
@@ -193,7 +193,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-all">
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Average Order Value (AOV)</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">${averageOrderValue.toFixed(2)}</h3>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {averageOrderValue.toFixed(2)}</h3>
                                     <div className="mt-4 flex items-center gap-2 text-amber-600 bg-amber-50 w-fit px-3 py-1 rounded-full text-[10px] font-bold">
                                         <ArrowDownRight className="w-3 h-3" /> -2.1% this week
                                     </div>
@@ -221,7 +221,7 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-black text-slate-900 dark:text-white">${prod.revenue.toLocaleString()}</p>
+                                                <p className="font-black text-slate-900 dark:text-white">KES {prod.revenue.toLocaleString()}</p>
                                                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Revenue</p>
                                             </div>
                                         </div>
@@ -240,16 +240,16 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                             <div className="bg-gradient-to-br from-indigo-900 to-indigo-700 p-6 rounded-3xl shadow-xl relative overflow-hidden group text-white">
                                 <div className="relative z-10">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Retail Value</p>
-                                    <h3 className="text-3xl font-black">${totalRetailValue.toLocaleString()}</h3>
+                                    <h3 className="text-3xl font-black">KES {totalRetailValue.toLocaleString()}</h3>
                                     <div className="mt-4 flex items-center gap-2 text-indigo-900 bg-white w-fit px-3 py-1 rounded-full text-[10px] font-bold">
-                                        Projected Profit: ${projectedProfit.toLocaleString()}
+                                        Projected Profit: KES {projectedProfit.toLocaleString()}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Cost Basis</p>
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">${totalCostValue.toLocaleString()}</h3>
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white">KES {totalCostValue.toLocaleString()}</h3>
                             </div>
 
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
@@ -335,15 +335,15 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                                                     {agent.salesCount} Deals
                                                 </td>
                                                 <td className="py-4 font-black text-teal-600 text-right">
-                                                    ${agent.totalRevenue.toLocaleString()}
+                                                    KES {agent.totalRevenue.toLocaleString()}
                                                 </td>
                                                 <td className="py-4 text-right">
                                                     {agent.pendingCommission > 0 ? (
                                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-rose-50 text-rose-600">
-                                                            ${agent.pendingCommission.toLocaleString()} Pend.
+                                                            KES {agent.pendingCommission.toLocaleString()} Pend.
                                                         </span>
                                                     ) : (
-                                                        <span className="text-slate-400 text-sm font-medium">$0.00</span>
+                                                        <span className="text-slate-400 text-sm font-medium">KES 0.00</span>
                                                     )}
                                                 </td>
                                             </tr>

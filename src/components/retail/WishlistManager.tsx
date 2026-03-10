@@ -51,7 +51,10 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
 
     const handleCloseLead = async (leadId: string) => {
         try {
-            await apiService.saveModuleRecord('retail_wishlist', { id: leadId, status: 'Closed' });
+            const lead = leads.find(l => l.id === leadId);
+            if (!lead) return;
+
+            await apiService.saveModuleRecord('retail_wishlist', { ...lead, status: 'Closed' });
             // Update local state
             setLeads(leads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
         } catch (error) {

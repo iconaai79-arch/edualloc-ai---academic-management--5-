@@ -277,10 +277,10 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <span className="text-sm font-black text-slate-800">-${sale.totalAmount.toFixed(2)}</span>
+                                            <span className="text-sm font-black text-slate-800">KES {sale.totalAmount.toFixed(2)}</span>
                                             <button
                                                 className="block text-[10px] uppercase font-bold text-indigo-600 tracking-widest hover:underline mt-1"
-                                                onClick={() => alert(`Downloading Invoice for Sale \nTotal: $${sale.totalAmount}\nItems: ${sale.items.map(i => i.name).join(', ')}`)}
+                                                onClick={() => alert(`Downloading Invoice for Sale \nTotal: KES {sale.totalAmount}\nItems: ${sale.items.map(i => i.name).join(', ')}`)}
                                             >
                                                 Receipt
                                             </button>
