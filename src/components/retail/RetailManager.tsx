@@ -56,7 +56,7 @@ export function RetailManager(props: RetailManagerProps) {
                     .subscribe();
 
                 return () => {
-                    supabase.removeChannel(channel);
+                    supabase?.removeChannel(channel);
                 };
             }
         }
@@ -117,6 +117,7 @@ export function RetailManager(props: RetailManagerProps) {
                                 : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
                         >
                             <item.icon className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${activeView === item.id ? 'animate-pulse' : ''}`} />
+                            <span>{item.label}</span>
                         </button>
                     ))}
                 </div>
