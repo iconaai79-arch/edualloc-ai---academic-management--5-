@@ -209,29 +209,52 @@ export const apiService = {
             const formData = new FormData();
             formData.append('file', file);
 
-            // Get explicit upload URL if provided, otherwise default to relative path
-            const cpanelUploadUrl = getSafeEnv('CPANEL_UPLOAD_URL') || '/upload.php';
-            const absoluteUploadUrl = cpanelUploadUrl.startsWith('http')
-                ? cpanelUploadUrl
-                : `${window.location.origin}${cpanelUploadUrl.startsWith('/') ? '' : '/'}${cpanelUploadUrl}`;
+            // Try multiple possible paths for the upload handler to handle subdirectories
+            const possiblePaths = [
+                getSafeEnv('CPANEL_UPLOAD_URL'), // Explicit override
+                `${window.location.origin}${window.location.pathname.replace(/\/[^\/]*$/, '')}/upload.php`, // Relative to app path
+                `${window.location.origin}/upload.php`, // Root of domain
+                'upload.php' // Standard relative
+            ].filter(Boolean) as string[];
 
-            try {
-                const response = await fetch(absoluteUploadUrl, {
-                    method: 'POST',
-                    body: formData
-                });
+            let lastUploadError = null;
+            let uploadSuccess = false;
+            let uploadedUrl = null;
 
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.success && result.url) {
-                        return result.url;
+            for (const uploadUrl of possiblePaths) {
+                try {
+                    const response = await fetch(uploadUrl, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success && result.url) {
+                            uploadedUrl = result.url;
+                            uploadSuccess = true;
+                            break;
+                        } else if (result.error) {
+                            lastUploadError = result.error;
+                        }
+                    } else {
+                        const errorText = await response.text();
+                        lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 100)}`;
                     }
-                } else {
-                    const errorText = await response.text();
-                    console.error("cPanel upload returned non-OK status:", response.status, errorText);
+                } catch (localErr: any) {
+                    lastUploadError = localErr.message;
                 }
-            } catch (localErr) {
-                console.warn("Local upload failed, checking fallback:", localErr);
+            }
+
+            if (uploadSuccess) {
+                return uploadedUrl;
+            } else {
+                console.warn("All local upload attempts failed. Last error from cPanel:", lastUploadError);
+                // If it's the eduai bucket, we SHOULD NOT fall back silently if it's supposed to be cPanel
+                if (bucket === 'eduai') {
+                    alert(`cPanel Upload Failed: ${lastUploadError || 'Unknown Error'}. \n\nPlease ensure upload.php is at the root of your site and public/uploads/ is writable.`);
+                    return null;
+                }
             }
 
             // 2. Fallback: Supabase Storage
