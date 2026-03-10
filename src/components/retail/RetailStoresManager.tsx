@@ -147,6 +147,32 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
         setIsAddModalOpen(true);
     };
 
+    const handleGetCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setCurrentLocation(prev => ({
+                    ...prev,
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                }));
+            },
+            (error) => {
+                console.error("Error fetching location:", error);
+                let message = "Failed to get location";
+                if (error.code === 1) message = "Location permission denied";
+                else if (error.code === 2) message = "Location unavailable";
+                else if (error.code === 3) message = "Location request timed out";
+                alert(message);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    };
+
     const filteredStores = stores.filter(store => {
         const matchesSearch = store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (store.location && store.location.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -424,28 +450,41 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700">Latitude</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        value={currentLocation.latitude || ''}
-                                        onChange={e => setCurrentLocation({ ...currentLocation, latitude: parseFloat(e.target.value) })}
-                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
-                                        placeholder="e.g. -1.2921"
-                                    />
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-semibold text-slate-700">GPS Coordinates</label>
+                                    <button
+                                        type="button"
+                                        onClick={handleGetCurrentLocation}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs font-bold"
+                                    >
+                                        <MapPin className="w-3.5 h-3.5" />
+                                        Get Current Location
+                                    </button>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-slate-700">Longitude</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        value={currentLocation.longitude || ''}
-                                        onChange={e => setCurrentLocation({ ...currentLocation, longitude: parseFloat(e.target.value) })}
-                                        className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
-                                        placeholder="e.g. 36.8219"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Latitude</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            value={currentLocation.latitude || ''}
+                                            onChange={e => setCurrentLocation({ ...currentLocation, latitude: parseFloat(e.target.value) })}
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm bg-slate-50"
+                                            placeholder="e.g. -1.2921"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Longitude</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            value={currentLocation.longitude || ''}
+                                            onChange={e => setCurrentLocation({ ...currentLocation, longitude: parseFloat(e.target.value) })}
+                                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm bg-slate-50"
+                                            placeholder="e.g. 36.8219"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
