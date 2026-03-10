@@ -205,80 +205,6 @@ export const apiService = {
     },
     async uploadFile(bucket: string, path: string, file: File): Promise<string | null> {
         try {
-            // 1. Try Local Upload (cPanel PHP Handler)
-            const formData = new FormData();
-            formData.append('file', file);
-
-            // Try multiple possible paths for the upload handler to handle subdirectories
-            const possiblePaths = [
-                getSafeEnv('CPANEL_UPLOAD_URL'), // Explicit override
-                `${window.location.origin}${window.location.pathname.replace(/\/[^\/]*$/, '')}/upload.php`, // Relative to app path
-                `${window.location.origin}/upload.php`, // Root of domain
-                'upload.php' // Standard relative
-            ].filter(Boolean) as string[];
-
-            let lastUploadError = null;
-            let uploadSuccess = false;
-            let uploadedUrl = null;
-
-            for (const uploadUrl of possiblePaths) {
-                try {
-                    console.log(`[Storage] Attempting upload to: ${uploadUrl}`);
-
-                    // CRITICAL: We use a naked fetch here. 
-                    // If there's a global fetch interceptor adding Supabase headers, 
-                    // it might cause 'No API key found' errors on the cPanel side if it expects them or 
-                    // if the browser blocks the request due to CORS issues with those headers.
-                    const response = await fetch(uploadUrl, {
-                        method: 'POST',
-                        body: formData,
-                        // Do not include any default headers from the app context
-                        headers: {
-                            // Explicitly empty headers or only what's needed for the PHP script
-                        },
-                        redirect: 'follow'
-                    });
-
-                    if (response.ok) {
-                        const contentType = response.headers.get('content-type');
-                        if (contentType && contentType.includes('application/json')) {
-                            const result = await response.json();
-                            if (result.success && result.url) {
-                                console.log("[Storage] cPanel upload success:", result.url);
-                                return result.url;
-                            } else if (result.error) {
-                                lastUploadError = `Server Error: ${result.error}`;
-                            }
-                        } else {
-                            const text = await response.text();
-                            console.warn("[Storage] Non-JSON response received:", text.substring(0, 100));
-                            lastUploadError = `Invalid response (Check console/network)`;
-                        }
-                    } else {
-                        const errorText = await response.text();
-                        // If we get an error about API keys, it means the request was likely intercepted or sent to Supabase by mistake
-                        if (errorText.includes('apikey') || errorText.includes('No API key found')) {
-                            lastUploadError = "Request was blocked by Supabase Security (Check URL path)";
-                        } else {
-                            lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 50) || response.statusText}`;
-                        }
-                        console.error(`[Storage] Upload failed for ${uploadUrl}:`, lastUploadError);
-                    }
-                } catch (localErr: any) {
-                    lastUploadError = `Network: ${localErr.message}`;
-                    console.warn(`[Storage] Connection failed for ${uploadUrl}:`, localErr);
-                }
-            }
-
-            if (uploadedUrl) return uploadedUrl;
-
-            console.warn("[Storage] All local upload attempts failed. Last error from cPanel:", lastUploadError);
-            if (bucket === 'eduai') {
-                alert(`cPanel Upload Failed (${lastUploadError || 'Unknown Error'}).\n\n1. Ensure upload.php is at the root folder.\n2. Ensure public/uploads/ is writable (755).\n3. Check Console (F12) for details.`);
-                return null;
-            }
-
-            // 2. Fallback: Supabase Storage
             if (!_supabase) {
                 // Return as base64 for local development/offline mode
                 return new Promise((resolve) => {
@@ -287,19 +213,36 @@ export const apiService = {
                     reader.readAsDataURL(file);
                 });
             }
-            const { error } = await _supabase.storage.from(bucket).upload(path, file, { upsert: true });
+
+            const { data, error } = await _supabase.storage
+                .from(bucket)
+                .upload(path, file, {
+                    upsert: true,
+                    cacheControl: '3600'
+                });
+
             if (error) {
-                console.error("Supabase Storage Error:", error);
+                console.error(`[Storage] Supabase upload error (${bucket}/${path}):`, error);
+
                 // Specifically alert for common policy issues
-                if ((error as any).status === 403 || error.message.includes('row-level security')) {
-                    alert(`Storage Error: Access Denied. Please ensure your 'eduai' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
+                if ((error as any).status === 403 || error.message.toLowerCase().includes('denied') || error.message.includes('row-level security')) {
+                    alert(`Storage Error: Access Denied. Please ensure your '${bucket}' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
                 } else {
                     alert(`Storage Error: ${error.message}`);
                 }
                 return null;
             }
-            const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);
-            return publicUrl;
+
+            if (data) {
+                const { data: { publicUrl } } = _supabase.storage
+                    .from(bucket)
+                    .getPublicUrl(path);
+
+                console.log(`[Storage] Uploaded to Supabase: ${publicUrl}`);
+                return publicUrl;
+            }
+
+            return null;
         } catch (err: any) {
             console.error("Upload Service Exception:", err);
             alert(`Upload Service Exception: ${err.message || 'Unknown error'}`);
