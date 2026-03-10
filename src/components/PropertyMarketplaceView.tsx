@@ -74,12 +74,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             } else if (inquiryProduct) {
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {
-                    id: `wish_${Date.now()}`,
                     institutionId: inquiryProduct.institutionId,
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,
-                    capturedById: '00000000-0000-0000-0000-000000000000', // System/Marketplace ID
                     urgency: 'urgent',
                     createdAt: new Date().toISOString()
                 };
