@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { RetailWishlist } from '../../types';
-import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, CheckCircle2, Clock, MapPin, User as UserIcon } from 'lucide-react';
+import { apiService } from '../../services/apiService';
+import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, CheckCircle2, Clock, MapPin, User as UserIcon, Banknote } from 'lucide-react';
 
 interface WishlistManagerProps {
     institutionId: string;
@@ -19,48 +20,18 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
 
     const fetchLeads = async () => {
         setIsLoading(true);
-        // MOCK DATA for demonstration
-        setTimeout(() => {
-            setLeads([
-                {
-                    id: 'lead-1',
-                    institutionId,
-                    customerName: 'Michael Kiprono',
-                    phoneNumber: '+254712345678',
-                    productQuery: 'iPhone 15 Pro Max 256GB Natural Titanium',
-                    maxBudget: 1500,
-                    urgency: 'urgent',
-                    capturedById: 'agent-1',
-                    isMatched: true,
-                    notifiedAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-                    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
-                },
-                {
-                    id: 'lead-2',
-                    institutionId,
-                    customerName: 'Sarah Wanjiku',
-                    phoneNumber: '+254723456789',
-                    productQuery: 'Any HP LaserJet Printer under KES 20,000',
-                    maxBudget: 20000,
-                    urgency: 'casual',
-                    capturedById: 'agent-2',
-                    isMatched: false,
-                    createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-                },
-                {
-                    id: 'lead-3',
-                    institutionId,
-                    customerName: 'David Ochieng',
-                    phoneNumber: '+254734567890',
-                    productQuery: 'MacBook Air M2 16GB',
-                    urgency: 'urgent',
-                    capturedById: 'agent-1',
-                    isMatched: false,
-                    createdAt: new Date().toISOString(), // Today
-                }
-            ]);
+        try {
+            const data = await apiService.fetchModuleRecords<RetailWishlist>('retail_wishlist', institutionId);
+            // Sort by latest first
+            const sortedData = data.sort((a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            setLeads(sortedData);
+        } catch (error) {
+            console.error('Failed to fetch leads:', error);
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
 
     const filteredLeads = leads.filter(lead => {
@@ -172,7 +143,7 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                                     </div>
                                     {lead.maxBudget && (
                                         <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2 py-1 rounded">
-                                            Max: ${lead.maxBudget}
+                                            Max: KES {lead.maxBudget.toLocaleString()}
                                         </span>
                                     )}
                                 </div>

@@ -75,40 +75,45 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {
                     id: `wish_${Date.now()}`,
-                    institution_id: inquiryProduct.institutionId,
-                    customer_name: inquiryName,
-                    phone_number: inquiryPhone,
-                    product_query: inquiryProduct.name,
-                    captured_by_id: '00000000-0000-0000-0000-000000000000', // System/Marketplace ID
+                    institutionId: inquiryProduct.institutionId,
+                    customerName: inquiryName,
+                    phoneNumber: inquiryPhone,
+                    productQuery: inquiryProduct.name,
+                    capturedById: '00000000-0000-0000-0000-000000000000', // System/Marketplace ID
                     urgency: 'urgent',
-                    created_at: new Date().toISOString()
+                    createdAt: new Date().toISOString()
                 };
 
                 await apiService.saveModuleRecord('retail_wishlist', lead);
 
                 if (seller?.email) {
-                    const subject = `New Product Enquiry: ${inquiryProduct.name}`;
-                    const body = `
-                        Hello ${seller.name},
-                        
-                        A customer has enquired about ${inquiryProduct.name} on the marketplace.
-                        
-                        Details:
-                        Name: ${inquiryName}
-                        Phone: ${inquiryPhone}
-                        Product: ${inquiryProduct.name}
-                        Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}
-                        
-                        Please follow up with the lead.
-                    `.trim();
-                    await apiService.sendEmail(seller.email, subject, body);
+                    try {
+                        const subject = `New Product Enquiry: ${inquiryProduct.name}`;
+                        const body = `
+                            Hello ${seller.name},
+                            
+                            A customer has enquired about ${inquiryProduct.name} on the marketplace.
+                            
+                            Details:
+                            Name: ${inquiryName}
+                            Phone: ${inquiryPhone}
+                            Product: ${inquiryProduct.name}
+                            Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}
+                            
+                            Please follow up with the lead.
+                        `.trim();
+                        await apiService.sendEmail(seller.email, subject, body);
+                    } catch (emailErr) {
+                        console.warn('Inquiry email notification failed:', emailErr);
+                    }
                 }
             }
 
             setInquirySuccess(true);
         } catch (err) {
             console.error('Inquiry submission failed:', err);
-            setInquirySuccess(true); // Still show success to user if record saved but email fails
+            // Handle specific error feedback if needed
+            alert('Enquiry submission failed. Please try again later or contact us directly.');
         } finally {
             setInquirySubmitting(false);
         }
