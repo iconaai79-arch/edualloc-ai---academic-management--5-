@@ -51,6 +51,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
         sku: '',
         category: 'Smartphones',
         srpPrice: 0,
+        basePrice: 0,
         costPrice: 0,
         quantity: 0,
         reorderLevel: 5,
@@ -182,6 +183,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 sku: '',
                 category: 'Smartphones',
                 srpPrice: 0,
+                basePrice: 0,
                 costPrice: 0,
                 quantity: 0,
                 reorderLevel: 5,
@@ -530,6 +532,32 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
 
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pt-6 border-t border-slate-50 dark:border-slate-700">
                                 <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Cost Price (KES)</label>
+                                    <div className="relative">
+                                        <Banknote className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-rose-400" />
+                                        <input
+                                            required
+                                            type="number"
+                                            value={formData.costPrice}
+                                            onChange={(e) => setFormData({ ...formData, costPrice: Number(e.target.value) })}
+                                            className="w-full pl-14 pr-5 py-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-rose-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Base Price (KES)</label>
+                                    <div className="relative">
+                                        <Banknote className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-amber-400" />
+                                        <input
+                                            required
+                                            type="number"
+                                            value={formData.basePrice}
+                                            onChange={(e) => setFormData({ ...formData, basePrice: Number(e.target.value) })}
+                                            className="w-full pl-14 pr-5 py-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Retail Price (KES)</label>
                                     <div className="relative">
                                         <Banknote className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
@@ -543,36 +571,13 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                     </div>
                                 </div>
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Inventory Level</label>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Stock Qty</label>
                                     <input
                                         type="number"
                                         value={formData.quantity}
                                         onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
                                         className="w-full p-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
                                     />
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Show on Market</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, marketplaceEnabled: !formData.marketplaceEnabled })}
-                                        className={`w-full py-5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${formData.marketplaceEnabled ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
-                                    >
-                                        {formData.marketplaceEnabled ? 'LIVE ON MARKET' : 'PRIVATE ENTRY'}
-                                    </button>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Barcode (Scan to Register)</label>
-                                    <div className="relative">
-                                        <Tag className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
-                                        <input
-                                            type="text"
-                                            value={formData.barcode || ''}
-                                            onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                                            className="w-full pl-14 pr-5 py-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
-                                            placeholder="Scan barcode here..."
-                                        />
-                                    </div>
                                 </div>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">SKU / ID</label>
@@ -583,6 +588,29 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                         onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                                         className="w-full p-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-[10px] font-mono font-black placeholder:text-slate-300"
                                     />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Barcode</label>
+                                    <div className="relative">
+                                        <Tag className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400" />
+                                        <input
+                                            type="text"
+                                            value={formData.barcode || ''}
+                                            onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                                            className="w-full pl-14 pr-5 py-5 bg-slate-50 dark:bg-slate-900 border-none rounded-2xl text-sm font-black focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="Scan to scan..."
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Market Visibility</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, marketplaceEnabled: !formData.marketplaceEnabled })}
+                                        className={`w-full py-5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${formData.marketplaceEnabled ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
+                                    >
+                                        {formData.marketplaceEnabled ? 'LIVE ON MARKET' : 'PRIVATE ENTRY'}
+                                    </button>
                                 </div>
                             </div>
 
