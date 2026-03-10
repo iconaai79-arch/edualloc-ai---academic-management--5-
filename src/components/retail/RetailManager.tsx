@@ -32,72 +32,70 @@ export function RetailManager(props: RetailManagerProps) {
         businessSubType?.toLowerCase().includes('restaurant') ||
         businessSubType?.toLowerCase().includes('eatery');
 
+    const navItems = [
+        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+        { id: 'inventory', label: 'Catalog', icon: Package },
+        { id: 'pos', label: 'POS', icon: Smartphone },
+        { id: 'stores', label: 'Agents', icon: Store },
+        { id: 'wishlist', label: 'Leads', icon: Target },
+        { id: 'expenses', label: 'Expenses', icon: Receipt },
+        { id: 'requisitions', label: 'Reqs', icon: FileText },
+        { id: 'transfers', label: 'Transfers', icon: Truck },
+        { id: 'commissions', label: 'Comms', icon: HandCoins },
+        ...(isHospitality ? [{ id: 'cafe_menu', label: 'Cafe', icon: Coffee }] : [])
+    ];
+
     return (
-        <div className="space-y-6">
-            {/* Sub-Navigation */}
-            <div className="flex bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar">
-                <button
-                    onClick={() => setActiveView('dashboard')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'dashboard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <LayoutDashboard className="w-3.5 h-3.5" /> Overview
-                </button>
-                <button
-                    onClick={() => setActiveView('inventory')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'inventory' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Package className="w-3.5 h-3.5" /> Product Catalog
-                </button>
-                <button
-                    onClick={() => setActiveView('pos')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'pos' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Smartphone className="w-3.5 h-3.5" /> Point of Sale
-                </button>
-                <button
-                    onClick={() => setActiveView('stores')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'stores' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Store className="w-3.5 h-3.5" /> Locations & Agents
-                </button>
-                <button
-                    onClick={() => setActiveView('wishlist')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'wishlist' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Target className="w-3.5 h-3.5" /> Lead Manager
-                </button>
-                <button
-                    onClick={() => setActiveView('expenses')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'expenses' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Receipt className="w-3.5 h-3.5" /> Expenses
-                </button>
-                <button
-                    onClick={() => setActiveView('requisitions')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'requisitions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <FileText className="w-3.5 h-3.5" /> Requisitions
-                </button>
-                <button
-                    onClick={() => setActiveView('transfers')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'transfers' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <Truck className="w-3.5 h-3.5" /> Stock Transfers
-                </button>
-                <button
-                    onClick={() => setActiveView('commissions')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'commissions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
-                >
-                    <HandCoins className="w-3.5 h-3.5" /> Commissions
-                </button>
-                {isHospitality && (
+        <div className="min-h-screen pb-24 md:pb-6 space-y-6">
+            {/* Desktop Navigation - Glassy & Premium */}
+            <div className="hidden md:flex sticky top-0 z-30 py-4 backdrop-blur-xl bg-white/60 dark:bg-slate-900/60 border-b border-white/20 dark:border-slate-800/50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 transition-all">
+                <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar shadow-inner backdrop-blur-md">
+                    {navItems.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => setActiveView(item.id as any)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap group ${activeView === item.id
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm scale-105 active:scale-95'
+                                : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
+                        >
+                            <item.icon className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${activeView === item.id ? 'animate-pulse' : ''}`} />
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Mobile Bottom Navigation - Floating & Blurry */}
+            <div className="fixed bottom-6 left-4 right-4 z-50 md:hidden">
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/20 dark:border-slate-800/50 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-2 flex justify-around items-center">
+                    {navItems.slice(0, 5).map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => setActiveView(item.id as any)}
+                            className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all relative ${activeView === item.id
+                                ? 'text-indigo-600 dark:text-indigo-400 scale-110'
+                                : 'text-slate-400 hover:text-indigo-500'}`}
+                        >
+                            <item.icon className={`w-5 h-5 ${activeView === item.id ? 'fill-indigo-600/10' : ''}`} />
+                            <span className="text-[9px] font-bold uppercase tracking-tighter">{item.label}</span>
+                            {activeView === item.id && (
+                                <span className="absolute -bottom-1 w-1 h-1 bg-indigo-600 dark:bg-indigo-400 rounded-full animate-bounce"></span>
+                            )}
+                        </button>
+                    ))}
+                    {/* Menu Trigger for overflow items */}
                     <button
-                        onClick={() => setActiveView('cafe_menu')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeView === 'cafe_menu' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}
+                        onClick={() => setActiveView('expenses')} // Simple fallback or could open a modal
+                        className="flex flex-col items-center gap-1 p-2 text-slate-400"
                     >
-                        <Coffee className="w-3.5 h-3.5" /> Cafe Menu
+                        <div className="w-5 h-5 flex flex-wrap gap-0.5 justify-center items-center">
+                            <span className="w-1.5 h-1.5 bg-current rounded-full"></span>
+                            <span className="w-1.5 h-1.5 bg-current rounded-full"></span>
+                            <span className="w-1.5 h-1.5 bg-current rounded-full"></span>
+                        </div>
+                        <span className="text-[9px] font-bold uppercase tracking-tighter">More</span>
                     </button>
-                )}
+                </div>
             </div>
 
             <div className="animate-fade-in-up mt-4">

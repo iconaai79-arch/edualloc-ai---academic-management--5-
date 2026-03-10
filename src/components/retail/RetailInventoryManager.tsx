@@ -238,48 +238,58 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
     );
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-slate-900 dark:text-white">
-                <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
-                        <ImageIcon className="w-8 h-8 text-indigo-600" />
-                        Gadget & Electronics Hub
-                    </h2>
-                    <p className="text-slate-500 text-sm mt-1 uppercase text-[10px] font-black tracking-widest">Premium Inventory & Marketplace Management业务</p>
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            {/* Dynamic Header Section */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none animate-pulse">
+                            <ImageIcon className="w-8 h-8 text-white" />
+                        </div>
+                        <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                            Inventory <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-fuchsia-600">Nexus</span>
+                        </h2>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-[0.4em] ml-16 flex items-center gap-2">
+                        <Layers className="w-3 h-3 text-indigo-400" />
+                        Global Stock Control 业务
+                    </p>
                 </div>
 
-                <button
-                    onClick={() => {
-                        setEditingItem(null);
-                        setFormData({
-                            name: '',
-                            sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-                            category: 'Smartphones',
-                            srpPrice: 0,
-                            costPrice: 0,
-                            quantity: 0,
-                            reorderLevel: 5,
-                            unit: 'pcs',
-                            imageUrl: '',
-                            description: '',
-                            barcode: '',
-                            marketplaceEnabled: true
-                        });
-                        setIsAddModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 group"
-                >
-                    <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-                    List New Product
-                </button>
+                <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+                    <button
+                        onClick={() => {
+                            setEditingItem(null);
+                            setFormData({
+                                name: '',
+                                sku: `SKU-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+                                category: 'Smartphones',
+                                srpPrice: 0,
+                                costPrice: 0,
+                                quantity: 0,
+                                reorderLevel: 5,
+                                unit: 'pcs',
+                                imageUrl: '',
+                                description: '',
+                                barcode: '',
+                                marketplaceEnabled: true
+                            });
+                            setIsAddModalOpen(true);
+                        }}
+                        className="flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] shadow-[0_15px_30px_-10px_rgba(79,70,229,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(79,70,229,0.6)] hover:-translate-y-1 active:translate-y-0 transition-all group"
+                    >
+                        <Plus className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                        List New Product
+                    </button>
 
-                <button
-                    onClick={() => setIsImportModalOpen(true)}
-                    className="flex items-center gap-2 px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 transition-all active:scale-95 group"
-                >
-                    <Upload className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
-                    Import Excel
-                </button>
+                    <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="flex-1 lg:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-3xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:-translate-y-1 active:translate-y-0 transition-all group"
+                    >
+                        <Upload className="w-4 h-4 group-hover:-translate-y-1 transition-transform" />
+                        Bulk Upload
+                    </button>
+                </div>
             </div>
 
             {/* Premium Controls */}
@@ -311,73 +321,97 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                 </div>
             </div>
 
-            {/* Inventory Display */}
+            {/* Showroom Display */}
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading your showcase...</p>
+                <div className="flex flex-col items-center justify-center py-32 space-y-6">
+                    <div className="w-16 h-16 rounded-full border-b-4 border-indigo-600 animate-spin"></div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 animate-pulse">Scanning Catalogs...</p>
                 </div>
             ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {filteredItems.map(item => (
-                        <div key={item.id} className="group bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 relative">
-                            {/* Product Image Section */}
-                            <div className="h-64 bg-slate-50 dark:bg-slate-900/50 relative overflow-hidden">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-10">
+                    {filteredItems.map((item, idx) => (
+                        <div
+                            key={item.id}
+                            style={{ animationDelay: `${idx * 50}ms` }}
+                            className="group relative bg-white dark:bg-slate-900/50 rounded-[3rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-3 transition-all duration-700 animate-in fade-in slide-in-from-bottom-8"
+                        >
+                            {/* Product Image Stage */}
+                            <div className="h-72 bg-slate-50 dark:bg-slate-900 relative overflow-hidden">
                                 {item.imageUrl ? (
-                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-125" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <Package className="w-16 h-16 text-slate-200" />
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                                        <Package className="w-20 h-20 text-slate-300 dark:text-slate-700" />
                                     </div>
                                 )}
-                                <div className="absolute top-4 left-4">
-                                    <span className="px-4 py-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm">
+
+                                {/* Overlay Badges */}
+                                <div className="absolute top-6 left-6 flex flex-col gap-2">
+                                    <span className="px-5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl border border-white/50">
                                         {item.category}
                                     </span>
                                 </div>
+
                                 {item.marketplaceEnabled && (
-                                    <div className="absolute top-4 right-4">
-                                        <span className="p-2 bg-emerald-500 text-white rounded-full shadow-lg">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                        </span>
+                                    <div className="absolute top-6 right-6">
+                                        <div className="px-4 py-2 bg-emerald-500/90 backdrop-blur-md text-white rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center gap-2 border border-emerald-400/50">
+                                            <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                                            <span className="text-[8px] font-black uppercase tracking-widest">Live</span>
+                                        </div>
                                     </div>
                                 )}
+
+                                {/* Hover Action Bar */}
+                                <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-4 backdrop-blur-sm">
+                                    <button
+                                        onClick={() => openEdit(item)}
+                                        className="p-5 bg-white text-indigo-600 rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                    >
+                                        <Edit2 className="w-6 h-6" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(item.id)}
+                                        className="p-5 bg-rose-600 text-white rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                    >
+                                        <Trash2 className="w-6 h-6" />
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Details Section */}
+                            {/* Details Information */}
                             <div className="p-8">
-                                <div className="flex justify-between items-start mb-3">
-                                    <h3 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight leading-tight flex-1 line-clamp-1">
-                                        {item.name}
-                                    </h3>
-                                    <p className="font-black text-indigo-600 text-sm ml-4">
-                                        KES {item.srpPrice?.toLocaleString()}
-                                    </p>
-                                </div>
-                                <p className="text-[10px] text-slate-400 line-clamp-2 mb-6 font-medium leading-relaxed uppercase tracking-wide">
-                                    {item.description || 'No detailed description provided for this premium gadget.'}
-                                </p>
-
-                                <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-700">
-                                    <div className="flex flex-col">
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">Stock Status</span>
-                                        <span className={`text-xs font-black ${item.quantity <= (item.reorderLevel || 5) ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                                            {item.quantity} {item.unit}
-                                        </span>
+                                <div className="mb-6">
+                                    <div className="flex justify-between items-start gap-4 mb-2">
+                                        <h3 className="font-black text-slate-900 dark:text-white uppercase text-sm tracking-tight leading-tight line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                                            {item.name}
+                                        </h3>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Price</span>
+                                            <p className="font-black text-indigo-600 text-sm">
+                                                KES {item.srpPrice?.toLocaleString()}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => openEdit(item)}
-                                            className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
-                                        >
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(item.id)}
-                                            className="p-3 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                    <code className="text-[8px] font-mono text-slate-400 uppercase tracking-widest">{item.sku}</code>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800">
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Availability</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-xs font-black ${item.quantity <= (item.reorderLevel || 5) ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
+                                                {item.quantity} {item.unit}
+                                            </span>
+                                            {item.quantity <= (item.reorderLevel || 5) && (
+                                                <AlertTriangle className="w-3 h-3 text-rose-500 animate-bounce" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className={`w-1 h-1 rounded-full ${i === 1 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
