@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RetailDashboard } from './RetailDashboard';
+import { NotificationBell } from '../NotificationBell';
+import { supabase } from '../../lib/supabase';
+import { apiService } from '../../services/apiService';
+import { AppNotification } from '../../types';
 import { RetailStoresManager } from './RetailStoresManager';
 import { DualModePOS } from './DualModePOS';
 import { WishlistManager } from './WishlistManager';
@@ -27,6 +31,60 @@ interface RetailManagerProps {
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition } = props;
     const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu'>('dashboard');
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+    useEffect(() => {
+        if (currentUser?.id) {
+            fetchNotifications();
+
+            // Subscribe to real-time notifications
+            if (supabase) {
+                const channel = supabase
+                    .channel(`notifications-${currentUser.id}`)
+                    .on(
+                        'postgres_changes',
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'app_notifications',
+                            filter: `user_id=eq.${currentUser.id}`
+                        },
+                        () => {
+                            fetchNotifications();
+                        }
+                    )
+                    .subscribe();
+
+                return () => {
+                    supabase.removeChannel(channel);
+                };
+            }
+        }
+    }, [currentUser?.id]);
+
+    const fetchNotifications = async () => {
+        try {
+            const data = await apiService.fetchNotifications(currentUser.id);
+            setNotifications(data);
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
+        }
+    };
+
+    const handleMarkAsRead = async (id?: string) => {
+        try {
+            if (id) {
+                await apiService.markNotificationAsRead(id);
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+            } else {
+                await apiService.markAllNotificationsAsRead(currentUser.id);
+                setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+            }
+        } catch (error) {
+            console.error('Failed to update notifications:', error);
+        }
+    };
+
 
     const isHospitality = businessSubType?.toLowerCase().includes('cafe') ||
         businessSubType?.toLowerCase().includes('restaurant') ||
@@ -59,9 +117,15 @@ export function RetailManager(props: RetailManagerProps) {
                                 : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/50'}`}
                         >
                             <item.icon className={`w-3.5 h-3.5 transition-transform group-hover:scale-110 ${activeView === item.id ? 'animate-pulse' : ''}`} />
-                            {item.label}
                         </button>
                     ))}
+                </div>
+
+                <div className="flex-1 flex justify-end items-center gap-4">
+                    <NotificationBell
+                        notifications={notifications}
+                        onMarkAsRead={handleMarkAsRead}
+                    />
                 </div>
             </div>
 

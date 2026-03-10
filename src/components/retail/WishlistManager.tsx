@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { RetailWishlist } from '../../types';
 import { apiService } from '../../services/apiService';
-import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, CheckCircle2, Clock, MapPin, User as UserIcon, Banknote } from 'lucide-react';
+import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, CheckCircle2, Clock, MapPin, User as UserIcon, Banknote, X, Plus } from 'lucide-react';
 
 interface WishlistManagerProps {
     institutionId: string;
@@ -14,6 +14,15 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
     const [filter, setFilter] = useState<'all' | 'urgent' | 'casual' | 'matched'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'Open' | 'Closed'>('Open');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [newInquiry, setNewInquiry] = useState({
+        customerName: '',
+        phoneNumber: '',
+        productQuery: '',
+        maxBudget: '',
+        urgency: 'casual' as 'urgent' | 'casual'
+    });
 
     useEffect(() => {
         fetchLeads();
@@ -51,6 +60,66 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
         }
     };
 
+    const handleSaveInquiry = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            const user = apiService.getSession();
+            if (!user) throw new Error('Session required');
+
+            const id = Math.random().toString(36).substr(2, 9);
+            const lead: any = {
+                id,
+                institutionId,
+                customerName: newInquiry.customerName,
+                phoneNumber: newInquiry.phoneNumber,
+                productQuery: newInquiry.productQuery,
+                maxBudget: newInquiry.maxBudget ? parseFloat(newInquiry.maxBudget) : null,
+                urgency: newInquiry.urgency,
+                capturedById: user.id,
+                isMatched: false,
+                status: 'Open',
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('retail_wishlist', lead);
+
+            // Trigger Notification for Admins/Staff
+            // Find admins for this institution
+            const staff = await apiService.fetchUsers(institutionId);
+            const admins = staff.filter(s => s.role === 'admin' || s.role === 'super_admin' || s.role === 'retail_agent');
+
+            for (const admin of admins) {
+                if (admin.id === user.id) continue; // Don't notify self
+                await apiService.saveModuleRecord('app_notifications', {
+                    id: Math.random().toString(36).substr(2, 9),
+                    userId: admin.id,
+                    institutionId,
+                    message: `New Lead Captured: ${lead.customerName} is looking for ${lead.productQuery}`,
+                    type: 'new_lead',
+                    isRead: false,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            setLeads([lead, ...leads]);
+            setIsModalOpen(false);
+            setNewInquiry({
+                customerName: '',
+                phoneNumber: '',
+                productQuery: '',
+                maxBudget: '',
+                urgency: 'casual'
+            });
+        } catch (error) {
+            console.error('Failed to save inquiry:', error);
+            alert('Failed to log inquiry. Please check your connection.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+
     const filteredLeads = leads.filter(lead => {
         const matchesSearch =
             lead.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -79,8 +148,11 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 font-medium italic">Transforming walk-in queries into loyal customers.</p>
                 </div>
 
-                <button className="flex items-center gap-3 px-6 py-3 bg-gradient-to-br from-fuchsia-600 to-purple-700 text-white rounded-2xl shadow-[0_10px_20px_-5px_rgba(217,70,239,0.4)] hover:shadow-[0_15px_25px_-5px_rgba(217,70,239,0.5)] hover:-translate-y-1 active:translate-y-0 transition-all text-sm font-black uppercase tracking-wider">
-                    <Target className="w-5 h-5" />
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-3 px-6 py-3 bg-gradient-to-br from-fuchsia-600 to-purple-700 text-white rounded-2xl shadow-[0_10px_20px_-5px_rgba(217,70,239,0.4)] hover:shadow-[0_15px_25px_-5px_rgba(217,70,239,0.5)] hover:-translate-y-1 active:translate-y-0 transition-all text-sm font-black uppercase tracking-wider"
+                >
+                    <Plus className="w-5 h-5" />
                     Log New Inquiry
                 </button>
             </div>
@@ -163,10 +235,10 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                             {/* Status Badge */}
                             <div className="flex justify-between items-start mb-6">
                                 <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 border ${lead.isMatched
-                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                        : lead.urgency === 'urgent'
-                                            ? 'bg-orange-50 text-orange-600 border-orange-100'
-                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                    : lead.urgency === 'urgent'
+                                        ? 'bg-orange-50 text-orange-600 border-orange-100'
+                                        : 'bg-slate-50 text-slate-500 border-slate-100'
                                     }`}>
                                     <div className={`w-1.5 h-1.5 rounded-full ${lead.isMatched ? 'bg-emerald-500' : lead.urgency === 'urgent' ? 'bg-orange-500' : 'bg-slate-400'} animate-pulse`}></div>
                                     {lead.isMatched ? 'Stock Found' : lead.urgency === 'urgent' ? 'Urgent Need' : 'Casual Inq'}
@@ -245,6 +317,105 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                             </button>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Inquiry Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-white dark:border-slate-700 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-8 duration-500">
+                        <div className="p-8 pb-4 flex justify-between items-center bg-gradient-to-r from-fuchsia-100/50 to-purple-100/50 dark:from-fuchsia-900/20 dark:to-purple-900/20">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Capture <span className="text-fuchsia-600">Lead</span></h3>
+                                <p className="text-xs text-slate-500 font-medium italic">Logging intent into the Catalyst engine.</p>
+                            </div>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="p-3 bg-white dark:bg-slate-700 rounded-2xl text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all hover:rotate-90"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveInquiry} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Client Name</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newInquiry.customerName}
+                                        onChange={(e) => setNewInquiry({ ...newInquiry, customerName: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-fuchsia-500/10 focus:border-fuchsia-500 outline-none text-sm transition-all"
+                                        placeholder="Enter name"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={newInquiry.phoneNumber}
+                                        onChange={(e) => setNewInquiry({ ...newInquiry, phoneNumber: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-fuchsia-500/10 focus:border-fuchsia-500 outline-none text-sm transition-all"
+                                        placeholder="+254..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">What are they looking for?</label>
+                                <textarea
+                                    required
+                                    value={newInquiry.productQuery}
+                                    onChange={(e) => setNewInquiry({ ...newInquiry, productQuery: e.target.value })}
+                                    rows={3}
+                                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-fuchsia-500/10 focus:border-fuchsia-500 outline-none text-sm transition-all resize-none font-serif italic"
+                                    placeholder="e.g. iPhone 15 Pro Max 256GB Black"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Max Budget</label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">KES</div>
+                                        <input
+                                            type="number"
+                                            value={newInquiry.maxBudget}
+                                            onChange={(e) => setNewInquiry({ ...newInquiry, maxBudget: e.target.value })}
+                                            className="w-full pl-12 pr-5 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-fuchsia-500/10 focus:border-fuchsia-500 outline-none text-sm font-black transition-all"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Urgency</label>
+                                    <select
+                                        value={newInquiry.urgency}
+                                        onChange={(e) => setNewInquiry({ ...newInquiry, urgency: e.target.value as any })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 focus:ring-4 focus:ring-fuchsia-500/10 focus:border-fuchsia-500 outline-none text-sm font-black transition-all appearance-none cursor-pointer"
+                                    >
+                                        <option value="casual">Casual Interest</option>
+                                        <option value="urgent">Urgent Need</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isSaving}
+                                className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 mt-4"
+                            >
+                                {isSaving ? (
+                                    <Clock className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Target className="w-4 h-4" />
+                                )}
+                                {isSaving ? 'Processing Intent...' : 'Seal Capture Sequence'}
+                            </button>
+                        </form>
+                    </div>
                 </div>
             )}
         </div>
