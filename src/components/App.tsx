@@ -79,8 +79,10 @@ const PerspectiveReturnButton: React.FC<{
     onReturn: () => void;
     onRestoreSession?: () => void;
     hasCurrentUser?: boolean;
-}> = ({ role, isImpersonatedSession, onReturn, onRestoreSession, hasCurrentUser }) => {
+    isPublicView?: boolean;
+}> = ({ role, isImpersonatedSession, onReturn, onRestoreSession, hasCurrentUser, isPublicView }) => {
     if (!role && !isImpersonatedSession && hasCurrentUser) return null;
+    if (!hasCurrentUser && !isPublicView) return null;
     return (
         <div className="fixed bottom-24 left-6 z-[200] animate-fade-in-up no-print flex flex-col gap-3">
             {(role || isImpersonatedSession) && (
@@ -2698,6 +2700,7 @@ export const App: React.FC = () => {
                     role={impersonatedRole}
                     isImpersonatedSession={!!originalSuperAdminSession}
                     hasCurrentUser={!!currentUser}
+                    isPublicView={showMarketplace || showGuestPortal || showGuestFeedback}
                     onReturn={() => {
                         setImpersonatedRole(null);
                         setShowGuestPortal(false);
