@@ -276,9 +276,68 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                 <textarea
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none h-32"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none h-20"
                                     placeholder="Reasons for transfer, instructions for agent, etc."
                                 />
+                            </div>
+
+                            {/* Item Selection */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                                    Items to Transfer <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                        {inventory.length === 0 ? (
+                                            <div className="p-4 text-center text-slate-400 text-sm">No inventory items found</div>
+                                        ) : inventory.map(item => {
+                                            const existing = selectedItems.find(si => si.itemId === item.id);
+                                            return (
+                                                <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-800">{item.name}</p>
+                                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{item.sku || item.category} • Stock: {item.quantity ?? 0}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {existing ? (
+                                                            <>
+                                                                <input
+                                                                    type="number"
+                                                                    min={1}
+                                                                    max={item.quantity ?? 999}
+                                                                    value={existing.quantity}
+                                                                    onChange={e => {
+                                                                        const qty = Math.max(1, parseInt(e.target.value) || 1);
+                                                                        setSelectedItems(prev => prev.map(si => si.itemId === item.id ? { ...si, quantity: qty } : si));
+                                                                    }}
+                                                                    className="w-16 text-center bg-white border border-indigo-300 rounded-lg px-2 py-1 text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-400 outline-none"
+                                                                />
+                                                                <button
+                                                                    onClick={() => setSelectedItems(prev => prev.filter(si => si.itemId !== item.id))}
+                                                                    className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setSelectedItems(prev => [...prev, { itemId: item.id, quantity: 1 }])}
+                                                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black uppercase tracking-widest rounded-lg hover:bg-indigo-600 hover:text-white transition-all"
+                                                            >
+                                                                + Add
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                {selectedItems.length > 0 && (
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-2">
+                                        ✓ {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} selected
+                                    </p>
+                                )}
                             </div>
 
                             <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
