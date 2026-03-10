@@ -372,7 +372,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                 <div className="space-y-1">
                                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Market Valuation</p>
                                                     <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">
-                                                        <span className="text-sm font-medium not-italic mr-1 text-slate-400 uppercase tracking-normal">K</span>
+                                                        <span className="text-sm font-medium not-italic mr-1 text-slate-400 uppercase tracking-normal">KES</span>
                                                         {listing.price?.toLocaleString()}
                                                     </p>
                                                 </div>
@@ -470,7 +470,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                 <div>
                                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Price Unit</p>
                                                     <p className="text-2xl font-black text-slate-900 dark:text-white italic mt-0.5">
-                                                        <span className="text-xs font-medium not-italic mr-1 text-slate-400">K</span>
+                                                        <span className="text-xs font-medium not-italic mr-1 text-slate-400">KES</span>
                                                         {Number(product.srpPrice || product.costPrice || 0).toLocaleString()}
                                                     </p>
                                                 </div>
@@ -587,7 +587,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 <div className="glass-morphism p-12 rounded-[4rem] sticky top-12 shadow-[0_45px_100px_rgba(0,0,0,0.2)] flex flex-col items-center">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Unit Valuation</p>
                                     <div className="flex items-baseline gap-2 mb-12">
-                                        <span className="text-2xl font-medium text-slate-400">K</span>
+                                        <span className="text-2xl font-medium text-slate-400">KES</span>
                                         <p className="text-7xl font-black text-slate-900 dark:text-white italic tracking-tighter">
                                             {selectedListing.price?.toLocaleString()}
                                         </p>
@@ -675,7 +675,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 <div className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 shadow-indigo-500/5">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Retail Value</p>
                                     <div className="flex items-baseline gap-2">
-                                        <span className="text-sm font-medium text-slate-400 uppercase">K</span>
+                                        <span className="text-sm font-medium text-slate-400 uppercase">KES</span>
                                         <p className="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter">
                                             {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0).toLocaleString()}
                                         </p>
@@ -747,7 +747,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                         <div className="glass-morphism px-4 py-2 rounded-xl">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">Valuation</p>
                                             <p className="text-xl font-black italic leading-none">
-                                                K {inquiryListing ? inquiryListing.price?.toLocaleString() : Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0).toLocaleString()}
+                                                KES {inquiryListing ? inquiryListing.price?.toLocaleString() : Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="glass-morphism px-4 py-2 rounded-xl">
