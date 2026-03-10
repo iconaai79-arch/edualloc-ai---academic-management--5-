@@ -31,13 +31,28 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
 
     // CRM state
     const [allCustomers, setAllCustomers] = useState<RetailCustomer[]>([]);
+    const [allStores, setAllStores] = useState<RetailStore[]>([]);
     const [customerSearch, setCustomerSearch] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null>(null);
 
     useEffect(() => {
         fetchProducts();
         fetchCustomers();
+        fetchStores();
     }, [institutionId]);
+
+    const fetchStores = async () => {
+        try {
+            const data = await apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId);
+            setAllStores(data || []);
+            if (data && data.length > 0 && !activeStore) {
+                // Default to first active store if none selected
+                setActiveStore(data[0]);
+            }
+        } catch (err) {
+            console.error("Fetch stores error:", err);
+        }
+    };
 
     const fetchCustomers = async () => {
         try {
@@ -126,31 +141,35 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
             const loyaltyPointsEarned = Math.floor(totalAmount / 100);
 
             if (customerInfo.name || customerInfo.phone) {
-                const customerData: any = {
-                    institutionId,
-                    name: customerInfo.name || 'Walk-in Customer',
-                    phoneNumber: customerInfo.phone,
-                    email: customerInfo.email,
-                    totalSpent: (selectedCustomer?.totalSpent || 0) + totalAmount,
-                    loyaltyPoints: (selectedCustomer?.loyaltyPoints || 0) + loyaltyPointsEarned,
-                    updatedAt: new Date().toISOString()
-                };
+                try {
+                    const customerData: any = {
+                        institutionId,
+                        name: customerInfo.name || 'Walk-in Customer',
+                        phoneNumber: customerInfo.phone,
+                        email: customerInfo.email,
+                        totalSpent: (selectedCustomer?.totalSpent || 0) + totalAmount,
+                        loyaltyPoints: (selectedCustomer?.loyaltyPoints || 0) + loyaltyPointsEarned,
+                        updatedAt: new Date().toISOString()
+                    };
 
-                if (selectedCustomer) {
-                    customerData.id = selectedCustomer.id;
-                } else {
-                    customerData.createdAt = new Date().toISOString();
-                }
+                    if (selectedCustomer) {
+                        customerData.id = selectedCustomer.id;
+                    } else {
+                        customerData.createdAt = new Date().toISOString();
+                    }
 
-                const savedCustomer: any = await apiService.saveModuleRecord('retail_customers', customerData);
-                if (savedCustomer && savedCustomer.id) {
-                    finalCustomerId = savedCustomer.id;
+                    const savedCustomer: any = await apiService.saveModuleRecord('retail_customers', customerData);
+                    if (savedCustomer && savedCustomer.id) {
+                        finalCustomerId = savedCustomer.id;
+                    }
+                } catch (crmErr) {
+                    console.error("CRM/Customer save failed, proceeding with sale only:", crmErr);
                 }
             }
 
             const saleData = {
                 institutionId,
-                storeId: activeStore?.id || (activeMode === 'shop' ? 'main_store' : `agent_${currentUser.id}`),
+                storeId: activeStore?.id || allStores[0]?.id || (activeMode === 'shop' ? 'main_store' : currentUser.id),
                 agentId: activeMode === 'field' ? currentUser.id : undefined,
                 customerId: finalCustomerId,
                 totalAmount,
