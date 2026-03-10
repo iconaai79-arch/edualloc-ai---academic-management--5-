@@ -46,9 +46,12 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         try {
             const data = await apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId);
             setAllStores(data || []);
-            if (data && data.length > 0 && !activeStore) {
-                // Default to first active store if none selected
-                setActiveStore(data[0]);
+            if (data && data.length > 0) {
+                if (!activeStore) {
+                    // In Field Ops: prefer a van_stock store for this agent, else pick first store
+                    const agentStore = data.find(s => s.agentId === currentUser.id && s.storeType === 'van_stock');
+                    setActiveStore(agentStore || data[0]);
+                }
             }
         } catch (err) {
             console.error("Fetch stores error:", err);
@@ -175,17 +178,31 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 }
             }
 
-            const targetStoreId = activeStore?.id || allStores[0]?.id;
-            if (!targetStoreId || targetStoreId.length < 30) {
-                alert("Please select a valid Store/Agent in the 'Agents/Stores' tab before checking out.");
+            // Resolve the best store for this transaction
+            let targetStore: RetailStore | undefined;
+            if (activeMode === 'field') {
+                // Field Ops: prefer agent's own van_stock, then any store
+                targetStore = allStores.find(s => s.agentId === currentUser.id && s.storeType === 'van_stock')
+                    || activeStore
+                    || allStores[0];
+            } else {
+                targetStore = activeStore || allStores[0];
+            }
+
+            const targetStoreId = targetStore?.id;
+            if (!targetStoreId) {
+                alert("Please create a Store in the 'Stores' tab before checking out.");
                 setIsProcessing(false);
                 return;
             }
 
+            // Only pass agentId if in field mode and store type is van_stock (to satisfy UUID FK constraint)
+            const isVanSale = activeMode === 'field' && targetStore?.storeType === 'van_stock';
+
             const saleData = {
                 institutionId,
                 storeId: targetStoreId,
-                agentId: activeMode === 'field' ? currentUser.id : undefined,
+                agentId: isVanSale ? currentUser.id : undefined,
                 customerId: finalCustomerId,
                 totalAmount,
                 paymentMethod,
