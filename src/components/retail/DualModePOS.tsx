@@ -271,6 +271,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 setCheckoutSuccess(savedSale);
                 setCart([]);
                 fetchCustomers(); // Refresh list to catch new/updated customer
+                fetchProducts();  // Refresh inventory to show updated stock quantities
             }
 
         } catch (err: any) {
