@@ -118,9 +118,9 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                     name: '', storeType: 'branch_store', location: '', isActive: true, latitude: undefined, longitude: undefined
                 });
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Save location error:", err);
-            alert("Failed to save location");
+            alert(`Failed to save location: ${err.message || 'Unknown error'}`);
         } finally {
             setIsSaving(false);
         }
