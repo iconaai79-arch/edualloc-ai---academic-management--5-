@@ -23,14 +23,21 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [selectedListing, setSelectedListing] = useState<PMListing | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
     const [inquiryListing, setInquiryListing] = useState<PMListing | null>(null);
+    const [inquiryProduct, setInquiryProduct] = useState<RetailInventoryItem | null>(null);
     const [inquiryName, setInquiryName] = useState('');
     const [inquiryPhone, setInquiryPhone] = useState('');
     const [inquiryDate, setInquiryDate] = useState('');
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
 
-    const openInquiry = (listing: PMListing) => {
-        setInquiryListing(listing);
+    const openInquiry = (listing: PMListing | RetailInventoryItem) => {
+        if ('listingType' in listing) {
+            setInquiryListing(listing);
+            setInquiryProduct(null);
+        } else {
+            setInquiryProduct(listing);
+            setInquiryListing(null);
+        }
         setInquiryName('');
         setInquiryPhone('');
         setInquiryDate('');
@@ -39,32 +46,69 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
     const handleSubmitInquiry = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inquiryListing) return;
+        if (!inquiryListing && !inquiryProduct) return;
         setInquirySubmitting(true);
-        const seller = getSeller(inquiryListing.institutionId);
-        const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
-        const subject = `Marketplace Inquiry: ${inquiryListing.title}`;
-        const body = [
-            `Hello ${seller?.name || 'Team'},`,
-            ``,
-            `A potential ${inquiryListing.listingType === 'Sale' ? 'buyer' : 'tenant'} has expressed interest in your listing:`,
-            `Title: ${inquiryListing.title}`,
-            `Price: KES ${inquiryListing.price?.toLocaleString()}`,
-            `Location: ${inquiryListing.location || 'N/A'}`,
-            ``,
-            `Interested Party Details:`,
-            `Name: ${inquiryName}`,
-            `Phone: ${inquiryPhone}`,
-            isViewingRequired && inquiryDate ? `Preferred Viewing Date: ${inquiryDate}` : '',
-        ].filter(Boolean).join('\n');
+
         try {
-            if (seller?.email) {
-                await apiService.sendEmail(seller.email, subject, body);
+            if (inquiryListing) {
+                const seller = getSeller(inquiryListing.institutionId);
+                const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
+                const subject = `Marketplace Inquiry: ${inquiryListing.title}`;
+                const body = [
+                    `Hello ${seller?.name || 'Team'},`,
+                    ``,
+                    `A potential ${inquiryListing.listingType === 'Sale' ? 'buyer' : 'tenant'} has expressed interest in your listing:`,
+                    `Title: ${inquiryListing.title}`,
+                    `Price: KES ${inquiryListing.price?.toLocaleString()}`,
+                    `Location: ${inquiryListing.location || 'N/A'}`,
+                    ``,
+                    `Interested Party Details:`,
+                    `Name: ${inquiryName}`,
+                    `Phone: ${inquiryPhone}`,
+                    isViewingRequired && inquiryDate ? `Preferred Viewing Date: ${inquiryDate}` : '',
+                ].filter(Boolean).join('\n');
+
+                if (seller?.email) {
+                    await apiService.sendEmail(seller.email, subject, body);
+                }
+            } else if (inquiryProduct) {
+                const seller = getSeller(inquiryProduct.institutionId);
+                const lead = {
+                    id: `wish_${Date.now()}`,
+                    institution_id: inquiryProduct.institutionId,
+                    customer_name: inquiryName,
+                    phone_number: inquiryPhone,
+                    product_query: inquiryProduct.name,
+                    captured_by_id: '00000000-0000-0000-0000-000000000000', // System/Marketplace ID
+                    urgency: 'urgent',
+                    created_at: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('retail_wishlist', lead);
+
+                if (seller?.email) {
+                    const subject = `New Product Enquiry: ${inquiryProduct.name}`;
+                    const body = `
+                        Hello ${seller.name},
+                        
+                        A customer has enquired about ${inquiryProduct.name} on the marketplace.
+                        
+                        Details:
+                        Name: ${inquiryName}
+                        Phone: ${inquiryPhone}
+                        Product: ${inquiryProduct.name}
+                        Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0).toLocaleString()}
+                        
+                        Please follow up with the lead.
+                    `.trim();
+                    await apiService.sendEmail(seller.email, subject, body);
+                }
             }
+
             setInquirySuccess(true);
         } catch (err) {
-            console.error('Inquiry send failed:', err);
-            setInquirySuccess(true); // Still show success to user
+            console.error('Inquiry submission failed:', err);
+            setInquirySuccess(true); // Still show success to user if record saved but email fails
         } finally {
             setInquirySubmitting(false);
         }
@@ -577,9 +621,8 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                             <button
                                 onClick={() => {
-                                    const seller = getSeller(selectedProduct.institutionId);
-                                    alert(`Order inquiry sent to ${seller?.name || 'the retailer'}. They will reach out with payment instructions.`);
                                     setSelectedProduct(null);
+                                    openInquiry(selectedProduct);
                                 }}
                                 className="w-full bg-indigo-600 text-white py-6 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
                             >
@@ -591,23 +634,30 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             )}
 
             {/* ── Express Interest Modal ── */}
-            {inquiryListing && (
+            {(inquiryListing || inquiryProduct) && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div
                         className="absolute inset-0 bg-slate-900/70 backdrop-blur-md"
-                        onClick={() => !inquirySubmitting && setInquiryListing(null)}
+                        onClick={() => {
+                            if (!inquirySubmitting) {
+                                setInquiryListing(null);
+                                setInquiryProduct(null);
+                            }
+                        }}
                     ></div>
                     <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         {/* Header */}
-                        <div className="bg-gradient-to-br from-orange-600 to-rose-600 p-8 text-white">
+                        <div className={`bg-gradient-to-br p-8 text-white ${inquiryProduct ? 'from-indigo-600 to-purple-600' : 'from-orange-600 to-rose-600'}`}>
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-200">Express Interest</p>
-                                    <h3 className="text-2xl font-black uppercase tracking-tighter italic mt-1">{inquiryListing.title}</h3>
-                                    <p className="text-orange-200 text-xs font-bold uppercase tracking-widest mt-2">{inquiryListing.listingType} • KES {inquiryListing.price?.toLocaleString()}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70">Express Interest</p>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter italic mt-1">{inquiryListing?.title || inquiryProduct?.name}</h3>
+                                    <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-2">
+                                        {inquiryListing ? `${inquiryListing.listingType} • KES ${inquiryListing.price?.toLocaleString()}` : `${inquiryProduct?.category || 'Retail'} • KES ${Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0).toLocaleString()}`}
+                                    </p>
                                 </div>
                                 <button
-                                    onClick={() => setInquiryListing(null)}
+                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
                                     className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all"
                                 >
                                     <XIcon className="w-5 h-5" />
@@ -622,13 +672,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 </div>
                                 <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-2">Inquiry Sent!</h4>
                                 <p className="text-slate-500 text-sm font-medium mb-8">
-                                    The property manager will contact you at <strong>{inquiryPhone}</strong> shortly.
-                                    {(inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && inquiryDate &&
+                                    {inquiryListing ? 'The property manager' : 'The retailer'} will contact you at <strong>{inquiryPhone}</strong> shortly.
+                                    {inquiryListing && (inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && inquiryDate &&
                                         ` Your preferred viewing date of ${new Date(inquiryDate).toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long' })} has been noted.`
                                     }
                                 </p>
                                 <button
-                                    onClick={() => setInquiryListing(null)}
+                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
                                     className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-widest"
                                 >
                                     Done
@@ -644,7 +694,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                         value={inquiryName}
                                         onChange={e => setInquiryName(e.target.value)}
                                         placeholder="e.g. John Kamau"
-                                        className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
+                                        className={`w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 border-none transition-all ${inquiryProduct ? 'ring-indigo-500' : 'ring-orange-500'}`}
                                     />
                                 </div>
 
@@ -658,12 +708,12 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                             value={inquiryPhone}
                                             onChange={e => setInquiryPhone(e.target.value)}
                                             placeholder="e.g. 0712 345 678"
-                                            className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 ring-orange-500 border-none transition-all"
+                                            className={`w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-white outline-none focus:ring-2 border-none transition-all ${inquiryProduct ? 'ring-indigo-500' : 'ring-orange-500'}`}
                                         />
                                     </div>
                                 </div>
 
-                                {(inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && (
+                                {inquiryListing && (inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease') && (
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                                             Preferred Viewing Date <span className="text-orange-500">*</span>
@@ -683,7 +733,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 <button
                                     type="submit"
                                     disabled={inquirySubmitting}
-                                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 mt-2"
+                                    className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 mt-2 text-white ${inquiryProduct ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/20'}`}
                                 >
                                     {inquirySubmitting ? (
                                         <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending...</>

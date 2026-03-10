@@ -842,8 +842,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
             // Calculate discount and final amount
             let baseAmount = (job.amountCharged || 0) + tabTotal;
             let finalAmountToPay = baseAmount;
+            let discountApplied = 0;
 
-            const useLoyalty = carWashSettings?.isLoyaltyEnabled ?? true;
+            const useLoyalty = (carWashSettings?.isLoyaltyEnabled ?? true) && useLoyaltyPoints;
             const redeemValue = carWashSettings?.redeemValuePerPoint ?? 1;
 
             if (useLoyalty && customer && (customer.loyaltyPoints || 0) > 0) {
