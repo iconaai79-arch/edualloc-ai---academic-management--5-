@@ -1074,7 +1074,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 images: newListingImages,
                 id: data.id || `list_${Date.now()}`,
                 institutionId,
-                status: data.status || 'Active',
+                status: data.status || 'Published',
                 createdAt: new Date().toISOString()
             });
             setShowListingModal(false);

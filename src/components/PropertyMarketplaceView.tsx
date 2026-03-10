@@ -26,7 +26,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             try {
                 // Fetch all active listings across all institutions
                 const allListings = await apiService.fetchModuleRecords<PMListing>('pm_listings', 'ALL');
-                const activeListings = allListings.filter(l => l.status === 'Active');
+                const activeListings = allListings.filter(l => l.status === 'Active' || l.status === 'Published');
 
                 // Fetch institution details to show seller info
                 const instList = await apiService.fetchModuleRecords<Institution>('institutions', 'ALL');
