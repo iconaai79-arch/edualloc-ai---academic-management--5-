@@ -37,18 +37,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $host = $_SERVER['HTTP_HOST'];
             $scriptPath = str_replace(basename(__FILE__), '', $_SERVER['SCRIPT_NAME']);
             $publicUrl = $protocol . '://' . $host . $scriptPath . 'uploads/' . $fileName;
-            
+
             echo json_encode(['success' => true, 'url' => $publicUrl, 'path' => '/uploads/' . $fileName]);
         } else {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to move uploaded file.']);
+            echo json_encode(['error' => 'Failed to move uploaded file. Check permissions on ' . $uploadDir]);
         }
     } else {
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid file type.']);
+        echo json_encode(['error' => 'Invalid file type: ' . $fileType]);
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    http_response_code(200);
+    echo json_encode([
+        'status' => 'active',
+        'message' => 'EduAlloc Upload Handler',
+        'diagnostics' => [
+            'method' => $_SERVER['REQUEST_METHOD'],
+            'uploads_writable' => is_writable($uploadDir),
+            'post_max' => ini_get('post_max_size'),
+            'upload_max' => ini_get('upload_max_filesize')
+        ]
+    ]);
 } else {
     http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
+    echo json_encode(['error' => 'Method not allowed', 'method' => $_SERVER['REQUEST_METHOD']]);
 }
 ?>

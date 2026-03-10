@@ -223,38 +223,45 @@ export const apiService = {
 
             for (const uploadUrl of possiblePaths) {
                 try {
+                    console.log(`[Storage] Attempting upload to: ${uploadUrl}`);
                     const response = await fetch(uploadUrl, {
                         method: 'POST',
-                        body: formData
+                        body: formData,
+                        redirect: 'follow'
                     });
 
                     if (response.ok) {
-                        const result = await response.json();
-                        if (result.success && result.url) {
-                            uploadedUrl = result.url;
-                            uploadSuccess = true;
-                            break;
-                        } else if (result.error) {
-                            lastUploadError = result.error;
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            const result = await response.json();
+                            if (result.success && result.url) {
+                                console.log("[Storage] cPanel upload success:", result.url);
+                                return result.url;
+                            } else if (result.error) {
+                                lastUploadError = `Server Error: ${result.error}`;
+                            }
+                        } else {
+                            const text = await response.text();
+                            console.warn("[Storage] Non-JSON response received:", text.substring(0, 100));
+                            lastUploadError = `Invalid response (Check console/network)`;
                         }
                     } else {
                         const errorText = await response.text();
-                        lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 100)}`;
+                        lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 50) || response.statusText}`;
+                        console.error(`[Storage] Upload failed for ${uploadUrl}:`, lastUploadError);
                     }
                 } catch (localErr: any) {
-                    lastUploadError = localErr.message;
+                    lastUploadError = `Network: ${localErr.message}`;
+                    console.warn(`[Storage] Connection failed for ${uploadUrl}:`, localErr);
                 }
             }
 
-            if (uploadSuccess) {
-                return uploadedUrl;
-            } else {
-                console.warn("All local upload attempts failed. Last error from cPanel:", lastUploadError);
-                // If it's the eduai bucket, we SHOULD NOT fall back silently if it's supposed to be cPanel
-                if (bucket === 'eduai') {
-                    alert(`cPanel Upload Failed: ${lastUploadError || 'Unknown Error'}. \n\nPlease ensure upload.php is at the root of your site and public/uploads/ is writable.`);
-                    return null;
-                }
+            if (uploadedUrl) return uploadedUrl;
+
+            console.warn("[Storage] All local upload attempts failed. Last error from cPanel:", lastUploadError);
+            if (bucket === 'eduai') {
+                alert(`cPanel Upload Failed (${lastUploadError || 'Unknown Error'}).\n\n1. Ensure upload.php is at the root folder.\n2. Ensure public/uploads/ is writable (755).\n3. Check Console (F12) for details.`);
+                return null;
             }
 
             // 2. Fallback: Supabase Storage
