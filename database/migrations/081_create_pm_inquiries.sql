@@ -18,13 +18,13 @@ ALTER TABLE public.pm_inquiries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Staff can view their property inquiries" 
     ON public.pm_inquiries FOR SELECT 
     USING (institution_id IN (
-        SELECT institution_id FROM public.users WHERE id = auth.uid()
+        SELECT institution_id FROM public.users WHERE id = auth.uid()::TEXT
     ));
 
 CREATE POLICY "Staff can manage their property inquiries" 
     ON public.pm_inquiries FOR ALL 
     USING (institution_id IN (
-        SELECT institution_id FROM public.users WHERE id = auth.uid()
+        SELECT institution_id FROM public.users WHERE id = auth.uid()::TEXT
     ));
 
 CREATE POLICY "Allow anonymous marketplace property inquiries" 
