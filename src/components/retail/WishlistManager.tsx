@@ -92,7 +92,6 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
             for (const admin of admins) {
                 if (admin.id === user.id) continue; // Don't notify self
                 await apiService.saveModuleRecord('app_notifications', {
-                    id: Math.random().toString(36).substr(2, 9),
                     userId: admin.id,
                     institutionId,
                     message: `New Lead Captured: ${lead.customerName} is looking for ${lead.productQuery}`,

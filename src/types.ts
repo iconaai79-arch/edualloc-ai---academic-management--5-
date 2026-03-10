@@ -496,8 +496,10 @@ export interface ActivityLog {
 export interface AppNotification {
     id: string;
     userId: string;
+    institutionId?: string;
     message: string;
     type: string;
+    link?: string;
     isRead: boolean;
     timestamp: string;
 }

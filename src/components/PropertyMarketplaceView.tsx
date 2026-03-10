@@ -49,7 +49,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             // Fetch all users for this institution to notify them
             const users = await apiService.fetchUsers(institutionId);
             const notifications = users.map(user => ({
-                id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 userId: user.id,
                 institutionId: institutionId,
                 message,
