@@ -269,7 +269,7 @@ export const apiService = {
             }
 
             let records = ls.get(effectiveModule);
-            if (institutionId) {
+            if (institutionId && institutionId !== 'ALL') {
                 const filterKey = getFilterCol(effectiveModule, 'institution');
                 records = records.filter((r: any) => r[filterKey] === institutionId);
             }
@@ -283,7 +283,7 @@ export const apiService = {
         try {
             let query = _supabase.from(module as any).select('*');
 
-            if (institutionId) {
+            if (institutionId && institutionId !== 'ALL') {
                 const filterCol = getFilterCol(module, 'institution');
                 query = query.eq(filterCol, institutionId);
             }
