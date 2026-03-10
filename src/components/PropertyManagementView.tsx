@@ -36,6 +36,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [tickets, setTickets] = useState<PMTicket[]>([]);
     const [disbursements, setDisbursements] = useState<PMDisbursement[]>([]);
     const [listings, setListings] = useState<any[]>([]); // Using any for now until types are fully recognized
+    const [inquiries, setInquiries] = useState<PMInquiry[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Modals
@@ -59,7 +60,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList, listingList] = await Promise.all([
+            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList, listingList, inquiryList] = await Promise.all([
                 apiService.fetchModuleRecords<PMLandlord>('pm_landlords', institutionId),
                 apiService.fetchModuleRecords<PMProperty>('pm_properties', institutionId),
                 apiService.fetchModuleRecords<PMUnit>('pm_units', institutionId),
@@ -69,6 +70,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 apiService.fetchModuleRecords<PMTicket>('pm_maintenance', institutionId),
                 apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', institutionId),
                 apiService.fetchModuleRecords<any>('pm_listings', institutionId),
+                apiService.fetchModuleRecords<PMInquiry>('pm_inquiries', institutionId),
             ]);
             setLandlords(landlordList || []);
             setProperties(propList || []);
@@ -79,6 +81,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             setTickets(ticketList || []);
             setDisbursements(disbursementList || []);
             setListings(listingList || []);
+            setInquiries(inquiryList || []);
             onDataChange();
         } catch (e) { console.error(e); }
         setLoading(false);
@@ -1091,6 +1094,97 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         } catch (e: any) { alert(e.message || "Failed to delete listing"); }
     };
 
+    const handleUpdateInquiryStatus = async (id: string, status: PMInquiryStatus) => {
+        try {
+            const inquiry = inquiries.find(i => i.id === id);
+            if (inquiry) {
+                await apiService.saveModuleRecord('pm_inquiries', { ...inquiry, status });
+                loadData();
+            }
+        } catch (e: any) { alert(e.message || "Failed to update inquiry status"); }
+    };
+
+    const handleDeleteInquiry = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this inquiry?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_inquiries', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete inquiry"); }
+    };
+
+    const InquiriesTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Marketplace Inquiries</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Track and manage potential tenants and buyers</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {inquiries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(inquiry => {
+                    const listing = listings.find(l => l.id === inquiry.listingId);
+                    return (
+                        <div key={inquiry.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl group hover:-translate-y-2 transition-all duration-500 flex flex-col justify-between">
+                            <div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic ${inquiry.status === 'New' ? 'bg-blue-600 text-white' : inquiry.status === 'Contacted' ? 'bg-amber-500 text-white' : 'bg-slate-500 text-white'}`}>
+                                        {inquiry.status}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase italic">{new Date(inquiry.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <h4 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-1">{inquiry.customerName}</h4>
+                                <p className="text-blue-600 text-xs font-black uppercase italic mb-4">{inquiry.phoneNumber}</p>
+
+                                {listing && (
+                                    <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Inquired For</p>
+                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic truncate">{listing.title}</p>
+                                        <p className="text-[9px] text-blue-600 font-bold uppercase">{listing.listingType} • KES {listing.price?.toLocaleString()}</p>
+                                    </div>
+                                )}
+
+                                {inquiry.inquiryDate && (
+                                    <div className="flex items-center gap-2 mb-4 text-xs font-bold text-slate-500 italic">
+                                        <CalendarIcon className="w-4 h-4 text-emerald-500" />
+                                        Preferred Viewing: {new Date(inquiry.inquiryDate).toLocaleDateString()}
+                                    </div>
+                                )}
+
+                                {inquiry.message && <p className="text-xs text-slate-500 font-medium italic mb-6">"{inquiry.message}"</p>}
+                            </div>
+
+                            <div className="flex gap-2 pt-6 border-t border-slate-50 dark:border-slate-700 mt-auto">
+                                <select
+                                    value={inquiry.status}
+                                    onChange={(e) => handleUpdateInquiryStatus(inquiry.id, e.target.value as PMInquiryStatus)}
+                                    className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none border-none cursor-pointer"
+                                >
+                                    <option value="New">Mark as New</option>
+                                    <option value="Contacted">Contacted</option>
+                                    <option value="Closed">Closed</option>
+                                </select>
+                                <button onClick={() => handleDeleteInquiry(inquiry.id)} className="p-2 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors">
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {inquiries.length === 0 && (
+                    <div className="col-span-full py-20 bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
+                        <div className="p-6 bg-white dark:bg-slate-800 rounded-full shadow-xl mb-6">
+                            <UserPlusIcon className="w-12 h-12 text-slate-300" />
+                        </div>
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase italic mb-2">No Inquiries Yet</h4>
+                        <p className="text-slate-500 text-sm font-medium max-max-sm">Customer enquiries from the marketplace will appear here.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     const ListingsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center">
@@ -1202,6 +1296,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
                 { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
                 { id: 'listings', label: 'Sales & Listings', icon: ShoppingCartIcon },
+                { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
                 { id: 'reports', label: 'Reports', icon: ChartPieIcon },
             ].map(tab => (
                 <button
@@ -1361,6 +1456,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {activeTab === 'maintenance' && <MaintenanceTab />}
             {activeTab === 'payouts' && <PayoutsTab />}
             {activeTab === 'listings' && <ListingsTab />}
+            {activeTab === 'inquiries' && <InquiriesTab />}
             {activeTab === 'reports' && <ReportsTab />}
 
             <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="Create Marketplace Ad" maxWidth="max-w-2xl">

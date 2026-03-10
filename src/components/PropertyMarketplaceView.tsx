@@ -71,6 +71,20 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 if (seller?.email) {
                     await apiService.sendEmail(seller.email, subject, body);
                 }
+
+                // Save inquiry to database for portal management
+                const pmInquiry = {
+                    institutionId: inquiryListing.institutionId,
+                    listingId: inquiryListing.id,
+                    customerName: inquiryName,
+                    phoneNumber: inquiryPhone,
+                    inquiryDate: inquiryDate || null,
+                    message: `Interested in ${inquiryListing.listingType === 'Sale' ? 'buying' : 'renting'} ${inquiryListing.title}`,
+                    status: 'New',
+                    createdAt: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('pm_inquiries', pmInquiry);
             } else if (inquiryProduct) {
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {

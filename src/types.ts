@@ -2043,15 +2043,29 @@ export interface PMPayment {
 
 export interface PMTicket {
     id: string;
+    institutionId: string;
     propertyId: string;
     unitId?: string;
     title: string;
-    description?: string;
-    priority: PMPriority;
-    status: PMTicketStatus;
+    description: string;
+    priority: PMPriority; // Assuming MaintenancePriority is PMPriority based on context
+    status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
     assignedTo?: string;
-    cost: number;
+    cost?: number;
+    createdAt: string;
+}
+
+export type PMInquiryStatus = 'New' | 'Contacted' | 'Closed';
+
+export interface PMInquiry {
+    id: string;
     institutionId: string;
+    listingId?: string;
+    customerName: string;
+    phoneNumber: string;
+    inquiryDate?: string;
+    message?: string;
+    status: PMInquiryStatus;
     createdAt: string;
 }
 
