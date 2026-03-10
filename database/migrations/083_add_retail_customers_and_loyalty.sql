@@ -30,13 +30,13 @@ ALTER TABLE public.retail_customers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their institution's retail_customers"
     ON public.retail_customers FOR SELECT
     USING (institution_id IN (
-        SELECT institution_id FROM public.users WHERE id = auth.uid()::TEXT
+        SELECT institution_id FROM public.users WHERE id::TEXT = auth.uid()::TEXT
     ));
 
 CREATE POLICY "Admins/Agents can manage their institution's retail_customers"
     ON public.retail_customers FOR ALL
     USING (institution_id IN (
-        SELECT institution_id FROM public.users WHERE id = auth.uid()::TEXT
+        SELECT institution_id FROM public.users WHERE id::TEXT = auth.uid()::TEXT
     ));
 
 -- 4. Indexes for performance

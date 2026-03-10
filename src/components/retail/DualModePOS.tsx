@@ -168,9 +168,16 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 }
             }
 
+            const targetStoreId = activeStore?.id || allStores[0]?.id;
+            if (!targetStoreId || targetStoreId.length < 30) {
+                alert("Please select a valid Store/Agent in the 'Agents/Stores' tab before checking out.");
+                setIsProcessing(false);
+                return;
+            }
+
             const saleData = {
                 institutionId,
-                storeId: activeStore?.id || allStores[0]?.id || (activeMode === 'shop' ? 'main_store' : currentUser.id),
+                storeId: targetStoreId,
                 agentId: activeMode === 'field' ? currentUser.id : undefined,
                 customerId: finalCustomerId,
                 totalAmount,
@@ -196,17 +203,21 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                     const isCafe = (c.item as any).source === 'cafe';
                     const basePrice = isCafe ? (c.item as any).basePrice : ((c.item as any).basePrice || (c.item as any).costPrice || 0);
                     if (c.finalPrice > basePrice) {
-                        await apiService.saveModuleRecord('retail_commission_ledger', {
-                            institutionId,
-                            agentId: currentUser.id,
-                            saleId: (savedSale as any).id,
-                            itemId: c.item.id,
-                            basePrice,
-                            soldPrice: c.finalPrice,
-                            commissionAmount: (c.finalPrice - basePrice) * c.quantity,
-                            isPaid: false,
-                            createdAt: new Date().toISOString()
-                        });
+                        try {
+                            await apiService.saveModuleRecord('retail_commissions_ledger', {
+                                institutionId,
+                                agentId: currentUser.id,
+                                saleId: (savedSale as any).id,
+                                itemId: c.item.id,
+                                basePrice,
+                                soldPrice: c.finalPrice,
+                                commissionAmount: (c.finalPrice - basePrice) * c.quantity,
+                                isPaid: false,
+                                createdAt: new Date().toISOString()
+                            });
+                        } catch (commErr) {
+                            console.error("Commission save failed:", commErr);
+                        }
                     }
                 }
 
@@ -255,9 +266,16 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                 fetchCustomers(); // Refresh list to catch new/updated customer
             }
 
-        } catch (err) {
+        } catch (err: any) {
             console.error("Checkout error:", err);
-            alert("Failed to process checkout");
+            const msg = err?.message || "";
+            if (msg.includes('42P01')) {
+                alert("Checkout error: Database tables missing. Please run migration 083.");
+            } else if (msg.includes('uuid')) {
+                alert("Checkout error: System ID mismatch. Please ensure a valid store is created.");
+            } else {
+                alert(`Failed to process checkout: ${msg || 'Unknown Database Error'}`);
+            }
         } finally {
             setIsProcessing(false);
         }
