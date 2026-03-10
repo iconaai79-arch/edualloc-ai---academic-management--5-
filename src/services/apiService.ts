@@ -224,9 +224,18 @@ export const apiService = {
             for (const uploadUrl of possiblePaths) {
                 try {
                     console.log(`[Storage] Attempting upload to: ${uploadUrl}`);
+
+                    // CRITICAL: We use a naked fetch here. 
+                    // If there's a global fetch interceptor adding Supabase headers, 
+                    // it might cause 'No API key found' errors on the cPanel side if it expects them or 
+                    // if the browser blocks the request due to CORS issues with those headers.
                     const response = await fetch(uploadUrl, {
                         method: 'POST',
                         body: formData,
+                        // Do not include any default headers from the app context
+                        headers: {
+                            // Explicitly empty headers or only what's needed for the PHP script
+                        },
                         redirect: 'follow'
                     });
 
@@ -247,7 +256,12 @@ export const apiService = {
                         }
                     } else {
                         const errorText = await response.text();
-                        lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 50) || response.statusText}`;
+                        // If we get an error about API keys, it means the request was likely intercepted or sent to Supabase by mistake
+                        if (errorText.includes('apikey') || errorText.includes('No API key found')) {
+                            lastUploadError = "Request was blocked by Supabase Security (Check URL path)";
+                        } else {
+                            lastUploadError = `HTTP ${response.status}: ${errorText.substring(0, 50) || response.statusText}`;
+                        }
                         console.error(`[Storage] Upload failed for ${uploadUrl}:`, lastUploadError);
                     }
                 } catch (localErr: any) {
