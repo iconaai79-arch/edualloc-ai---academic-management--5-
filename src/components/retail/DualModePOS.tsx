@@ -245,7 +245,26 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                     }
                 }
 
-                // Mock notifications
+                // ───────────────────────────────────────────
+                // STOCK REDUCTION: Decrement qty for each sold retail item
+                // ───────────────────────────────────────────
+                for (const c of cart) {
+                    const isCafe = (c.item as any).source === 'cafe';
+                    if (isCafe) continue; // Cafe menu items don't track quantity
+
+                    const retailItem = c.item as RetailInventoryItem;
+                    const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
+                    try {
+                        await apiService.saveModuleRecord('retail_inventory_items', {
+                            ...retailItem,
+                            quantity: newQty,
+                            lastUpdated: new Date().toISOString()
+                        });
+                    } catch (stockErr) {
+                        console.error(`Stock update failed for item ${retailItem.name}:`, stockErr);
+                    }
+                }
+
                 if (customerInfo.phone) {
                     console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for KES ${totalAmount}`);
                 }
