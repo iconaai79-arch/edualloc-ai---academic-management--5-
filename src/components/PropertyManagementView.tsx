@@ -11,7 +11,7 @@ import {
     ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
-    MpesaIcon, BanknotesIcon
+    MpesaIcon, BanknotesIcon, PencilIcon
 } from './icons/index';
 
 interface PropertyManagementViewProps {
@@ -51,6 +51,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [selectedTenantForBankAction, setSelectedTenantForBankAction] = useState<PMTenant | null>(null);
     const [newListingImages, setNewListingImages] = useState<string[]>([]);
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
+    const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
+    const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
 
     const [search, setSearch] = useState('');
 
@@ -149,41 +151,59 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
         try {
-            const newProperty: PMProperty = {
-                id: `prop_${Date.now()} `,
+            const propertyData: PMProperty = {
+                id: editingProperty?.id || `prop_${Date.now()} `,
                 name: data.name || '',
                 address: data.address,
                 propertyType: data.propertyType || 'Apartment',
-                totalUnits: 0,
+                totalUnits: editingProperty?.totalUnits || 0,
                 landlordId: data.landlordId,
                 commissionRate: data.commissionRate || 0,
                 institutionId,
-                createdAt: new Date().toISOString()
+                createdAt: editingProperty?.createdAt || new Date().toISOString()
             };
-            await apiService.saveModuleRecord('pm_properties', newProperty);
+            await apiService.saveModuleRecord('pm_properties', propertyData);
             setShowPropertyModal(false);
+            setEditingProperty(null);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save property"); console.error(e); }
     };
 
+    const handleDeleteProperty = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this property? All associated units and leases may be affected.")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_properties', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete property"); console.error(e); }
+    };
+
     const handleSaveUnit = async (data: Partial<PMUnit>) => {
         try {
-            const newUnit: PMUnit = {
-                id: `unit_${Date.now()} `,
+            const unitData: PMUnit = {
+                id: editingUnit?.id || `unit_${Date.now()} `,
                 propertyId: data.propertyId || '',
                 unitNumber: data.unitNumber || '',
                 unitType: data.unitType || '',
                 floorNumber: data.floorNumber,
                 rentAmount: data.rentAmount || 0,
-                status: 'Vacant',
+                status: editingUnit?.status || 'Vacant',
                 institutionId,
-                createdAt: new Date().toISOString()
+                createdAt: editingUnit?.createdAt || new Date().toISOString()
             };
-            await apiService.saveModuleRecord('pm_units', newUnit);
+            await apiService.saveModuleRecord('pm_units', unitData);
 
             setShowUnitModal(false);
+            setEditingUnit(null);
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save unit"); console.error(e); }
+    };
+
+    const handleDeleteUnit = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this unit?")) return;
+        try {
+            await apiService.deleteModuleRecord('pm_units', id);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to delete unit"); console.error(e); }
     };
 
     const handleSaveTenant = async (data: Partial<PMTenant>) => {
@@ -416,11 +436,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                             )}
                                         </td>
                                         <td className="p-6 text-right space-x-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingProperty(property);
+                                                    setShowPropertyModal(true);
+                                                }}
+                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"
+                                                title="Edit Property"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteProperty(property.id)}
+                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
+                                                title="Delete Property"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
                                             <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors" title="Manage Units">
                                                 <ListIcon className="w-4 h-4" />
                                             </button>
                                             <button
-                                                onClick={() => setShowUnitModal(true)}
+                                                onClick={() => {
+                                                    setEditingUnit(null);
+                                                    setShowUnitModal(true);
+                                                }}
                                                 className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
                                                 title="Add Unit"
                                             >
@@ -499,11 +539,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                             </span>
                                         </td>
                                         <td className="p-6 text-right space-x-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingUnit(unit);
+                                                    setShowUnitModal(true);
+                                                }}
+                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"
+                                                title="Edit Unit"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteUnit(unit.id)}
+                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
+                                                title="Delete Unit"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
                                             <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
                                                 <EyeIcon className="w-4 h-4" />
-                                            </button>
-                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-rose-600 transition-colors">
-                                                <TrashIcon className="w-4 h-4" />
                                             </button>
                                         </td>
                                     </tr>
@@ -1378,7 +1432,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 </form>
             </Modal>
 
-            <Modal show={showPropertyModal} onClose={() => setShowPropertyModal(false)} title="Register New Property">
+            <Modal
+                show={showPropertyModal}
+                onClose={() => {
+                    setShowPropertyModal(false);
+                    setEditingProperty(null);
+                }}
+                title={editingProperty ? "Edit Property" : "Register New Property"}
+            >
                 <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
@@ -1392,15 +1453,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 }} className="space-y-6">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Property Name</label>
-                        <input name="name" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Blue Lagoon Apartments" />
+                        <input name="name" defaultValue={editingProperty?.name} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Blue Lagoon Apartments" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Physical Address</label>
-                        <input name="address" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Street, City, Block" />
+                        <input name="address" defaultValue={editingProperty?.address} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Street, City, Block" />
                     </div>
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
-                        <select name="propertyType" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                        <select name="propertyType" defaultValue={editingProperty?.propertyType || 'Apartment'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
                             <option value="Apartment">Apartment</option>
                             <option value="Commercial">Commercial</option>
                             <option value="Mixed-use">Mixed-use</option>
@@ -1410,17 +1471,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Landlord (Optional)</label>
-                            <select name="landlordId" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                            <select name="landlordId" defaultValue={editingProperty?.landlordId || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
                                 <option value="">Select Landlord</option>
                                 {landlords.map(ll => <option key={ll.id} value={ll.id}>{ll.name}</option>)}
                             </select>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Commission Rate (%)</label>
-                            <input name="commissionRate" type="number" step="0.1" defaultValue={0} min="0" max="100" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" />
+                            <input name="commissionRate" type="number" step="0.1" defaultValue={editingProperty?.commissionRate || 0} min="0" max="100" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" />
                         </div>
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">Save Asset</button>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                        {editingProperty ? "Save Changes" : "Save Asset"}
+                    </button>
                 </form>
             </Modal>
 
@@ -1469,7 +1532,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 </form>
             </Modal>
 
-            <Modal show={showUnitModal} onClose={() => setShowUnitModal(false)} title="Register New Unit">
+            <Modal
+                show={showUnitModal}
+                onClose={() => {
+                    setShowUnitModal(false);
+                    setEditingUnit(null);
+                }}
+                title={editingUnit ? "Edit Unit" : "Register New Unit"}
+            >
                 <form onSubmit={(e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
@@ -1483,7 +1553,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 }} className="space-y-4">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Property</label>
-                        <select name="propertyId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                        <select name="propertyId" defaultValue={editingUnit?.propertyId || ''} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
                             <option value="">Select Property</option>
                             {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
@@ -1491,11 +1561,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Number</label>
-                            <input name="unitNumber" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A1, Suite 202" />
+                            <input name="unitNumber" defaultValue={editingUnit?.unitNumber} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A1, Suite 202" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Type</label>
-                            <select name="unitType" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                            <select name="unitType" defaultValue={editingUnit?.unitType || '1 Bedroom'} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
                                 <option value="Bedsitter">Bedsitter</option>
                                 <option value="Studio">Studio</option>
                                 <option value="1 Bedroom">1 Bedroom</option>
@@ -1509,14 +1579,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Floor Number</label>
-                            <input name="floorNumber" type="number" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. 1, 2, 3" />
+                            <input name="floorNumber" type="number" defaultValue={editingUnit?.floorNumber} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. 1, 2, 3" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Monthly Rent (KES)</label>
-                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="0.00" />
+                            <input name="rentAmount" type="number" defaultValue={editingUnit?.rentAmount || 0} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="0.00" />
                         </div>
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">Deploy Unit</button>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                        {editingUnit ? "Save Changes" : "Deploy Unit"}
+                    </button>
                 </form>
             </Modal>
 
