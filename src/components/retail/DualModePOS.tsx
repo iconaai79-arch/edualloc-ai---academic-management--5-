@@ -84,13 +84,20 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         }
     };
 
-    // Determine available modes based on user role (Mock Logic)
+    // Determine available modes based on viewport and user role
     useEffect(() => {
-        // If user is a field agent, default to field mode
-        if (currentUser.role.includes('agent') || currentUser.role === 'field_agent') {
+        const width = window.innerWidth;
+
+        // Auto-detect desktop vs mobile/tablet
+        if (width >= 1024) {
+            setActiveMode('shop'); // Force shop mode on desktop
+        } else if (width < 768) {
+            setActiveMode('field'); // Default to field mode on mobile
+        } else if (currentUser.role.includes('agent') || currentUser.role === 'field_agent') {
+            // Specific overrides for tablet if and role is field agent
             setActiveMode('field');
         }
-    }, [currentUser]);
+    }, [currentUser, institutionId]);
 
     const addToCart = () => {
         if (!selectedItem) return;
