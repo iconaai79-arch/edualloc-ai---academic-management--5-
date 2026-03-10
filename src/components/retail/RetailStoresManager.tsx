@@ -93,8 +93,7 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
 
         setIsSaving(true);
         try {
-            const newRecord = {
-                id: currentLocation.id || `loc_${Date.now()}`,
+            const newRecord: any = {
                 institutionId,
                 name: currentLocation.name,
                 storeType: currentLocation.storeType,
@@ -104,6 +103,12 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                 isActive: currentLocation.isActive ?? true,
                 createdAt: currentLocation.createdAt || new Date().toISOString()
             };
+
+            // Only include ID if we are updating an existing record
+            // For new records, let the database generate a valid UUID
+            if (currentLocation.id && !currentLocation.id.startsWith('loc_')) {
+                newRecord.id = currentLocation.id;
+            }
 
             const saved = await apiService.saveModuleRecord('retail_stores', newRecord);
 
@@ -124,6 +129,22 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleDeleteStore = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this location?")) return;
+
+        try {
+            await apiService.deleteModuleRecord('retail_stores', id);
+            setStores(prev => prev.filter(s => s.id !== id));
+        } catch (err: any) {
+            alert(`Failed to delete: ${err.message}`);
+        }
+    };
+
+    const handleEditStore = (store: RetailStore) => {
+        setCurrentLocation(store);
+        setIsAddModalOpen(true);
     };
 
     const filteredStores = stores.filter(store => {
@@ -190,8 +211,21 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredStores.map(store => (
                         <div key={store.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow group relative">
-                            <div className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer">
-                                <MoreVertical className="w-5 h-5" />
+                            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <button
+                                    onClick={() => handleEditStore(store)}
+                                    className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all"
+                                    title="Edit Location"
+                                >
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteStore(store.id)}
+                                    className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-red-600 hover:border-red-100 transition-all"
+                                    title="Delete Location"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
                             </div>
 
                             <div className="p-6">
