@@ -88,14 +88,8 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
             }
         } catch (err: any) {
             console.error("Create transfer error:", err);
-            const msg = err?.message || '';
-            if (msg.includes('uuid')) {
-                setSubmitError('System ID error: Ensure stores are properly configured with valid IDs.');
-            } else if (msg.includes('foreign key') || msg.includes('23503')) {
-                setSubmitError('Reference error: One of the selected stores or items no longer exists.');
-            } else {
-                setSubmitError(`Failed to submit: ${msg || 'Unknown error. Please try again.'}`);
-            }
+            const msg = err?.message || 'Unknown error';
+            setSubmitError(`Error: ${msg}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -387,8 +381,8 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                     onClick={handleCreateTransfer}
                                     disabled={isSubmitting}
                                     className={`px-8 py-3 text-sm font-black uppercase tracking-widest rounded-xl shadow-lg transition-all flex items-center gap-2 ${isSubmitting
-                                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                                            : 'bg-indigo-600 text-white hover:shadow-indigo-200/50 hover:-translate-y-0.5'
+                                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                        : 'bg-indigo-600 text-white hover:shadow-indigo-200/50 hover:-translate-y-0.5'
                                         }`}
                                 >
                                     {isSubmitting && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
