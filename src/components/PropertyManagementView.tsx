@@ -12,7 +12,7 @@ import {
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
     MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
-    PaperAirplaneIcon
+    PaperAirplaneIcon, DownloadIcon
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification } from '../services/emailService';
@@ -60,6 +60,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
 
     const [search, setSearch] = useState('');
+    const [showPdfPreview, setShowPdfPreview] = useState(false);
+    const [previewPdfUrl, setPreviewPdfUrl] = useState('');
+    const [previewPdfTitle, setPreviewPdfTitle] = useState('');
 
     const loadData = async () => {
         setLoading(true);
@@ -1363,9 +1366,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             if (!targetId) return alert("Please select a " + targetType);
             try {
                 let dataUri = '';
+                let title = '';
                 if (targetType === 'tenant') {
                     const tenant = tenants.find(t => t.id === targetId);
                     if (!tenant) return;
+                    title = `Tenant Statement - ${tenant.name}`;
                     dataUri = await pdfService.generateTenantStatementPdf(
                         tenant, payments, leases, units, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
@@ -1374,16 +1379,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 } else {
                     const landlord = landlords.find(l => l.id === targetId);
                     if (!landlord) return;
+                    title = `Landlord Statement - ${landlord.name}`;
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         landlord, payments, leases, units, properties, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
                         currentInstitution.logoUrl
                     );
                 }
-                const link = document.createElement('a');
-                link.href = dataUri;
-                link.download = `${targetType}_statement_${targetId}_${startDate}_${endDate}.pdf`;
-                link.click();
+                
+                setPreviewPdfUrl(dataUri);
+                setPreviewPdfTitle(title);
+                setShowPdfPreview(true);
             } catch (err: any) { alert("Failed to generate PDF: " + err.message); }
         };
 
@@ -2387,6 +2393,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             </Modal>
 
             {showBankModal && <BankActionModal />}
+            
+            <Modal show={showPdfPreview} onClose={() => setShowPdfPreview(false)} title={previewPdfTitle} maxWidth="max-w-5xl">
+                <div className="flex flex-col h-[70vh]">
+                    <div className="flex justify-end mb-4">
+                        <button 
+                            onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = previewPdfUrl;
+                                link.download = `${previewPdfTitle.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+                                link.click();
+                            }}
+                            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
+                        >
+                            <DownloadIcon className="w-4 h-4" /> Download PDF
+                        </button>
+                    </div>
+                    <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden border-2 border-slate-200 dark:border-slate-700">
+                        <iframe 
+                            src={previewPdfUrl} 
+                            className="w-full h-full border-none"
+                            title="PDF Preview"
+                        ></iframe>
+                    </div>
+                </div>
+            </Modal>
 
         </div>
     );
