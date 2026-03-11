@@ -196,7 +196,7 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                             ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 dark:shadow-none scale-105'
                             : 'bg-slate-100/80 dark:bg-slate-800/80 text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                     >
-                        All Leads ({leads.length})
+                        All Leads ({leads.filter(l => l.status === statusFilter).length})
                     </button>
                     <button
                         onClick={() => setFilter('urgent')}
@@ -204,7 +204,7 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
                             ? 'bg-orange-500 text-white shadow-lg shadow-orange-200 dark:shadow-none scale-105'
                             : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 hover:bg-orange-100'}`}
                     >
-                        <AlertCircle className="w-3.5 h-3.5" /> Urgent ({leads.filter(l => l.urgency === 'urgent' && !l.isMatched).length})
+                        <AlertCircle className="w-3.5 h-3.5" /> Urgent ({leads.filter(l => l.urgency === 'urgent' && !l.isMatched && l.status === statusFilter).length})
                     </button>
                     <button
                         onClick={() => setFilter('matched')}
