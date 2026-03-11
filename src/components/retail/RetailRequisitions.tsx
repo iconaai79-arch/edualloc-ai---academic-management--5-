@@ -98,10 +98,27 @@ export function RetailRequisitions({
 
     const handlePrintLpo = async (req: Requisition) => {
         if (!institution || !companyDetails) return;
-        const supplier = suppliers.find(s => s.id === req.supplierId);
-        const dataUri = await generateLpoPdf(req, institution, companyDetails, companyDetails.logoUrl || null, supplier);
-        const win = window.open(dataUri);
-        if (win) win.focus();
+        try {
+            const supplier = suppliers.find(s => s.id === req.supplierId);
+            const dataUri = await generateLpoPdf(req, institution, companyDetails, companyDetails.logoUrl || null, supplier);
+            
+            // Convert Data URI to Blob for more reliable window.open behavior
+            const response = await fetch(dataUri);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const win = window.open(blobUrl);
+            if (win) {
+                win.focus();
+                // Clean up the URL after consumption
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+            } else {
+                alert("Please allow pop-ups to view the LPO.");
+            }
+        } catch (err) {
+            console.error("Failed to generate/print LPO:", err);
+            alert("Failed to generate LPO. Please try again.");
+        }
     };
 
     const handleAddItem = () => {

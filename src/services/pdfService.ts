@@ -3589,16 +3589,17 @@ export const generateLpoPdf = async (
     }
 
     // Items Table
+    const items = requisition.items || [];
     const head = [['#', 'DESCRIPTION', 'QTY', 'UNIT COST', 'TOTAL']];
-    const body = requisition.items.map((item: any, index: number) => [
+    const body = items.map((item: any, index: number) => [
         index + 1,
-        item.name,
-        `${item.quantity} ${item.unit || 'pcs'}`,
-        item.unitCost.toLocaleString(),
-        (item.quantity * item.unitCost).toLocaleString()
+        item.name || 'Unknown Item',
+        `${item.quantity || 0} ${item.unit || 'pcs'}`,
+        (item.unitCost || 0).toLocaleString(),
+        ((item.quantity || 0) * (item.unitCost || 0)).toLocaleString()
     ]);
 
-    doc.autoTable({
+    (doc as any).autoTable({
         head: head,
         body: body,
         startY: nextY,
@@ -3612,7 +3613,7 @@ export const generateLpoPdf = async (
         }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = ((doc as any).lastAutoTable?.finalY || nextY) + 10;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL ORDER VALUE:', pageWidth - margin - 60, finalY);
