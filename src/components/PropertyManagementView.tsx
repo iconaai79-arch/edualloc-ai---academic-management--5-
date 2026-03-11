@@ -199,7 +199,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
         try {
             const propertyData: PMProperty = {
-                id: editingProperty?.id || `prop_${Date.now()} `,
+                id: editingProperty?.id || `prop_${Date.now()}`,
                 name: data.name || '',
                 address: data.address,
                 propertyType: data.propertyType || 'Apartment',
@@ -227,7 +227,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const handleSaveUnit = async (data: Partial<PMUnit>) => {
         try {
             const unitData: PMUnit = {
-                id: editingUnit?.id || `unit_${Date.now()} `,
+                id: editingUnit?.id || `unit_${Date.now()}`,
                 propertyId: data.propertyId || '',
                 unitNumber: data.unitNumber || '',
                 unitType: data.unitType || '',
@@ -312,7 +312,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         try {
             const startDate = new Date().toISOString().split('T')[0];
             const newLease: PMLease = {
-                id: `lease_${Date.now()} `,
+                id: `lease_${Date.now()}`,
                 unitId: data.unitId || '',
                 tenantId: data.tenantId || '',
                 startDate,

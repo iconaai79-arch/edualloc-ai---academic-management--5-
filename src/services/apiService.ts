@@ -65,7 +65,6 @@ function toSnakeCase(obj: any): any {
     Object.keys(obj).forEach(key => {
         if (key === 'isImpersonated') return; // Skip internal session-only flags
         let val = obj[key];
-        if (val === "") val = null;
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         newObj[snakeKey] = toSnakeCase(val);
     });

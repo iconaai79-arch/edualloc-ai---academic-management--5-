@@ -19,16 +19,15 @@ CREATE TABLE IF NOT EXISTS public.app_notifications (
 -- Enable RLS for app_notifications
 ALTER TABLE public.app_notifications ENABLE ROW LEVEL SECURITY;
 
--- Users can view their own notifications
 CREATE POLICY "Users can view their own notifications"
     ON public.app_notifications FOR SELECT
-    USING (user_id = auth.uid());
+    USING (user_id::text = auth.uid()::text OR user_id::text = 'u_' || auth.uid()::text);
 
 -- System/Staff can manage notifications for their institution
 CREATE POLICY "Staff can manage notifications for their institution"
     ON public.app_notifications FOR ALL
     USING (institution_id IN (
-        SELECT institution_id FROM public.users WHERE id = auth.uid()
+        SELECT institution_id FROM public.users WHERE id::text = auth.uid()::text OR id::text = 'u_' || auth.uid()::text
     ));
 
 -- Allow anyone to create notifications (e.g. from marketplace submissions)

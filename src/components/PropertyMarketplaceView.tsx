@@ -124,7 +124,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     productQuery: inquiryProduct.name,
-                    capturedById: 'system', // Marketplace captured
+                    capturedById: null, // Marketplace captured
                     urgency: 'urgent',
                     status: 'Open',
                     createdAt: new Date().toISOString()
@@ -163,10 +163,9 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             }
 
             setInquirySuccess(true);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Inquiry submission failed:', err);
-            // Handle specific error feedback if needed
-            alert('Enquiry submission failed. Please try again later or contact us directly.');
+            alert(`Enquiry submission failed: ${err.message || 'Unknown protocol error'}. Please try again or contact us directly.`);
         } finally {
             setInquirySubmitting(false);
         }
