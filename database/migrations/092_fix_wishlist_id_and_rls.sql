@@ -3,13 +3,17 @@
 
 DO $$ 
 BEGIN
-    -- 1. Ensure id and captured_by_id are TEXT
+    -- 1. Drop constraints that block type conversion
+    -- captured_by_id references users.id (UUID), which blocks conversion to TEXT
+    ALTER TABLE public.retail_wishlist DROP CONSTRAINT IF EXISTS retail_wishlist_captured_by_id_fkey;
+
+    -- 2. Ensure id and captured_by_id are TEXT
     -- We use USING clause to ensure clear conversion from UUID or other types
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'retail_wishlist' AND column_name = 'id' AND data_type = 'uuid') THEN
         ALTER TABLE public.retail_wishlist ALTER COLUMN id TYPE TEXT USING id::text;
     END IF;
 
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'retail_wishlist' AND column_name = 'captured_by_id' AND data_type = 'uuid') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'retail_wishlist' AND column_name = 'captured_by_id' AND data_type IN ('uuid', 'UUID')) THEN
         ALTER TABLE public.retail_wishlist ALTER COLUMN captured_by_id TYPE TEXT USING captured_by_id::text;
     END IF;
 
