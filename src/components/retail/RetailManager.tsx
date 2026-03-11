@@ -12,9 +12,10 @@ import { RetailRequisitions } from './RetailRequisitions';
 import { RetailInventoryManager } from './RetailInventoryManager';
 import { RetailStockTransfers } from './RetailStockTransfers';
 import { RetailCommissionLedger } from './RetailCommissionLedger';
+import { RetailVendors } from './RetailVendors';
 import { CafeMenuManager } from '../hybrid/CafeMenuManager';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition } from '../../types';
-import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package, Truck, Coffee } from 'lucide-react';
+import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package, Truck, Coffee, Building as BuildingIcon } from 'lucide-react';
 
 interface RetailManagerProps {
     institutionId: string;
@@ -31,7 +32,7 @@ interface RetailManagerProps {
 
 export function RetailManager(props: RetailManagerProps) {
     const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition } = props;
-    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu'>('dashboard');
+    const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors'>('dashboard');
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
     useEffect(() => {
@@ -99,6 +100,7 @@ export function RetailManager(props: RetailManagerProps) {
         { id: 'wishlist', label: 'Leads', icon: Target },
         { id: 'expenses', label: 'Expenses', icon: Receipt },
         { id: 'requisitions', label: 'Reqs', icon: FileText },
+        { id: 'vendors', label: 'Vendors', icon: BuildingIcon },
         { id: 'transfers', label: 'Transfers', icon: Truck },
         { id: 'commissions', label: 'Comms', icon: HandCoins },
         ...(isHospitality ? [{ id: 'cafe_menu', label: 'Cafe', icon: Coffee }] : [])
@@ -195,6 +197,7 @@ export function RetailManager(props: RetailManagerProps) {
                 {/* Placeholders for upcoming modules */}
                 {activeView === 'inventory' && <RetailInventoryManager institutionId={institutionId} />}
                 {activeView === 'transfers' && <RetailStockTransfers institutionId={institutionId} currentUser={currentUser} />}
+                { activeView === 'vendors' && <RetailVendors institutionId={institutionId} /> }
                 {activeView === 'commissions' && <RetailCommissionLedger institutionId={institutionId} currentUser={currentUser} />}
                 {activeView === 'cafe_menu' && <CafeMenuManager institutionId={institutionId} />}
             </div>

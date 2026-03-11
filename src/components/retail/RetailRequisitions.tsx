@@ -415,7 +415,17 @@ export function RetailRequisitions({
                             </div>
 
                             <div className="space-y-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Supplier</p>
+                                <div className="flex justify-between items-center">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Supplier</p>
+                                    {!selectedLpo.supplierId && (
+                                        <button 
+                                            onClick={() => alert("Please go to the 'Vendors' tab to register a new supplier.")}
+                                            className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
+                                        >
+                                            + Register New Vendor
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                                     {selectedLpo.supplierId ? (
                                         <>
@@ -423,7 +433,24 @@ export function RetailRequisitions({
                                             <p className="text-[10px] font-bold text-slate-500 mt-1">{suppliers.find(s => s.id === selectedLpo.supplierId)?.email || 'No email set'}</p>
                                         </>
                                     ) : (
-                                        <p className="text-xs font-bold text-slate-400 italic">No supplier assigned to this requisition.</p>
+                                        <div className="space-y-3">
+                                            <select
+                                                onChange={async (e) => {
+                                                    const supplierId = e.target.value;
+                                                    if (supplierId && onUpdateRequisition) {
+                                                        await onUpdateRequisition(selectedLpo.id, { supplierId });
+                                                        setSelectedLpo({ ...selectedLpo, supplierId });
+                                                    }
+                                                }}
+                                                className="w-full bg-transparent border-none text-xs font-bold text-slate-600 focus:ring-0 outline-none appearance-none cursor-pointer"
+                                            >
+                                                <option value="">- Select a Vendor -</option>
+                                                {suppliers.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[9px] font-bold text-slate-400 italic">Required to generate PDF or Email.</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
