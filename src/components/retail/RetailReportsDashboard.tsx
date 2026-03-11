@@ -678,6 +678,12 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
 
                     </div>
                 )}
+
+                {/* ----------------- STATEMENTS TAB ----------------- */}
+                {activeTab === 'statements' && <SalesStatementsManager />}
+
+                {/* ----------------- INVENTORY REPORTS TAB ----------------- */}
+                {activeTab === 'inventory_reports' && <InventoryReportsManager />}
             </div>
         </div>
     );
