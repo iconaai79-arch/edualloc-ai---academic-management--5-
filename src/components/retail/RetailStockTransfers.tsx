@@ -12,12 +12,14 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
     const [transfers, setTransfers] = useState<RetailStockTransfer[]>([]);
     const [stores, setStores] = useState<RetailStore[]>([]);
     const [inventory, setInventory] = useState<RetailInventoryItem[]>([]);
+    const [transferItems, setTransferItems] = useState<RetailStockTransferItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // New Transfer Form State
     const [sourceStoreId, setSourceStoreId] = useState('');
     const [destStoreId, setDestStoreId] = useState('');
+    const [itemSearchQuery, setItemSearchQuery] = useState('');
     const [selectedItems, setSelectedItems] = useState<{ itemId: string, quantity: number }[]>([]);
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,15 +32,17 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [transfersData, storesData, inventoryData] = await Promise.all([
+            const [transfersData, storesData, inventoryData, itemsData] = await Promise.all([
                 apiService.fetchModuleRecords<RetailStockTransfer>('retail_stock_transfers', institutionId),
                 apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId)
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
+                apiService.fetchModuleRecords<RetailStockTransferItem>('retail_stock_transfer_items', institutionId)
             ]);
 
             if (transfersData) setTransfers(transfersData);
             if (storesData) setStores(storesData);
             if (inventoryData) setInventory(inventoryData);
+            if (itemsData) setTransferItems(itemsData);
         } catch (err) {
             console.error("Fetch transfers error:", err);
         } finally {
@@ -198,7 +202,7 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">
-                                                Loading...
+                                                {transferItems.filter(ti => ti.transferId === transfer.id).length} Items
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
@@ -300,11 +304,31 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
                                     Items to Transfer <span className="text-rose-500">*</span>
                                 </label>
+                                
+                                <div className="relative mb-3">
+                                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search inventory..."
+                                        value={itemSearchQuery}
+                                        onChange={(e) => setItemSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    />
+                                </div>
+
                                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                                     <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
-                                        {inventory.length === 0 ? (
-                                            <div className="p-4 text-center text-slate-400 text-sm">No inventory items found</div>
-                                        ) : inventory.map(item => {
+                                        {inventory.filter(i => 
+                                            i.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || 
+                                            i.sku?.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+                                            i.category?.toLowerCase().includes(itemSearchQuery.toLowerCase())
+                                        ).length === 0 ? (
+                                            <div className="p-4 text-center text-slate-400 text-sm">No inventory items found matching "{itemSearchQuery}"</div>
+                                        ) : inventory.filter(i => 
+                                            i.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || 
+                                            i.sku?.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+                                            i.category?.toLowerCase().includes(itemSearchQuery.toLowerCase())
+                                        ).map(item => {
                                             const existing = selectedItems.find(si => si.itemId === item.id);
                                             return (
                                                 <div key={item.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">

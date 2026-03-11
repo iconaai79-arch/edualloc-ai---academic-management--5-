@@ -559,7 +559,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (!testRecipient) return alert("Enter a phone number to test.");
         setIsTesting(true);
         try {
-            const res = await apiService.sendSms(testRecipient, "Test message from EduAi Academic Management System.", localSmsConfig);
+            const res = await apiService.sendSms(testRecipient, "Test message from EduAi Automation.", localSmsConfig);
             if (res.success) alert("SMS sent successfully.");
             else alert(`Failed to send SMS: ${res.message || "Verify your gateway settings."}${res.errorDetail ? `\n\nDetail: ${JSON.stringify(res.errorDetail)}` : ""}`);
         } catch (e) {

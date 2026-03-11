@@ -10,6 +10,8 @@ interface RetailStoresManagerProps {
 export function RetailStoresManager({ institutionId }: RetailStoresManagerProps) {
     const [stores, setStores] = useState<RetailStore[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const user = apiService.getSession();
+    const isSuperAdmin = user?.role === 'super_admin';
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
     const [selectedStore, setSelectedStore] = useState<RetailStore | null>(null);
@@ -288,18 +290,18 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
 
                             <div className="border-t border-slate-100 bg-slate-50 p-4 flex flex-col gap-2 group-hover:bg-blue-50 transition-colors">
                                 <div className="flex justify-between items-center w-full">
-                                    <span className="text-sm font-medium text-slate-600 group-hover:text-blue-700">
-                                        {store.storeType === 'van_stock' ? 'View Assigned Stock' : 'Manage Inventory'}
                                     </span>
                                     <span className="text-slate-400 group-hover:text-blue-600 transition-colors">›</span>
                                 </div>
-                                <button
-                                    onClick={() => openConfig(store)}
-                                    className="mt-2 flex items-center gap-2 w-full py-1.5 px-3 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 transition-all"
-                                >
-                                    <CreditCard className="w-3 h-3" />
-                                    {store.mpesaConfig ? 'Update MPESA Config' : 'Setup Payments'}
-                                </button>
+                                {isSuperAdmin && (
+                                    <button
+                                        onClick={() => openConfig(store)}
+                                        className="mt-2 flex items-center gap-2 w-full py-1.5 px-3 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-500 hover:text-indigo-600 transition-all"
+                                    >
+                                        <CreditCard className="w-3 h-3" />
+                                        {store.mpesaConfig ? 'Update MPESA Config' : 'Setup Payments'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}

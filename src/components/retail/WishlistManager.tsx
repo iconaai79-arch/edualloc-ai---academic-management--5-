@@ -50,16 +50,22 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
     };
 
     const handleCloseLead = async (leadId: string) => {
+        if (!window.confirm('Are you sure you want to finalize this deal and close this lead?')) return;
         try {
             const lead = leads.find(l => l.id === leadId);
             if (!lead) return;
 
-            await apiService.saveModuleRecord('retail_wishlist', { ...lead, status: 'Closed' });
-            // Update local state
-            setLeads(leads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
+            const res = await apiService.saveModuleRecord('retail_wishlist', { ...lead, status: 'Closed' });
+            if (res) {
+                // Update local state
+                setLeads(leads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
+            } else {
+                console.error('Save operation returned false for lead:', leadId);
+                alert('Failed to close lead. The server did not respond with success.');
+            }
         } catch (error) {
-            console.error('Failed to close lead:', error);
-            alert('Failed to close lead. Please try again.');
+            console.error('Failed to close lead error details:', error);
+            alert(`Error: ${error instanceof Error ? error.message : 'Unknown error during lead closure'}`);
         }
     };
 

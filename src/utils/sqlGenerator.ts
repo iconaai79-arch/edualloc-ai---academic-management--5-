@@ -11,7 +11,7 @@ const escapeSql = (str: string | null | undefined) => {
 
 export const generateFullSqlScript = () => {
     let sql = `-- ==========================================================================\n`;
-    sql += `-- EduAi Academic & Institutional Management Platform - Master Schema\n`;
+    sql += `-- EduAi Automation - Master Schema\n`;
     sql += `-- Generated on: ${new Date().toLocaleString()}\n`;
     sql += `-- ==========================================================================\n\n`;
 

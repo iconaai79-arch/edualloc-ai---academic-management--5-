@@ -67,7 +67,7 @@ const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
             </div>
         </div>
         <div className="mt-10 text-center">
-            <h2 className="text-white font-black uppercase tracking-[0.3em] text-sm">EduAi Academic</h2>
+            <h2 className="text-white font-black uppercase tracking-[0.3em] text-sm">EduAi Automation</h2>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-3 animate-pulse">{message}</p>
         </div>
     </div>

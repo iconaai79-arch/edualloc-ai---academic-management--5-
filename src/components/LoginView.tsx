@@ -216,7 +216,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tighter uppercase">
                             {applicationTitle || 'EduAi'}
                         </h2>
-                        <p className="mt-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Academic Management Hub</p>
+                        <p className="mt-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Automation Management Hub</p>
                         {error && (
                             <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 text-xs text-left animate-shake">
                                 <div className="flex gap-2">
@@ -599,7 +599,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     </div>
                     <div className="ml-auto hidden sm:flex items-center gap-2">
                         <span className="text-[10px] font-black uppercase text-slate-300 tracking-widest">Powered by</span>
-                        <span className="text-xs font-black text-indigo-600/50 uppercase tracking-tighter">EduAi Academic Management</span>
+                        <span className="text-xs font-black text-indigo-600/50 uppercase tracking-tighter">EduAi Automation</span>
                     </div>
                 </div>
             </footer>

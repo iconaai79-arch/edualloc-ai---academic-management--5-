@@ -36,6 +36,9 @@ export function RetailRequisitions({
     const [items, setItems] = useState<{ name: string, quantity: number, unit: string, unitCost: number }[]>([]);
     const [newItem, setNewItem] = useState({ name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
+
     const handleAddItem = () => {
         if (!newItem.name || newItem.quantity <= 0) return;
         setItems([...items, newItem]);
@@ -48,22 +51,31 @@ export function RetailRequisitions({
 
     const handleSubmit = async () => {
         if (items.length === 0 || !selectedStoreId) {
-            alert('Please add at least one item');
+            setSubmitError('Please add at least one item using the Add button above.');
             return;
         }
 
-        const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+        setIsSubmitting(true);
+        setSubmitError('');
+        try {
+            const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
-        await onAddRequisition({
-            storeId: selectedStoreId,
-            requestedBy: currentUser.id,
-            items,
-            totalEstimatedCost: totalCost
-        });
+            await onAddRequisition({
+                storeId: selectedStoreId,
+                requestedBy: currentUser.id,
+                items,
+                totalEstimatedCost: totalCost
+            });
 
-        setIsAddModalOpen(false);
-        setItems([]);
-        alert('Requisition submitted for approval!');
+            setIsAddModalOpen(false);
+            setItems([]);
+            setSubmitError('');
+        } catch (err: any) {
+            console.error('Requisition submit error:', err);
+            setSubmitError(`Error: ${err?.message || 'Failed to submit. Please try again.'}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const myRequisitions = requisitions.filter(r =>
@@ -112,8 +124,8 @@ export function RetailRequisitions({
                                     </td>
                                     <td className="py-5">
                                         <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${req.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                req.status === 'received' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                    'bg-slate-50 text-slate-500 border-slate-100'
+                                            req.status === 'received' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                'bg-slate-50 text-slate-500 border-slate-100'
                                             }`}>
                                             {req.status}
                                         </span>

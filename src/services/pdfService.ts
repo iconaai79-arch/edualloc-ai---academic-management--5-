@@ -92,7 +92,7 @@ const setupPdfFooter = (doc: any, footerImg: HTMLImageElement | null) => {
             doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
         }
 
-        const copyrightText = "EduAi Academic Management Portal - Secure Document";
+        const copyrightText = "EduAi Automation - Secure Document";
         doc.setFontSize(8);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(150, 150, 150);
@@ -435,7 +435,7 @@ export const generateRetailReceiptPdf = async (
     yPos += 4;
 
     doc.setFontSize(6);
-    centerText("Powered by EduAlloc Retail Engine", yPos);
+    centerText("Powered by EduAlloc Automation Engine", yPos);
 
     return doc.output('bloburl');
 };

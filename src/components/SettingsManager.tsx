@@ -570,7 +570,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const handleSendTestSms = async () => {
         setIsSavingConfigs(true);
         try {
-            const res = await apiService.sendSms(localCompanyInfo.phone || '', "Test message from EduAi Academic Management System.", localSmsConfig);
+            const res = await apiService.sendSms(localCompanyInfo.phone || '', "Test message from EduAi Automation.", localSmsConfig);
             if (res.success) {
                 alert('SMS sent successfully.');
             } else {
