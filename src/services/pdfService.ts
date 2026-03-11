@@ -1,5 +1,5 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -3542,6 +3542,91 @@ export const generateLandlordStatementPdf = async (
     doc.setFont('helvetica', 'bold');
     doc.text('NET PAYOUT DUE:', margin, finalY + 22);
     doc.text(`KES ${(totalGross - totalComm).toLocaleString()}`, margin + 60, finalY + 22);
+
+    return doc.output('datauristring');
+};
+
+export const generateLpoPdf = async (
+    requisition: Requisition,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    supplier?: Supplier
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    
+    // Header & Letterhead
+    const tableStartY = createPdfWithLetterhead(doc, 'PURCHASE ORDER', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // LPO Header Details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('LPO #:', pageWidth - margin - 50, margin + 55);
+    doc.text('DATE:', pageWidth - margin - 50, margin + 60);
+    doc.text('REQUISITION ID:', pageWidth - margin - 50, margin + 65);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(requisition.lpoNumber || 'DRAFT', pageWidth - margin, margin + 55, { align: 'right' });
+    doc.text(new Date().toLocaleDateString(), pageWidth - margin, margin + 60, { align: 'right' });
+    doc.text(requisition.id.substring(0, 8).toUpperCase(), pageWidth - margin, margin + 65, { align: 'right' });
+
+    // Supplier Section
+    let nextY = margin + 80;
+    if (supplier) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('SUPPLIER:', margin, nextY);
+        doc.setFont('helvetica', 'normal');
+        doc.text(supplier.name, margin, nextY + 5);
+        if (supplier.email) doc.text(`Email: ${supplier.email}`, margin, nextY + 10);
+        if (supplier.phone) doc.text(`Phone: ${supplier.phone}`, margin, nextY + 15);
+        nextY += 25;
+    }
+
+    // Items Table
+    const head = [['#', 'DESCRIPTION', 'QTY', 'UNIT COST', 'TOTAL']];
+    const body = requisition.items.map((item: any, index: number) => [
+        index + 1,
+        item.name,
+        `${item.quantity} ${item.unit || 'pcs'}`,
+        item.unitCost.toLocaleString(),
+        (item.quantity * item.unitCost).toLocaleString()
+    ]);
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: nextY,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 9 },
+        columnStyles: {
+            2: { halign: 'center' },
+            3: { halign: 'right' },
+            4: { halign: 'right' }
+        }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL ORDER VALUE:', pageWidth - margin - 60, finalY);
+    doc.text(`KES ${requisition.totalEstimatedCost.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+
+    // Footer / Authorization
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    const authY = finalY + 30;
+    doc.line(margin, authY, margin + 60, authY);
+    doc.text('Authorized Signature', margin, authY + 5);
+    
+    doc.line(pageWidth - margin - 60, authY, pageWidth - margin, authY);
+    doc.text('Supplier Acceptance', pageWidth - margin, authY + 5, { align: 'right' });
 
     return doc.output('datauristring');
 };

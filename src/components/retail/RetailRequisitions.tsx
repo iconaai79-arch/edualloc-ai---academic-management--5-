@@ -10,7 +10,10 @@ import {
     Package as PackageIcon,
     Trash2 as TrashIcon
 } from 'lucide-react';
-import { Requisition, RetailStore, User, RetailInventoryItem } from '../../types';
+import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
+import { generateLpoPdf } from '../../services/pdfService';
+import { apiService } from '../../services/apiService';
+import { Mail as MailIcon, Printer as PrinterIcon, ExternalLink as ExternalLinkIcon } from 'lucide-react';
 
 interface RetailRequisitionsProps {
     institutionId: string;
@@ -36,15 +39,76 @@ export function RetailRequisitions({
     const [selectedStoreId, setSelectedStoreId] = useState<string>(retailStores[0]?.id || '');
 
     const [items, setItems] = useState<{ name: string, quantity: number, unit: string, unitCost: number }[]>([]);
-    const [newItem, setNewItem] = useState({ name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+    const [newItem, setNewItem] = useState({ id: '', name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+    const [itemSearchQuery, setItemSearchQuery] = useState('');
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
 
+    const [selectedLpo, setSelectedLpo] = useState<Requisition | null>(null);
+    const [isLpoModalOpen, setIsLpoModalOpen] = useState(false);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [institution, setInstitution] = useState<Institution | null>(null);
+    const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+    React.useEffect(() => {
+        const loadInitialData = async () => {
+            const [insts, co, supps] = await Promise.all([
+                apiService.fetchInstitutions(institutionId),
+                apiService.fetchCompanySettings(),
+                apiService.fetchModuleRecords<Supplier>('suppliers', institutionId)
+            ]);
+            if (insts.length > 0) setInstitution(insts[0]);
+            setCompanyDetails(co);
+            setSuppliers(supps);
+        };
+        loadInitialData();
+    }, [institutionId]);
+
+    const handleEmailLpo = async (req: Requisition) => {
+        if (!institution || !companyDetails) return;
+        setIsSendingEmail(true);
+        try {
+            const supplier = suppliers.find(s => s.id === req.supplierId);
+            if (!supplier?.email) {
+                alert("Supplier does not have an email address configured.");
+                return;
+            }
+
+            const dataUri = await generateLpoPdf(req, institution, companyDetails, companyDetails.logoUrl || null, supplier);
+            // In a real scenario, you'd send this to the server to attach it
+            // For now, we use the sendEmail helper
+            await apiService.sendEmail(
+                supplier.email,
+                `Purchase Order - ${req.lpoNumber || 'DRAFT'}`,
+                `Dear ${supplier.name},\n\nPlease find the attached Purchase Order from ${institution.name}.\n\nRequisition ID: ${req.id}\nTotal Value: KES ${req.totalEstimatedCost.toLocaleString()}\n\nBest Regards,\n${currentUser.name}`,
+                undefined,
+                undefined,
+                [{ filename: `LPO-${req.lpoNumber || 'DRAFT'}.pdf`, path: dataUri }]
+            );
+            alert("LPO emailed successfully!");
+        } catch (err) {
+            console.error("Failed to email LPO:", err);
+            alert("Failed to email LPO. Please try again.");
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    const handlePrintLpo = async (req: Requisition) => {
+        if (!institution || !companyDetails) return;
+        const supplier = suppliers.find(s => s.id === req.supplierId);
+        const dataUri = await generateLpoPdf(req, institution, companyDetails, companyDetails.logoUrl || null, supplier);
+        const win = window.open(dataUri);
+        if (win) win.focus();
+    };
+
     const handleAddItem = () => {
         if (!newItem.name || newItem.quantity <= 0) return;
-        setItems([...items, newItem]);
-        setNewItem({ name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+        setItems([...items, { name: newItem.name, quantity: newItem.quantity, unit: newItem.unit, unitCost: newItem.unitCost }]);
+        setNewItem({ id: '', name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+        setItemSearchQuery('');
     };
 
     const handleRemoveItem = (index: number) => {
@@ -136,6 +200,18 @@ export function RetailRequisitions({
                                     <td className="py-5 text-right font-black text-slate-900 text-xs">
                                         <div className="flex items-center justify-end gap-3">
                                             {req.lpoNumber || '-'}
+                                            {(req.status === 'pending' || req.status === 'approved') && (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedLpo(req);
+                                                        setIsLpoModalOpen(true);
+                                                    }}
+                                                    className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
+                                                    title="View LPO"
+                                                >
+                                                    <FileIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             {req.status === 'pending' && onUpdateRequisition && (
                                                 <button
                                                     onClick={() => onUpdateRequisition(req.id, { status: 'received' })}
@@ -192,21 +268,35 @@ export function RetailRequisitions({
 
                             <div className="space-y-4">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Items</label>
-                                <div className="grid grid-cols-4 gap-2">
-                                    <div className="col-span-2">
-                                        <select
-                                            value={newItem.name}
-                                            onChange={(e) => {
-                                                const prod = inventory.find(i => i.id === e.target.value);
-                                                setNewItem({ ...newItem, name: prod?.name || '', unit: prod?.unit || 'pcs' })
-                                            }}
-                                            className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold outline-none"
-                                        >
-                                            <option value="">Select Product...</option>
-                                            {inventory.map(i => (
-                                                <option key={i.id} value={i.id}>{i.name}</option>
-                                            ))}
-                                        </select>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                        <SearchIcon className="w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search inventory..."
+                                            value={itemSearchQuery}
+                                            onChange={(e) => setItemSearchQuery(e.target.value)}
+                                            className="bg-transparent border-none text-[10px] font-bold outline-none flex-1"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        <div className="col-span-2">
+                                            <select
+                                                value={newItem.id}
+                                                onChange={(e) => {
+                                                    const prod = inventory.find(i => i.id === e.target.value);
+                                                    setNewItem({ ...newItem, id: prod?.id || '', name: prod?.name || '', unit: prod?.unit || 'pcs', unitCost: prod?.costPrice || 0 })
+                                                }}
+                                                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold outline-none"
+                                            >
+                                                <option value="">Select Product...</option>
+                                                {inventory
+                                                    .filter(i => i.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || i.sku.toLowerCase().includes(itemSearchQuery.toLowerCase()))
+                                                    .map(i => (
+                                                        <option key={i.id} value={i.id}>{i.name} ({i.quantity} {i.unit} in stock)</option>
+                                                    ))}
+                                            </select>
+                                        </div>
                                     </div>
                                     <input
                                         type="number"
@@ -274,6 +364,73 @@ export function RetailRequisitions({
                                             Submitting...
                                         </>
                                     ) : 'Submit Request'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LPO Preview Modal */}
+            {isLpoModalOpen && selectedLpo && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Purchase Order</h3>
+                                <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.2em] mt-1">LPO Preview & Dispatch</p>
+                            </div>
+                            <button onClick={() => setIsLpoModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <PlusIcon className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 space-y-8">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reference</p>
+                                    <p className="text-sm font-black text-slate-900">{selectedLpo.lpoNumber || 'DRAFT'}</p>
+                                </div>
+                                <div className="space-y-1 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Value</p>
+                                    <p className="text-sm font-black text-indigo-600">KES {selectedLpo.totalEstimatedCost.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Supplier</p>
+                                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                                    {selectedLpo.supplierId ? (
+                                        <>
+                                            <p className="text-xs font-black text-slate-900">{suppliers.find(s => s.id === selectedLpo.supplierId)?.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">{suppliers.find(s => s.id === selectedLpo.supplierId)?.email || 'No email set'}</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs font-bold text-slate-400 italic">No supplier assigned to this requisition.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4">
+                                <button
+                                    onClick={() => handlePrintLpo(selectedLpo)}
+                                    className="w-full py-4 bg-white border-2 border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-all flex items-center justify-center gap-3"
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                    Generate & Print PDF
+                                </button>
+                                
+                                <button
+                                    disabled={!selectedLpo.supplierId || isSendingEmail}
+                                    onClick={() => handleEmailLpo(selectedLpo)}
+                                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3"
+                                >
+                                    {isSendingEmail ? (
+                                        <ClockIcon className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <MailIcon className="w-4 h-4" />
+                                    )}
+                                    Email to Supplier
                                 </button>
                             </div>
                         </div>
