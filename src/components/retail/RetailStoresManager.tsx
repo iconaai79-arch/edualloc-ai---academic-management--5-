@@ -290,7 +290,7 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
 
                             <div className="border-t border-slate-100 bg-slate-50 p-4 flex flex-col gap-2 group-hover:bg-blue-50 transition-colors">
                                 <div className="flex justify-between items-center w-full">
-                                    </span>
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">View Transactions</span>
                                     <span className="text-slate-400 group-hover:text-blue-600 transition-colors">›</span>
                                 </div>
                                 {isSuperAdmin && (
