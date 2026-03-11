@@ -3616,7 +3616,7 @@ export const generateLpoPdf = async (
     const finalY = ((doc as any).lastAutoTable?.finalY || nextY) + 10;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL ORDER VALUE:', pageWidth - margin - 60, finalY);
+    doc.text('TOTAL ORDER VALUE:', pageWidth - margin - 100, finalY);
     doc.text(`KES ${requisition.totalEstimatedCost.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
 
     // Footer / Authorization
