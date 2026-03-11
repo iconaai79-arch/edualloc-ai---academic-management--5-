@@ -1425,7 +1425,7 @@ export const App: React.FC = () => {
             await apiService.saveUser(newAdmin);
 
             if (companyDetails.emailConfig?.username) {
-                const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
+                const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
 
                 try {
                     await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
@@ -1482,7 +1482,7 @@ export const App: React.FC = () => {
                 await apiService.saveUser(newAdmin);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
 
                     try {
                         await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
@@ -1543,7 +1543,7 @@ export const App: React.FC = () => {
                 await loadData(true);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${adminPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the Eduai Automation Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${adminPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
                     try {
                         await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody);
                     } catch (e) {
@@ -1600,7 +1600,7 @@ export const App: React.FC = () => {
                 await loadData(true);
 
                 if (companyDetails.emailConfig?.username) {
-                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! ${newInstitution.name} has been successfully registered on the EduAlloc Academic Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduAlloc System`;
+                    const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
                     try {
                         await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
                     } catch (e) {

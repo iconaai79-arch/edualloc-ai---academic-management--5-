@@ -144,7 +144,7 @@ export const StudentTransportTracker: React.FC<StudentTransportTrackerProps> = (
                                 <CheckCircleIcon className="w-12 h-12 text-blue-600" />
                             </div>
                             <h4 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Safe Completion</h4>
-                            <p className="text-sm text-slate-500 font-medium max-w-xs mx-auto mt-2">Transit session concluded. Thank you for using EduAlloc Transport.</p>
+                            <p className="text-sm text-slate-500 font-medium max-w-xs mx-auto mt-2">Transit session concluded. Thank you for using Eduai Automation Transport.</p>
                         </div>
                     )}
 

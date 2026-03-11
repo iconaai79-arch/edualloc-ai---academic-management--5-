@@ -547,7 +547,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 body: JSON.stringify({
                     action: 'sendEmail',
                     recipient: localCompanyInfo.email,
-                    subject: 'Test Email from EduAlloc',
+                    subject: 'Test Email from Eduai Automation',
                     message: 'This is a test email to verify your SMTP configuration.',
                     config: localEmailConfig
                 })

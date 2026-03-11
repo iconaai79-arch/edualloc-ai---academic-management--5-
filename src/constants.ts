@@ -2,13 +2,13 @@
 import type { Institution, User, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types';
 
 export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
-    name: "EduAi Solutions",
+    name: "Eduai Automation",
     address: "123 Innovation Drive, Nairobi, Kenya",
     email: "info@eduai.co.ke",
     phone: "+254 700 123 456",
     website: "https://eduai.co.ke",
     logoUrl: null,
-    applicationTitle: "EduAlloc AI",
+    applicationTitle: "Eduai Automation",
     themeColor: "#4f46e5",
     subscriptionConfig: {
         defaultMonthlyPrice: 5000,

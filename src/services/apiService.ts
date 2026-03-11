@@ -388,8 +388,8 @@ export const apiService = {
         await this.saveUser(userWithPass);
 
         if (userData.email) {
-            const subject = "Welcome to EduAlloc - Account Credentials";
-            const body = `Dear ${userData.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${userData.email}\nPassword: ${password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+            const subject = "Welcome to Eduai Automation - Account Credentials";
+            const body = `Dear ${userData.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${userData.email}\nPassword: ${password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
 
             // Send email asynchronously so we don't block the UI
             this.sendEmail(userData.email, subject, body).catch(e => {
@@ -399,7 +399,7 @@ export const apiService = {
 
         // Send Welcome SMS if phone number exists
         if (userData.phoneNumber) {
-            let smsMessage = `Welcome to EduAlloc Hub. Your account is ready. Email: ${userData.email || userData.staffId}, Password: ${password}. Portal: ${window.location.origin}`;
+            let smsMessage = `Welcome to Eduai Automation Hub. Your account is ready. Email: ${userData.email || userData.staffId}, Password: ${password}. Portal: ${window.location.origin}`;
 
             if (userData.role === 'driver' || userData.role === 'transport_assistant') {
                 smsMessage = `Welcome to the Transport Fleet. Your driver account is active. ID: ${userData.staffId || userData.email}, Pass: ${password}. Access portal at ${window.location.origin}`;
@@ -729,10 +729,10 @@ export const apiService = {
 
         for (const user of users) {
             const password = user.password || 'password123';
-            const subject = "Account Credentials - EduAlloc Hub";
-            const body = `Dear ${user.name},\n\nYour account on EduAlloc has been initialized.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${password}\n\nPlease secure your account upon login.\n\nBest Regards,\nSystem Admin`;
+            const subject = "Account Credentials - Eduai Automation Hub";
+            const body = `Dear ${user.name},\n\nYour account on Eduai Automation has been initialized.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${password}\n\nPlease secure your account upon login.\n\nBest Regards,\nSystem Admin`;
 
-            const smsBody = `EduAlloc Hub: Your account for ${user.name} is ready. Email: ${user.email}, Pass: ${password}. Portal: ${window.location.host}`;
+            const smsBody = `Eduai Automation Hub: Your account for ${user.name} is ready. Email: ${user.email}, Pass: ${password}. Portal: ${window.location.host}`;
 
             try {
                 let res;
@@ -1038,13 +1038,13 @@ export const apiService = {
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
-                const subject = "Welcome to EduAlloc - Account Credentials";
-                const body = `Dear ${user.name},\n\nYour account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                const subject = "Welcome to Eduai Automation - Account Credentials";
+                const body = `Dear ${user.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
             }
 
             if (user.phoneNumber) {
-                const smsMessage = `Welcome to EduAlloc. Your account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
+                const smsMessage = `Welcome to Eduai Automation. Your account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
                 this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });
@@ -1067,13 +1067,13 @@ export const apiService = {
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {
-                const subject = "Welcome to EduAlloc - Account Credentials";
-                const body = `Dear ${user.name},\n\nYour student account has been created on the EduAlloc Academic Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                const subject = "Welcome to Eduai Automation - Account Credentials";
+                const body = `Dear ${user.name},\n\nYour student account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 this.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
             }
 
             if (user.phoneNumber) {
-                const smsMessage = `Welcome to EduAlloc Hub. Your student account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
+                const smsMessage = `Welcome to Eduai Automation Hub. Your student account is ready. Email: ${user.email || user.staffId}, Password: ${user.password}. Portal: ${window.location.origin}`;
                 this.sendSms(user.phoneNumber, smsMessage, undefined, 1, institutionId).catch(e => console.error(`Failed to send SMS to ${user.phoneNumber}:`, e));
             }
         });

@@ -55,7 +55,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 plan: selectedPlan,
                 institutionId: institutionId || 'SYSTEM',
                 institutionCode: institutionCode || 'SYSTEM',
-                institutionName: institutionName || 'EduAlloc Hub'
+                institutionName: institutionName || 'Eduai Automation Hub'
             };
             const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
 

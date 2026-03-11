@@ -2029,7 +2029,7 @@ Please change it after login.`;
                                                         value={localCompanyInfo.applicationTitle}
                                                         onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, applicationTitle: e.target.value })}
                                                         className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
-                                                        placeholder="e.g. EduAlloc AI"
+                                                        placeholder="e.g. Eduai Automation"
                                                     />
                                                     <p className="text-[10px] text-slate-400 mt-2 ml-1 italic font-medium uppercase tracking-tighter">System Branding: This title is displayed on platform headers and reports.</p>
                                                 </div>
@@ -2537,7 +2537,7 @@ Please change it after login.`;
                                                     }
                                                 })}
                                                 className="form-input"
-                                                placeholder="e.g. https://marketplace.edualloc.com"
+                                                placeholder="e.g. https://marketplace.eduai.co.ke"
                                             />
                                             <div className="mt-3 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-900/20">
                                                 <p className="text-[10px] text-orange-700 dark:text-orange-400 font-black uppercase tracking-widest mb-2">Hosting Configuration Required</p>
@@ -2586,7 +2586,7 @@ Please change it after login.`;
                                                 <div className="w-3 h-3 rounded-full bg-amber-500"></div>
                                                 <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                                                 <div className="ml-4 flex-1 h-5 bg-slate-800 rounded text-[9px] text-slate-400 flex items-center px-3 font-mono">
-                                                    {localCompanyInfo.marketplaceConfig?.customUrl || 'https://marketplace.edualloc.com'}
+                                                    {localCompanyInfo.marketplaceConfig?.customUrl || 'https://marketplace.eduai.co.ke'}
                                                 </div>
                                             </div>
                                             <div className="pt-8 h-full overflow-y-auto">

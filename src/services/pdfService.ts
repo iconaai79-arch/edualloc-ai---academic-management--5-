@@ -435,7 +435,7 @@ export const generateRetailReceiptPdf = async (
     yPos += 4;
 
     doc.setFontSize(6);
-    centerText("Powered by EduAlloc Automation Engine", yPos);
+    centerText("Powered by Eduai Automation", yPos);
 
     return doc.output('bloburl');
 };
