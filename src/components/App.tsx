@@ -471,7 +471,18 @@ export const App: React.FC = () => {
             setBuildings(b || []);
             setAcademicLevels(al || []);
             setUserTasks(tasks || []);
-            setTransactions(txns || []);
+            let finalTxns = txns || [];
+            if (currentUser?.role === 'super_admin' && !instId) {
+                finalTxns = finalTxns.filter(txn => {
+                    const desc = (txn.description || '').toLowerCase();
+                    const type = txn.metadata?.type;
+                    return type === 'subscription' || 
+                           desc.includes('license') || 
+                           desc.includes('renewal') || 
+                           desc.includes('portal subscription');
+                });
+            }
+            setTransactions(finalTxns);
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
