@@ -13,9 +13,11 @@ import {
     Building as BuildingIcon,
     MoreVertical as MoreVerticalIcon,
     Eye as EyeIcon,
-    ArrowRight as ArrowRightIcon
+    ArrowRight as ArrowRightIcon,
+    FileSearch as FileSearchIcon
 } from 'lucide-react';
-import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier } from '../types';
+import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';
+import { generateLpoPdf } from '../services/pdfService';
 
 interface ProcurementManagerProps {
     requisitions: Requisition[];
@@ -24,6 +26,8 @@ interface ProcurementManagerProps {
     inventory: RetailInventoryItem[];
     suppliers: Supplier[];
     retailStores: RetailStore[];
+    institution?: Institution;
+    companyDetails?: CompanyDetails;
 }
 
 export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
@@ -32,12 +36,16 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
     onUpdateRequisition,
     inventory,
     suppliers,
-    retailStores
+    retailStores,
+    institution,
+    companyDetails
 }) => {
     const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'requisitions' | 'lpos' | 'suppliers'>('dashboard');
     const [selectedRequisition, setSelectedRequisition] = useState<Requisition | null>(null);
     const [isLPOModalOpen, setIsLPOModalOpen] = useState(false);
     const [selectedSupplierId, setSelectedSupplierId] = useState('');
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [previewReq, setPreviewReq] = useState<Requisition | null>(null);
 
     const handleCreateLPO = async () => {
         if (!selectedRequisition || !selectedSupplierId) return;
@@ -65,6 +73,32 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
         // Note: The logic to actually update the inventory quantities in the database 
         // should be handled in the App.tsx onUpdateRequisition handler or a dedicated 
         // onMarkLPOReceived handler to ensure atomicity.
+    };
+    
+    const handlePrintLpo = async (req: Requisition) => {
+        if (!institution || !companyDetails) {
+            alert("Institution or company details missing.");
+            return;
+        }
+        try {
+            const supplier = suppliers.find(s => s.id === req.supplierId);
+            const dataUri = await generateLpoPdf(req, institution, companyDetails, companyDetails.logoUrl || null, supplier);
+            
+            const response = await fetch(dataUri);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const win = window.open(blobUrl);
+            if (win) {
+                win.focus();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+            } else {
+                alert("Please allow pop-ups to view the LPO.");
+            }
+        } catch (err) {
+            console.error("Failed to generate/print LPO:", err);
+            alert("Failed to generate LPO.");
+        }
     };
 
     const getStatusColor = (status: Requisition['status']) => {
@@ -242,7 +276,16 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
                                                         <CheckCircleIcon className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                <button className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-all shadow-sm">
+                                                <button 
+                                                    onClick={() => { setPreviewReq(req); setIsPreviewModalOpen(true); }}
+                                                    className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-all shadow-sm" title="Preview LPO"
+                                                >
+                                                    <FileSearchIcon className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handlePrintLpo(req)}
+                                                    className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-200 transition-all shadow-sm" title="Print LPO"
+                                                >
                                                     <PrinterIcon className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -344,6 +387,86 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
                     </div>
                 </div>
             )}
+            {/* Preview Modal */}
+            {isPreviewModalOpen && previewReq && (
+                <LPOPreviewModal 
+                    req={previewReq} 
+                    suppliers={suppliers} 
+                    onClose={() => setIsPreviewModalOpen(false)} 
+                    onPrint={handlePrintLpo} 
+                />
+            )}
+        </div>
+    );
+};
+
+// Preview Modal
+const LPOPreviewModal = ({ req, suppliers, onClose, onPrint }: { req: Requisition, suppliers: Supplier[], onClose: () => void, onPrint: (req: Requisition) => void }) => {
+    const supplier = suppliers.find(s => s.id === req.supplierId);
+    
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                <div className="p-8 bg-indigo-600 text-white flex justify-between items-center">
+                    <div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">Purchase Order Preview</h3>
+                        <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.2em] mt-1">LPO #{req.lpoNumber || 'DRAFT'}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                        <PlusIcon className="w-6 h-6 rotate-45" />
+                    </button>
+                </div>
+
+                <div className="p-10 space-y-8">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
+                            <p className="text-sm font-black text-slate-900">{new Date(req.requestedDate).toLocaleDateString()}</p>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Value</p>
+                            <p className="text-sm font-black text-indigo-600">KES {(req.items?.reduce((acc, item) => acc + (item.quantity * (item.unitCost || 0)), 0))?.toLocaleString()}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor</p>
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <p className="text-xs font-black text-slate-900">{supplier?.name || 'Not Assigned'}</p>
+                            <p className="text-[10px] font-bold text-slate-500 mt-1">{supplier?.email || 'No email set'}</p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-2xl">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                    <th className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                    <th className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {req.items.map((item, i) => (
+                                    <tr key={i}>
+                                        <td className="px-4 py-3 text-[10px] font-bold text-slate-700 uppercase">{item.name}</td>
+                                        <td className="px-4 py-3 text-[10px] font-black text-slate-900 text-center">{item.quantity} {item.unit}</td>
+                                        <td className="px-4 py-3 text-[10px] font-black text-slate-900 text-right">KES {(item.quantity * (item.unitCost || 0)).toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <button
+                        onClick={() => { onPrint(req); onClose(); }}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
+                    >
+                        <PrinterIcon className="w-4 h-4" />
+                        Generate & Print PDF
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

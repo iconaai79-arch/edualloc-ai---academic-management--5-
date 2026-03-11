@@ -824,6 +824,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         inventory={inventory}
                         suppliers={suppliers}
                         retailStores={retailStores}
+                        institution={props.currentInstitution!}
+                        companyDetails={props.companyDetails}
                     />
                 )}
 
