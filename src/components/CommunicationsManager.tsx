@@ -359,54 +359,94 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
 
         return (
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead>
-                        <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                            <th className="py-3 px-4">Date</th>
-                            <th className="py-3 px-4">Recipient</th>
-                            <th className="py-3 px-4">Message</th>
-                            <th className="py-3 px-4 text-center">Units</th>
-                            <th className="py-3 px-4 text-center">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {smsLogs.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
-                                <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                                    {(() => {
-                                        const date = new Date(log.createdAt);
-                                        const isValid = !isNaN(date.getTime());
-                                        return (
-                                            <>
-                                                {isValid ? date.toLocaleDateString() : 'Invalid Date'}
-                                                <span className="block text-[10px] opacity-60">
-                                                    {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
-                                                </span>
-                                            </>
-                                        );
-                                    })()}
-                                </td>
-                                <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
-                                    {log.recipient}
-                                </td>
-                                <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
-                                    {log.message}
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                    <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                                        {log.units}
-                                    </span>
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                    <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                        {log.status}
-                                    </span>
-                                </td>
+            <div className="space-y-4">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                <th className="py-3 px-4">Date</th>
+                                <th className="py-3 px-4">Recipient</th>
+                                <th className="py-3 px-4">Message</th>
+                                <th className="py-3 px-4 text-center">Units</th>
+                                <th className="py-3 px-4 text-center">Status</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {smsLogs.map(log => (
+                                <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                    <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                                        {(() => {
+                                            const date = new Date(log.createdAt);
+                                            const isValid = !isNaN(date.getTime());
+                                            return (
+                                                <>
+                                                    {isValid ? date.toLocaleDateString() : 'Invalid Date'}
+                                                    <span className="block text-[10px] opacity-60">
+                                                        {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
+                                                    </span>
+                                                </>
+                                            );
+                                        })()}
+                                    </td>
+                                    <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
+                                        {log.recipient}
+                                    </td>
+                                    <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
+                                        {log.message}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                            {log.units}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                        <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            {log.status}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                    {smsLogs.map(log => {
+                        const date = new Date(log.createdAt);
+                        const isValid = !isNaN(date.getTime());
+                        return (
+                            <div key={log.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                            {isValid ? date.toLocaleDateString() : 'Invalid Date'}
+                                        </span>
+                                        <span className="text-[9px] font-bold text-slate-500">
+                                            {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="bg-white dark:bg-slate-800 px-2 py-1 rounded-lg text-[9px] font-black border border-slate-100 dark:border-slate-700">
+                                            {log.units} Units
+                                        </span>
+                                        <span className="capitalize text-[8px] font-black px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            {log.status}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="mb-2">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Recipient</p>
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{log.recipient}</p>
+                                </div>
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 italic border border-slate-50 dark:border-slate-700/50">
+                                    "{log.message}"
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         );
     };

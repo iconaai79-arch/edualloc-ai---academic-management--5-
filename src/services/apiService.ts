@@ -129,6 +129,44 @@ export const apiService = {
             return stored ? JSON.parse(stored) : null;
         } catch (e) { return null; }
     },
+    async uploadFile(path: string, blob: Blob): Promise<string> {
+        if (!_supabase) {
+            // Mock for local storage mode if needed
+            return `local-blob://${path}`;
+        }
+        const bucket = 'eduai';
+        const { data, error } = await _supabase.storage.from(bucket).upload(path, blob, {
+            upsert: true,
+            contentType: 'application/pdf'
+        });
+        if (error) throw error;
+        const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);
+        return publicUrl;
+    },
+    async incrementCount(table: string, id: string, field: 'view_count' | 'inquiry_count'): Promise<void> {
+        if (!_supabase) {
+            const records = ls.get(table);
+            const index = records.findIndex((r: any) => r.id === id);
+            if (index >= 0) {
+                records[index][field.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase())] = (records[index][field.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase())] || 0) + 1;
+                ls.set(table, records);
+            }
+            return;
+        }
+        const { error } = await _supabase.rpc('increment_module_count', { 
+            t_name: table, 
+            r_id: id, 
+            f_name: field 
+        });
+        
+        // Fallback if RPC doesn't exist (optional but safer)
+        if (error) {
+            const { data: record } = await _supabase.from(table).select(field).eq('id', id).single();
+            if (record) {
+                await _supabase.from(table).update({ [field]: (record[field] || 0) + 1 }).eq('id', id);
+            }
+        }
+    },
     async testDatabaseConnection(url?: string, key?: string): Promise<any> {
         const timestamp = new Date().toISOString();
         if (url && key) initSupabaseClient(url, key);

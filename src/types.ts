@@ -2176,6 +2176,8 @@ export interface RetailInventoryItem {
     reorderLevel: number;
     marketplaceEnabled: boolean;
     bufferStock: number;
+    viewCount: number;
+    inquiryCount: number;
     createdAt: string;
     lastUpdated?: string;
 }

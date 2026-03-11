@@ -72,6 +72,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
         try {
             if (inquiryListing) {
+                apiService.incrementCount('pm_listings', inquiryListing.id, 'inquiry_count');
                 const seller = getSeller(inquiryListing.institutionId);
                 const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
                 const subject = `Marketplace Inquiry: ${inquiryListing.title}`;
@@ -115,6 +116,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     'property_inquiry'
                 );
             } else if (inquiryProduct) {
+                apiService.incrementCount('retail_inventory_items', inquiryProduct.id, 'inquiry_count');
                 const seller = getSeller(inquiryProduct.institutionId);
                 const lead = {
                     id: `wish_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -370,7 +372,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             return (
                                 <div
                                     key={listing.id}
-                                    onClick={() => setSelectedListing(listing)}
+                                    onClick={() => {
+                                        setSelectedListing(listing);
+                                        apiService.incrementCount('pm_listings', listing.id, 'view_count');
+                                    }}
                                     className="group relative flex flex-col cursor-pointer"
                                 >
                                     {/* Glass Glow effect */}
@@ -475,7 +480,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             return (
                                 <div
                                     key={product.id}
-                                    onClick={() => setSelectedProduct(product)}
+                                    onClick={() => {
+                                        setSelectedProduct(product);
+                                        apiService.incrementCount('retail_inventory_items', product.id, 'view_count');
+                                    }}
                                     className="group relative flex flex-col cursor-pointer"
                                 >
                                     {/* Glass Glow effect */}

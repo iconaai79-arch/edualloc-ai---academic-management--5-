@@ -342,70 +342,108 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     };
 
     const LandlordsTab = () => (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 mt-4">
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                        <tr>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord Name</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Properties Owned</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {landlords.map(landlord => {
-                            const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
-                            return (
-                                <tr key={landlord.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-purple-600/10 rounded-xl text-purple-600">
-                                                <UserPlusIcon className="w-5 h-5" />
-                                            </div>
-                                            {landlord.name}
-                                        </div>
-                                    </td>
-                                    <td className="p-6">
-                                        <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-tight flex items-center gap-2">
-                                            <CreditCardIcon className="w-3 h-3 text-slate-400" /> {landlord.phoneNumber}
-                                        </div>
-                                        {landlord.email && (
-                                            <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tight flex items-center gap-2">
-                                                <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="p-6">
-                                        <div className="text-xs font-black text-purple-600">{ownedProperties.length} Properties</div>
-                                        <div className="mt-2 space-y-1">
-                                            {ownedProperties.slice(0, 2).map(p => (
-                                                <div key={p.id} className="text-[9px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[15rem]">
-                                                    • {p.name} <span className="text-purple-400">({p.commissionRate}%)</span>
-                                                </div>
-                                            ))}
-                                            {ownedProperties.length > 2 && (
-                                                <div className="text-[9px] font-bold text-slate-400 italic">...and {ownedProperties.length - 2} more</div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="p-6 text-right space-x-2">
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-purple-600 rounded-xl transition-colors" title="View Landlord">
-                                            <EyeIcon className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        {landlords.length === 0 && (
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                             <tr>
-                                <td colSpan={4} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
-                                    No Landlords Found
-                                </td>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord Name</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Properties Owned</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
                             </tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {landlords.map(landlord => {
+                                const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
+                                return (
+                                    <tr key={landlord.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                        <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-purple-600/10 rounded-xl text-purple-600">
+                                                    <UserPlusIcon className="w-5 h-5" />
+                                                </div>
+                                                {landlord.name}
+                                            </div>
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-tight flex items-center gap-2">
+                                                <CreditCardIcon className="w-3 h-3 text-slate-400" /> {landlord.phoneNumber}
+                                            </div>
+                                            {landlord.email && (
+                                                <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-tight flex items-center gap-2">
+                                                    <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-6">
+                                            <div className="text-xs font-black text-purple-600">{ownedProperties.length} Properties</div>
+                                            <div className="mt-2 space-y-1">
+                                                {ownedProperties.slice(0, 2).map(p => (
+                                                    <div key={p.id} className="text-[9px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[15rem]">
+                                                        • {p.name} <span className="text-purple-400">({p.commissionRate}%)</span>
+                                                    </div>
+                                                ))}
+                                                {ownedProperties.length > 2 && (
+                                                    <div className="text-[9px] font-bold text-slate-400 italic">...and {ownedProperties.length - 2} more</div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-right space-x-2 whitespace-nowrap">
+                                            <button className="p-2.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl transition-all" title="View Landlord">
+                                                <EyeIcon className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                    {landlords.map(landlord => {
+                        const ownedProperties = properties.filter(p => p.landlordId === landlord.id);
+                        return (
+                            <div key={landlord.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-purple-600 rounded-2xl shadow-lg shadow-purple-500/20 text-white">
+                                            <UserPlusIcon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{landlord.name}</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{landlord.phoneNumber}</p>
+                                        </div>
+                                    </div>
+                                    <button className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><EyeIcon className="w-4 h-4" /></button>
+                                </div>
+                                <div className="mt-4 bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ownership Block</p>
+                                        <span className="bg-purple-100 text-purple-600 text-[8px] font-black px-2 py-0.5 rounded-full uppercase">{ownedProperties.length} Assets</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {ownedProperties.slice(0, 3).map(p => (
+                                            <div key={p.id} className="text-[9px] font-bold text-slate-600 dark:text-slate-300 uppercase truncate">
+                                                • {p.name} <span className="text-purple-600/70 italic">({p.commissionRate}% Com.)</span>
+                                            </div>
+                                        ))}
+                                        {ownedProperties.length > 3 && <p className="text-[8px] text-slate-400 font-bold italic ml-2">+ {ownedProperties.length - 3} more properties</p>}
+                                    </div>
+                                </div>
+                                {landlord.email && (
+                                    <div className="mt-4 text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
+                                        <UserIcon className="w-3 h-3 text-slate-400" /> {landlord.email}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -413,204 +451,230 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const PropertiesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             {/* Sub-navigation bar */}
-            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner">
-                {[
-                    { id: 'properties', label: 'Master Assets', icon: BuildingOfficeIcon },
-                    { id: 'units', label: 'Unit Registry', icon: GridIcon },
-                    { id: 'landlords', label: 'Landlord Directory', icon: UserGroupIcon },
-                    { id: 'tenants', label: 'Tenant Directory', icon: UserIcon },
-                ].map(sub => (
-                    <button
-                        key={sub.id}
-                        onClick={() => setPropertyActiveSubTab(sub.id as any)}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${propertyActiveSubTab === sub.id
-                            ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
-                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                            }`}
-                    >
-                        <sub.icon className="w-3.5 h-3.5" />
-                        {sub.label}
-                    </button>
-                ))}
+            {/* Sub-navigation bar - Scrollable */}
+            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-slate-700/50 shadow-inner no-scrollbar">
+                <div className="flex gap-1.5 min-w-max">
+                    {[
+                        { id: 'properties', label: 'Master Assets', icon: BuildingOfficeIcon },
+                        { id: 'units', label: 'Unit Registry', icon: GridIcon },
+                        { id: 'landlords', label: 'Landlord Directory', icon: UserGroupIcon },
+                        { id: 'tenants', label: 'Tenant Directory', icon: UserIcon },
+                    ].map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setPropertyActiveSubTab(sub.id as any)}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${propertyActiveSubTab === sub.id
+                                ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                }`}
+                        >
+                            <sub.icon className="w-3.5 h-3.5" />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {propertyActiveSubTab === 'properties' && (
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden mb-12">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                            <tr>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units (Total / Vacant)</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord / Commission</th>
-                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {properties.map(property => {
-                                const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
-                                const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
-
-                                return (
-                                    <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                        <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
-                                                    <BuildingOfficeIcon className="w-5 h-5" />
-                                                </div>
-                                                {property.name}
-                                            </div>
-                                        </td>
-                                        <td className="p-6">
-                                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
-                                        </td>
-                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight flex items-center gap-2 mt-2">
-                                            <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
-                                        </td>
-                                        <td className="p-6">
-                                            <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
-                                            <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
-                                        </td>
-                                        <td className="p-6">
-                                            {landlord ? (
-                                                <div>
-                                                    <div className="text-xs font-black text-purple-600 truncate max-w-[12rem]">{landlord.name}</div>
-                                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 text-purple-600/70">{property.commissionRate}% Commission</div>
-                                                </div>
-                                            ) : (
-                                                <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
-                                            )}
-                                        </td>
-                                        <td className="p-6 text-right space-x-2">
-                                            <button
-                                                onClick={() => {
-                                                    setEditingProperty(property);
-                                                    setShowPropertyModal(true);
-                                                }}
-                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"
-                                                title="Edit Property"
-                                            >
-                                                <PencilIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteProperty(property.id)}
-                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
-                                                title="Delete Property"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors" title="Manage Units">
-                                                <ListIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setEditingUnit(null);
-                                                    setShowUnitModal(true);
-                                                }}
-                                                className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
-                                                title="Add Unit"
-                                            >
-                                                <PlusIcon className="w-4 h-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {properties.length === 0 && (
+                    {/* Desktop Table View */}
+                    <div className="hidden lg:block overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-slate-400 text-sm font-bold uppercase tracking-widest italic border-b-transparent">
-                                        No Properties Found
-                                    </td>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property Name</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Address</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Units</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Landlord</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {properties.map(property => {
+                                    const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                                    const landlord = property.landlordId ? landlords.find(l => l.id === property.landlordId) : null;
+                                    return (
+                                        <tr key={property.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-600/10 rounded-xl text-blue-600">
+                                                        <BuildingOfficeIcon className="w-5 h-5" />
+                                                    </div>
+                                                    {property.name}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest">{property.propertyType}</span>
+                                            </td>
+                                            <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-tight">
+                                                <div className="flex items-center gap-2">
+                                                    <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address'}
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="text-xs font-black text-slate-900 dark:text-white">{property.totalUnits || 0} Total</div>
+                                                <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">{vacantCount} Vacant</div>
+                                            </td>
+                                            <td className="p-6">
+                                                {landlord ? (
+                                                    <div>
+                                                        <div className="text-xs font-black text-purple-600 truncate max-w-[10rem]">{landlord.name}</div>
+                                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{property.commissionRate}% rate</div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-400 italic font-bold">Standalone</span>
+                                                )}
+                                            </td>
+                                            <td className="p-6 text-right space-x-1 whitespace-nowrap">
+                                                <button onClick={() => { setEditingProperty(property); setShowPropertyModal(true); }} className="p-2.5 text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 rounded-xl transition-all"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"><TrashIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => { setEditingUnit(null); setShowUnitModal(true); }} className="p-2.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all"><PlusIcon className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {properties.length === 0 && (
+                                    <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Master Assets Found</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                        {properties.map(property => {
+                            const vacantCount = units.filter(u => u.propertyId === property.id && u.status === 'Vacant').length;
+                            return (
+                                <div key={property.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20 text-white">
+                                                <BuildingOfficeIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{property.name}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{property.propertyType}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingProperty(property); setShowPropertyModal(true); }} className="p-2.5 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-500"><PencilIcon className="w-4 h-4" /></button>
+                                            <button onClick={() => handleDeleteProperty(property.id)} className="p-2.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl text-rose-600"><TrashIcon className="w-4 h-4" /></button>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mt-6">
+                                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{property.totalUnits || 0} Units</p>
+                                            <p className="text-[9px] font-bold text-blue-600 mt-0.5">{vacantCount} Vacant</p>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-2xl">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Commission</p>
+                                            <p className="text-xs font-black text-purple-600 uppercase">{property.commissionRate}% Rate</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase">
+                                        <MapPinIcon className="w-3 h-3 text-slate-400" /> {property.address || 'No Address Provided'}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {properties.length === 0 && (
+                            <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Master Assets Found</div>
+                        )}
+                    </div>
                 </div>
             )}
 
             {propertyActiveSubTab === 'units' && (
                 <div className="mt-4">
-                    <div className="flex justify-between items-center mb-6">
+                    <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
                         <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Master Unit Registry</h3>
-                        <div className="relative">
-                            <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                        <div className="relative w-full md:w-auto">
+                            <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="SEARCH BY UNIT NO..."
+                                placeholder="SEARCH BY UNIT..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-64"
+                                className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72"
                             />
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Unit Details</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type / Floor</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Rent (KES)</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Status</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
-                                    <tr key={unit.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
-                                        <td className="p-6">
-                                            <div className="flex items-center gap-4 text-slate-900 dark:text-white font-black italic">
-                                                <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-600">
-                                                    <GridIcon className="w-5 h-5" />
-                                                </div>
-                                                {unit.unitNumber}
-                                            </div>
-                                        </td>
-                                        <td className="p-6 text-sm font-bold text-slate-600 dark:text-slate-400">
-                                            {properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}
-                                        </td>
-                                        <td className="p-6">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{unit.unitType}</span>
-                                            <p className="text-xs font-bold text-slate-500 italic mt-1">Floor {unit.floorNumber || 'G'}</p>
-                                        </td>
-                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">
-                                            {unit.rentAmount.toLocaleString()}
-                                        </td>
-                                        <td className="p-6">
-                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
-                                                unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' :
-                                                    'bg-rose-100 text-rose-600 dark:bg-rose-900/30'
-                                                } `}>
-                                                {unit.status}
-                                            </span>
-                                        </td>
-                                        <td className="p-6 text-right space-x-2">
-                                            <button
-                                                onClick={() => {
-                                                    setEditingUnit(unit);
-                                                    setShowUnitModal(true);
-                                                }}
-                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"
-                                                title="Edit Unit"
-                                            >
-                                                <PencilIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteUnit(unit.id)}
-                                                className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"
-                                                title="Delete Unit"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                            <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
-                                                <EyeIcon className="w-4 h-4" />
-                                            </button>
-                                        </td>
+                        {/* Desktop Table */}
+                        <div className="hidden lg:block overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                    <tr>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Unit Details</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Property</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Type / Floor</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Rent (KES)</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Status</th>
+                                        <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
+                                        <tr key={unit.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors group">
+                                            <td className="p-6 text-sm font-black italic text-slate-900 dark:text-white">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-600"><GridIcon className="w-5 h-5" /></div>
+                                                    {unit.unitNumber}
+                                                </div>
+                                            </td>
+                                            <td className="p-6 text-sm font-bold text-slate-600 dark:text-slate-400">{properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}</td>
+                                            <td className="p-6">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{unit.unitType}</span>
+                                                <p className="text-xs font-bold text-slate-500 italic mt-1">Floor {unit.floorNumber || 'G'}</p>
+                                            </td>
+                                            <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">{unit.rentAmount.toLocaleString()}</td>
+                                            <td className="p-6">
+                                                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>{unit.status}</span>
+                                            </td>
+                                            <td className="p-6 text-right space-x-2">
+                                                <button onClick={() => { setEditingUnit(unit); setShowUnitModal(true); }} className="p-2.5 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"><PencilIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => handleDeleteUnit(unit.id)} className="p-2.5 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                            {units.filter(u => !search || u.unitNumber.toUpperCase().includes(search.toUpperCase())).map(unit => (
+                                <div key={unit.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-3 bg-slate-100 dark:bg-slate-900 shadow-sm text-slate-600 dark:text-slate-300 rounded-2xl">
+                                                <GridIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{unit.unitNumber}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{unit.unitType} (F-{unit.floorNumber || 'G'})</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600' : unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>{unit.status}</span>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white mt-2 italic whitespace-nowrap">KES {unit.rentAmount.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+                                        <div className="flex items-center gap-2 truncate max-w-[60%]">
+                                            <BuildingOfficeIcon className="w-3.5 h-3.5 opacity-50 flex-shrink-0" />
+                                            <span className="truncate">{properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setEditingUnit(unit); setShowUnitModal(true); }} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl text-slate-400"><PencilIcon className="w-4 h-4" /></button>
+                                            <button onClick={() => handleDeleteUnit(unit.id)} className="p-2.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl text-rose-600"><TrashIcon className="w-4 h-4" /></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -622,61 +686,69 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const TenantsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
                 <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Active Tenants</h3>
-                <div className="relative">
-                    <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
+                <div className="relative w-full md:w-auto">
+                    <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
                     <input
                         type="text"
                         placeholder="SEARCH TENANTS..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-64"
+                        className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all w-full md:w-72"
                     />
                 </div>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                        <tr>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Tenant Name</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">National ID</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Onboarded</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
-                            <tr key={tenant.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</td>
-                                <td className="p-6">
-                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{tenant.phoneNumber}</p>
-                                    <p className="text-[10px] text-slate-400">{tenant.email || 'No email'}</p>
-                                </td>
-                                <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
-                                <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
-                                <td className="p-6 text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setSelectedTenantForBankAction(tenant);
-                                                setShowBankModal(true);
-                                            }}
-                                            className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all group"
-                                            title="Bank / M-Pesa Actions"
-                                        >
-                                            <MpesaIcon className="w-4 h-4" />
-                                        </button>
-                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors">
-                                            <EyeIcon className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </td>
+                {/* Desktop Table */}
+                <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                            <tr>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Tenant Name</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Contact Info</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">National ID</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Onboarded</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic text-right">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
+                                <tr key={tenant.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</td>
+                                    <td className="p-6">
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{tenant.phoneNumber}</p>
+                                        <p className="text-[10px] text-slate-400">{tenant.email || 'No email'}</p>
+                                    </td>
+                                    <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
+                                    <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
+                                    <td className="p-6 text-right space-x-2">
+                                        <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Bank Integration"><MpesaIcon className="w-4 h-4" /></button>
+                                        <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors"><EyeIcon className="w-4 h-4" /></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                    {tenants.filter(t => !search || t.name.toUpperCase().includes(search.toUpperCase())).map(tenant => (
+                        <div key={tenant.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</h4>
+                                    <p className="text-xs font-bold text-slate-500 mt-1">{tenant.phoneNumber}</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{tenant.idNumber || 'NO ID PROVIDED'}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><MpesaIcon className="w-5 h-5" /></button>
+                                    <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400"><EyeIcon className="w-5 h-5" /></button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -814,45 +886,82 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const LeasesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                        <tr>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Lease Reference</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Tenant</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Unit</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Rent</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Status</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {leases.map(lease => {
-                            const tenant = tenants.find(t => t.id === lease.tenantId);
-                            const unit = units.find(u => u.id === lease.unitId);
-                            return (
-                                <tr key={lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</td>
-                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</td>
-                                    <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
-                                    <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</td>
-                                    <td className="p-6">
-                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'} `}>
-                                            {lease.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 text-right">
-                                        <button
-                                            onClick={() => setSelectedLeaseForPreview(lease)}
-                                            className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ml-auto"
-                                        >
-                                            <EyeIcon className="w-4 h-4" /> Agreement
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                            <tr>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Lease Reference</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Tenant</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Unit</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Rent</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Status</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest italic text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leases.map(lease => {
+                                const tenant = tenants.find(t => t.id === lease.tenantId);
+                                const unit = units.find(u => u.id === lease.unitId);
+                                return (
+                                    <tr key={lease.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-6 font-mono text-xs font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</td>
+                                        <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</td>
+                                        <td className="p-6 text-sm font-bold text-slate-500">UNIT {unit?.unitNumber || 'N/A'}</td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</td>
+                                        <td className="p-6">
+                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'} `}>
+                                                {lease.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-right">
+                                            <button
+                                                onClick={() => setSelectedLeaseForPreview(lease)}
+                                                className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-800 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ml-auto"
+                                            >
+                                                <EyeIcon className="w-4 h-4" /> Agreement
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                    {leases.map(lease => {
+                        const tenant = tenants.find(t => t.id === lease.tenantId);
+                        const unit = units.find(u => u.id === lease.unitId);
+                        return (
+                            <div key={lease.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] font-mono font-black text-slate-400 uppercase">#{lease.id.split('_')[1]}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest ${lease.status === 'Active' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{lease.status}</span>
+                                        </div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
+                                        <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest italic">Unit {unit?.unitNumber || 'N/A'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs font-black text-slate-900 dark:text-white italic">KES {lease.rentAmount.toLocaleString()}</p>
+                                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Monthly Rent</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button
+                                        onClick={() => setSelectedLeaseForPreview(lease)}
+                                        className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                                    >
+                                        <EyeIcon className="w-4 h-4" /> View Agreement
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -925,39 +1034,71 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Real-time financial tracking</p>
                     </div>
                 </div>
-                <table className="w-full text-left">
-                    <thead className="border-b border-slate-100 dark:border-slate-700">
-                        <tr>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction ID</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lease Ref</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {payments.map(payment => {
-                            const lease = leases.find(l => l.id === payment.leaseId);
-                            const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
-                            return (
-                                <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-6 font-mono text-xs font-bold text-slate-400">#{payment.id.split('_')[1]}</td>
-                                    <td className="p-6">
-                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
-                                        <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
-                                    </td>
-                                    <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</td>
-                                    <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
-                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
-                                    <td className="p-6 text-right">
-                                        <span className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">Success</span>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="border-b border-slate-100 dark:border-slate-700">
+                            <tr>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction ID</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lease Ref</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {payments.map(payment => {
+                                const lease = leases.find(l => l.id === payment.leaseId);
+                                const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                                return (
+                                    <tr key={payment.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-6 font-mono text-xs font-bold text-slate-400">#{payment.id.split('_')[1]}</td>
+                                        <td className="p-6">
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">{tenant?.name || 'N/A'}</p>
+                                            <p className="text-[9px] text-blue-600 font-bold uppercase">{payment.paymentType}</p>
+                                        </td>
+                                        <td className="p-6 text-lg font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</td>
+                                        <td className="p-6 font-bold text-slate-500 uppercase text-[10px]">{payment.paymentMethod}</td>
+                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                        <td className="p-6 text-right">
+                                            <span className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic">Success</span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
+                    {payments.map(payment => {
+                        const lease = leases.find(l => l.id === payment.leaseId);
+                        const tenant = lease ? tenants.find(t => t.id === lease.tenantId) : null;
+                        return (
+                            <div key={payment.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-mono font-bold text-slate-400">#{payment.id.split('_')[1]}</span>
+                                        <span className="bg-emerald-50 text-emerald-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">Success</span>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(payment.paymentDate).toLocaleDateString()}</p>
+                                </div>
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || 'N/A'}</h4>
+                                        <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{payment.paymentType}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {payment.amount.toLocaleString()}</p>
+                                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{payment.paymentMethod}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -967,13 +1108,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
                 {tickets.map(ticket => (
                     <div key={ticket.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl group hover:-translate-y-2 transition-all duration-500 relative overflow-hidden">
-                        <div className={`absolute top-0 right-10 w-12 h-2 rounded-b-full ${ticket.priority === 'Urgent' ? 'bg-rose-500' : ticket.priority === 'High' ? 'bg-amber-500' : 'bg-blue-500'} `}></div>
+                        <div className={`absolute top-0 right-10 w-12 h-2 rounded-b-full ${ticket.priority === 'Urgent' ? 'bg-rose-500 shadow-lg shadow-rose-500/50' : ticket.priority === 'High' ? 'bg-amber-500 shadow-lg shadow-amber-500/50' : 'bg-blue-500 shadow-lg shadow-blue-500/50'} `}></div>
+                        <div className="flex justify-between items-start mb-4">
+                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic ${ticket.status === 'Open' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>{ticket.status}</span>
+                            <span className="text-[9px] font-mono text-slate-400">#{ticket.id.split('_')[1]}</span>
+                        </div>
                         <h4 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic mb-2">{ticket.title}</h4>
-                        <p className="text-slate-500 text-xs font-bold leading-relaxed mb-6">{ticket.description}</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-bold leading-relaxed mb-6">{ticket.description}</p>
                         <div className="flex justify-between items-center pt-6 border-t border-slate-50 dark:border-slate-700">
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Unit</p>
-                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic">UNIT {units.find(u => u.id === ticket.unitId)?.unitNumber || 'N/A'}</p>
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Assigned Unit</p>
+                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase italic">Unit {units.find(u => u.id === ticket.unitId)?.unitNumber || 'N/A'}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Est. Cost</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {(ticket.cost || 0).toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
@@ -1276,9 +1425,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                         <TrashIcon className="w-4 h-4" />
                                     </button>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Views</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white mt-0.5">---</p>
+                                <div className="text-right flex gap-6">
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Views</p>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white mt-0.5">{listing.viewCount || 0}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Inquiries</p>
+                                        <p className="text-sm font-black text-blue-600 mt-0.5">{listing.inquiryCount || 0}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1460,7 +1615,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
                 const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
                 
-                        await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
+                await apiService.sendEmail(entity.email!, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
+                
+                // Also send SMS for individual email if phone exists
+                if (entity.phoneNumber) {
+                    try {
+                        const blob = await (await fetch(dataUri)).blob();
+                        const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
+                        const publicUrl = await apiService.uploadFile(fileName, blob);
+                        const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
+                        await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
+                    } catch (smsErr) { console.warn("SMS link failed:", smsErr); }
+                }
+
                 alert("Statement has been sent successfully to " + entity.email);
             } catch (err: any) { alert("Failed to send email: " + err.message); }
         };
@@ -1497,7 +1664,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
                         const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
                         
-                        await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, dataUri);
+                        await apiService.sendEmail(entity.email!, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
+                        
+                        // Upload PDF for public link if SMS is needed
+                        if (entity.phoneNumber) {
+                            try {
+                                const blob = await (await fetch(dataUri)).blob();
+                                const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
+                                const publicUrl = await apiService.uploadFile(fileName, blob);
+                                
+                                const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
+                                await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
+                            } catch (smsErr) {
+                                console.error(`Failed to send SMS to ${entity.phoneNumber}:`, smsErr);
+                            }
+                        }
+                        
                         successCount++;
                     } catch (e) {
                         console.error(`Failed to send to ${entity.email}:`, e);
@@ -1595,51 +1777,85 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
                         <div className="flex-1 overflow-auto max-h-[600px]">
                             {targetId ? (
-                                <table className="w-full text-left">
-                                    <thead className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 z-10">
-                                        <tr>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref</th>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Debit</th>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Credit</th>
-                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {/* Opening Balance Row */}
-                                        <tr className="bg-slate-50/30 dark:bg-slate-900/10 italic">
-                                            <td className="p-6 text-[10px] font-bold text-slate-400">{startDate}</td>
-                                            <td className="p-6 text-xs font-black text-slate-400 uppercase tracking-widest" colSpan={3}>Opening Balance Brought Forward</td>
-                                            <td className="p-6 text-right text-sm font-black text-slate-400">---</td>
-                                            <td className="p-6 text-right text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</td>
-                                        </tr>
-                                        {transactions.map(t => (
-                                            <tr key={t.id} className="border-b border-slate-50 dark:border-slate-700/50">
-                                                <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
-                                                <td className="p-6">
-                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{t.description}</p>
-                                                    {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
-                                                </td>
-                                                <td className="p-6 text-[10px] font-mono font-bold text-slate-400">#{t.ref}</td>
-                                                <td className="p-6 text-right text-sm font-black text-rose-500 italic">
-                                                    {t.type === 'debit' ? `KES ${t.amount.toLocaleString()}` : '---'}
-                                                </td>
-                                                <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
-                                                    {t.type === 'credit' ? `KES ${t.amount.toLocaleString()}` : '---'}
-                                                </td>
-                                                <td className="p-6 text-right text-sm font-black text-blue-600 italic">
-                                                    KES {t.balance.toLocaleString()}
-                                                </td>
+                                <>
+                                    {/* Desktop Table */}
+                                    <table className="hidden md:table w-full text-left">
+                                        <thead className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 z-10">
+                                            <tr>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref</th>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Debit</th>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Credit</th>
+                                                <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
                                             </tr>
+                                        </thead>
+                                        <tbody>
+                                            {/* Opening Balance Row */}
+                                            <tr className="bg-slate-50/30 dark:bg-slate-900/10 italic">
+                                                <td className="p-6 text-[10px] font-bold text-slate-400">{startDate}</td>
+                                                <td className="p-6 text-xs font-black text-slate-400 uppercase tracking-widest" colSpan={3}>Opening Balance Brought Forward</td>
+                                                <td className="p-6 text-right text-sm font-black text-slate-400">---</td>
+                                                <td className="p-6 text-right text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</td>
+                                            </tr>
+                                            {transactions.map(t => (
+                                                <tr key={t.id} className="border-b border-slate-50 dark:border-slate-700/50">
+                                                    <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
+                                                    <td className="p-6">
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{t.description}</p>
+                                                        {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
+                                                    </td>
+                                                    <td className="p-6 text-[10px] font-mono font-bold text-slate-400">#{t.ref}</td>
+                                                    <td className="p-6 text-right text-sm font-black text-rose-500 italic">
+                                                        {t.type === 'debit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                    </td>
+                                                    <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
+                                                        {t.type === 'credit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                    </td>
+                                                    <td className="p-6 text-right text-sm font-black text-blue-600 italic">
+                                                        KES {t.balance.toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {transactions.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={6} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No transactions found for this period</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+
+                                    {/* Mobile Cards */}
+                                    <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                                        <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 flex justify-between items-center italic">
+                                            <span className="text-[10px] font-bold text-slate-400">Opening Balance</span>
+                                            <span className="text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</span>
+                                        </div>
+                                        {transactions.map(t => (
+                                            <div key={t.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(t.date).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase italic">#{t.ref}</span>
+                                                </div>
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic mb-1">{t.description}</p>
+                                                {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase mb-2">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
+                                                <div className="flex justify-between items-center mt-4">
+                                                    <div>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{t.type === 'debit' ? 'Debit' : 'Credit'}</p>
+                                                        <p className={`text-sm font-black italic ${t.type === 'debit' ? 'text-rose-500' : 'text-emerald-600'}`}>KES {t.amount.toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Balance</p>
+                                                        <p className="text-sm font-black text-blue-600 italic">KES {t.balance.toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         ))}
                                         {transactions.length === 0 && (
-                                            <tr>
-                                                <td colSpan={6} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No transactions found for this period</td>
-                                            </tr>
+                                            <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest italic">No transactions found</div>
                                         )}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                </>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center p-20 text-center">
                                     <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-full mb-6">
@@ -1659,23 +1875,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const ReportsTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             {/* Sub-navigation bar */}
-            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner">
-                {[
-                    { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
-                    { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
-                ].map(sub => (
-                    <button
-                        key={sub.id}
-                        onClick={() => setReportsSubTab(sub.id as any)}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportsSubTab === sub.id
-                            ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
-                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                            }`}
-                    >
-                        <sub.icon className="w-3.5 h-3.5" />
-                        {sub.label}
-                    </button>
-                ))}
+            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-full md:w-fit overflow-x-auto no-scrollbar border border-slate-200 dark:border-slate-700/50 shadow-inner">
+                <div className="flex gap-1.5 min-w-max">
+                    {[
+                        { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
+                        { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
+                    ].map(sub => (
+                        <button
+                            key={sub.id}
+                            onClick={() => setReportsSubTab(sub.id as any)}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportsSubTab === sub.id
+                                ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                }`}
+                        >
+                            <sub.icon className="w-3.5 h-3.5" />
+                            {sub.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {reportsSubTab === 'analytics' && (
@@ -1713,31 +1931,37 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     );
 
     const renderTabs = () => (
-        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl mb-8 w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner">
-            {[
-                { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
-                { id: 'properties', label: 'Properties & Units', icon: BuildingOfficeIcon },
-                { id: 'leases', label: 'Lease Manager', icon: ArchiveBoxIcon },
-                { id: 'payments', label: 'Payments', icon: CurrencyIcon },
-                { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
-                { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
-                { id: 'listings', label: 'Sales & Listings', icon: ShoppingCartIcon },
-                { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
-                { id: 'comms', label: 'Broadcaster', icon: ChatBubbleBottomCenterTextIcon },
-                { id: 'reports', label: 'Reports', icon: ChartPieIcon },
-            ].map(tab => (
-                <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                        } `}
-                >
-                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-pulse' : ''} `} />
-                    {tab.label}
-                </button>
-            ))}
+        <div className="relative group/tabs mb-8">
+            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-slate-700/50 shadow-inner no-scrollbar">
+                <div className="flex gap-1.5 min-w-max">
+                    {[
+                        { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
+                        { id: 'properties', label: 'Assets', icon: BuildingOfficeIcon },
+                        { id: 'leases', label: 'Leases', icon: ArchiveBoxIcon },
+                        { id: 'payments', label: 'Payments', icon: CurrencyIcon },
+                        { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
+                        { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
+                        { id: 'listings', label: 'Listings', icon: ShoppingCartIcon },
+                        { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
+                        { id: 'comms', label: 'Broadcaster', icon: ChatBubbleBottomCenterTextIcon },
+                        { id: 'reports', label: 'Reports', icon: ChartPieIcon },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-1 ring-blue-400/50'
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-white/5'
+                                } `}
+                        >
+                            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-bounce' : ''} `} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            {/* Scroll Indicator Gradient */}
+            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-50 dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover/tabs:opacity-100 transition-opacity lg:hidden"></div>
         </div>
     );
 
@@ -1770,109 +1994,128 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     }
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
-            <div className="flex justify-between items-center mb-10">
-                <div>
-                    <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic flex items-center gap-4">
-                        <HomeIcon className="w-10 h-10 text-blue-600" />
-                        Property Management
-                        <span className="text-sm bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full tracking-widest not-italic">RENTAL HUB</span>
-                    </h1>
-                    <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Managing {currentInstitution.name}</p>
+        <div className="p-4 md:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-10">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/30">
+                        <HomeIcon className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase italic flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+                            Property Management
+                            <span className="text-[10px] md:text-xs bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full tracking-widest not-italic w-fit">RENTAL HUB PREMIER</span>
+                        </h1>
+                        <p className="text-slate-500 font-bold uppercase text-[9px] md:text-[10px] tracking-[0.3em] mt-2 opacity-60">Architecting {currentInstitution.name}</p>
+                    </div>
                 </div>
-                <div className="flex gap-4">
-                    <button onClick={loadData} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
-                        <ArrowPathIcon className="w-6 h-6" />
+                <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={loadData} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-600 shadow-sm group">
+                        <ArrowPathIcon className="w-6 h-6 group-active:rotate-180 transition-transform duration-500" />
                     </button>
-                    {activeTab === 'properties' && (
-                        <div className="flex gap-4">
-                            {propertyActiveSubTab === 'properties' && (
-                                <button onClick={() => setShowPropertyModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                    <PlusIcon className="w-5 h-5" /> Add Property
-                                </button>
-                            )}
-                            {propertyActiveSubTab === 'landlords' && (
-                                <button onClick={() => setShowLandlordModal(true)} className="flex items-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                    <UserPlusIcon className="w-5 h-5" /> Add Landlord
-                                </button>
-                            )}
-                            {propertyActiveSubTab === 'units' && (
-                                <button onClick={() => setShowUnitModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                    <PlusIcon className="w-5 h-5" /> Register Unit
-                                </button>
-                            )}
-                            {propertyActiveSubTab === 'tenants' && (
-                                <button onClick={() => setShowTenantModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                    <PlusIcon className="w-5 h-5" /> Onboard Tenant
-                                </button>
-                            )}
-                        </div>
-                    )}
-                    {activeTab === 'leases' && (
-                        <button onClick={() => setShowLeaseModal(true)} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                            <PlusIcon className="w-5 h-5" /> New Lease
-                        </button>
-                    )}
-                    {activeTab === 'payments' && (
-                        <button onClick={() => setShowPaymentModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                            <CurrencyIcon className="w-5 h-5" /> Record Payment
-                        </button>
-                    )}
-                    {activeTab === 'listings' && (
-                        <button
-                            onClick={() => {
-                                if (!currentInstitution.marketplaceEnabled) {
-                                    alert("Marketplace access is currently disabled for your institution. Please contact Super Admin.");
-                                    return;
-                                }
-                                const quota = currentInstitution.listingQuota || 0;
-                                if (quota > 0 && listings.length >= quota) {
-                                    alert(`You have reached your listing quota of ${quota} ads. Please upgrade your plan or remove old listings.`);
-                                    return;
-                                }
-                                setShowListingModal(true);
-                            }}
-                            className="flex items-center gap-2 bg-orange-600 text-white px-6 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-orange-600/20 hover:scale-[1.02] active:scale-95 transition-all"
-                        >
-                            <ShoppingCartIcon className="w-5 h-5" /> New Ad Listing
-                        </button>
-                    )}
+                    <div className="flex flex-wrap gap-2 md:gap-3 flex-1 md:flex-none">
+                        {activeTab === 'properties' && (
+                            <>
+                                {propertyActiveSubTab === 'properties' && (
+                                    <button onClick={() => setShowPropertyModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Add</span> Property
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'landlords' && (
+                                    <button onClick={() => setShowLandlordModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-purple-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <UserPlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Add</span> Landlord
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'units' && (
+                                    <button onClick={() => setShowUnitModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Register</span> Unit
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'tenants' && (
+                                    <button onClick={() => setShowTenantModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Onboard</span> Tenant
+                                    </button>
+                                )}
+                            </>
+                        )}
+                        {activeTab === 'leases' && (
+                            <button onClick={() => setShowLeaseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Lease
+                            </button>
+                        )}
+                        {activeTab === 'payments' && (
+                            <button onClick={() => setShowPaymentModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                <CurrencyIcon className="w-5 h-5" /> <span className="hidden sm:inline">Record</span> Payment
+                            </button>
+                        )}
+                        {activeTab === 'listings' && (
+                            <button
+                                onClick={() => {
+                                    if (!currentInstitution.marketplaceEnabled) {
+                                        alert("Marketplace access is currently disabled for your institution. Please contact Super Admin.");
+                                        return;
+                                    }
+                                    const quota = currentInstitution.listingQuota || 0;
+                                    if (quota > 0 && listings.length >= quota) {
+                                        alert(`You have reached your listing quota of ${quota} ads. Please upgrade your plan or remove old listings.`);
+                                        return;
+                                    }
+                                    setShowListingModal(true);
+                                }}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-4 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest shadow-xl shadow-orange-600/20 hover:scale-[1.02] active:scale-95 transition-all"
+                            >
+                                <ShoppingCartIcon className="w-5 h-5" /> <span className="hidden md:inline">New</span> Ad Listing
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {renderTabs()}
 
             {activeTab === 'dashboard' && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-bottom-4 duration-500 mt-4">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 animate-in slide-in-from-bottom-4 duration-500 mt-4">
+                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
-                        <h4 className="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Total Collection</h4>
-                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected.toLocaleString()}</p>
+                        <h4 className="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                            Total Collection
+                        </h4>
+                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {totalRentCollected.toLocaleString()}</p>
                         <div className="mt-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs">
-                                <TrendingUpIcon className="w-4 h-4" /> +12% vs last month
+                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full">
+                                <TrendingUpIcon className="w-4 h-4" /> +12%
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black uppercase text-purple-600 tracking-wider">Commission</p>
-                                <p className="text-sm font-black text-purple-600 italic">KES {totalCommissionEarned.toLocaleString()}</p>
+                                <p className="text-[9px] font-black uppercase text-purple-600 tracking-wider mb-0.5">Admin Fee</p>
+                                <p className="text-xs font-black text-purple-600 italic">KES {totalCommissionEarned.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
-                        <h4 className="text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Active Leases</h4>
-                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{activeLeases.length}</p>
-                        <div className="mt-4 flex items-center gap-2 text-slate-400 font-bold text-xs">
-                            Occupancy: {units.length > 0 ? ((activeLeases.length / units.length) * 100).toFixed(1) : 0}%
+                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
+                        <h4 className="text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                             <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full"></span>
+                             Active Leases
+                        </h4>
+                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{activeLeases.length}</p>
+                        <div className="mt-4 flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                            Occupancy: <span className="text-slate-900 dark:text-white">{units.length > 0 ? ((activeLeases.length / units.length) * 100).toFixed(1) : 0}%</span>
                         </div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
-                        <h4 className="text-amber-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Vacant Units</h4>
-                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{vacantUnits.length}</p>
-                        <div className="mt-4 text-xs font-bold text-slate-400">Ready for onboarding</div>
+                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
+                        <h4 className="text-amber-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-amber-600 rounded-full"></span>
+                            Vacant Units
+                        </h4>
+                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{vacantUnits.length}</p>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Growth Opportunity</div>
                     </div>
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
-                        <h4 className="text-rose-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Open Tickets</h4>
-                        <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{openTickets.length}</p>
+                    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/40 relative overflow-hidden group hover:-translate-y-2 transition-all duration-500">
+                        <h4 className="text-rose-600 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
+                            Open Tickets
+                        </h4>
+                        <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tighter italic">{openTickets.length}</p>
+                        <div className="mt-4 text-[10px] font-bold text-rose-500 uppercase tracking-widest animate-pulse">Needs Attention</div>
                     </div>
                 </div>
             )}
