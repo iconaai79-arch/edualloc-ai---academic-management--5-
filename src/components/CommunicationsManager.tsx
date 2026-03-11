@@ -195,6 +195,10 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 }
                 return usersInInstitution;
             }
+            case 'all_tenants':
+                return users.filter(u => String(u.role) === 'tenant');
+            case 'all_landlords':
+                return users.filter(u => String(u.role) === 'landlord');
             default:
                 return [];
         }
@@ -463,6 +467,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         <option value="individual">Individual Recipient</option>
                                         <option value="all_staff">All Staff</option>
                                         <option value="all_tenants">All Tenants</option>
+                                        <option value="all_landlords">All Landlords</option>
                                     </>
                                 ) : (
                                     <>

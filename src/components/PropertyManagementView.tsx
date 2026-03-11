@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
-    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement
+    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -12,11 +12,12 @@ import {
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
     MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
-    PaperAirplaneIcon, DownloadIcon
+    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification } from '../services/emailService';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { CommunicationsManager } from './CommunicationsManager';
 
 const dataUriToBlob = (dataUri: string) => {
     const byteString = atob(dataUri.split(',')[1]);
@@ -38,7 +39,7 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings' | 'comms' | 'inquiries'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
 
@@ -75,6 +76,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [previewPdfUrl, setPreviewPdfUrl] = useState('');
     const [previewPdfTitle, setPreviewPdfTitle] = useState('');
+
+    // Derived for Communications
+    const commsUsers = useMemo(() => {
+        const mappedTenants = tenants.map(t => ({
+            id: t.id,
+            name: t.name,
+            phoneNumber: t.phoneNumber,
+            role: 'tenant',
+            institutionId: t.institutionId
+        }));
+        const mappedLandlords = landlords.map(l => ({
+            id: l.id,
+            name: l.name,
+            phoneNumber: l.phoneNumber,
+            role: 'landlord',
+            institutionId: l.institutionId
+        }));
+        const mappedStaff = users.filter(u => u.institutionId === institutionId).map(u => ({
+            ...u,
+            role: u.role || 'staff'
+        }));
+
+        return [...mappedStaff, ...mappedTenants, ...mappedLandlords] as any[];
+    }, [users, tenants, landlords, institutionId]);
 
     const loadData = async () => {
         setLoading(true);
@@ -1386,7 +1411,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     dataUri = await pdfService.generateTenantStatementPdf(
                         tenant, payments, leases, units, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl
+                        currentInstitution.logoUrl || null
                     );
                 } else {
                     const landlord = landlords.find(l => l.id === targetId);
@@ -1395,7 +1420,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         landlord, payments, leases, units, properties, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl
+                        currentInstitution.logoUrl || null
                     );
                 }
                 
@@ -1422,20 +1447,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     dataUri = await pdfService.generateTenantStatementPdf(
                         entity as PMTenant, payments, leases, units, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl
+                        currentInstitution.logoUrl || null
                     );
                 } else {
                     dataUri = await pdfService.generateLandlordStatementPdf(
                         entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
                         currentInstitution, currentInstitution.letterheadConfig, 
-                        currentInstitution.logoUrl
+                        currentInstitution.logoUrl || null
                     );
                 }
                 
                 const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
                 const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
                 
-                await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, dataUri);
+                        await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
                 alert("Statement has been sent successfully to " + entity.email);
             } catch (err: any) { alert("Failed to send email: " + err.message); }
         };
@@ -1459,13 +1484,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             dataUri = await pdfService.generateTenantStatementPdf(
                                 entity as PMTenant, payments, leases, units, startDate, endDate, 
                                 currentInstitution, currentInstitution.letterheadConfig, 
-                                currentInstitution.logoUrl
+                                currentInstitution.logoUrl || null
                             );
                         } else {
                             dataUri = await pdfService.generateLandlordStatementPdf(
                                 entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
                                 currentInstitution, currentInstitution.letterheadConfig, 
-                                currentInstitution.logoUrl
+                                currentInstitution.logoUrl || null
                             );
                         }
                         
@@ -1698,6 +1723,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
                 { id: 'listings', label: 'Sales & Listings', icon: ShoppingCartIcon },
                 { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
+                { id: 'comms', label: 'Broadcaster', icon: ChatBubbleBottomCenterTextIcon },
                 { id: 'reports', label: 'Reports', icon: ChartPieIcon },
             ].map(tab => (
                 <button
@@ -1858,6 +1884,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {activeTab === 'payouts' && <PayoutsTab />}
             {activeTab === 'listings' && <ListingsTab />}
             {activeTab === 'inquiries' && <InquiriesTab />}
+            {activeTab === 'comms' && (
+                <CommunicationsManager 
+                    users={commsUsers}
+                    departments={[]}
+                    courses={[]}
+                    onSendSms={apiService.sendSms}
+                    currentUser={currentUser}
+                    smsBalance={currentInstitution.smsBalance}
+                    currentInstitution={currentInstitution}
+                    mpesaConfig={currentInstitution.mpesaConfig}
+                    smsConfig={currentInstitution.smsConfig}
+                    onRefreshData={loadData}
+                    moduleContext="property"
+                />
+            )}
             {activeTab === 'reports' && <ReportsTab />}
 
             <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="Create Marketplace Ad" maxWidth="max-w-2xl">
