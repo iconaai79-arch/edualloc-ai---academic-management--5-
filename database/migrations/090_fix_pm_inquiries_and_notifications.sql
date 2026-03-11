@@ -28,7 +28,8 @@ BEGIN
         CREATE POLICY "Staff can manage notifications for their institution" ON public.app_notifications FOR ALL USING (institution_id IN (SELECT institution_id FROM public.users WHERE id::text = auth.uid()::text OR id::text = 'u_' || auth.uid()::text));
         CREATE POLICY "Allow public/authenticated to create notifications" ON public.app_notifications FOR INSERT WITH CHECK (true);
     ELSE
-        -- Table exists, ensure user_id is TEXT
+        -- Table exists, ensure ID and user_id are TEXT
+        ALTER TABLE public.app_notifications ALTER COLUMN id TYPE TEXT USING id::text;
         ALTER TABLE public.app_notifications ALTER COLUMN user_id TYPE TEXT;
         
         -- Drop and recreate policies with fix
@@ -41,6 +42,9 @@ BEGIN
 END $$;
 
 -- 2. Update pm_inquiries RLS for public submissions and staff access fix
+-- Ensure pm_inquiries.id is TEXT (to handle string IDs from frontend)
+ALTER TABLE public.pm_inquiries ALTER COLUMN id TYPE TEXT USING id::text;
+
 DROP POLICY IF EXISTS "Staff access to inquiries" ON public.pm_inquiries;
 CREATE POLICY "Staff access to inquiries" 
     ON public.pm_inquiries FOR ALL 
@@ -54,6 +58,9 @@ ON public.pm_inquiries FOR INSERT
 WITH CHECK (true);
 
 -- 3. Update pm_listings RLS for view/inquiry count updates
+-- Ensure pm_listings.id is TEXT
+ALTER TABLE public.pm_listings ALTER COLUMN id TYPE TEXT USING id::text;
+
 DROP POLICY IF EXISTS "Public can update view counts" ON public.pm_listings;
 DROP POLICY IF EXISTS "Allow anonymous count updates" ON public.pm_listings;
 CREATE POLICY "Allow anonymous count updates" 
