@@ -16,6 +16,18 @@ import {
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification } from '../services/emailService';
+import { PdfPreviewModal } from './PdfPreviewModal';
+
+const dataUriToBlob = (dataUri: string) => {
+    const byteString = atob(dataUri.split(',')[1]);
+    const mimeString = dataUri.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+};
 
 interface PropertyManagementViewProps {
     currentUser: User;
@@ -1387,7 +1399,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     );
                 }
                 
-                setPreviewPdfUrl(dataUri);
+                // Convert to Blob URL for better browser support and to avoid download issues
+                const blob = dataUriToBlob(dataUri);
+                const blobUrl = URL.createObjectURL(blob);
+                
+                setPreviewPdfUrl(blobUrl);
                 setPreviewPdfTitle(title);
                 setShowPdfPreview(true);
             } catch (err: any) { alert("Failed to generate PDF: " + err.message); }
@@ -2394,30 +2410,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
             {showBankModal && <BankActionModal />}
             
-            <Modal show={showPdfPreview} onClose={() => setShowPdfPreview(false)} title={previewPdfTitle} maxWidth="max-w-5xl">
-                <div className="flex flex-col h-[70vh]">
-                    <div className="flex justify-end mb-4">
-                        <button 
-                            onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = previewPdfUrl;
-                                link.download = `${previewPdfTitle.replace(/\s+/g, '_').toLowerCase()}.pdf`;
-                                link.click();
-                            }}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
-                        >
-                            <DownloadIcon className="w-4 h-4" /> Download PDF
-                        </button>
-                    </div>
-                    <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden border-2 border-slate-200 dark:border-slate-700">
-                        <iframe 
-                            src={previewPdfUrl} 
-                            className="w-full h-full border-none"
-                            title="PDF Preview"
-                        ></iframe>
-                    </div>
-                </div>
-            </Modal>
+            {showPdfPreview && (
+                <PdfPreviewModal 
+                    url={previewPdfUrl} 
+                    onClose={() => {
+                        setShowPdfPreview(false);
+                        if (previewPdfUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(previewPdfUrl);
+                        }
+                    }} 
+                    filename={`${previewPdfTitle.replace(/\s+/g, '_').toLowerCase()}.pdf`}
+                />
+            )}
 
         </div>
     );
