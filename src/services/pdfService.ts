@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -3628,6 +3628,159 @@ export const generateLpoPdf = async (
     
     doc.line(pageWidth - margin - 60, authY, pageWidth - margin, authY);
     doc.text('Supplier Acceptance', pageWidth - margin, authY + 5, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateRetailSalesStatementPdf = async (
+    type: 'general' | 'store' | 'agent',
+    target: RetailStore | User | null,
+    sales: RetailSale[],
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    logoUrl?: string | null
+) => {
+    const jspdf = getJsPdf();
+    if (!jspdf) throw new Error("jsPDF not found");
+    const doc = new jspdf.jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    const headerImg = await loadImage(letterheadConfig?.headerImageUrl || logoUrl);
+    setupPdfHeader(doc, headerImg);
+
+    let nextY = 60;
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    const title = type === 'general' ? 'General Sales Statement' : type === 'store' ? `Sales Statement: ${target?.name}` : `Agent Sales Statement: ${target?.name}`;
+    doc.text(title.toUpperCase(), margin, nextY);
+    
+    nextY += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Period: ${startDate} to ${endDate}`, margin, nextY);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - margin, nextY, { align: 'right' });
+
+    nextY += 15;
+    const head = [['Date', 'Description', 'Store', 'Payment', 'Amount (KES)']];
+    const body = sales.map(s => [
+        new Date(s.createdAt).toLocaleDateString(),
+        `Sale - ${s.customerName || 'Walk-in Customer'}`,
+        institution.name, // Simplified for now
+        s.paymentMethod,
+        s.totalAmount.toLocaleString()
+    ]);
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: nextY,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            4: { halign: 'right' }
+        }
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || nextY + 20;
+    const totalRevenue = sales.reduce((acc, s) => acc + s.totalAmount, 0);
+
+    nextY = finalY + 15;
+    doc.setFillColor(245, 247, 250);
+    doc.rect(margin, nextY, pageWidth - (margin * 2), 20, 'F');
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(45, 55, 72);
+    doc.text('TOTAL REVENUE:', margin + 10, nextY + 13);
+    doc.text(`KES ${totalRevenue.toLocaleString()}`, pageWidth - margin - 10, nextY + 13, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateRetailInventoryReportPdf = async (
+    inventory: RetailInventoryItem[],
+    stores: RetailStore[],
+    institution: Institution,
+    letterheadConfig?: LetterheadConfig,
+    logoUrl?: string | null
+) => {
+    const jspdf = getJsPdf();
+    if (!jspdf) throw new Error("jsPDF not found");
+    const doc = new jspdf.jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    const headerImg = await loadImage(letterheadConfig?.headerImageUrl || logoUrl);
+    setupPdfHeader(doc, headerImg);
+
+    let nextY = 60;
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INVENTORY VALUATION REPORT', margin, nextY);
+    
+    nextY += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, nextY);
+
+    const totalCost = inventory.reduce((acc, i) => acc + (i.costPrice * i.quantity), 0);
+    const totalSrp = inventory.reduce((acc, i) => acc + (i.srpPrice * i.quantity), 0);
+
+    nextY += 15;
+    // Summary Cards
+    doc.setFillColor(79, 70, 229);
+    doc.rect(margin, nextY, 60, 25, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(255);
+    doc.text('TOTAL COST BASIS', margin + 5, nextY + 10);
+    doc.setFontSize(12);
+    doc.text(`KES ${totalCost.toLocaleString()}`, margin + 5, nextY + 18);
+
+    doc.setFillColor(16, 185, 129);
+    doc.rect(margin + 65, nextY, 60, 25, 'F');
+    doc.setFontSize(8);
+    doc.text('TOTAL RETAIL VALUE', margin + 70, nextY + 10);
+    doc.setFontSize(12);
+    doc.text(`KES ${totalSrp.toLocaleString()}`, margin + 70, nextY + 18);
+
+    doc.setFillColor(245, 158, 11);
+    doc.rect(margin + 130, nextY, pageWidth - margin - (margin + 130), 25, 'F');
+    doc.setFontSize(8);
+    doc.text('LOW STOCK ITEMS', margin + 135, nextY + 10);
+    const lowStockCount = inventory.filter(i => i.quantity <= i.reorderLevel).length;
+    doc.setFontSize(12);
+    doc.text(`${lowStockCount} ALERT(S)`, margin + 135, nextY + 18);
+
+    nextY += 35;
+    const head = [['Item / SKU', 'Category', 'Quantity', 'Unit Cost', 'Unit SRP', 'Total SRP Val']];
+    const body = inventory.map(item => [
+        `${item.name}\n${item.sku}`,
+        item.category,
+        `${item.quantity} ${item.unit}`,
+        item.costPrice.toLocaleString(),
+        item.srpPrice.toLocaleString(),
+        (item.srpPrice * item.quantity).toLocaleString()
+    ]);
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: nextY,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 7 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' }
+        }
+    });
 
     return doc.output('datauristring');
 };

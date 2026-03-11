@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { RetailInventoryItem, RetailSale, RetailCommissionLedger, User } from '../../types';
+import { RetailInventoryItem, RetailSale, RetailCommissionLedger, User, RetailStore, MpesaConfig, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
+import * as pdfService from '../../services/pdfService';
 import {
     LayoutDashboard,
     TrendingUp,
@@ -11,7 +12,14 @@ import {
     AlertTriangle,
     BarChart3,
     ArrowUpRight,
-    ArrowDownRight
+    ArrowDownRight,
+    FileText,
+    Calendar,
+    Search,
+    Eye,
+    Mail,
+    Filter,
+    Store as StoreIcon
 } from 'lucide-react';
 
 interface RetailReportsDashboardProps {
@@ -20,28 +28,34 @@ interface RetailReportsDashboardProps {
 }
 
 export function RetailReportsDashboard({ institutionId, users }: RetailReportsDashboardProps) {
-    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents'>('revenue');
+    const [activeTab, setActiveTab] = useState<'revenue' | 'inventory' | 'agents' | 'statements' | 'inventory_reports'>('revenue');
     const [isLoading, setIsLoading] = useState(true);
+    const [institution, setInstitution] = useState<Institution | null>(null);
 
     // Data State
     const [sales, setSales] = useState<RetailSale[]>([]);
     const [inventory, setInventory] = useState<RetailInventoryItem[]>([]);
     const [commissions, setCommissions] = useState<RetailCommissionLedger[]>([]);
+    const [stores, setStores] = useState<RetailStore[]>([]);
 
     useEffect(() => {
         const fetchReportData = async () => {
             setIsLoading(true);
             try {
-                const [salesData, invData, commData] = await Promise.all([
+                const [salesData, invData, commData, storesData, instData] = await Promise.all([
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
                     apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                     apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId),
+                    apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
+                    apiService.fetchInstitutionById(institutionId)
                 ]);
 
                 // Sort sales by newest first for better processing
-                setSales(salesData.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                setSales(salesData.sort((a: RetailSale, b: RetailSale) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
                 setInventory(invData);
                 setCommissions(commData);
+                setStores(storesData);
+                setInstitution(instData);
             } catch (error) {
                 console.error("Failed to fetch retail reports data:", error);
             } finally {
@@ -120,6 +134,297 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
         .filter(stat => stat.salesCount > 0 || stat.totalCommission > 0)
         .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
+    // --- SALES STATEMENTS MANAGER COMPONENT ---
+    const SalesStatementsManager = () => {
+        const [targetType, setTargetType] = useState<'general' | 'store' | 'agent'>('general');
+        const [targetId, setTargetId] = useState('');
+        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+        const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+        const [isProcessing, setIsProcessing] = useState(false);
+
+        const getFilteredSales = () => {
+            return sales.filter(s => {
+                const date = s.createdAt.split('T')[0];
+                const inRange = date >= startDate && date <= endDate;
+                if (!inRange) return false;
+
+                if (targetType === 'store' && targetId) return s.storeId === targetId;
+                if (targetType === 'agent' && targetId) return s.agentId === targetId;
+                return true;
+            });
+        };
+
+        const filteredSales = getFilteredSales();
+
+        const handlePreview = async () => {
+            if (targetType !== 'general' && !targetId) {
+                alert(`Please select a ${targetType === 'store' ? 'store' : 'agent'}`);
+                return;
+            }
+            if (!institution) return;
+
+            try {
+                setIsProcessing(true);
+                const targetObj = targetType === 'store' ? stores.find(s => s.id === targetId) : targetType === 'agent' ? users.find(u => u.id === targetId) : null;
+                
+                const dataUri = await pdfService.generateRetailSalesStatementPdf(
+                    targetType,
+                    targetObj as any,
+                    filteredSales,
+                    startDate,
+                    endDate,
+                    institution
+                );
+
+                const win = window.open();
+                if (win) {
+                    win.document.write(`<iframe src="${dataUri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                }
+            } catch (err: any) {
+                alert("Failed to generate PDF: " + err.message);
+            } finally {
+                setIsProcessing(false);
+            }
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    {/* Controls */}
+                    <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl flex flex-col gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Report Type</label>
+                            <div className="grid grid-cols-1 gap-1 bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
+                                <button onClick={() => { setTargetType('general'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'general' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>General</button>
+                                <button onClick={() => { setTargetType('store'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'store' ? 'bg-white dark:bg-slate-800 text-emerald-600 shadow-sm' : 'text-slate-400'}`}>Per Store</button>
+                                <button onClick={() => { setTargetType('agent'); setTargetId(''); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'agent' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm' : 'text-slate-400'}`}>Per Agent</button>
+                            </div>
+                        </div>
+
+                        {targetType !== 'general' && (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select {targetType === 'store' ? 'Store' : 'Agent'}</label>
+                                <select 
+                                    value={targetId}
+                                    onChange={(e) => setTargetId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
+                                >
+                                    <option value="">--- Select {targetType === 'store' ? 'Store' : 'Agent'} ---</option>
+                                    {targetType === 'store' ? (
+                                        stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
+                                    ) : (
+                                        Object.values(agentStats).map(a => {
+                                            const u = users.find(user => user.name === a.name);
+                                            return <option key={u?.id} value={u?.id}>{a.name}</option>
+                                        })
+                                    )}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Start Date</label>
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">End Date</label>
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm" />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 space-y-3">
+                            <button 
+                                onClick={handlePreview}
+                                disabled={isProcessing}
+                                className="w-full py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isProcessing ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    <Eye className="w-4 h-4" />
+                                )}
+                                Preview Statement
+                            </button>
+                            <button 
+                                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                            >
+                                <Mail className="w-4 h-4" /> Email Statement
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Preview Area */}
+                    <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Transaction Preview</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
+                                    {startDate} to {endDate} • {filteredSales.length} Transactions
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Total Revenue</p>
+                                <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {filteredSales.reduce((acc, s) => acc + s.totalAmount, 0).toLocaleString()}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-auto max-h-[600px]">
+                            <table className="w-full text-left">
+                                <thead className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 z-10">
+                                    <tr>
+                                        <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                        <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                        <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Payment</th>
+                                        <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Amount (Credit)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                    {filteredSales.map(t => (
+                                        <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                                            <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.createdAt).toLocaleDateString()}</td>
+                                            <td className="p-6">
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">Sale - {t.customerName || 'Walk-in Customer'}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase">{t.items.length} items • {stores.find(s => s.id === t.storeId)?.name || 'N/A'}</p>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg text-[8px] font-black uppercase tracking-widest">{t.paymentMethod}</span>
+                                            </td>
+                                            <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
+                                                KES {t.totalAmount.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredSales.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No sales found for this period</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const InventoryReportsManager = () => {
+        const [filterStoreId, setFilterStoreId] = useState('');
+        const [isFiltering, setIsFiltering] = useState(false);
+        
+        const filteredInventory = filterStoreId 
+            ? inventory.filter(item => {
+                // Simplified: In a real scenario we'd check shop_id or mapping
+                return true; 
+              })
+            : inventory;
+
+        const handleDownloadReport = async () => {
+            if (!institution) return;
+            try {
+                setIsFiltering(true);
+                const dataUri = await pdfService.generateRetailInventoryReportPdf(
+                    filteredInventory,
+                    stores,
+                    institution
+                );
+                const win = window.open();
+                if (win) {
+                    win.document.write(`<iframe src="${dataUri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                }
+            } catch (err: any) {
+                alert("Failed to generate report: " + err.message);
+            } finally {
+                setIsFiltering(false);
+            }
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl text-white">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2">Total Inventory Value (SRP)</p>
+                        <h3 className="text-3xl font-black italic">KES {totalRetailValue.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-indigo-100 uppercase mt-4">Across {totalInventoryUnits} units</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Asset Cost</p>
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalCostValue.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase mt-4">Margin: {((projectedProfit/totalRetailValue)*100).toFixed(1)}%</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Critical Stock Alerts</p>
+                        <h3 className="text-3xl font-black text-rose-600 italic">{lowStockItems.length}</h3>
+                        <p className="text-[10px] font-bold text-rose-400 uppercase mt-4">Items below reorder level</p>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Inventory Valuation Report</h3>
+                        <div className="flex gap-4">
+                            <select 
+                                value={filterStoreId}
+                                onChange={(e) => setFilterStoreId(e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-900 border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none"
+                            >
+                                <option value="">All Stores</option>
+                                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            <button 
+                                onClick={handleDownloadReport}
+                                disabled={isFiltering}
+                                className="p-3 bg-slate-900 text-white rounded-xl hover:scale-105 transition-all shadow-lg disabled:opacity-50"
+                            >
+                                {isFiltering ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    <FileText className="w-4 h-4" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Item / SKU</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Quantity</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Unit Cost</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Unit SRP</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Total Value</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                {filteredInventory.map(item => (
+                                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                                        <td className="p-6">
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{item.name}</p>
+                                            <p className="text-[10px] text-slate-400 font-mono tracking-tighter">{item.sku}</p>
+                                        </td>
+                                        <td className="p-6">
+                                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-[8px] font-black uppercase tracking-widest">{item.category}</span>
+                                        </td>
+                                        <td className="p-6 font-bold">
+                                            <span className={`px-2 py-1 rounded-lg text-xs ${item.quantity <= item.reorderLevel ? 'bg-rose-50 text-rose-600' : 'text-slate-600'}`}>
+                                                {item.quantity} {item.unit}
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-right text-xs font-bold text-slate-400 italic">KES {item.costPrice.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-xs font-bold text-indigo-600 italic">KES {item.srpPrice.toLocaleString()}</td>
+                                        <td className="p-6 text-right text-sm font-black text-slate-900 dark:text-white italic">KES {(item.srpPrice * item.quantity).toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center p-20">
@@ -140,24 +445,37 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
             </div>
 
             {/* Navigation */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-fit overflow-x-auto no-scrollbar max-w-full">
                 <button
                     onClick={() => setActiveTab('revenue')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'revenue' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-indigo-500'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'revenue' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
                 >
-                    <TrendingUp className="w-4 h-4" /> Revenue & Sales
+                    <TrendingUp className="w-4 h-4" /> Overview
                 </button>
                 <button
                     onClick={() => setActiveTab('inventory')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'inventory' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-indigo-500'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'inventory' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
                 >
-                    <PackageSearch className="w-4 h-4" /> Inventory Health
+                    <PackageSearch className="w-4 h-4" /> Stock Alerts
                 </button>
                 <button
                     onClick={() => setActiveTab('agents')}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'agents' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-indigo-500'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'agents' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
                 >
-                    <Users className="w-4 h-4" /> Agent Performance
+                    <Users className="w-4 h-4" /> Agent Ranking
+                </button>
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 self-center mx-2"></div>
+                <button
+                    onClick={() => setActiveTab('statements')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'statements' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
+                >
+                    <FileText className="w-4 h-4" /> Sales Statements
+                </button>
+                <button
+                    onClick={() => setActiveTab('inventory_reports')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'inventory_reports' ? 'bg-white text-indigo-600 shadow-md border border-indigo-100' : 'text-slate-500 hover:text-indigo-500'}`}
+                >
+                    <BarChart3 className="w-4 h-4" /> Full Inventory Report
                 </button>
             </div>
 

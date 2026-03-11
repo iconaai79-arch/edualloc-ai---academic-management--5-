@@ -1326,5 +1326,15 @@ export const apiService = {
     // Transport Module
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
-    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); }
+    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); },
+    async fetchInstitutions(): Promise<Institution[]> { return this.fetchModuleRecords('institutions'); },
+    async fetchInstitutionById(id: string): Promise<Institution | null> {
+        if (!_supabase) {
+            const items = ls.get('institutions');
+            return items.find((i: any) => i.id === id) || null;
+        }
+        const { data, error } = await _supabase.from('institutions').select('*').eq('id', id).single();
+        if (error) return null;
+        return toCamelCase(data);
+    }
 };
