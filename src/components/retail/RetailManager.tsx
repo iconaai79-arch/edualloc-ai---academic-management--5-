@@ -25,11 +25,12 @@ interface RetailManagerProps {
     onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
     requisitions?: Requisition[];
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
     businessSubType?: string;
 }
 
 export function RetailManager(props: RetailManagerProps) {
-    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition } = props;
+    const { institutionId, businessSubType, currentUser, retailStores = [], inventory = [], retailExpenses = [], onAddRetailExpense, requisitions = [], onAddRequisition, onUpdateRequisition } = props;
     const [activeView, setActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu'>('dashboard');
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -187,6 +188,7 @@ export function RetailManager(props: RetailManagerProps) {
                         requisitions={requisitions}
                         inventory={inventory}
                         onAddRequisition={onAddRequisition!}
+                        onUpdateRequisition={onUpdateRequisition}
                     />
                 )}
 

@@ -19,6 +19,7 @@ interface RetailRequisitionsProps {
     requisitions: Requisition[];
     inventory: RetailInventoryItem[];
     onAddRequisition: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
 }
 
 export function RetailRequisitions({
@@ -27,7 +28,8 @@ export function RetailRequisitions({
     retailStores,
     requisitions,
     inventory,
-    onAddRequisition
+    onAddRequisition,
+    onUpdateRequisition
 }: RetailRequisitionsProps) {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -72,7 +74,8 @@ export function RetailRequisitions({
             setSubmitError('');
         } catch (err: any) {
             console.error('Requisition submit error:', err);
-            setSubmitError(`Error: ${err?.message || 'Failed to submit. Please try again.'}`);
+            const detailedError = err?.details || err?.hint || err?.message || JSON.stringify(err);
+            setSubmitError(`Failed to save: ${detailedError}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -131,7 +134,18 @@ export function RetailRequisitions({
                                         </span>
                                     </td>
                                     <td className="py-5 text-right font-black text-slate-900 text-xs">
-                                        {req.lpoNumber || '-'}
+                                        <div className="flex items-center justify-end gap-3">
+                                            {req.lpoNumber || '-'}
+                                            {req.status === 'pending' && onUpdateRequisition && (
+                                                <button
+                                                    onClick={() => onUpdateRequisition(req.id, { status: 'received' })}
+                                                    className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors group/btn"
+                                                    title="Mark as Received"
+                                                >
+                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -235,6 +249,13 @@ export function RetailRequisitions({
                                 </div>
                             </div>
 
+                            {submitError && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+                                    <XCircleIcon className="w-5 h-5 text-red-500" />
+                                    <p className="text-[10px] font-black uppercase tracking-tight text-red-600">{submitError}</p>
+                                </div>
+                            )}
+
                             <div className="flex gap-4 pt-4">
                                 <button
                                     onClick={() => setIsAddModalOpen(false)}
@@ -243,11 +264,16 @@ export function RetailRequisitions({
                                     Cancel
                                 </button>
                                 <button
-                                    disabled={items.length === 0}
+                                    disabled={items.length === 0 || isSubmitting}
                                     onClick={handleSubmit}
-                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95"
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
-                                    Submit Request
+                                    {isSubmitting ? (
+                                        <>
+                                            <ClockIcon className="w-4 h-4 animate-spin" />
+                                            Submitting...
+                                        </>
+                                    ) : 'Submit Request'}
                                 </button>
                             </div>
                         </div>

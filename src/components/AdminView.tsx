@@ -783,6 +783,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         inventory={inventory}
                         retailExpenses={retailExpenses}
                         onAddRetailExpense={props.onAddRetailExpense}
+                        requisitions={props.requisitions}
+                        onAddRequisition={props.onAddRequisition}
+                        onUpdateRequisition={props.onUpdateRequisition}
                     />
                 )}
 

@@ -30,6 +30,8 @@ export function RetailExpenses({
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedStoreId, setSelectedStoreId] = useState<string>('all');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
 
     const [newExpense, setNewExpense] = useState({
         amount: 0,
@@ -42,17 +44,30 @@ export function RetailExpenses({
 
     const handleAdd = async () => {
         if (newExpense.amount <= 0 || !newExpense.storeId) {
-            alert('Please enter a valid amount and select a store');
+            setSubmitError('Please enter a valid amount and select a store');
             return;
         }
-        await onAddRetailExpense(newExpense);
-        setIsAddModalOpen(false);
-        setNewExpense({
-            amount: 0,
-            category: 'Rent',
-            description: '',
-            storeId: retailStores[0]?.id || ''
-        });
+
+        setIsSubmitting(true);
+        setSubmitError('');
+
+        try {
+            await onAddRetailExpense(newExpense);
+            setIsAddModalOpen(false);
+            setNewExpense({
+                amount: 0,
+                category: 'Rent',
+                description: '',
+                storeId: retailStores[0]?.id || ''
+            });
+            setSubmitError('');
+        } catch (err: any) {
+            console.error('Expense submission error:', err);
+            const detailedError = err?.details || err?.hint || err?.message || JSON.stringify(err);
+            setSubmitError(`Failed to save: ${detailedError}`);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const filteredExpenses = retailExpenses.filter(exp => {
@@ -243,6 +258,15 @@ export function RetailExpenses({
                                 ></textarea>
                             </div>
 
+                            {submitError && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                                        <FilterIcon className="w-4 h-4 rotate-45" />
+                                    </div>
+                                    <p className="text-[10px] font-black uppercase tracking-tight text-red-600">{submitError}</p>
+                                </div>
+                            )}
+
                             <div className="flex gap-4 pt-4">
                                 <button
                                     onClick={() => setIsAddModalOpen(false)}
@@ -251,10 +275,16 @@ export function RetailExpenses({
                                     Cancel
                                 </button>
                                 <button
+                                    disabled={isSubmitting}
                                     onClick={handleAdd}
-                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
-                                    Commit Expense
+                                    {isSubmitting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Committing...
+                                        </>
+                                    ) : 'Commit Expense'}
                                 </button>
                             </div>
                         </div>
