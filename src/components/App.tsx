@@ -57,18 +57,46 @@ import type {
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
 const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans">
-        <div className="relative">
-            <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-2xl animate-pulse">
-                    <SparklesIcon className="w-8 h-8" />
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
+        {/* Animated Background Mesh */}
+        <div className="absolute inset-0 animate-mesh opacity-40"></div>
+        
+        {/* Decorative Glowing Orbs */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 bg-indigo-600/20 rounded-full blur-[100px] animate-pulse"></div>
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+
+        <div className="relative z-10 flex flex-col items-center">
+            {/* Logo Container with Neural Pulse */}
+            <div className="relative mb-12">
+                <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
+                <div className="w-24 h-24 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl flex items-center justify-center text-white shadow-2xl relative border border-white/10 animate-float">
+                    <SparklesIcon className="w-12 h-12 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                </div>
+                
+                {/* Orbital Ring */}
+                <div className="absolute -inset-4 border border-indigo-500/30 rounded-[2.5rem] animate-spin-slow"></div>
+            </div>
+
+            <div className="text-center space-y-4">
+                <h2 className="text-white font-black uppercase tracking-[0.4em] text-lg text-glow">
+                    EduAi <span className="text-indigo-400">Automation</span>
+                </h2>
+                <div className="flex flex-col items-center gap-6">
+                    <p className="text-indigo-200/60 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse bg-indigo-500/10 px-4 py-1.5 rounded-full border border-indigo-500/20">
+                        {message}
+                    </p>
+                    
+                    {/* Premium Progress Indicator */}
+                    <div className="w-48 h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                        <div className="h-full bg-gradient-to-r from-transparent via-indigo-500 to-transparent w-full animate-shimmer"></div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div className="mt-10 text-center">
-            <h2 className="text-white font-black uppercase tracking-[0.3em] text-sm">EduAi Automation</h2>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-3 animate-pulse">{message}</p>
+
+        {/* Footer Branding */}
+        <div className="absolute bottom-10 left-0 right-0 text-center">
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em]">Neural Registry Link Active</p>
         </div>
     </div>
 );
@@ -137,14 +165,73 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-            <div className="max-w-xl w-full bg-white rounded-[2.5rem] shadow-2xl p-10 border text-center">
-                <CommandLineIcon className="w-16 h-16 mx-auto text-indigo-600 mb-6" />
-                <h2 className="text-2xl font-black uppercase tracking-tighter">Database Initialisation</h2>
-                <p className="text-slate-500 mt-2 mb-8">Registry connection active. Cloud tables need to be created.</p>
-                <button onClick={handleAutoRepair} disabled={isRepairing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all disabled:opacity-50">
-                    {isRepairing ? 'Initializing...' : 'Run Registry Setup'}
-                </button>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans relative overflow-hidden text-center">
+            {/* Background Effects */}
+            <div className="absolute inset-0 animate-mesh opacity-30"></div>
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.1),transparent_70%)]"></div>
+
+            <div className="max-w-2xl w-full relative z-10">
+                <div className="glass-morphism rounded-[3rem] p-12 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] overflow-hidden">
+                    {/* Decorative Elements */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-3xl rounded-full -mr-16 -mt-16"></div>
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full -ml-16 -mb-16"></div>
+
+                    <div className="relative text-center">
+                        <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-indigo-600 text-white mb-8 shadow-2xl shadow-indigo-500/20 animate-float border border-white/20">
+                            <CommandLineIcon className="w-12 h-12" />
+                        </div>
+
+                        <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4 text-glow">
+                            Registry <span className="text-indigo-400">Connection</span>
+                        </h2>
+                        
+                        <p className="text-slate-400 font-medium mb-12 max-w-md mx-auto leading-relaxed">
+                            Connection established with the central EduAI registry. 
+                            The cloud environment requires table initialization to proceed.
+                        </p>
+
+                        <div className="grid grid-cols-1 gap-6">
+                            <button 
+                                onClick={handleAutoRepair} 
+                                disabled={isRepairing} 
+                                className="group relative w-full bg-white text-slate-950 font-black py-5 rounded-2xl shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/10 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                                <span className="relative flex items-center justify-center gap-3">
+                                    {isRepairing ? (
+                                        <>
+                                            <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                                            Initializing Infrastructure...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <SparklesIcon className="w-5 h-5" />
+                                            Initialize Registry Link
+                                        </>
+                                    )}
+                                </span>
+                            </button>
+
+                            <div className="flex items-center justify-center gap-8 py-4 opacity-50">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cloud Online</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Secure Link</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Technical Footnote */}
+                <div className="mt-8 text-center">
+                    <p className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.3em]">
+                        System v.4.0 • Neural Integration Protocol Active
+                    </p>
+                </div>
             </div>
         </div>
     );
@@ -668,7 +755,7 @@ export const App: React.FC = () => {
             recordedById: currentUser.id
         };
         await apiService.saveModuleRecord('retail_expenses', newEx);
-        await handleLogAction(`Added store expense: ${expense.amount}`);
+        await handleLogAction(`Committed store expense: ${expense.amount}`);
         loadData();
     };
 

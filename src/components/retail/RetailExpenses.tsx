@@ -254,7 +254,7 @@ export function RetailExpenses({
                                     onClick={handleAdd}
                                     className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
                                 >
-                                    Confirm Entry
+                                    Commit Expense
                                 </button>
                             </div>
                         </div>

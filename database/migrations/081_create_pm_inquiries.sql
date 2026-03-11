@@ -27,9 +27,14 @@ CREATE POLICY "Staff access to inquiries"
         SELECT institution_id FROM public.users WHERE id = auth.uid()::TEXT OR id = 'u_' || auth.uid()::TEXT
     ));
 
--- Explicit unblock for anonymous insertions
+-- Explicit unblock for anonymous insertions and updates (Required for apiService.upsert)
 CREATE POLICY "Allow anonymous insertion" 
     ON public.pm_inquiries FOR INSERT 
+    WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous update" 
+    ON public.pm_inquiries FOR UPDATE 
+    USING (true)
     WITH CHECK (true);
 
 -- Allow anonymous users to see their own submitted inquiries if needed (optional but good for testing)

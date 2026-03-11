@@ -967,6 +967,36 @@ CREATE TABLE IF NOT EXISTS pm_tenants (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS pm_listings (
+    id TEXT PRIMARY KEY,
+    property_id TEXT NOT NULL REFERENCES pm_properties(id) ON DELETE CASCADE,
+    unit_id TEXT REFERENCES pm_units(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    price DECIMAL(15, 2) NOT NULL,
+    listing_type TEXT NOT NULL DEFAULT 'Sale',
+    status TEXT NOT NULL DEFAULT 'Draft',
+    images TEXT[] DEFAULT '{}',
+    features TEXT[] DEFAULT '{}',
+    is_promoted BOOLEAN DEFAULT FALSE,
+    view_count INTEGER DEFAULT 0,
+    inquiry_count INTEGER DEFAULT 0,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pm_inquiries (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    listing_id TEXT REFERENCES pm_listings(id) ON DELETE CASCADE,
+    customer_name TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    inquiry_date DATE, 
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'New',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS pm_leases (
     id TEXT PRIMARY KEY,
     unit_id TEXT REFERENCES pm_units(id) ON DELETE CASCADE,
@@ -1008,6 +1038,22 @@ CREATE TABLE IF NOT EXISTS pm_maintenance (
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Enable RLS for PM tables
+ALTER TABLE pm_properties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_listings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_inquiries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_leases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pm_maintenance ENABLE ROW LEVEL SECURITY;
+
+-- Standard PM Policies
+CREATE POLICY "Public can view published listings" ON pm_listings FOR SELECT USING (status = 'Published');
+CREATE POLICY "Allow anonymous inquiries" ON pm_inquiries FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous inquiry updates" ON pm_inquiries FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anonymous inquiry view" ON pm_inquiries FOR SELECT USING (true);
 
 `;
 

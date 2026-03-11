@@ -1,5 +1,5 @@
 
-import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn } from '../types';
+import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -3337,4 +3337,211 @@ export const generateBoardingReportPdf = async (
     });
 
     return doc.output('bloburl');
+};
+
+export const generateTenantStatementPdf = async (
+    tenant: PMTenant,
+    payments: PMPayment[],
+    leases: PMLease[],
+    units: PMUnit[],
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    
+    // Header & Branding
+    let yPos = createPdfWithLetterhead(doc, 'TENANT STATEMENT', {} as any, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Tenant Details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('TENANT:', margin, margin + 55);
+    doc.text('PERIOD:', pageWidth - margin - 60, margin + 55);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(tenant.name, margin + 20, margin + 55);
+    doc.text(`${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, pageWidth - margin, margin + 55, { align: 'right' });
+
+    const head = [['Date', 'Description', 'Ref #', 'Debit (Due)', 'Credit (Paid)', 'Balance']];
+    let allTx: any[] = [];
+    let openingBal = 0;
+
+    const tenantLeases = leases.filter(l => l.tenantId === tenant.id);
+    tenantLeases.forEach(lease => {
+        let curr = new Date(lease.startDate);
+        const endDateObj = new Date(endDate);
+        while (curr <= endDateObj) {
+            const dateStr = curr.toISOString().split('T')[0];
+            allTx.push({
+                date: dateStr,
+                description: `Rent Due - ${curr.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+                type: 'debit',
+                amount: lease.rentAmount,
+                ref: `L-${lease.id.split('_')[1]}`
+            });
+            curr.setMonth(curr.getMonth() + 1);
+        }
+    });
+
+    payments.forEach(p => {
+        const lease = leases.find(l => l.id === p.leaseId);
+        if (lease?.tenantId === tenant.id) {
+            allTx.push({
+                date: p.paymentDate,
+                description: `Payment - ${p.paymentType} (${p.paymentMethod})`,
+                type: 'credit',
+                amount: p.amount,
+                ref: p.id.split('_')[1]
+            });
+        }
+    });
+
+    allTx.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'debit' ? -1 : 1));
+
+    const filtered = allTx.filter(t => {
+        if (t.date < startDate) {
+            openingBal += (t.type === 'debit' ? t.amount : -t.amount);
+            return false;
+        }
+        return t.date <= endDate;
+    });
+
+    let runningBal = openingBal;
+    const body = [
+        [new Date(startDate).toLocaleDateString(), 'Opening Balance Brought Forward', '---', '---', '---', openingBal.toLocaleString()],
+        ...filtered.map(t => {
+            runningBal += (t.type === 'debit' ? t.amount : -t.amount);
+            return [
+                new Date(t.date).toLocaleDateString(),
+                t.description,
+                t.ref,
+                t.type === 'debit' ? t.amount.toLocaleString() : '---',
+                t.type === 'credit' ? t.amount.toLocaleString() : '---',
+                runningBal.toLocaleString()
+            ];
+        })
+    ];
+
+    doc.autoTable({
+        head,
+        body,
+        startY: yPos,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' }
+        }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CLOSING BALANCE:', pageWidth - margin - 80, finalY);
+    doc.text(`KES ${runningBal.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateLandlordStatementPdf = async (
+    landlord: PMLandlord,
+    payments: PMPayment[],
+    leases: PMLease[],
+    units: PMUnit[],
+    properties: PMProperty[],
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    
+    let yPos = createPdfWithLetterhead(doc, 'LANDLORD STATEMENT', {} as any, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('LANDLORD:', margin, margin + 55);
+    doc.text('PERIOD:', pageWidth - margin - 60, margin + 55);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(landlord.name, margin + 25, margin + 55);
+    doc.text(`${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, pageWidth - margin, margin + 55, { align: 'right' });
+
+    const landlordProperties = properties.filter(p => p.landlordId === landlord.id);
+    const propertyIds = landlordProperties.map(p => p.id);
+    const landlordUnits = units.filter(u => propertyIds.includes(u.propertyId));
+    const unitIds = landlordUnits.map(u => u.id);
+    const landlordLeases = leases.filter(l => unitIds.includes(l.unitId));
+
+    const landlordPayments = payments.filter(p => {
+        return landlordLeases.some(l => l.id === p.leaseId) && p.paymentDate >= startDate && p.paymentDate <= endDate;
+    }).sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
+
+    const head = [['Date', 'Unit / Property', 'Ref #', 'Gross Collected', 'Mgt Fee', 'Net Payout']];
+    const body = landlordPayments.map(p => {
+        const lease = leases.find(l => l.id === p.leaseId);
+        const unit = units.find(u => u.id === lease?.unitId);
+        const property = properties.find(prop => prop.id === unit?.propertyId);
+        const comm = p.commissionAmount || 0;
+        return [
+            new Date(p.paymentDate).toLocaleDateString(),
+            `${unit?.unitNumber} - ${property?.name}`,
+            p.id.split('_')[1],
+            p.amount.toLocaleString(),
+            comm.toLocaleString(),
+            (p.amount - comm).toLocaleString()
+        ];
+    });
+
+    doc.autoTable({
+        head,
+        body,
+        startY: yPos,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' }
+        }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    const totalGross = landlordPayments.reduce((s, p) => s + p.amount, 0);
+    const totalComm = landlordPayments.reduce((s, p) => s + (p.commissionAmount || 0), 0);
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY OF COLLECTIONS', margin, finalY);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Total Gross Collected:', margin, finalY + 8);
+    doc.text(`KES ${totalGross.toLocaleString()}`, margin + 60, finalY + 8);
+    
+    doc.text('Total Management Fees:', margin, finalY + 14);
+    doc.text(`KES ${totalComm.toLocaleString()}`, margin + 60, finalY + 14);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('NET PAYOUT DUE:', margin, finalY + 22);
+    doc.text(`KES ${(totalGross - totalComm).toLocaleString()}`, margin + 60, finalY + 22);
+
+    return doc.output('datauristring');
 };

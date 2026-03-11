@@ -11,8 +11,11 @@ import {
     ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
-    MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon
+    MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
+    PaperAirplaneIcon
 } from './icons/index';
+import * as pdfService from '../services/pdfService';
+import { sendEmailNotification } from '../services/emailService';
 
 interface PropertyManagementViewProps {
     currentUser: User;
@@ -25,6 +28,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
+    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
 
@@ -1254,35 +1258,410 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         </div>
     );
 
-    const ReportsTab = () => (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Rent Collection Trend (Monthly)</h4>
-                    <div className="h-64 flex items-end gap-2 px-4 shadow-inner bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-6">
-                        {[45, 60, 85, 30, 95, 70, 90, 100].map((h, i) => (
-                            <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${h}% ` }}>
-                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                    KES {(h * 1000).toLocaleString()}
+    const StatementsManager = () => {
+        const [targetType, setTargetType] = useState<'tenant' | 'landlord'>('tenant');
+        const [targetId, setTargetId] = useState('');
+        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+        const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+        const [isBulkDispatching, setIsBulkDispatching] = useState(false);
+
+        // Financial Data Aggregators
+        const getFinancialData = () => {
+            if (!targetId) return { openingBal: 0, transactions: [], totals: { gross: 0, comm: 0, balance: 0 } };
+
+            let allTx: any[] = [];
+            let openingBal = 0;
+
+            if (targetType === 'tenant') {
+                const tenantLeases = leases.filter(l => l.tenantId === targetId);
+                tenantLeases.forEach(lease => {
+                    // Generate monthly debits (Rent Due)
+                    let curr = new Date(lease.startDate);
+                    const endDateObj = new Date(endDate);
+                    while (curr <= endDateObj) {
+                        const dateStr = curr.toISOString().split('T')[0];
+                        allTx.push({
+                            id: `debit_${lease.id}_${dateStr}`,
+                            date: dateStr,
+                            description: `Rent Due - ${curr.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+                            type: 'debit',
+                            amount: lease.rentAmount,
+                            ref: `L-${lease.id.split('_')[1]}`
+                        });
+                        curr.setMonth(curr.getMonth() + 1);
+                    }
+                });
+
+                payments.forEach(p => {
+                    const lease = leases.find(l => l.id === p.leaseId);
+                    if (lease?.tenantId === targetId) {
+                        allTx.push({
+                            id: p.id,
+                            date: p.paymentDate,
+                            description: `Payment - ${p.paymentType} (${p.paymentMethod})`,
+                            type: 'credit',
+                            amount: p.amount,
+                            ref: p.id.split('_')[1]
+                        });
+                    }
+                });
+            } else {
+                // Landlord Logic: Collections vs Management Fees
+                const landlordProperties = properties.filter(p => p.landlordId === targetId);
+                const propertyIds = landlordProperties.map(p => p.id);
+                const landlordUnits = units.filter(u => propertyIds.includes(u.propertyId));
+                const unitIds = landlordUnits.map(u => u.id);
+                const landlordLeases = leases.filter(l => unitIds.includes(l.unitId));
+
+                payments.forEach(p => {
+                    const lease = landlordLeases.find(l => l.id === p.leaseId);
+                    if (lease) {
+                        const unit = units.find(u => u.id === lease.unitId);
+                        const property = properties.find(prop => prop.id === unit?.propertyId);
+                        allTx.push({
+                            id: p.id,
+                            date: p.paymentDate,
+                            description: `Collection: ${unit?.unitNumber} - ${property?.name}`,
+                            type: 'credit',
+                            amount: p.amount,
+                            commission: p.commissionAmount || 0,
+                            ref: p.id.split('_')[1]
+                        });
+                    }
+                });
+            }
+
+            // Sort by date then by type (debits first for same day)
+            allTx.sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'debit' ? -1 : 1));
+
+            const filtered = allTx.filter(t => {
+                if (t.date < startDate) {
+                    openingBal += (t.type === 'debit' ? t.amount : -t.amount);
+                    return false;
+                }
+                return t.date <= endDate;
+            });
+
+            let runningBal = openingBal;
+            const transactions = filtered.map(t => {
+                runningBal += (t.type === 'debit' ? t.amount : -t.amount);
+                return { ...t, balance: runningBal };
+            });
+
+            const totals = transactions.reduce((acc, t) => ({
+                gross: acc.gross + (t.type === 'credit' ? t.amount : 0),
+                comm: acc.comm + (t.commission || 0),
+                balance: runningBal
+            }), { gross: 0, comm: 0, balance: runningBal });
+
+            return { openingBal, transactions, totals };
+        };
+
+        const { openingBal, transactions, totals } = getFinancialData();
+
+        const handlePreview = async () => {
+            if (!targetId) return alert("Please select a " + targetType);
+            try {
+                let dataUri = '';
+                if (targetType === 'tenant') {
+                    const tenant = tenants.find(t => t.id === targetId);
+                    if (!tenant) return;
+                    dataUri = await pdfService.generateTenantStatementPdf(
+                        tenant, payments, leases, units, startDate, endDate, 
+                        currentInstitution, currentInstitution.letterheadConfig, 
+                        currentInstitution.logoUrl
+                    );
+                } else {
+                    const landlord = landlords.find(l => l.id === targetId);
+                    if (!landlord) return;
+                    dataUri = await pdfService.generateLandlordStatementPdf(
+                        landlord, payments, leases, units, properties, startDate, endDate, 
+                        currentInstitution, currentInstitution.letterheadConfig, 
+                        currentInstitution.logoUrl
+                    );
+                }
+                const link = document.createElement('a');
+                link.href = dataUri;
+                link.download = `${targetType}_statement_${targetId}_${startDate}_${endDate}.pdf`;
+                link.click();
+            } catch (err: any) { alert("Failed to generate PDF: " + err.message); }
+        };
+
+        const handleEmail = async () => {
+            if (!targetId) return alert("Please select a " + targetType);
+            const entity = targetType === 'tenant' ? tenants.find(t => t.id === targetId) : landlords.find(l => l.id === targetId);
+            if (!entity?.email) return alert("This " + targetType + " has no email address registered.");
+            
+            if (!confirm(`Send statement for ${startDate} to ${endDate} to ${entity.email}?`)) return;
+            
+            try {
+                let dataUri = '';
+                if (targetType === 'tenant') {
+                    dataUri = await pdfService.generateTenantStatementPdf(
+                        entity as PMTenant, payments, leases, units, startDate, endDate, 
+                        currentInstitution, currentInstitution.letterheadConfig, 
+                        currentInstitution.logoUrl
+                    );
+                } else {
+                    dataUri = await pdfService.generateLandlordStatementPdf(
+                        entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
+                        currentInstitution, currentInstitution.letterheadConfig, 
+                        currentInstitution.logoUrl
+                    );
+                }
+                
+                const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
+                const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
+                
+                await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, dataUri);
+                alert("Statement has been sent successfully to " + entity.email);
+            } catch (err: any) { alert("Failed to send email: " + err.message); }
+        };
+
+        const handleBulkDispatch = async () => {
+            const list = targetType === 'tenant' ? tenants : landlords;
+            const validList = list.filter(e => e.email);
+            if (validList.length === 0) return alert(`No ${targetType}s with registered email addresses found.`);
+            
+            if (!confirm(`Are you sure you want to generate and email statements to all ${validList.length} ${targetType}s with emails?`)) return;
+            
+            setIsBulkDispatching(true);
+            let successCount = 0;
+            let failCount = 0;
+
+            try {
+                for (const entity of validList) {
+                    try {
+                        let dataUri = '';
+                        if (targetType === 'tenant') {
+                            dataUri = await pdfService.generateTenantStatementPdf(
+                                entity as PMTenant, payments, leases, units, startDate, endDate, 
+                                currentInstitution, currentInstitution.letterheadConfig, 
+                                currentInstitution.logoUrl
+                            );
+                        } else {
+                            dataUri = await pdfService.generateLandlordStatementPdf(
+                                entity as PMLandlord, payments, leases, units, properties, startDate, endDate, 
+                                currentInstitution, currentInstitution.letterheadConfig, 
+                                currentInstitution.logoUrl
+                            );
+                        }
+                        
+                        const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
+                        const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
+                        
+                        await apiService.sendEmail(entity.email, subject, body, currentInstitution.emailConfig, dataUri);
+                        successCount++;
+                    } catch (e) {
+                        console.error(`Failed to send to ${entity.email}:`, e);
+                        failCount++;
+                    }
+                }
+                alert(`Bulk dispatch complete.\nSuccess: ${successCount}\nFailed: ${failCount}`);
+            } catch (err) { alert("Bulk dispatch encountered an error."); } finally { setIsBulkDispatching(false); }
+        };
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    {/* Controls Panel */}
+                    <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl flex flex-col gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Statement Type</label>
+                            <div className="flex bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
+                                <button onClick={() => { setTargetType('tenant'); setTargetId(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'tenant' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-400'}`}>Tenant</button>
+                                <button onClick={() => { setTargetType('landlord'); setTargetId(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'landlord' ? 'bg-white dark:bg-slate-800 text-purple-600 shadow-sm' : 'text-slate-400'}`}>Landlord</button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select {targetType === 'tenant' ? 'Tenant' : 'Landlord'}</label>
+                            <select 
+                                value={targetId}
+                                onChange={(e) => setTargetId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
+                            >
+                                <option value="">--- Select {targetType === 'tenant' ? 'Tenant' : 'Landlord'} ---</option>
+                                {targetType === 'tenant' 
+                                    ? tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                                    : landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)
+                                }
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Start Date</label>
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm" />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">End Date</label>
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm" />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 space-y-3">
+                            <button 
+                                onClick={handlePreview}
+                                className="w-full py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                            >
+                                <EyeIcon className="w-4 h-4" /> Preview PDF
+                            </button>
+                            <button 
+                                onClick={handleEmail}
+                                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4 -rotate-45" /> Email Direct
+                            </button>
+                            <div className="h-px bg-slate-100 dark:bg-slate-700 my-2"></div>
+                            <button 
+                                onClick={handleBulkDispatch}
+                                disabled={isBulkDispatching}
+                                className="w-full py-4 border-2 border-blue-600/20 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isBulkDispatching ? "Processing..." : "Bulk Monthly Dispatch"}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Data Preview Panel */}
+                    <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Transaction Preview</h3>
+                                <div className="flex gap-4 mt-1">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+                                        {startDate} to {endDate}
+                                    </p>
+                                    <span className="text-[10px] text-blue-600 font-black uppercase italic">
+                                        Opening Bal: KES {openingBal.toLocaleString()}
+                                    </span>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Unit Status Distribution</h4>
-                    <div className="flex items-center justify-around h-64">
-                        <div className="w-40 h-40 rounded-full border-[20px] border-blue-600 border-r-emerald-500 border-b-rose-500 relative flex items-center justify-center">
-                            <span className="font-black text-xs text-slate-900 dark:text-white uppercase italic">Overview</span>
+                            {targetId && (
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest italic">{targetType === 'tenant' ? 'Closing Balance' : 'Net Collections'}</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance.toLocaleString()}</p>
+                                </div>
+                            )}
                         </div>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-blue-600"></div><span className="text-xs font-bold text-slate-500">Occupied</span></div>
-                            <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-emerald-500"></div><span className="text-xs font-bold text-slate-500">Vacant</span></div>
-                            <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-rose-500"></div><span className="text-xs font-bold text-slate-500">Under Repair</span></div>
+
+                        <div className="flex-1 overflow-auto max-h-[600px]">
+                            {targetId ? (
+                                <table className="w-full text-left">
+                                    <thead className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 z-10">
+                                        <tr>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref</th>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Debit</th>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Credit</th>
+                                            <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {/* Opening Balance Row */}
+                                        <tr className="bg-slate-50/30 dark:bg-slate-900/10 italic">
+                                            <td className="p-6 text-[10px] font-bold text-slate-400">{startDate}</td>
+                                            <td className="p-6 text-xs font-black text-slate-400 uppercase tracking-widest" colSpan={3}>Opening Balance Brought Forward</td>
+                                            <td className="p-6 text-right text-sm font-black text-slate-400">---</td>
+                                            <td className="p-6 text-right text-sm font-black text-slate-400">KES {openingBal.toLocaleString()}</td>
+                                        </tr>
+                                        {transactions.map(t => (
+                                            <tr key={t.id} className="border-b border-slate-50 dark:border-slate-700/50">
+                                                <td className="p-6 text-[10px] font-bold text-slate-500">{new Date(t.date).toLocaleDateString()}</td>
+                                                <td className="p-6">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{t.description}</p>
+                                                    {t.commission > 0 && <p className="text-[9px] text-purple-600 font-bold uppercase">Mgt Fee: KES {t.commission.toLocaleString()}</p>}
+                                                </td>
+                                                <td className="p-6 text-[10px] font-mono font-bold text-slate-400">#{t.ref}</td>
+                                                <td className="p-6 text-right text-sm font-black text-rose-500 italic">
+                                                    {t.type === 'debit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                </td>
+                                                <td className="p-6 text-right text-sm font-black text-emerald-600 italic">
+                                                    {t.type === 'credit' ? `KES ${t.amount.toLocaleString()}` : '---'}
+                                                </td>
+                                                <td className="p-6 text-right text-sm font-black text-blue-600 italic">
+                                                    KES {t.balance.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {transactions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="p-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No transactions found for this period</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center p-20 text-center">
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-full mb-6">
+                                        <CurrencyIcon className="w-12 h-12 text-slate-300" />
+                                    </div>
+                                    <h4 className="text-lg font-black text-slate-400 uppercase italic">Select an entity to preview data</h4>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Choose a tenant or landlord from the sidebar</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
+        );
+    };
+
+    const ReportsTab = () => (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            {/* Sub-navigation bar */}
+            <div className="flex bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-700/50 shadow-inner">
+                {[
+                    { id: 'analytics', label: 'Analytics', icon: ChartPieIcon },
+                    { id: 'statements', label: 'Financial Statements', icon: CurrencyIcon },
+                ].map(sub => (
+                    <button
+                        key={sub.id}
+                        onClick={() => setReportsSubTab(sub.id as any)}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportsSubTab === sub.id
+                            ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                    >
+                        <sub.icon className="w-3.5 h-3.5" />
+                        {sub.label}
+                    </button>
+                ))}
+            </div>
+
+            {reportsSubTab === 'analytics' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Rent Collection Trend (Monthly)</h4>
+                        <div className="h-64 flex items-end gap-2 px-4 shadow-inner bg-slate-50 dark:bg-slate-900/50 rounded-3xl p-6">
+                            {[45, 60, 85, 30, 95, 70, 90, 100].map((h, i) => (
+                                <div key={i} className="flex-1 bg-blue-600 rounded-t-xl hover:bg-blue-400 transition-all cursor-pointer relative group" style={{ height: `${h}% ` }}>
+                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                        KES {(h * 1000).toLocaleString()}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Unit Status Distribution</h4>
+                        <div className="flex items-center justify-around h-64">
+                            <div className="w-40 h-40 rounded-full border-[20px] border-blue-600 border-r-emerald-500 border-b-rose-500 relative flex items-center justify-center">
+                                <span className="font-black text-xs text-slate-900 dark:text-white uppercase italic">Overview</span>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-blue-600"></div><span className="text-xs font-bold text-slate-500">Occupied</span></div>
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-emerald-500"></div><span className="text-xs font-bold text-slate-500">Vacant</span></div>
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded bg-rose-500"></div><span className="text-xs font-bold text-slate-500">Under Repair</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {reportsSubTab === 'statements' && <StatementsManager />}
         </div>
     );
 
