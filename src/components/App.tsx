@@ -69,8 +69,13 @@ const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
             {/* Logo Container with Neural Pulse */}
             <div className="relative mb-12">
                 <div className="absolute inset-0 bg-indigo-500 rounded-3xl blur-2xl opacity-20 animate-pulse"></div>
-                <div className="w-24 h-24 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-3xl flex items-center justify-center text-white shadow-2xl relative border border-white/10 animate-float">
-                    <SparklesIcon className="w-12 h-12 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-white shadow-2xl relative border border-white/10 animate-float overflow-hidden">
+                    <img 
+                        src="/logo.png" 
+                        alt="EduAI Logo" 
+                        className="w-16 h-16 object-contain drop-shadow-[0_0_10px_rgba(79,70,229,0.4)]" 
+                    />
+                    <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent animate-scan"></div>
                 </div>
                 
                 {/* Orbital Ring */}
@@ -177,8 +182,13 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full -ml-16 -mb-16"></div>
 
                     <div className="relative text-center">
-                        <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-indigo-600 text-white mb-8 shadow-2xl shadow-indigo-500/20 animate-float border border-white/20">
-                            <CommandLineIcon className="w-12 h-12" />
+                        <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white mb-8 shadow-2xl shadow-indigo-500/20 animate-float border border-white/20 overflow-hidden relative">
+                            <img 
+                                src="/logo.png" 
+                                alt="EduAI Logo" 
+                                className="w-16 h-16 object-contain" 
+                            />
+                            <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent animate-scan"></div>
                         </div>
 
                         <h2 className="text-4xl font-black text-white uppercase tracking-tighter mb-4 text-glow">
