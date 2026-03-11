@@ -3666,13 +3666,19 @@ export const generateRetailSalesStatementPdf = async (
 
     nextY += 15;
     const head = [['Date', 'Description', 'Store', 'Payment', 'Amount (KES)']];
-    const body = sales.map(s => [
-        new Date(s.createdAt).toLocaleDateString(),
-        `Sale - ${s.customerName || 'Walk-in Customer'}`,
-        institution.name, // Simplified for now
-        s.paymentMethod,
-        s.totalAmount.toLocaleString()
-    ]);
+    
+    let body = [];
+    if (sales.length > 0) {
+        body = sales.map(s => [
+            new Date(s.createdAt).toLocaleDateString(),
+            `Sale - ${s.customerName || 'Walk-in Customer'}`,
+            institution.name,
+            s.paymentMethod,
+            s.totalAmount.toLocaleString()
+        ]);
+    } else {
+        body = [['-', 'No transactions found for the selected period', '-', '-', '0.00']];
+    }
 
     (doc as any).autoTable({
         head: head,

@@ -51,7 +51,11 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                 ]);
 
                 // Sort sales by newest first for better processing
-                setSales(salesData.sort((a: RetailSale, b: RetailSale) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+                setSales(salesData.sort((a: RetailSale, b: RetailSale) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                }));
                 setInventory(invData);
                 setCommissions(commData);
                 setStores(storesData);
@@ -176,10 +180,10 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                     institution
                 );
 
-                const win = window.open();
-                if (win) {
-                    win.document.write(`<iframe src="${dataUri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                }
+                // More reliable preview using Blobs
+                const blob = await (await fetch(dataUri)).blob();
+                const previewUrl = URL.createObjectURL(blob);
+                window.open(previewUrl);
             } catch (err: any) {
                 alert("Failed to generate PDF: " + err.message);
             } finally {
@@ -329,10 +333,11 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
                     stores,
                     institution
                 );
-                const win = window.open();
-                if (win) {
-                    win.document.write(`<iframe src="${dataUri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                }
+                
+                // More reliable preview using Blobs
+                const blob = await (await fetch(dataUri)).blob();
+                const previewUrl = URL.createObjectURL(blob);
+                window.open(previewUrl);
             } catch (err: any) {
                 alert("Failed to generate report: " + err.message);
             } finally {
