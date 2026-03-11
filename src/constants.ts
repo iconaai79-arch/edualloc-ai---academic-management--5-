@@ -7,7 +7,7 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     email: "info@eduai.co.ke",
     phone: "+254 700 123 456",
     website: "https://eduai.co.ke",
-    logoUrl: null,
+    logoUrl: '/logo.png',
     applicationTitle: "Eduai Automation",
     themeColor: "#4f46e5",
     subscriptionConfig: {

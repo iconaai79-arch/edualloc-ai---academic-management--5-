@@ -543,7 +543,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const protocol = req.headers['x-forwarded-proto'] || 'http';
             const resetLink = `${protocol}://${req.headers.host}/?resetToken=${token}`;
 
-            const recoverySubject = "Password Reset Request - EduAlloc Hub";
+            const recoverySubject = "Password Reset Request - Eduai Automation";
             const recoveryBody = `Dear ${user.name},\n\nYou requested a password reset for your account on the EduAlloc Academic Management System.\n\nPlease click the link below to set a new password. This link is valid for 1 hour:\n\n${resetLink}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n\nBest Regards,\nSystem Admin`;
 
             const info = await transporter.sendMail({
@@ -561,7 +561,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let smsSuccess = false;
             if (user.phone_number) {
                 console.log(`[Forgot Password] Dispatching recovery link via SMS to: ${user.phone_number}`);
-                const smsMessage = `EduAlloc Password Reset: Click the link below to set a new password. Link valid for 1 hour: ${resetLink}`;
+                const smsMessage = `Eduai Automation Password Reset: Click the link below to set a new password. Link valid for 1 hour: ${resetLink}`;
 
                 const smsConfig = settings.sms_config;
                 if (smsConfig) {
@@ -881,7 +881,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         if (isSmsType && smsConfig && payerPhone) {
                             const unitsCount = parseInt(metadata.units).toLocaleString();
-                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing Eduai Automation.`;
 
                             try {
                                 const provider = smsConfig.provider || 'Zettatel';

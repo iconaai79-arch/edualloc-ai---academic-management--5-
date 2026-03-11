@@ -327,10 +327,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             tls: { rejectUnauthorized: false }
                         });
                         const unitsCount = unitsToCredit.toLocaleString();
-                        const emailMessage = `Dear Admin, payment confirmed! ${unitsCount} SMS units have been added to your balance. Your new balance is ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+                        const emailMessage = `Dear Admin, payment confirmed! ${unitsCount} SMS units have been added to your balance. Your new balance is ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
 
                         await transporter.sendMail({
-                            from: `"${emailConfig.fromName || 'EduAlloc Support'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            from: `"${emailConfig.fromName || 'Eduai Automation Support'}" <${emailConfig.fromEmail || emailConfig.username}>`,
                             to: updatedInst.email,
                             subject: 'SMS Units Topped Up Successfully',
                             text: emailMessage,
@@ -338,7 +338,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 <h2 style="color: #4f46e5;">SMS Top-up Confirmed</h2>
                                 <p>${emailMessage}</p>
                                 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-                                <p style="font-size: 12px; color: #64748b;">This is an automated notification from the EduAlloc Hub Platform.</p>
+                                <p style="font-size: 12px; color: #64748b;">This is an automated notification from the Eduai Automation Platform.</p>
                             </div>`
                         });
                         console.log(`[M-Pesa Callback] Confirmation email sent to ${updatedInst.email}`);
@@ -353,7 +353,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (smsConfig && payerPhone) {
                     const unitsCount = unitsToCredit.toLocaleString();
-                    const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing EduAlloc Hub.`;
+                    const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${mpesaReceiptNumber || transaction.id}. Thank you for choosing Eduai Automation.`;
 
                     try {
                         const provider = smsConfig.provider || 'Zettatel';

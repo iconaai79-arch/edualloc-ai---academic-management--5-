@@ -51,21 +51,43 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
 
     const handleCloseLead = async (leadId: string) => {
         if (!window.confirm('Are you sure you want to finalize this deal and close this lead?')) return;
+        
         try {
             const lead = leads.find(l => l.id === leadId);
-            if (!lead) return;
-
-            const res = await apiService.saveModuleRecord('retail_wishlist', { ...lead, status: 'Closed' });
-            if (res) {
-                // Update local state
-                setLeads(leads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
-            } else {
-                console.error('Save operation returned false for lead:', leadId);
-                alert('Failed to close lead. The server did not respond with success.');
+            if (!lead) {
+                console.error('Lead not found in local state:', leadId);
+                return;
             }
-        } catch (error) {
-            console.error('Failed to close lead error details:', error);
-            alert(`Error: ${error instanceof Error ? error.message : 'Unknown error during lead closure'}`);
+
+            console.log(`[Wishlist] Attempting to close lead ${leadId}`, lead);
+
+            const res = await apiService.saveModuleRecord('retail_wishlist', { 
+                ...lead, 
+                status: 'Closed',
+                notifiedAt: lead.notifiedAt || new Date().toISOString()
+            });
+
+            if (res) {
+                console.log('[Wishlist] Lead closed successfully on server:', res);
+                // Update local state
+                setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, status: 'Closed' } : l));
+                alert('Success: Lead finalized and moved to Closed status.');
+            } else {
+                console.error('[Wishlist] Save operation failed - no data returned for lead:', leadId);
+                alert('Warning: The lead was updated but the server returned no confirmation. Please refresh to verify.');
+            }
+        } catch (error: any) {
+            console.error('[Wishlist] Detailed error during lead closure:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+            });
+            
+            const errorMessage = error.message || 'Unknown error during lead closure';
+            const errorHint = error.hint ? `\n\nHint: ${error.hint}` : '';
+            
+            alert(`Error: ${errorMessage}${errorHint}\n\nNote: Please ensure migration 089 has been applied to the database.`);
         }
     };
 
