@@ -19,6 +19,10 @@ DROP POLICY IF EXISTS "Staff can view their property inquiries" ON public.pm_inq
 DROP POLICY IF EXISTS "Staff can manage their property inquiries" ON public.pm_inquiries;
 DROP POLICY IF EXISTS "Allow anonymous marketplace property inquiries" ON public.pm_inquiries;
 DROP POLICY IF EXISTS "Master unblock for inquiries" ON public.pm_inquiries;
+DROP POLICY IF EXISTS "Staff access to inquiries" ON public.pm_inquiries;
+DROP POLICY IF EXISTS "Allow anonymous update" ON public.pm_inquiries;
+DROP POLICY IF EXISTS "Allow anonymous insertion" ON public.pm_inquiries;
+DROP POLICY IF EXISTS "Master anonymous view" ON public.pm_inquiries;
 
 -- More permissive policy for staff
 CREATE POLICY "Staff access to inquiries" 

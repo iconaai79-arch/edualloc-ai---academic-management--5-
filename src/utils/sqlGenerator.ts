@@ -1050,9 +1050,16 @@ ALTER TABLE pm_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pm_maintenance ENABLE ROW LEVEL SECURITY;
 
 -- Standard PM Policies
+DROP POLICY IF EXISTS "Public can view published listings" ON pm_listings;
 CREATE POLICY "Public can view published listings" ON pm_listings FOR SELECT USING (status = 'Published');
+
+DROP POLICY IF EXISTS "Allow anonymous inquiries" ON pm_inquiries;
 CREATE POLICY "Allow anonymous inquiries" ON pm_inquiries FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anonymous inquiry updates" ON pm_inquiries;
 CREATE POLICY "Allow anonymous inquiry updates" ON pm_inquiries FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anonymous inquiry view" ON pm_inquiries;
 CREATE POLICY "Allow anonymous inquiry view" ON pm_inquiries FOR SELECT USING (true);
 
 `;
