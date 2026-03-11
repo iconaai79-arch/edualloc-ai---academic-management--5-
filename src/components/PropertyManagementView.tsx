@@ -1456,6 +1456,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const StatementsManager = () => {
         const [targetType, setTargetType] = useState<'tenant' | 'landlord'>('tenant');
         const [targetId, setTargetId] = useState('');
+        const [searchTerm, setSearchTerm] = useState('');
         const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
         const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
         const [isBulkDispatching, setIsBulkDispatching] = useState(false);
@@ -1553,6 +1554,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
         };
 
         const { openingBal, transactions, totals } = getFinancialData();
+
+        const filteredTargets = (targetType === 'tenant' ? tenants : landlords)
+            .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .sort((a, b) => a.name.localeCompare(b.name));
 
         const handlePreview = async () => {
             if (!targetId) return alert("Please select a " + targetType);
@@ -1698,8 +1703,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Statement Type</label>
                             <div className="flex bg-slate-100 dark:bg-slate-900 rounded-2xl p-1">
-                                <button onClick={() => { setTargetType('tenant'); setTargetId(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'tenant' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-400'}`}>Tenant</button>
-                                <button onClick={() => { setTargetType('landlord'); setTargetId(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'landlord' ? 'bg-white dark:bg-slate-800 text-purple-600 shadow-sm' : 'text-slate-400'}`}>Landlord</button>
+                                <button onClick={() => { setTargetType('tenant'); setTargetId(''); setSearchTerm(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'tenant' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-400'}`}>Tenant</button>
+                                <button onClick={() => { setTargetType('landlord'); setTargetId(''); setSearchTerm(''); }} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${targetType === 'landlord' ? 'bg-white dark:bg-slate-800 text-purple-600 shadow-sm' : 'text-slate-400'}`}>Landlord</button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search {targetType === 'tenant' ? 'Tenant' : 'Landlord'}</label>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder={`Search names...`}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl pl-10 pr-4 py-4 font-bold outline-none transition-all text-sm"
+                                />
                             </div>
                         </div>
 
@@ -1711,10 +1730,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                 className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all text-sm appearance-none"
                             >
                                 <option value="">--- Select {targetType === 'tenant' ? 'Tenant' : 'Landlord'} ---</option>
-                                {targetType === 'tenant' 
-                                    ? tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                                    : landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)
-                                }
+                                {filteredTargets.map(item => (
+                                    <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
                             </select>
                         </div>
 
