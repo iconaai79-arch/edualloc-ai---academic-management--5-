@@ -13,7 +13,8 @@ import {
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
     MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
-    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon, SettingsIcon
+    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon, ChatBubbleLeftRightIcon, SettingsIcon,
+    DocumentTextIcon
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
