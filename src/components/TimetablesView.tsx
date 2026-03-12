@@ -24,6 +24,7 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf, generateStudentTimetablePdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';
 import { generatePeriodLabels, timeToMinutes } from '../utils/timeUtils';
+import { getInstitutionEmailConfig } from '../services/emailService';
 import { MasterBuildingTimetable } from './MasterBuildingTimetable';
 import { LecturerTimetableList } from './LecturerTimetableList';
 import { generatePastelColor } from '../utils/colorUtils';
@@ -202,7 +203,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     const subject = `Your Timetable - ${studentCourse.code} ${level.name}`;
                     const message = `Dear ${recipient.name},\n\nPlease find attached your personalized timetable for ${activeSemester?.name || 'the current semester'}.\n\nBest Regards,\nRegistrar's Office`;
 
-                    await apiService.sendEmail(recipient.email, subject, message, undefined, undefined, [
+                    await apiService.sendEmail(recipient.email, subject, message, currentInstitution ? getInstitutionEmailConfig(currentInstitution) : undefined, undefined, [
                         { filename: `Timetable_${recipient.staffId || recipient.name}.pdf`, content: base64, encoding: 'base64' }
                     ]);
                 } else {
@@ -227,7 +228,7 @@ export const TimetablesView: React.FC<TimetablesViewProps> = (props) => {
                     const subject = `Timetable Update - ${recipient.name}`;
                     const message = `Dear ${recipient.name},\n\nPlease find attached your teaching schedule for ${activeSemester?.name || 'the current semester'}.\n\nBest Regards,\nAcademic Affairs`;
 
-                    await apiService.sendEmail(recipient.email, subject, message, undefined, undefined, [
+                    await apiService.sendEmail(recipient.email, subject, message, currentInstitution ? getInstitutionEmailConfig(currentInstitution) : undefined, undefined, [
                         { filename: `Timetable_${recipient.name}.pdf`, content: base64, encoding: 'base64' }
                     ]);
                 }

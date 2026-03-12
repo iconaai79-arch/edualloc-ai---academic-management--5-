@@ -29,6 +29,7 @@ import { PropertyManagementView } from './PropertyManagementView';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
+import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
@@ -52,7 +53,7 @@ import type {
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -166,7 +167,7 @@ const SchemaInitializationView: React.FC<{ onComplete: () => void }> = ({ onComp
             if (result.success) onComplete();
             else alert("Auto-setup failed. Please run the SQL manually in Supabase editor.");
         } catch (e: any) { alert("An error occurred during registry initialization."); }
-        finally { setIsRepairing(false); }
+            finally { setIsRepairing(false); }
     };
 
     return (
@@ -348,6 +349,7 @@ export const App: React.FC = () => {
     const [contracts, setContracts] = useState<LecturerContract[]>([]);
     const [studentAttendances, setStudentAttendances] = useState<StudentAttendance[]>([]);
     const [cafeOrders, setCafeOrders] = useState<CafeOrder[]>([]);
+    const [retailSales, setRetailSales] = useState<RetailSale[]>([]);
     const [cafeMenuItems, setCafeMenuItems] = useState<CafeMenuItem[]>([]);
     const [studentCheckIns, setStudentCheckIns] = useState<Record<string, string>>({});
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -381,6 +383,7 @@ export const App: React.FC = () => {
     const [transportOnboarding, setTransportOnboarding] = useState<TransportOnboarding[]>([]);
     const [vehicleLogs, setVehicleLogs] = useState<VehicleLog[]>([]);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [jobs, setJobs] = useState<CarWashJob[]>([]);
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -584,7 +587,7 @@ export const App: React.FC = () => {
             setActivityLog(logs || []);
             setNotifications(notifs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders] = await Promise.all([
+            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs] = await Promise.all([
                 apiService.fetchInvoices(instId).catch(() => []),
                 apiService.fetchExtensionRequests(instId).catch(() => []),
                 apiService.fetchVoteHeads(instId).catch(() => []),
@@ -634,6 +637,8 @@ export const App: React.FC = () => {
                 apiService.fetchVehicleLogs(instId).catch(() => []),
                 apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', instId).catch(() => []),
                 apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
+                apiService.fetchModuleRecords<RetailSale>('retail_sales', instId).catch(() => []),
+                apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', instId).catch(() => []),
             ]);
 
 
@@ -685,6 +690,8 @@ export const App: React.FC = () => {
             setTransportOnboarding(tonb || []);
             setVehicleLogs(vlogs || []);
             setCafeOrders(cOrders || []);
+            setRetailSales(rSales || []);
+            setJobs(cwJobs || []);
 
             setIsGeneratingDemoData(false);
         } catch (error) {
@@ -1036,7 +1043,7 @@ export const App: React.FC = () => {
             // For now, let's just log and simulate a download.
             console.log(`Downloading receipt for transaction ${receipt.relatedTransactionId}`);
             // Example: apiService.downloadReceipt(receipt.id);
-            alert(`Simulating download for receipt ID: ${receipt.id}. Institution: ${institution?.name}, Job: ${job?.name}`);
+            alert(`Simulating download for receipt ID: ${receipt.id}. Institution: ${institution?.name}, Job: ${job?.packageName || job?.vehiclePlate}`);
             await handleLogAction(`Downloaded receipt for transaction: ${receipt.relatedTransactionId}`);
         } catch (error) {
             console.error('Error downloading receipt:', error);
@@ -1386,7 +1393,12 @@ export const App: React.FC = () => {
                             await apiService.sendSms(parent.phoneNumber, message);
                         }
                         if (parent.email) {
-                            await apiService.sendEmail(parent.email, "Student Absence Notification", message);
+                                await sendEmailNotification(
+                                    parent.email, 
+                                    "Student Absence Notification", 
+                                    message, 
+                                    getInstitutionEmailConfig(activeInstitution!, companyDetails.emailConfig)
+                                );
                         }
                     }
                 }
@@ -1397,7 +1409,7 @@ export const App: React.FC = () => {
             console.error("Failed to save attendance:", error);
             alert(`Failed to save attendance: ${error.message || "Unknown error"}`);
         }
-    }, [currentUser, activeInstitution, studentAttendances, loadData, users, generatedTimetable, subjects]);
+    }, [currentUser, activeInstitution, studentAttendances, loadData, users, generatedTimetable, subjects, companyDetails.emailConfig]);
 
     const handleAddTimeOffRequest = useCallback(async (userId: string, data: any) => {
         try {
@@ -1536,7 +1548,7 @@ export const App: React.FC = () => {
                 const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
 
                 try {
-                    await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
+                    await sendEmailNotification(newAdmin.email, "Institution Registration - Account Details", emailBody, getInstitutionEmailConfig(newInstitution, companyDetails.emailConfig));
                 } catch (e) {
                     console.error("Email notification failed", e);
                 }
@@ -1593,7 +1605,7 @@ export const App: React.FC = () => {
                     const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
 
                     try {
-                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
+                        await sendEmailNotification(newAdmin.email, "Institution Registration - Account Details", emailBody, getInstitutionEmailConfig(newInstitution, companyDetails.emailConfig));
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1653,7 +1665,7 @@ export const App: React.FC = () => {
                 if (companyDetails.emailConfig?.username) {
                     const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! The ${newCounty.name} County Portal has been successfully registered on the Eduai Automation Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${adminPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
                     try {
-                        await apiService.sendEmail(newAdmin.email, "County Portal Registration - Account Details", emailBody);
+                        await sendEmailNotification(newAdmin.email, "County Portal Registration - Account Details", emailBody, getInstitutionEmailConfig(newCounty, companyDetails.emailConfig));
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1710,7 +1722,7 @@ export const App: React.FC = () => {
                 if (companyDetails.emailConfig?.username) {
                     const emailBody = `Dear ${newAdmin.name}, \n\nCongratulations! ${newInstitution.name} has been successfully registered on the Eduai Automation Management System.\n\nBelow are your administrative login credentials: \nPortal URL: ${window.location.origin} \nEmail: ${newAdmin.email} \nPassword: ${generatedPassword} \n\nPlease change your password upon first login.\n\nBest Regards, \nEduai Automation System`;
                     try {
-                        await apiService.sendEmail(newAdmin.email, "Institution Registration - Account Details", emailBody);
+                        await sendEmailNotification(newAdmin.email, "Institution Registration - Account Details", emailBody, getInstitutionEmailConfig(newInstitution, companyDetails.emailConfig));
                     } catch (e) {
                         console.error("Email notification failed", e);
                     }
@@ -1819,7 +1831,7 @@ export const App: React.FC = () => {
                             logoUrl={activeInstitution?.logoUrl || companyDetails.logoUrl}
                             systemLogoUrl={companyDetails.logoUrl}
                             notifications={notifications}
-                            onMarkAsRead={handleMarkNotificationAsRead}
+                            onMarkAsRead={(id) => { if (id) handleMarkNotificationAsRead(id); }}
                             currentInstitution={activeInstitution}
                             isApiOnline={isApiOnline}
                             applicationTitle={companyDetails.applicationTitle}
@@ -1830,7 +1842,7 @@ export const App: React.FC = () => {
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
                             {activeRole === 'super_admin' ? (
                                 <SuperAdminView
-                                    currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }} onAddInstitution={async (d) => { const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, status: 'active' } as any, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={onDeleteInstitution} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                    currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }} onAddInstitution={async (d) => { const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, status: 'active' } as any, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
 
                                     onRefreshData={() => loadData()}
                                     onAddCounty={handleAddCounty}
@@ -2322,6 +2334,7 @@ export const App: React.FC = () => {
                                 <CarWashView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
+                                    companyDetails={companyDetails}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                     onSendSms={async (r, m, config, units, instId) => {
@@ -2352,7 +2365,7 @@ export const App: React.FC = () => {
                                 (activeRole === 'carwash_customer' || (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
                                     <CarWashCustomerPortal
                                         currentUser={currentUser}
-                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                        onAddTransaction={async (data, items) => { await apiService.onAddTransaction(data, items as any); }}
                                         cafeOrders={cafeOrders}
                                         retailSales={retailSales}
                                     />
@@ -2382,6 +2395,7 @@ export const App: React.FC = () => {
                                 <PropertyManagementView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}
+                                    companyDetails={companyDetails}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
                                 />

@@ -471,7 +471,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         </button>
                     </div>
                 </div>
-                {(smsBalance !== undefined || ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'super_admin', 'academics_officer', 'boarding_master'].includes(currentUser?.role || '')) && (
+                {(smsBalance !== undefined || ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'super_admin', 'academics_officer', 'boarding_master', 'property_admin', 'carwash_admin', 'agrovet_admin', 'transport_admin'].includes(currentUser?.role || '')) && (
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Balance</span>
                         <span className={`text-sm font-black ${(smsBalance || 0) < 50 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>

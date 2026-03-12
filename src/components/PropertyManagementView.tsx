@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
-    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus
+    PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
+    CompanyDetails
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -15,9 +16,11 @@ import {
     PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
-import { sendEmailNotification } from '../services/emailService';
+import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { CommunicationsManager } from './CommunicationsManager';
+import PMConfigManager from './PMConfigManager';
+import { UserManager } from './UserManager';
 
 const dataUriToBlob = (dataUri: string) => {
     const byteString = atob(dataUri.split(',')[1]);
@@ -33,13 +36,14 @@ const dataUriToBlob = (dataUri: string) => {
 interface PropertyManagementViewProps {
     currentUser: User;
     currentInstitution: Institution;
+    companyDetails: CompanyDetails;
     users: User[];
     onDataChange: () => void;
 }
 
-export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, users, onDataChange }) => {
+export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, companyDetails, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings' | 'comms' | 'inquiries'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
 
@@ -165,7 +169,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 try {
                     const subject = 'Welcome to your Landlord Portal';
                     const body = `Welcome, ${data.name}!\n\nYou have been registered as a Landlord in the system.\nYou can now log in to view your properties, track tenant payments, and monitor your commission payouts.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                    await apiService.sendEmail(data.email, subject, body);
+                    await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
                 } catch (emailErr) {
                     console.error("Failed to send landlord welcome email:", emailErr);
                 }
@@ -278,7 +282,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 try {
                     const subject = 'Welcome to your Tenant Portal';
                     const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                    await apiService.sendEmail(data.email, subject, body);
+                    await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
                 } catch (emailErr) {
                     console.error("Failed to send tenant welcome email:", emailErr);
                 }
@@ -1620,7 +1624,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
                 const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
                 
-                await apiService.sendEmail(entity.email!, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
+                await apiService.sendEmail(
+                    entity.email!, 
+                    subject, 
+                    body, 
+                    getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig), 
+                    undefined, 
+                    [{ filename: 'statement.pdf', content: dataUri }]
+                );
                 
                 // Also send SMS for individual email if phone exists
                 if (entity.phoneNumber) {
@@ -1669,7 +1680,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         const subject = `${currentInstitution.name} - ${targetType === 'tenant' ? 'Tenant' : 'Landlord'} Statement (${startDate} to ${endDate})`;
                         const body = `Dear ${entity.name},\n\nPlease find attached your ${targetType} statement for the period ${startDate} to ${endDate}.\n\nRegards,\n${currentInstitution.name}`;
                         
-                        await apiService.sendEmail(entity.email!, subject, body, currentInstitution.emailConfig, undefined, [{ filename: 'statement.pdf', content: dataUri }]);
+                        await apiService.sendEmail(
+                            entity.email!, 
+                            subject, 
+                            body, 
+                            getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig), 
+                            undefined, 
+                            [{ filename: 'statement.pdf', content: dataUri }]
+                        );
                         
                         // Upload PDF for public link if SMS is needed
                         if (entity.phoneNumber) {
@@ -1945,6 +1963,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {reportsSubTab === 'statements' && <StatementsManager />}
+            {reportsSubTab === 'comms' && (
+                <CommunicationsManager 
+                    onSendSms={onSendSms} 
+                    currentInstitution={currentInstitution} 
+                    mpesaConfig={currentInstitution.mpesaConfig || (currentUser as any)?.mpesaConfig} 
+                />
+            )}
         </div>
     );
 
@@ -1963,6 +1988,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
                         { id: 'comms', label: 'Broadcaster', icon: ChatBubbleBottomCenterTextIcon },
                         { id: 'reports', label: 'Reports', icon: ChartPieIcon },
+                        { id: 'staff', label: 'Staff Members', icon: UserGroupIcon },
+                        { id: 'config', label: 'Settings', icon: Cog8ToothIcon },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -2154,13 +2181,32 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     currentUser={currentUser}
                     smsBalance={currentInstitution.smsBalance}
                     currentInstitution={currentInstitution}
-                    mpesaConfig={currentInstitution.mpesaConfig}
-                    smsConfig={currentInstitution.smsConfig}
+                    mpesaConfig={currentInstitution.mpesaConfig || companyDetails.mpesaConfig}
+                    smsConfig={currentInstitution.smsConfig || companyDetails.smsConfig}
                     onRefreshData={loadData}
                     moduleContext="property"
                 />
             )}
             {activeTab === 'reports' && <ReportsTab />}
+            {activeTab === 'staff' && (
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <UserManager 
+                        currentInstitution={currentInstitution} 
+                        currentUser={currentUser} 
+                        users={users} 
+                        onDataChange={onDataChange}
+                        showOnly="staff"
+                    />
+                </div>
+            )}
+            {activeTab === 'config' && (
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                    <PMConfigManager 
+                        institutionId={institutionId} 
+                        onDataChange={loadData}
+                    />
+                </div>
+            )}
 
             <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="Create Marketplace Ad" maxWidth="max-w-2xl">
                 <form onSubmit={(e) => {

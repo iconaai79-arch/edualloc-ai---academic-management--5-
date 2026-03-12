@@ -19,6 +19,7 @@ import {
     generateReceiptPdfDataUri
 } from '../services/pdfService';
 import { formatRoleDisplayName } from '../utils/roleUtils';
+import { getInstitutionEmailConfig } from '../services/emailService';
 import {
     PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
     WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
@@ -35,6 +36,7 @@ const PACKAGE_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '
 interface CarWashViewProps {
     currentUser: User;
     currentInstitution: Institution;
+    companyDetails: CompanyDetails;
     users: User[];
     onDataChange: () => void;
     onSendSms: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
@@ -196,7 +198,7 @@ const ActivityHeatmap = ({ data }: { data: number[][] }) => {
 };
 
 export const CarWashView: React.FC<CarWashViewProps> = ({
-    currentUser, currentInstitution, users, onDataChange,
+    currentUser, currentInstitution, companyDetails, users, onDataChange,
     onSendSms, onAddTransaction, smsConfig, smsBalance, mpesaConfig, departments, courses, onRegisterUser,
     cafeOrders
 }) => {
@@ -1139,7 +1141,14 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         { filename: `Receipt_${rcptNumber}.pdf`, content: rcptBase64, encoding: 'base64' }
                     ];
 
-                    await apiService.sendEmail(customer.email, emailSubject, emailBody, undefined, undefined, attachments);
+                    await apiService.sendEmail(
+                        customer.email, 
+                        emailSubject, 
+                        emailBody, 
+                        getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig), 
+                        undefined, 
+                        attachments
+                    );
                 } catch (e) {
                     console.error('Failed to send billing email with attachments', e);
                 }
@@ -2465,7 +2474,7 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                             onSendSms={onSendSms}
                             currentInstitution={currentInstitution}
                             currentUser={currentUser}
-                            mpesaConfig={mpesaConfig}
+                            mpesaConfig={mpesaConfig || companyDetails.mpesaConfig}
                             onRefreshData={onDataChange}
                             moduleContext="carwash"
                         />

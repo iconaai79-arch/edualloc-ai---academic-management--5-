@@ -13,6 +13,7 @@ import {
 
 import { apiService } from '../services/apiService';
 import { generateLeaveOutSheetPdf } from '../services/pdfService';
+import { getInstitutionEmailConfig } from '../services/emailService';
 
 interface StudentLeaveOutManagerProps {
     currentUser: User;
@@ -201,7 +202,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                 );
 
                 // Note: Actual email attachment needs backend support, but we simulate it or use PDF service
-                await apiService.sendEmail(request.parentEmail, subject, emailMsg);
+                await apiService.sendEmail(request.parentEmail, subject, emailMsg, getInstitutionEmailConfig(currentInstitution));
             }
 
             loadRequests();
@@ -442,8 +443,8 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                     {req.status === 'checked_out' && (
                                                         <div className="flex flex-col gap-1 items-end">
                                                             <div className="flex gap-2">
-                                                                {req.parentPhone && <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-emerald-500" title="SMS Sent" />}
-                                                                {req.parentEmail && <EnvelopeIcon className="w-4 h-4 text-blue-500" title="Email Sent" />}
+                                                                {req.parentPhone && <span title="SMS Sent"><ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-emerald-500" /></span>}
+                                                                {req.parentEmail && <span title="Email Sent"><EnvelopeIcon className="w-4 h-4 text-blue-500" /></span>}
                                                             </div>
                                                             {req.homeArrivalAt && (
                                                                 <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">

@@ -21,6 +21,19 @@ export const sendEmailNotification = async (
     }
 };
 
+/**
+ * Generates an EmailConfig using the institution's details as the 'from' sender.
+ * This can be used to override the default sender while still using system SMTP settings
+ * if the institution hasn't configured their own.
+ */
+export const getInstitutionEmailConfig = (institution: { name: string; email: string }, existingConfig?: EmailConfig): EmailConfig => {
+    return {
+        ...(existingConfig || { provider: 'smtp', fromName: institution.name, fromEmail: institution.email }),
+        fromName: institution.name,
+        fromEmail: institution.email
+    };
+};
+
 
 export const generateInvoiceEmailBody = (invoice: Invoice, institution: Institution, companyDetails: CompanyDetails): string => {
     return `

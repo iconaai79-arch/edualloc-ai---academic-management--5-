@@ -14,7 +14,10 @@ import {
     MoreVertical as MoreVerticalIcon,
     Eye as EyeIcon,
     ArrowRight as ArrowRightIcon,
-    FileSearch as FileSearchIcon
+    FileSearch as FileSearchIcon,
+    Search as SearchIcon,
+    Trash2 as TrashIcon,
+    XCircle as XCircleIcon
 } from 'lucide-react';
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';
 import { generateLpoPdf } from '../services/pdfService';
@@ -47,6 +50,22 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [previewReq, setPreviewReq] = useState<Requisition | null>(null);
 
+    // New Requisition States
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [items, setItems] = useState<{ name: string; quantity: number; unit: string; unitCost: number }[]>([]);
+    const [newItem, setNewItem] = useState({ id: '', name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+    const [itemSearchQuery, setItemSearchQuery] = useState('');
+    const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState('');
+
+    // Ensure selectedStoreId is initialized when retailStores are loaded
+    React.useEffect(() => {
+        if (!selectedStoreId && retailStores && retailStores.length > 0) {
+            setSelectedStoreId(retailStores[0].id);
+        }
+    }, [retailStores, selectedStoreId]);
+
     const handleCreateLPO = async () => {
         if (!selectedRequisition || !selectedSupplierId) return;
 
@@ -74,7 +93,48 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
         // should be handled in the App.tsx onUpdateRequisition handler or a dedicated 
         // onMarkLPOReceived handler to ensure atomicity.
     };
-    
+
+    const handleAddItem = () => {
+        if (!newItem.name || newItem.quantity <= 0) return;
+        setItems([...items, { name: newItem.name, quantity: newItem.quantity, unit: newItem.unit, unitCost: newItem.unitCost }]);
+        setNewItem({ id: '', name: '', quantity: 1, unit: 'pcs', unitCost: 0 });
+        setItemSearchQuery('');
+    };
+
+    const handleRemoveItem = (index: number) => {
+        setItems(items.filter((_, i) => i !== index));
+    };
+
+    const handleSubmitRequisition = async () => {
+        if (items.length === 0 || !selectedStoreId) {
+            setSubmitError('Please add at least one item using the Add button above.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmitError('');
+        try {
+            const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+
+            await onAddRequisition({
+                storeId: selectedStoreId,
+                requestedBy: 'System', // This should ideally come from currentUser if available
+                items,
+                totalEstimatedCost: totalCost
+            });
+
+            setIsAddModalOpen(false);
+            setItems([]);
+            setSubmitError('');
+        } catch (err: any) {
+            console.error('Requisition submit error:', err);
+            const detailedError = err?.details || err?.hint || err?.message || JSON.stringify(err);
+            setSubmitError(`Failed to save: ${detailedError}`);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const handlePrintLpo = async (req: Requisition) => {
         if (!institution || !companyDetails) {
             alert("Institution or company details missing.");
@@ -120,7 +180,10 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
                     <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Manage Requisitions, LPOs and Vendor Relations</p>
                 </div>
                 <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">
+                    <button 
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                    >
                         <PlusIcon className="w-4 h-4" />
                         Quick Requisition
                     </button>
@@ -297,10 +360,151 @@ export const ProcurementManager: React.FC<ProcurementManagerProps> = ({
                 </div>
             )}
 
-            {activeSubTab === 'suppliers' && (
-                <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm text-center py-32">
-                    <BuildingIcon className="w-16 h-16 text-slate-100 mx-auto mb-4" />
-                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Supplier Directory Integration in progress...</p>
+            {/* New Requisition Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black uppercase tracking-tight">New Stock Request</h3>
+                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Inventory Replenishment</p>
+                            </div>
+                            <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <PlusIcon className="w-6 h-6 rotate-45" />
+                            </button>
+                        </div>
+
+                        <div className="p-10 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requesting Store</label>
+                                <select
+                                    value={selectedStoreId}
+                                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500 outline-none"
+                                >
+                                    <option value="">- Select a Store -</option>
+                                    {retailStores.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Add Items</label>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                        <SearchIcon className="w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search inventory..."
+                                            value={itemSearchQuery}
+                                            onChange={(e) => setItemSearchQuery(e.target.value)}
+                                            className="bg-transparent border-none text-[10px] font-bold outline-none flex-1"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-12 gap-2">
+                                        <div className="col-span-12">
+                                            <select
+                                                value={newItem.id}
+                                                onChange={(e) => {
+                                                    const prod = inventory.find(i => i.id === e.target.value);
+                                                    setNewItem({ 
+                                                        ...newItem, 
+                                                        id: prod?.id || '', 
+                                                        name: prod?.name || '', 
+                                                        unit: prod?.unit || 'pcs', 
+                                                        unitCost: prod?.costPrice || 0 
+                                                    })
+                                                }}
+                                                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold outline-none"
+                                            >
+                                                <option value="">Select Product...</option>
+                                                {inventory
+                                                    .filter(i => i.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) || i.sku.toLowerCase().includes(itemSearchQuery.toLowerCase()))
+                                                    .map(i => (
+                                                        <option key={i.id} value={i.id}>{i.name} ({i.quantity} {i.unit} in stock)</option>
+                                                    ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            placeholder="Qty"
+                                            value={newItem.quantity}
+                                            onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                                            className="w-32 p-3 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-black outline-none"
+                                        />
+                                        <button
+                                            onClick={handleAddItem}
+                                            disabled={!newItem.id || newItem.quantity <= 0}
+                                            className="flex-1 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-50"
+                                        >
+                                            Add Item
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-[200px] overflow-y-auto border border-slate-50 rounded-2xl">
+                                    <table className="w-full text-left text-[10px]">
+                                        <thead className="bg-slate-50 sticky top-0">
+                                            <tr>
+                                                <th className="p-3 font-black uppercase text-slate-400">Item</th>
+                                                <th className="p-3 font-black uppercase text-slate-400 text-center">Qty</th>
+                                                <th className="p-3 font-black uppercase text-slate-400 text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {items.map((item, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="p-3 font-bold text-slate-700">{item.name}</td>
+                                                    <td className="p-3 font-black text-slate-900 text-center">{item.quantity} {item.unit}</td>
+                                                    <td className="p-3 text-right">
+                                                        <button onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:text-red-700">
+                                                            <TrashIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {items.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={3} className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest">No items added yet</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {submitError && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300">
+                                    <XCircleIcon className="w-5 h-5 text-red-500" />
+                                    <p className="text-[10px] font-black uppercase tracking-tight text-red-600">{submitError}</p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    onClick={() => setIsAddModalOpen(false)}
+                                    className="flex-1 py-4 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    disabled={items.length === 0 || isSubmitting || !selectedStoreId}
+                                    onClick={handleSubmitRequisition}
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <ClockIcon className="w-4 h-4 animate-spin" />
+                                            Submitting...
+                                        </>
+                                    ) : 'Submit Request'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

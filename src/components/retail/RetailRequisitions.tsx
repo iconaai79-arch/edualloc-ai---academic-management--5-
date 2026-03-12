@@ -14,6 +14,7 @@ import { Requisition, RetailStore, User, RetailInventoryItem, Institution, Compa
 import { generateLpoPdf } from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
 import { Mail as MailIcon, Printer as PrinterIcon, ExternalLink as ExternalLinkIcon } from 'lucide-react';
+import { getInstitutionEmailConfig } from '../../services/emailService';
 
 interface RetailRequisitionsProps {
     institutionId: string;
@@ -83,7 +84,7 @@ export function RetailRequisitions({
                 supplier.email,
                 `Purchase Order - ${req.lpoNumber || 'DRAFT'}`,
                 `Dear ${supplier.name},\n\nPlease find the attached Purchase Order from ${institution.name}.\n\nRequisition ID: ${req.id}\nTotal Value: KES ${req.totalEstimatedCost.toLocaleString()}\n\nBest Regards,\n${currentUser.name}`,
-                undefined,
+                getInstitutionEmailConfig(institution),
                 undefined,
                 [{ filename: `LPO-${req.lpoNumber || 'DRAFT'}.pdf`, path: dataUri }]
             );

@@ -2111,6 +2111,24 @@ export interface PMListing {
     createdAt: string;
 }
 
+export interface PMSettings {
+    id: string;
+    institutionId: string;
+    branding?: {
+        logoUrl?: string;
+        companyName?: string;
+        primaryColor?: string;
+        footerText?: string;
+    };
+    rentReminders?: {
+        enabled: boolean;
+        beforeDueDays: number;
+        afterDueDays: number;
+        template?: string;
+    };
+    updatedAt: string;
+}
+
 // ============================================================================
 // RETAIL & AGENCY MODULE TYPES
 // ============================================================================

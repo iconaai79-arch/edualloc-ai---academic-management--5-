@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem } from '../types';
 import { apiService } from '../services/apiService';
+import { getInstitutionEmailConfig } from '../services/emailService';
 import {
     HomeIcon, SearchIcon, MapPinIcon, ShoppingCartIcon,
     SparklesIcon, PhoneIcon, EnvelopeIcon, ArrowRightIcon,
@@ -91,7 +92,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 ].filter(Boolean).join('\n');
 
                 if (seller?.email) {
-                    await apiService.sendEmail(seller.email, subject, body);
+                    await apiService.sendEmail(seller.email, subject, body, getInstitutionEmailConfig(seller, seller.emailConfig));
                 }
 
                 // Save inquiry to database for portal management
@@ -148,7 +149,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             
                             Please follow up with the lead.
                         `.trim();
-                        await apiService.sendEmail(seller.email, subject, body);
+                        await apiService.sendEmail(seller.email, subject, body, getInstitutionEmailConfig(seller, seller.emailConfig));
                     } catch (emailErr) {
                         console.warn('Inquiry email notification failed:', emailErr);
                     }
