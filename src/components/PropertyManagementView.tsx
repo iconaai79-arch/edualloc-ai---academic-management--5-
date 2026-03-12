@@ -13,7 +13,7 @@ import {
     HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
     TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
     MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
-    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon
+    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon, SettingsIcon
 } from './icons/index';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
@@ -43,8 +43,8 @@ interface PropertyManagementViewProps {
 
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, companyDetails, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'reports' | 'payouts' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
-    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants'>('properties');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -463,6 +463,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         { id: 'units', label: 'Unit Registry', icon: GridIcon },
                         { id: 'landlords', label: 'Landlord Directory', icon: UserGroupIcon },
                         { id: 'tenants', label: 'Tenant Directory', icon: UserIcon },
+                        { id: 'leases', label: 'Lease Registry', icon: ArchiveBoxIcon },
+                        { id: 'payments', label: 'Payments', icon: CurrencyIcon },
+                        { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -685,6 +688,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
             {propertyActiveSubTab === 'landlords' && <LandlordsTab />}
             {propertyActiveSubTab === 'tenants' && <TenantsTab />}
+            {propertyActiveSubTab === 'leases' && <LeasesTab />}
+            {propertyActiveSubTab === 'payments' && <PaymentsTab />}
+            {propertyActiveSubTab === 'maintenance' && <MaintenanceTab />}
         </div>
     );
 
@@ -889,6 +895,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
 
     const LeasesTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Lease Agreement Registry</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Manage tenant contracts and occupancy terms</p>
+                </div>
+            </div>
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                 {/* Desktop Table View */}
                 <div className="hidden lg:block overflow-x-auto">
@@ -1980,16 +1992,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
                         { id: 'properties', label: 'Assets', icon: BuildingOfficeIcon },
-                        { id: 'leases', label: 'Leases', icon: ArchiveBoxIcon },
-                        { id: 'payments', label: 'Payments', icon: CurrencyIcon },
-                        { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
+                        { id: 'staff', label: 'Staff Members', icon: UserGroupIcon },
+                        { id: 'config', label: 'PM Settings', icon: SettingsIcon },
                         { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
                         { id: 'listings', label: 'Listings', icon: ShoppingCartIcon },
                         { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
-                        { id: 'comms', label: 'Broadcaster', icon: ChatBubbleBottomCenterTextIcon },
-                        { id: 'reports', label: 'Reports', icon: ChartPieIcon },
-                        { id: 'staff', label: 'Staff Members', icon: UserGroupIcon },
-                        { id: 'config', label: 'Settings', icon: Cog8ToothIcon },
+                        { id: 'comms', label: 'Communications', icon: ChatBubbleLeftRightIcon },
+                        { id: 'reports', label: 'Reports', icon: DocumentTextIcon },
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -2080,17 +2089,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Onboard</span> Tenant
                                     </button>
                                 )}
+                                {propertyActiveSubTab === 'leases' && (
+                                    <button onClick={() => setShowLeaseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Lease
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'payments' && (
+                                    <button onClick={() => setShowPaymentModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <CurrencyIcon className="w-5 h-5" /> <span className="hidden sm:inline">Record</span> Payment
+                                    </button>
+                                )}
+                                {propertyActiveSubTab === 'maintenance' && (
+                                    <button onClick={() => setShowTicketModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-rose-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <Cog8ToothIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Ticket
+                                    </button>
+                                )}
                             </>
-                        )}
-                        {activeTab === 'leases' && (
-                            <button onClick={() => setShowLeaseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Lease
-                            </button>
-                        )}
-                        {activeTab === 'payments' && (
-                            <button onClick={() => setShowPaymentModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                <CurrencyIcon className="w-5 h-5" /> <span className="hidden sm:inline">Record</span> Payment
-                            </button>
                         )}
                         {activeTab === 'listings' && (
                             <button
@@ -2166,9 +2180,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {activeTab === 'properties' && <PropertiesTab />}
-            {activeTab === 'leases' && <LeasesTab />}
-            {activeTab === 'payments' && <PaymentsTab />}
-            {activeTab === 'maintenance' && <MaintenanceTab />}
             {activeTab === 'payouts' && <PayoutsTab />}
             {activeTab === 'listings' && <ListingsTab />}
             {activeTab === 'inquiries' && <InquiriesTab />}
