@@ -3,7 +3,7 @@ import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
     PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
-    CompanyDetails
+    CompanyDetails, PMInvoice, PMInvoiceStatus
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -45,7 +45,7 @@ interface PropertyManagementViewProps {
 export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, companyDetails, users, onDataChange }) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
-    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance'>('properties');
+    const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements'>('analytics');
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -59,6 +59,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [disbursements, setDisbursements] = useState<PMDisbursement[]>([]);
     const [listings, setListings] = useState<any[]>([]); // Using any for now until types are fully recognized
     const [inquiries, setInquiries] = useState<PMInquiry[]>([]);
+    const [invoices, setInvoices] = useState<PMInvoice[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Modals
@@ -70,6 +71,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [showListingModal, setShowListingModal] = useState(false);
+    const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [showBankModal, setShowBankModal] = useState(false);
     const [selectedTenantForBankAction, setSelectedTenantForBankAction] = useState<PMTenant | null>(null);
     const [newListingImages, setNewListingImages] = useState<string[]>([]);
@@ -107,9 +109,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     }, [users, tenants, landlords, institutionId]);
 
     const loadData = async () => {
-        setLoading(true);
         try {
-            const [landlordList, propList, unitList, tenantList, leaseList, paymentList, ticketList, disbursementList, listingList, inquiryList] = await Promise.all([
+            setLoading(true);
+            const results = await Promise.all([
                 apiService.fetchModuleRecords<PMLandlord>('pm_landlords', institutionId),
                 apiService.fetchModuleRecords<PMProperty>('pm_properties', institutionId),
                 apiService.fetchModuleRecords<PMUnit>('pm_units', institutionId),
@@ -120,20 +122,28 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 apiService.fetchModuleRecords<PMDisbursement>('pm_disbursements', institutionId),
                 apiService.fetchModuleRecords<any>('pm_listings', institutionId),
                 apiService.fetchModuleRecords<PMInquiry>('pm_inquiries', institutionId),
+                apiService.fetchModuleRecords<PMInvoice>('pm_invoices', institutionId)
             ]);
-            setLandlords(landlordList || []);
-            setProperties(propList || []);
-            setUnits(unitList || []);
-            setTenants(tenantList || []);
-            setLeases(leaseList || []);
-            setPayments(paymentList || []);
-            setTickets(ticketList || []);
-            setDisbursements(disbursementList || []);
-            setListings(listingList || []);
-            setInquiries(inquiryList || []);
+            
+            const [ls, ps, un, tn, le, py, tk, ds, lts, inq, inv] = results as any[];
+
+            setLandlords(ls || []);
+            setProperties(ps || []);
+            setUnits(un || []);
+            setTenants(tn || []);
+            setLeases(le || []);
+            setPayments(py || []);
+            setTickets(tk || []);
+            setDisbursements(ds || []);
+            setListings(lts || []);
+            setInquiries(inq || []);
+            setInvoices(inv || []);
             onDataChange();
-        } catch (e) { console.error(e); }
-        setLoading(false);
+        } catch (error) {
+            console.error("Failed to load PM data:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => { loadData(); }, [institutionId]);
@@ -467,6 +477,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         { id: 'leases', label: 'Lease Registry', icon: ArchiveBoxIcon },
                         { id: 'payments', label: 'Payments', icon: CurrencyIcon },
                         { id: 'maintenance', label: 'Maintenance', icon: Cog8ToothIcon },
+                        { id: 'invoices', label: 'Invoices', icon: DocumentTextIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -692,6 +703,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             {propertyActiveSubTab === 'leases' && <LeasesTab />}
             {propertyActiveSubTab === 'payments' && <PaymentsTab />}
             {propertyActiveSubTab === 'maintenance' && <MaintenanceTab />}
+            {propertyActiveSubTab === 'invoices' && <InvoicesTab />}
         </div>
     );
 
@@ -1012,14 +1024,53 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 paymentType,
                 status: 'Completed',
                 commissionAmount,
-                landlordPayoutStatus: commissionAmount > 0 ? 'pending' : undefined,
                 institutionId,
                 createdAt: new Date().toISOString()
             };
-            await apiService.saveModuleRecord('pm_payments', newPayment);
+            await apiService.saveModuleRecord('pm_payments', p);
+
+            // Automated Receipt Generation
+            if (confirm("Payment recorded. Would you like to generate a receipt?")) {
+                const lease = leases.find(l => l.id === p.leaseId);
+                const tenant = tenants.find(t => t.id === lease?.tenantId);
+                const unit = units.find(u => u.id === lease?.unitId);
+                if (tenant && unit) {
+                    try {
+                        const dataUri = await pdfService.generatePMReceiptPdfDataUri(
+                            p, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                        );
+                        setPreviewPdfUrl(dataUri);
+                        setPreviewPdfTitle(`Receipt - ${tenant.name}`);
+                        setShowPdfPreview(true);
+                    } catch (pdfErr) { console.error("PDF Fail:", pdfErr); }
+                }
+            }
+
             setShowPaymentModal(false);
             loadData();
-        } catch (e: any) { alert(e.message || "Failed to save payment"); console.error(e); }
+        } catch (e: any) { alert(e.message || "Failed to save payment"); }
+    };
+
+    const handleSaveInvoice = async (data: Partial<PMInvoice>) => {
+        try {
+            const newInvoice: PMInvoice = {
+                id: `inv_${Date.now()}`,
+                invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+                leaseId: data.leaseId || '',
+                tenantId: data.tenantId || '',
+                unitId: data.unitId || '',
+                description: data.description || '',
+                amount: data.amount || 0,
+                issueDate: data.issueDate || new Date().toISOString().split('T')[0],
+                dueDate: data.dueDate || '',
+                status: 'Sent',
+                institutionId,
+                createdAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('pm_invoices', newInvoice);
+            setShowInvoiceModal(false);
+            loadData();
+        } catch (e: any) { alert(e.message || "Failed to save invoice"); }
     };
 
     const handleSaveTicket = async (data: Partial<PMTicket>) => {
@@ -1119,6 +1170,119 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             </div>
         </div>
     );
+
+    const InvoicesTab = () => {
+        const [search, setSearch] = useState('');
+        const filteredInvoices = invoices.filter(inv => {
+            const tenant = tenants.find(t => t.id === inv.tenantId);
+            return inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+                   tenant?.name.toLowerCase().includes(search.toLowerCase());
+        });
+
+        const handleDownload = async (inv: PMInvoice) => {
+            const tenant = tenants.find(t => t.id === inv.tenantId);
+            const unit = units.find(u => u.id === inv.unitId);
+            if (!tenant || !unit) return alert("Tenant or Unit data missing.");
+
+            try {
+                const dataUri = await pdfService.generatePMInvoicePdfDataUri(
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                );
+                const link = document.createElement('a');
+                link.href = dataUri;
+                link.download = `Invoice-${inv.invoiceNumber}.pdf`;
+                link.click();
+            } catch (err) { alert("Failed to generate PDF."); }
+        };
+
+        const handleSend = async (inv: PMInvoice) => {
+            const tenant = tenants.find(t => t.id === inv.tenantId);
+            const unit = units.find(u => u.id === inv.unitId);
+            if (!tenant || !unit) return alert("Tenant data missing.");
+
+            try {
+                const dataUri = await pdfService.generatePMInvoicePdfDataUri(
+                    inv, tenant, unit, currentInstitution, companyDetails, currentInstitution.logoUrl || null
+                );
+                const blob = dataURItoBlob(dataUri);
+                const fileName = `pm/invoices/${inv.invoiceNumber}.pdf`;
+                const publicUrl = await apiService.uploadBlob(fileName, blob);
+                
+                if (tenant.phoneNumber) {
+                    const msg = `Dear ${tenant.name}, your rent invoice #${inv.invoiceNumber} for KES ${inv.amount.toLocaleString()} is ready. View here: ${publicUrl}`;
+                    await apiService.sendSms(tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
+                    alert("Invoice link sent via SMS!");
+                }
+            } catch (err) { alert("Failed to send invoice."); }
+        };
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="flex bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm gap-4 items-center">
+                    <SearchIcon className="w-5 h-5 text-slate-400 ml-2" />
+                    <input 
+                        type="search" 
+                        placeholder="Search invoices by number or tenant name..."
+                        className="flex-1 bg-transparent font-bold outline-none text-sm dark:text-white"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredInvoices.map(inv => {
+                        const tenant = tenants.find(t => t.id === inv.tenantId);
+                        const unit = units.find(u => u.id === inv.unitId);
+                        return (
+                            <div key={inv.id} className="bg-white dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Invoice #{inv.invoiceNumber}</h4>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">{tenant?.name}</h3>
+                                        <p className="text-xs font-bold text-blue-600 uppercase tracking-tight">{unit?.unitNumber}</p>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                        inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
+                                        inv.status === 'Overdue' ? 'bg-rose-100 text-rose-600' :
+                                        'bg-blue-100 text-blue-600'
+                                    }`}>
+                                        {inv.status}
+                                    </span>
+                                </div>
+                                
+                                <div className="space-y-2 mb-6">
+                                    <div className="flex justify-between text-[11px] font-bold">
+                                        <span className="text-slate-400 uppercase">Amount</span>
+                                        <span className="text-slate-900 dark:text-white uppercase italic">KES {inv.amount.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] font-bold">
+                                        <span className="text-slate-400 uppercase">Due Date</span>
+                                        <span className="text-slate-900 dark:text-white uppercase italic">{new Date(inv.dueDate).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 transition-opacity">
+                                    <button onClick={() => handleDownload(inv)} title="Download" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-blue-600 hover:text-white transition-all">
+                                        <DownloadIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => handleSend(inv)} title="Send via SMS" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all">
+                                        <PaperAirplaneIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={async () => {
+                                        if (confirm("Delete this invoice?")) {
+                                            await apiService.deleteModuleRecord('pm_invoices', inv.id);
+                                            loadData();
+                                        }
+                                    }} title="Delete" className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 hover:bg-rose-600 hover:text-white transition-all ml-auto">
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
 
     const MaintenanceTab = () => (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -2774,7 +2938,70 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     filename={`${previewPdfTitle.replace(/\s+/g, '_').toLowerCase()}.pdf`}
                 />
             )}
-
+ 
+            <Modal show={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Generate New Invoice" maxWidth="max-w-md">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const leaseId = formData.get('leaseId') as string;
+                    const lease = leases.find(l => l.id === leaseId);
+                    if (!lease) return;
+                    
+                    handleSaveInvoice({
+                        leaseId,
+                        tenantId: lease.tenantId,
+                        unitId: lease.unitId,
+                        amount: parseFloat(formData.get('amount') as string) || 0,
+                        description: formData.get('description') as string,
+                        issueDate: new Date().toISOString().split('T')[0],
+                        dueDate: formData.get('dueDate') as string,
+                    });
+                }} className="space-y-4">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Target Tenant / Lease</label>
+                        <select name="leaseId" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none">
+                            <option value="">Select Tenant...</option>
+                            {leases.filter(l => l.status === 'Active').map(l => {
+                                const tenant = tenants.find(t => t.id === l.tenantId);
+                                const unit = units.find(u => u.id === l.unitId);
+                                return (
+                                    <option key={l.id} value={l.id}>
+                                        {tenant?.name} ({unit?.unitNumber})
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Description</label>
+                        <input name="description" defaultValue="Monthly Rent" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400">Amount (KES)</label>
+                            <input name="amount" type="number" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-slate-400">Due Date</label>
+                            <input name="dueDate" type="date" required className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-xl p-3 font-bold outline-none" />
+                        </div>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all mt-4">
+                        Generate & Finalize Invoice
+                    </button>
+                </form>
+            </Modal>
         </div>
     );
+};
+
+const dataURItoBlob = (dataURI: string) => {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
 };

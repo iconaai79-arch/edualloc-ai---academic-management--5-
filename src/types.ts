@@ -2085,8 +2085,32 @@ export interface PMDisbursement {
     paymentMethod?: string;
     bankDetails?: string;
     notes?: string;
-    institutionId: string;
     paymentIds?: string[]; // IDs of PMPayment records included in this disbursement
+    institutionId: string;
+}
+
+export type PMInvoiceStatus = 'Draft' | 'Sent' | 'Paid' | 'Overdue' | 'Cancelled';
+
+export interface PMInvoiceItem {
+    description: string;
+    amount: number;
+}
+
+export interface PMInvoice {
+    id: string;
+    invoiceNumber: string;
+    leaseId: string;
+    tenantId: string;
+    unitId: string;
+    description: string;
+    amount: number;
+    items?: PMInvoiceItem[];
+    issueDate: string;
+    dueDate: string;
+    status: PMInvoiceStatus;
+    notes?: string;
+    institutionId: string;
+    createdAt: string;
 }
 
 export type PMListingStatus = 'Active' | 'Published' | 'Draft' | 'Under Offer' | 'Sold' | 'Leased';

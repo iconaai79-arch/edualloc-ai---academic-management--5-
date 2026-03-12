@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -3787,6 +3787,124 @@ export const generateRetailInventoryReportPdf = async (
             5: { halign: 'right' }
         }
     });
+
+    return doc.output('datauristring');
+};
+
+export const generatePMInvoicePdfDataUri = async (
+    invoice: PMInvoice,
+    tenant: PMTenant,
+    unit: PMUnit,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'RENT INVOICE', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Tenant info
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('BILL TO:', margin, tableStartY - 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(tenant.name, margin, tableStartY - 10);
+    doc.text(`Unit: ${unit.unitNumber}`, margin, tableStartY - 5);
+    doc.text(`Phone: ${tenant.phoneNumber}`, margin, tableStartY);
+
+    // Invoice Meta
+    doc.setFont('helvetica', 'bold');
+    doc.text('INVOICE #:', pageWidth - margin - 50, tableStartY - 15);
+    doc.text('DATE:', pageWidth - margin - 50, tableStartY - 10);
+    doc.text('DUE DATE:', pageWidth - margin - 50, tableStartY - 5);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(invoice.invoiceNumber, pageWidth - margin, tableStartY - 15, { align: 'right' });
+    doc.text(new Date(invoice.issueDate).toLocaleDateString(), pageWidth - margin, tableStartY - 10, { align: 'right' });
+    doc.text(new Date(invoice.dueDate).toLocaleDateString(), pageWidth - margin, tableStartY - 5, { align: 'right' });
+
+    const head = [['#', 'DESCRIPTION', 'AMOUNT (KES)']];
+    const body = [
+        ['1', invoice.description, invoice.amount.toLocaleString()]
+    ];
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        didDrawPage: (data: any) => {
+            const finalY = data.cursor.y;
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('TOTAL AMOUNT DUE:', pageWidth - margin - 60, finalY + 15);
+            doc.text(`KES ${invoice.amount.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+        }
+    });
+
+    return doc.output('datauristring');
+};
+
+export const generatePMReceiptPdfDataUri = async (
+    payment: PMPayment,
+    tenant: PMTenant,
+    unit: PMUnit,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Receipt Meta
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('RECEIPT FOR:', margin, tableStartY - 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(tenant.name, margin, tableStartY - 10);
+    doc.text(`Unit: ${unit.unitNumber}`, margin, tableStartY - 5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATE:', pageWidth - margin - 40, tableStartY - 15);
+    doc.text('STATUS:', pageWidth - margin - 40, tableStartY - 10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(new Date(payment.paymentDate).toLocaleDateString(), pageWidth - margin, tableStartY - 15, { align: 'right' });
+    doc.text(payment.status.toUpperCase(), pageWidth - margin, tableStartY - 10, { align: 'right' });
+
+    const body = [
+        ['Payment Method', payment.paymentMethod],
+        ['Payment Type', payment.paymentType],
+        ['Reference ID', payment.id.substring(0, 8).toUpperCase()],
+        ['Month/Year', payment.periodMonth && payment.periodYear ? `${payment.periodMonth}/${payment.periodYear}` : 'N/A'],
+    ];
+
+    doc.autoTable({
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'plain',
+        styles: { fontSize: 10 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { halign: 'right' } },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AMOUNT RECEIVED:', margin, finalY + 20);
+    doc.text(`KES ${payment.amount.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Thank you for choosing us!', pageWidth / 2, finalY + 40, { align: 'center' });
 
     return doc.output('datauristring');
 };
