@@ -10,7 +10,9 @@ import {
     SparklesIcon,
     PhoneIcon,
     PencilIcon,
-    MapPinIcon
+    MapPinIcon,
+    UploadIcon,
+    XIcon
 } from './icons/index';
 
 interface PMConfigManagerProps {
@@ -22,6 +24,7 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
     const [settings, setSettings] = useState<PMSettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -77,6 +80,29 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
             setError("Failed to save settings.");
         } finally {
             setSaving(false);
+        }
+    };
+ 
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !settings) return;
+ 
+        setUploadingLogo(true);
+        setError(null);
+        try {
+            const fileName = `logos/pm_${institutionId}_${Date.now()}.${file.name.split('.').pop()}`;
+            const publicUrl = await apiService.uploadFile('eduai', fileName, file, file.type);
+            if (publicUrl) {
+                setSettings({
+                    ...settings,
+                    branding: { ...settings.branding!, logoUrl: publicUrl }
+                });
+            }
+        } catch (err) {
+            console.error("Logo upload failed:", err);
+            setError("Failed to upload logo. Please check your connection.");
+        } finally {
+            setUploadingLogo(false);
         }
     };
 
@@ -148,14 +174,45 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                             </div>
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Custom Logo URL</label>
-                            <input 
-                                type="url" 
-                                value={settings.branding?.logoUrl || ''} 
-                                onChange={e => setSettings({...settings, branding: {...settings.branding, logoUrl: e.target.value}})}
-                                className="form-input w-full"
-                                placeholder="https://example.com/logo.png"
-                            />
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Logo</label>
+                            <div className="flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                                {settings.branding?.logoUrl ? (
+                                    <div className="relative group">
+                                        <img 
+                                            src={settings.branding.logoUrl} 
+                                            alt="Logo Preview" 
+                                            className="w-16 h-16 object-contain rounded-lg bg-white p-1 border border-slate-200"
+                                        />
+                                        <button 
+                                            onClick={() => setSettings({...settings, branding: {...settings.branding!, logoUrl: ''}})}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <XIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="w-16 h-16 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                                        <UploadIcon className="w-8 h-8 opacity-50" />
+                                    </div>
+                                )}
+                                <div className="flex-grow">
+                                    <input 
+                                        type="file" 
+                                        id="logo-upload" 
+                                        className="hidden" 
+                                        accept="image/*"
+                                        onChange={handleLogoUpload}
+                                    />
+                                    <label 
+                                        htmlFor="logo-upload" 
+                                        className="btn-secondary py-2 px-4 cursor-pointer inline-flex items-center gap-2 text-sm"
+                                    >
+                                        {uploadingLogo ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <UploadIcon className="w-4 h-4" />}
+                                        {uploadingLogo ? 'Uploading...' : 'Upload New Logo'}
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold tracking-tight">Recommended: PNG or SVG, max 2MB</p>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-1">

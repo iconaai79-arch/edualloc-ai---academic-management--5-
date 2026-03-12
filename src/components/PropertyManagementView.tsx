@@ -1651,7 +1651,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                     try {
                         const blob = await (await fetch(dataUri)).blob();
                         const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
-                        const publicUrl = await apiService.uploadFile(fileName, blob);
+                        const publicUrl = await apiService.uploadBlob(fileName, blob);
                         const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
                         await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
                     } catch (smsErr) { console.warn("SMS link failed:", smsErr); }
@@ -1707,7 +1707,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             try {
                                 const blob = await (await fetch(dataUri)).blob();
                                 const fileName = `statements/${targetType}_${entity.id}_${startDate}_${endDate}.pdf`;
-                                const publicUrl = await apiService.uploadFile(fileName, blob);
+                                const publicUrl = await apiService.uploadBlob(fileName, blob);
                                 
                                 const smsMessage = `Dear ${entity.name}, your ${targetType} statement for ${startDate} to ${endDate} is ready. Download here: ${publicUrl}`;
                                 await apiService.sendSms(entity.phoneNumber!, smsMessage, currentInstitution.smsConfig, 1, currentInstitution.id!);
@@ -1976,13 +1976,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
             )}
 
             {reportsSubTab === 'statements' && <StatementsManager />}
-            {reportsSubTab === 'comms' && (
-                <CommunicationsManager 
-                    onSendSms={onSendSms} 
-                    currentInstitution={currentInstitution} 
-                    mpesaConfig={currentInstitution.mpesaConfig || (currentUser as any)?.mpesaConfig} 
-                />
-            )}
         </div>
     );
 
@@ -2206,7 +2199,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         currentInstitution={currentInstitution} 
                         currentUser={currentUser} 
                         users={users} 
-                        onDataChange={onDataChange}
                         showOnly="staff"
                     />
                 </div>

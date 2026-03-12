@@ -10,7 +10,7 @@ import type {
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
-    Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog
+    Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -128,7 +128,7 @@ export const apiService = {
             return stored ? JSON.parse(stored) : null;
         } catch (e) { return null; }
     },
-    async uploadFile(path: string, blob: Blob): Promise<string> {
+    async uploadBlob(path: string, blob: Blob, contentType?: string): Promise<string> {
         if (!_supabase) {
             // Mock for local storage mode if needed
             return `local-blob://${path}`;
@@ -136,7 +136,7 @@ export const apiService = {
         const bucket = 'eduai';
         const { data, error } = await _supabase.storage.from(bucket).upload(path, blob, {
             upsert: true,
-            contentType: 'application/pdf'
+            contentType: contentType || 'application/octet-stream'
         });
         if (error) throw error;
         const { data: { publicUrl } } = _supabase.storage.from(bucket).getPublicUrl(path);
@@ -147,7 +147,8 @@ export const apiService = {
             const records = ls.get(table);
             const index = records.findIndex((r: any) => r.id === id);
             if (index >= 0) {
-                records[index][field.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase())] = (records[index][field.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase())] || 0) + 1;
+                const camelField = field.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+                (records[index] as any)[camelField] = ((records[index] as any)[camelField] || 0) + 1;
                 ls.set(table, records);
             }
             return;
@@ -162,7 +163,7 @@ export const apiService = {
         if (error) {
             const { data: record } = await _supabase.from(table).select(field).eq('id', id).single();
             if (record) {
-                await _supabase.from(table).update({ [field]: (record[field] || 0) + 1 }).eq('id', id);
+                await _supabase.from(table).update({ [field]: ((record as any)[field] || 0) + 1 }).eq('id', id);
             }
         }
     },
@@ -240,7 +241,7 @@ export const apiService = {
             return { success: false, message: e.message || "Execution engine failure." };
         }
     },
-    async uploadFile(bucket: string, path: string, file: File): Promise<string | null> {
+    async uploadFile(bucket: string, path: string, file: File, contentType?: string): Promise<string | null> {
         try {
             if (!_supabase) {
                 // Return as base64 for local development/offline mode
@@ -255,7 +256,8 @@ export const apiService = {
                 .from(bucket)
                 .upload(path, file, {
                     upsert: true,
-                    cacheControl: '3600'
+                    cacheControl: '3600',
+                    contentType: contentType || file.type
                 });
 
             if (error) {
@@ -1326,15 +1328,5 @@ export const apiService = {
     // Transport Module
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
-    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); },
-    async fetchInstitutions(): Promise<Institution[]> { return this.fetchModuleRecords('institutions'); },
-    async fetchInstitutionById(id: string): Promise<Institution | null> {
-        if (!_supabase) {
-            const items = ls.get('institutions');
-            return items.find((i: any) => i.id === id) || null;
-        }
-        const { data, error } = await _supabase.from('institutions').select('*').eq('id', id).single();
-        if (error) return null;
-        return toCamelCase(data);
-    }
+    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); }
 };
