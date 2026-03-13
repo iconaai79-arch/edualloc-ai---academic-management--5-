@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Role } from '../../types';
 import { 
     PlusIcon, 
     SparklesIcon,
@@ -28,7 +29,11 @@ import { HISReportsView } from './HISReportsView';
 
 type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports';
 
-export const HealthCoreView: React.FC = () => {
+interface HealthCoreProps {
+    activeRole?: Role;
+}
+
+export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
 
     const renderModule = () => {
@@ -50,7 +55,7 @@ export const HealthCoreView: React.FC = () => {
             case 'config':
                 return <HISConfigView />;
             case 'reports':
-                return <HISReportsView />;
+                return <HISReportsView activeRole={activeRole} />;
             default:
                 return <GeneralMedicineView />;
         }

@@ -11,11 +11,28 @@ import {
     PlusIcon
 } from '../icons/index';
 import { ChartLineIcon, FireIcon, HeartIcon, ActivityIcon, CalendarIcon } from './HealthIcons';
+import { Role } from '../../types';
 
 type ReportTab = 'financial' | 'clinical' | 'operational' | 'compliance';
 
-export const HISReportsView: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<ReportTab>('financial');
+interface HISReportsProps {
+    activeRole?: Role;
+}
+
+export const HISReportsView: React.FC<HISReportsProps> = ({ activeRole }) => {
+    // Permission Mapping
+    const permissions: Record<ReportTab, Role[]> = {
+        financial: ['super_admin', 'his_admin', 'admin', 'property_admin'],
+        clinical: ['super_admin', 'his_admin', 'lecturer', 'hod', 'academics_officer'],
+        operational: ['super_admin', 'his_admin', 'info_desk', 'admin'],
+        compliance: ['super_admin', 'his_admin']
+    };
+
+    const availableTabs = (['financial', 'clinical', 'operational', 'compliance'] as ReportTab[]).filter(tab => 
+        !activeRole || permissions[tab].includes(activeRole)
+    );
+
+    const [activeTab, setActiveTab] = useState<ReportTab>(availableTabs[0] || 'compliance');
 
     const renderFinancialReport = () => (
         <div className="space-y-8 animate-fade-in">
@@ -209,7 +226,7 @@ export const HISReportsView: React.FC = () => {
                     { id: 'clinical', label: 'Clinical Quality', icon: HeartIcon },
                     { id: 'operational', label: 'Operational Flow', icon: ActivityIcon },
                     { id: 'compliance', label: 'Compliance Audit', icon: DocumentTextIcon },
-                ].map((tab) => (
+                ].filter(tab => availableTabs.includes(tab.id as ReportTab)).map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ReportTab)}
