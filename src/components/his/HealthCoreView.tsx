@@ -27,7 +27,9 @@ import { AppointmentsView } from './AppointmentsView';
 import { HISConfigView } from './HISConfigView';
 import { HISReportsView } from './HISReportsView';
 import { StaffAttendanceView } from './StaffAttendanceView';
+import { RegisterPatientModal } from './RegisterPatientModal';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
+import { apiService } from '../../services/apiService';
 
 type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance';
 
@@ -41,9 +43,18 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
 
+
     const demoData = React.useMemo(() => {
         return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
     }, [institutionId]);
+
+    const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+    // Make state accessible to sub-views if needed (optional but works for standalone GeneralMedicineView)
+    React.useEffect(() => {
+        (window as any).openRegisterModal = () => setIsRegisterModalOpen(true);
+        return () => { delete (window as any).openRegisterModal; };
+    }, []);
 
     const renderModule = () => {
         switch (activeModule) {
@@ -78,6 +89,22 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 />;
             default:
                 return <GeneralMedicineView vitals={demoData?.hisVitals} events={demoData?.hisEvents} />;
+        }
+    };
+
+    const handleRegisterPatient = async (patientData: any) => {
+        try {
+            await apiService.saveModuleRecord('his_patients', {
+                ...patientData,
+                institutionId,
+                id: `his_p_${Date.now()}`,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            });
+            alert("Patient registered successfully in Quantum Medical Registry");
+        } catch (error) {
+            console.error("Patient registration failed:", error);
+            alert("Intake failed. Please check your data connection.");
         }
     };
 
@@ -150,6 +177,12 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     {renderModule()}
                 </div>
             </main>
+
+            <RegisterPatientModal 
+                isOpen={isRegisterModalOpen}
+                onClose={() => setIsRegisterModalOpen(false)}
+                onRegister={handleRegisterPatient}
+            />
         </div>
     );
 };
@@ -172,7 +205,10 @@ const GeneralMedicineView = ({ vitals, events }: { vitals?: any[], events?: any[
                         className="bg-white/5 border border-white/10 rounded-xl pl-12 pr-6 py-3 text-xs outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all w-64"
                     />
                 </div>
-                <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                <button 
+                    onClick={() => (window as any).openRegisterModal && (window as any).openRegisterModal()}
+                    className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                >
                     <PlusIcon className="w-4 h-4" /> Register Patient
                 </button>
             </div>
