@@ -67,6 +67,7 @@ import { TimetableWizard } from './TimetableWizard';
 import { TransportManager } from './TransportManager';
 import { apiService } from '../services/apiService';
 import { RetailReportsDashboard } from './retail/RetailReportsDashboard';
+import { ExternalModuleView } from './ExternalModuleView';
 
 export interface AdminViewProps {
     currentUser: User;
@@ -231,11 +232,6 @@ export interface AdminViewProps {
     onUpdateAssessmentStatus?: (id: string, status: string) => void;
     onSaveAssessmentMarks?: (id: string, data: any) => void;
     contracts: LecturerContract[];
-    onGenerateDemoData?: () => void;
-    onClearDemoData?: () => void;
-    isGeneratingDemoData: boolean;
-    demoDataGenerationProgress: number;
-    demoDataGenerationMessage: string;
     examTimetable: ExamTimetableEntry[];
     onSwitchPerspective?: (role: Role) => void;
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
@@ -279,7 +275,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [] } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -320,6 +316,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+            { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
         const institutionType = props.currentInstitution?.institutionType;
@@ -819,6 +816,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         examTimetableSettings={props.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                     />
+                )}
+
+                {activeTab === 'external_module' && (
+                    <div className="animate-fade-in-up">
+                        <ExternalModuleView
+                            title="EduAI Support & Analytics Hub"
+                            url="https://support.edualloc.com"
+                            description="Access system guides, analytics dashboard and priority support."
+                        />
+                    </div>
                 )}
 
                 {activeTab === 'procurement' && (
