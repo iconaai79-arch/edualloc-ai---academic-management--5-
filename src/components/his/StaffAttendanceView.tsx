@@ -17,30 +17,36 @@ type StaffPresenceStatus = 'Available' | 'Busy' | 'Out of Office' | 'On Emergenc
 interface StaffAttendanceProps {
     userName?: string;
     institutionId?: string;
+    demoAttendance?: HISStaffAttendance[];
 }
 
-export const StaffAttendanceView: React.FC<StaffAttendanceProps> = ({ userName, institutionId }) => {
+export const StaffAttendanceView: React.FC<StaffAttendanceProps> = ({ userName, institutionId, demoAttendance }) => {
     const [isOnShift, setIsOnShift] = useState(false);
     const [currentStatus, setCurrentStatus] = useState<string>('Available');
     const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
     const [isLoading, setIsLoading] = useState(true);
     
-    const [presenceLogs, setPresenceLogs] = useState<HISStaffAttendance[]>([]);
+    const [presenceLogs, setPresenceLogs] = useState<HISStaffAttendance[]>(demoAttendance || []);
 
     const fetchLogs = async () => {
         if (!institutionId) return;
         setIsLoading(true);
         try {
             const data = await apiService.fetchModuleRecords<HISStaffAttendance>('his_staff_attendance', institutionId);
-            setPresenceLogs(data);
-            // Check if user is currently on shift (latest log has no checkOut)
-            const activeLog = data.find(l => !l.checkOut);
-            if (activeLog) {
-                setIsOnShift(true);
-                setCurrentStatus(activeLog.status || 'Available');
+            if (data && data.length > 0) {
+                setPresenceLogs(data);
+                // Check if user is currently on shift (latest log has no checkOut)
+                const activeLog = data.find(l => !l.checkOut);
+                if (activeLog) {
+                    setIsOnShift(true);
+                    setCurrentStatus(activeLog.status || 'Available');
+                }
+            } else if (demoAttendance) {
+                setPresenceLogs(demoAttendance);
             }
         } catch (error) {
             console.error('Failed to fetch attendance:', error);
+            if (demoAttendance) setPresenceLogs(demoAttendance);
         } finally {
             setIsLoading(false);
         }

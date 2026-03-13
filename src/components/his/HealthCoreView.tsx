@@ -27,22 +27,28 @@ import { AppointmentsView } from './AppointmentsView';
 import { HISConfigView } from './HISConfigView';
 import { HISReportsView } from './HISReportsView';
 import { StaffAttendanceView } from './StaffAttendanceView';
+import { generateInstitutionalDemoData } from '../../utils/demoData';
 
 type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance';
 
 interface HealthCoreProps {
     activeRole?: Role;
     userName?: string;
+    institutionId?: string;
 }
 
-export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName }) => {
+export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
+
+    const demoData = React.useMemo(() => {
+        return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
+    }, [institutionId]);
 
     const renderModule = () => {
         switch (activeModule) {
             case 'general':
-                return <GeneralMedicineView />;
+                return <GeneralMedicineView vitals={demoData?.hisVitals} events={demoData?.hisEvents} />;
             case 'inpatient':
                 return <InpatientView />;
             case 'dental':
@@ -54,15 +60,24 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             case 'broadcaster':
                 return <HISBroadcasterView />;
             case 'appointments':
-                return <AppointmentsView activeRole={activeRole} userName={userName} />;
+                return <AppointmentsView 
+                    activeRole={activeRole} 
+                    userName={userName} 
+                    institutionId={institutionId} 
+                    demoAppointments={demoData?.hisAppointments}
+                />;
             case 'config':
-                return <HISConfigView />;
+                return <HISConfigView demoStaff={demoData?.hisStaff} />;
             case 'reports':
                 return <HISReportsView activeRole={activeRole} />;
             case 'attendance':
-                return <StaffAttendanceView userName={userName} />;
+                return <StaffAttendanceView 
+                    userName={userName} 
+                    institutionId={institutionId} 
+                    demoAttendance={demoData?.hisAttendance}
+                />;
             default:
-                return <GeneralMedicineView />;
+                return <GeneralMedicineView vitals={demoData?.hisVitals} events={demoData?.hisEvents} />;
         }
     };
 
@@ -141,7 +156,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
 
 // --- General Medicine View (Patient 360) ---
 
-const GeneralMedicineView = () => (
+const GeneralMedicineView = ({ vitals, events }: { vitals?: any[], events?: any[] }) => (
     <div className="animate-fade-in-up">
         <div className="flex justify-between items-end mb-10">
             <div>
@@ -170,11 +185,11 @@ const GeneralMedicineView = () => (
                     <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8">Clinical Timeline</p>
                     
                     <div className="space-y-12">
-                        {[
+                        {(events || [
                             { date: 'Oct 12', time: '14:30', event: 'Dental Extraction (Tooth 14)', dept: 'Dental', provider: 'Dr. Sarah' },
                             { date: 'Sep 28', time: '10:15', event: 'Refraction Exam (OD: -2.25)', dept: 'Ophthalmology', provider: 'Dr. Mike' },
                             { date: 'Sep 15', time: '09:00', event: 'General Consultation', dept: 'OPD', provider: 'Dr. Jane' }
-                        ].map((item, i) => (
+                        ]).map((item, i) => (
                             <div key={i} className="flex gap-8 group">
                                 <div className="text-right w-20 pt-1">
                                     <p className="text-xs font-black text-white">{item.date}</p>
@@ -201,12 +216,12 @@ const GeneralMedicineView = () => (
                 <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
                     <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8">Vital Statistics</p>
                     <div className="space-y-6">
-                        {[
+                        {(vitals || [
                             { label: 'Blood Pressure', value: '120/80', unit: 'mmHg', trend: 'Normal', color: 'text-emerald-400' },
                             { label: 'Heart Rate', value: '72', unit: 'BPM', trend: '+2', color: 'text-white' },
                             { label: 'Oxygen Saturation', value: '98%', unit: 'SpO2', trend: 'Normal', color: 'text-blue-400' },
                             { label: 'Body Temp', value: '36.8', unit: '°C', trend: '-0.2', color: 'text-white' }
-                        ].map((vital, i) => (
+                        ]).map((vital, i) => (
                             <div key={i} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all cursor-pointer">
                                 <div>
                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{vital.label}</p>

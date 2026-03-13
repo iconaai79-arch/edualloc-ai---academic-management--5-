@@ -100,7 +100,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -2407,6 +2407,29 @@ export interface HISDentalChart {
     createdBy?: string;
     institutionId: string;
     recordedAt: string;
+}
+
+export interface HISVitalStatistics {
+    id: string;
+    patientId: string;
+    label: string;
+    value: string;
+    unit: string;
+    trend: string;
+    color: string;
+    recordedAt: string;
+    institutionId: string;
+}
+
+export interface HISClinicalEvent {
+    id: string;
+    patientId: string;
+    date: string;
+    time: string;
+    event: string;
+    dept: string;
+    provider: string;
+    institutionId: string;
 }
 
 export interface HISEyePrescription {

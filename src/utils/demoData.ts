@@ -3,7 +3,7 @@ import type {
     AcademicYear, Semester, InventoryItem, Supplier, Visitor, 
     AllocationRequest, TimetableEntry, SecurityAlert, UserTask, Requisition,
     ScheduleProfile, HISStaff, HISPatient, HISWard, HISBed, HISAppointment,
-    HISStaffAttendance, HISFinancialRecord
+    HISStaffAttendance, HISFinancialRecord, HISVitalStatistics, HISClinicalEvent
 } from '../types';
 import { DEFAULT_SECONDARY_PROFILES, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 
@@ -114,6 +114,19 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         { id: `his_f1_${instId}`, type: 'Consultation', amount: 3500.00, date: todayStr, department: 'General OPD', paymentMethod: 'M-Pesa', institutionId: instId, createdAt: todayStr }
     ];
 
+    const hisVitals: HISVitalStatistics[] = [
+        { id: `his_v1_${instId}`, patientId: hisPatients[0].id, label: 'Blood Pressure', value: '120/80', unit: 'mmHg', trend: 'Normal', color: 'text-emerald-400', recordedAt: now.toISOString(), institutionId: instId },
+        { id: `his_v2_${instId}`, patientId: hisPatients[0].id, label: 'Heart Rate', value: '72', unit: 'BPM', trend: '+2', color: 'text-white', recordedAt: now.toISOString(), institutionId: instId },
+        { id: `his_v3_${instId}`, patientId: hisPatients[0].id, label: 'Oxygen Saturation', value: '98%', unit: 'SpO2', trend: 'Normal', color: 'text-blue-400', recordedAt: now.toISOString(), institutionId: instId },
+        { id: `his_v4_${instId}`, patientId: hisPatients[0].id, label: 'Body Temp', value: '36.8', unit: '°C', trend: '-0.2', color: 'text-white', recordedAt: now.toISOString(), institutionId: instId }
+    ];
+
+    const hisEvents: HISClinicalEvent[] = [
+        { id: `his_e1_${instId}`, patientId: hisPatients[0].id, date: 'Oct 12', time: '14:30', event: 'Dental Extraction (Tooth 14)', dept: 'Dental', provider: 'Dr. Sarah', institutionId: instId },
+        { id: `his_e2_${instId}`, patientId: hisPatients[0].id, date: 'Sep 28', time: '10:15', event: 'Refraction Exam (OD: -2.25)', dept: 'Ophthalmology', provider: 'Dr. Mike', institutionId: instId },
+        { id: `his_e3_${instId}`, patientId: hisPatients[0].id, date: 'Sep 15', time: '09:00', event: 'General Consultation', dept: 'OPD', provider: 'Dr. Jane', institutionId: instId }
+    ];
+
     return {
         departments: depts,
         buildings: [bldg],
@@ -136,6 +149,8 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         hisAppointments,
         hisAttendance,
         hisFinancials,
+        hisVitals,
+        hisEvents,
         institutionUpdates: {
             scheduleProfiles: DEFAULT_SECONDARY_PROFILES,
             timetableSettings: INITIAL_TIMETABLE_SETTINGS,

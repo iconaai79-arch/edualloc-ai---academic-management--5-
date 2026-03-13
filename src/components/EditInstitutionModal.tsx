@@ -144,6 +144,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option>International</option>
                       <option>Business</option>
                       <option>Broadcaster</option>
+                      <option>HIS</option>
                     </select>
                   </div>
                   {formData.institutionType === 'Business' && (

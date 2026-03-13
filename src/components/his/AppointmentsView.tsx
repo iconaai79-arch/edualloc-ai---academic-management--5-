@@ -18,26 +18,32 @@ import { apiService } from '../../services/apiService';
 interface AppointmentsViewProps {
     activeRole?: Role;
     userName?: string;
-    institutionId?: string; // Add institutionId to props
+    institutionId?: string;
+    demoAppointments?: HISAppointment[];
 }
 
-export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId }) => {
+export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, userName, institutionId, demoAppointments }) => {
     const isDoctor = activeRole === 'lecturer';
     const [searchTerm, setSearchTerm] = useState('');
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<HISAppointment | null>(null);
     const [notification, setNotification] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
     const [isLoading, setIsLoading] = useState(true);
-    const [appointments, setAppointments] = useState<HISAppointment[]>([]);
+    const [appointments, setAppointments] = useState<HISAppointment[]>(demoAppointments || []);
 
     const fetchAppointments = async () => {
         if (!institutionId) return;
         setIsLoading(true);
         try {
             const data = await apiService.fetchModuleRecords<HISAppointment>('his_appointments', institutionId);
-            setAppointments(data);
+            if (data && data.length > 0) {
+                setAppointments(data);
+            } else if (demoAppointments) {
+                setAppointments(demoAppointments);
+            }
         } catch (error) {
             console.error('Failed to fetch appointments:', error);
+            if (demoAppointments) setAppointments(demoAppointments);
         } finally {
             setIsLoading(false);
         }
@@ -200,7 +206,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{app.type}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border italic ${statusStyles[app.status]}`}>{app.status}</span>
+                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border italic ${(statusStyles as any)[app.status] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>{app.status}</span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 mt-6">
                                         <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl">

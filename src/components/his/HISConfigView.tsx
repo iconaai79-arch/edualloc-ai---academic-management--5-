@@ -6,11 +6,16 @@ import {
     PencilIcon,
     PlusIcon,
 } from '../icons/index';
+import { HISStaff } from '../../types';
 import { GlobeAltIcon, PhotoIcon } from './HealthIcons';
+
+interface HISConfigProps {
+    demoStaff?: HISStaff[];
+}
 
 type ConfigTab = 'branding' | 'staff' | 'clinic';
 
-export const HISConfigView: React.FC = () => {
+export const HISConfigView: React.FC<HISConfigProps> = ({ demoStaff }) => {
     const [activeTab, setActiveTab] = useState<ConfigTab>('branding');
     const [branding, setBranding] = useState({
         hospitalName: 'Quantum Health Medical Center',
@@ -108,16 +113,16 @@ export const HISConfigView: React.FC = () => {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {[
+                            {(demoStaff || [
                                 { name: 'Dr. John Smith', role: 'Doctor', specialty: 'General Surgeon', id: 'D001', photo: 'JS', color: 'bg-indigo-500' },
                                 { name: 'Jane Wilson', role: 'Nurse', specialty: 'ICU Specialist', id: 'N042', photo: 'JW', color: 'bg-emerald-500' },
                                 { name: 'Dr. Sarah Omondi', role: 'Doctor', specialty: 'Dentist', id: 'D015', photo: 'SO', color: 'bg-rose-500' }
-                            ].map((staff, i) => (
+                            ]).map((staff: any, i) => (
                                 <div key={i} className="bg-white dark:bg-slate-900/50 p-8 rounded-[3rem] border border-slate-200 dark:border-white/5 flex flex-col space-y-6 group hover:shadow-2xl transition-all relative overflow-hidden cursor-pointer">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/[0.03] blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-indigo-500/[0.06]"></div>
                                     <div className="flex items-center gap-5 relative z-10">
-                                        <div className={`w-16 h-16 ${staff.color} bg-opacity-10 dark:bg-opacity-20 rounded-[1.5rem] flex items-center justify-center text-current font-black text-lg tracking-tighter group-hover:rotate-6 transition-transform shadow-inner border border-white/10`}>
-                                            <span className={staff.color.replace('bg-', 'text-')}>{staff.photo}</span>
+                                        <div className={`w-16 h-16 ${staff.color || 'bg-indigo-500'} bg-opacity-10 dark:bg-opacity-20 rounded-[1.5rem] flex items-center justify-center text-current font-black text-lg tracking-tighter group-hover:rotate-6 transition-transform shadow-inner border border-white/10`}>
+                                            <span className={(staff.color || 'bg-indigo-500').replace('bg-', 'text-')}>{staff.photo || (staff.name ? staff.name.split(' ').map((n: string) => n[0]).join('') : '??')}</span>
                                         </div>
                                         <div className="flex-1">
                                             <p className="text-lg font-black italic tracking-tighter group-hover:text-indigo-600 transition-colors">{staff.name}</p>

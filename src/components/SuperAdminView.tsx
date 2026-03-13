@@ -1214,6 +1214,7 @@ Please change it after login.`;
                                                     <option value="Business">Business</option>
                                                     <option value="Broadcaster">Broadcaster</option>
                                                     <option value="Reseller">Reseller Agency</option>
+                                                    <option value="HIS">Health Information System (HIS)</option>
                                                 </select>
                                             </div>
                                             {newInstData.institutionType === 'Business' && (
