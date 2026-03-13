@@ -88,6 +88,7 @@ import { TimetableWizard } from './TimetableWizard';
 import { ParentView } from './ParentView';
 import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
+import { ExternalModuleView } from './ExternalModuleView';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -174,6 +175,11 @@ export interface SuperAdminViewProps {
     onUpdateTask?: (id: string, complete: boolean) => void;
     onDeleteTask?: (id: string) => void;
     onLogAction?: (action: string) => Promise<void>;
+    onGenerateDemoData?: () => void;
+    onClearDemoData?: () => void;
+    isGeneratingDemoData?: boolean;
+    demoDataGenerationProgress?: number;
+    demoDataGenerationMessage?: string;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
     onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
@@ -352,8 +358,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onDeleteCounty
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports'>('dashboard');
-    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals'>('list'); // Modified for Counties, Resellers & Business
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'external_module'>('dashboard');
+    const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links'>('list'); // Modified for Counties, Resellers & Business
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
     const [healthStatus, setHealthStatus] = useState<any>(null);
@@ -825,6 +831,7 @@ Please change it after login.`;
         { key: 'migration', label: 'System Build', icon: <CommandLineIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+        { key: 'external_module', label: 'External Portal', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
     ];
 
@@ -1150,6 +1157,12 @@ Please change it after login.`;
                                 className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'withdrawals' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Withdrawals
+                            </button>
+                            <button
+                                onClick={() => setInstitutionsSubTab('external_links')}
+                                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${institutionsSubTab === 'external_links' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                External Links
                             </button>
                         </div>
 
@@ -1717,6 +1730,16 @@ Please change it after login.`;
                                 </div>
                             </div>
                         )}
+
+                        {institutionsSubTab === 'external_links' && (
+                            <div className="animate-fade-in-up">
+                                <ExternalModuleView 
+                                    title="Institution Registry & Deployment Services"
+                                    url="https://registry.edualloc.com"
+                                    description="Manage cloud deployments, database migrations, and institutional infrastructure at scale."
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1871,6 +1894,16 @@ Please change it after login.`;
                     </div>
                 )}
 
+                {activeTab === 'external_module' && (
+                    <div className="animate-fade-in-up">
+                        <ExternalModuleView
+                            title="EduAI Advanced Analytics & Support Portal"
+                            url="https://support.edualloc.com"
+                            description="Independent portal for system-wide analytics, support tickets, and advanced platform configuration."
+                        />
+                    </div>
+                )}
+
                 {activeTab === 'user_activity' && (
                     <div className="animate-fade-in-up">
                         <ActivityLogView activityLog={activityLog || []} />
@@ -2005,6 +2038,11 @@ Please change it after login.`;
                                                 await props.onUpdateCompanyDetails({ ...props.companyDetails!, databaseConfig: newDbConfig });
                                             }
                                         }}
+                                        onGenerateDemoData={props.onGenerateDemoData}
+                                        onClearDemoData={props.onClearDemoData}
+                                        isGeneratingDemoData={props.isGeneratingDemoData}
+                                        demoDataGenerationProgress={props.demoDataGenerationProgress}
+                                        demoDataGenerationMessage={props.demoDataGenerationMessage}
                                     />
                                 </div>
                             )}

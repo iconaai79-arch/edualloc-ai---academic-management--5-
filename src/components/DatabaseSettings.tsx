@@ -7,16 +7,30 @@ import {
     XIcon,
     InformationCircleIcon,
     LockClosedIcon,
-    CommandLineIcon
+    CommandLineIcon,
+    SparklesIcon
 } from './icons/index';
 import { apiService, initSupabaseClient } from '../services/apiService';
 
 interface DatabaseSettingsProps {
     dbConfig: DatabaseConfig;
     onSave: (config: DatabaseConfig) => void;
+    onGenerateDemoData?: () => void;
+    onClearDemoData?: () => void;
+    isGeneratingDemoData?: boolean;
+    demoDataGenerationProgress?: number;
+    demoDataGenerationMessage?: string;
 }
 
-export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, onSave }) => {
+export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ 
+    dbConfig, 
+    onSave,
+    onGenerateDemoData,
+    onClearDemoData,
+    isGeneratingDemoData,
+    demoDataGenerationProgress,
+    demoDataGenerationMessage
+}) => {
     const [config, setConfig] = useState<DatabaseConfig>(dbConfig);
     const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error' | 'setup_required'>('idle');
     const [testMessage, setTestMessage] = useState('');
@@ -151,6 +165,58 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({ dbConfig, on
                     </div>
                 </form>
                 {testMessage && <div className={`mt-8 p-5 rounded-[1.5rem] flex items-start gap-4 border-2 animate-fade-in ${testStatus === 'error' ? 'bg-red-50 border-red-100 text-red-700' : testStatus === 'setup_required' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-green-50 border-green-100 text-green-700'}`}><InformationCircleIcon className="w-6 h-6 shrink-0" /><p className="text-xs font-bold leading-relaxed">{testMessage}</p></div>}
+            </div>
+
+            {/* Demo Data Management for Super Admin */}
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                        <ArrowPathIcon className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-black uppercase tracking-tight">Institutional Demo Data</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Global Data Simulation & Reset Tools</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 pt-4">
+                    <button
+                        onClick={onGenerateDemoData}
+                        disabled={isGeneratingDemoData}
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all flex items-center gap-2"
+                    >
+                        {isGeneratingDemoData ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
+                        {isGeneratingDemoData ? 'Generating...' : 'Generate Platform Demo Data'}
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm('CRITICAL ACTION: This will delete ALL HIS module data. This cannot be undone. Proceed?')) {
+                                onClearDemoData?.();
+                            }
+                        }}
+                        disabled={isGeneratingDemoData}
+                        className="bg-white hover:bg-red-50 text-red-600 border border-red-100 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                    >
+                        <XIcon className="w-4 h-4" /> Clear HIS Demo Data
+                    </button>
+                </div>
+
+                {isGeneratingDemoData && (
+                    <div className="mt-8 space-y-4 animate-fade-in">
+                        <div className="flex justify-between items-center px-1">
+                            <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-2">
+                                <ArrowPathIcon className="w-3 h-3 animate-spin" /> {demoDataGenerationMessage || 'Processing Registry...'}
+                            </span>
+                            <span className="text-[10px] font-black text-slate-400">{demoDataGenerationProgress}%</span>
+                        </div>
+                        <div className="h-3 w-full bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-50 dark:border-slate-800">
+                            <div
+                                className="h-full bg-indigo-500 transition-all duration-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                                style={{ width: `${demoDataGenerationProgress}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

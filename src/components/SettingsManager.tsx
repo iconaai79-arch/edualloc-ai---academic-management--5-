@@ -120,13 +120,10 @@ interface SettingsManagerProps {
     onUpdateFooterImage?: (footerUrl: string | null) => void;
     onGenerateDemoData?: () => void;
     onClearDemoData?: () => void;
-    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
-    onAddExtensionRequest?: (reason: string) => void;
-    onLogAction?: (action: string) => Promise<void>;
-    letterheadConfig: LetterheadConfig;
     isGeneratingDemoData?: boolean;
     demoDataGenerationProgress?: number;
     demoDataGenerationMessage?: string;
+    onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onSaveBiometricConfig?: (config: BiometricConfig) => void;
     voteHeads?: VoteHead[];
     onUpdateVoteHeads?: (heads: VoteHead[]) => void;
@@ -725,6 +722,61 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         }
                                     }}
                                 />
+
+                                {/* Data Management Section */}
+                                {(props.onGenerateDemoData || props.onClearDemoData) && (
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
+                                                <SparklesIcon className="w-5 h-5 text-amber-600" />
+                                            </div>
+                                            <h3 className="text-lg font-black uppercase tracking-tighter">Data Management</h3>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                                <h4 className="text-sm font-bold mb-2">Generate Demo Data</h4>
+                                                <p className="text-xs text-slate-500 mb-4">Populate the current institution with sample records (staff, patients, students, etc.) for testing purposes.</p>
+                                                <button
+                                                    onClick={props.onGenerateDemoData}
+                                                    disabled={props.isGeneratingDemoData}
+                                                    className="btn-secondary w-full h-10 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-amber-50 hover:border-amber-200 transition-all"
+                                                >
+                                                    <SparklesIcon className="w-4 h-4 text-amber-600" />
+                                                    {props.isGeneratingDemoData ? 'Generating...' : 'Seed Sample Data'}
+                                                </button>
+                                            </div>
+
+                                            <div className="p-6 bg-red-50/30 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900/30">
+                                                <h4 className="text-sm font-bold text-red-600 mb-2">Danger Zone: Reset Registry</h4>
+                                                <p className="text-xs text-slate-500 mb-4">Permanently erase all institutional records including HIS logs, academic data, and financial history.</p>
+                                                <button
+                                                    onClick={props.onClearDemoData}
+                                                    disabled={props.isGeneratingDemoData}
+                                                    className="w-full h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                    {props.isGeneratingDemoData ? 'Clearing...' : 'Wipe Institutional Data'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {props.isGeneratingDemoData && (
+                                            <div className="mt-8 space-y-3 animate-fade-in">
+                                                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                    <span>{props.demoDataGenerationMessage || 'Processing...'}</span>
+                                                    <span>{props.demoDataGenerationProgress}%</span>
+                                                </div>
+                                                <div className="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-indigo-600 transition-all duration-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]"
+                                                        style={{ width: `${props.demoDataGenerationProgress}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -1168,6 +1220,59 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="mt-8 flex justify-end">
                                     <button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Synchronize Policies</button>
                                 </div>
+
+                                {/* Data Management for Admins */}
+                                {(props.onGenerateDemoData || props.onClearDemoData) && (
+                                    <div className="mt-10 pt-10 border-t border-slate-100 dark:border-slate-800 space-y-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
+                                                <SparklesIcon className="w-5 h-5 text-amber-600" />
+                                            </div>
+                                            <h4 className="font-bold text-lg uppercase tracking-tight">Data & Sample Management</h4>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                <p className="text-xs text-slate-500 mb-4 font-bold uppercase tracking-tight italic">Populate your workspace with sample patients, staff, and academic records to explore system features.</p>
+                                                <button
+                                                    onClick={props.onGenerateDemoData}
+                                                    disabled={props.isGeneratingDemoData}
+                                                    className="btn-secondary w-full h-11 flex items-center justify-center gap-2 text-xs font-bold"
+                                                >
+                                                    <SparklesIcon className="w-5 h-5 text-amber-500" />
+                                                    {props.isGeneratingDemoData ? 'Populating...' : 'Generate Sample Data'}
+                                                </button>
+                                            </div>
+
+                                            <div className="bg-red-50/30 dark:bg-red-900/10 p-6 rounded-2xl border border-red-100 dark:border-red-900/30">
+                                                <p className="text-xs text-slate-500 mb-4 font-bold uppercase tracking-tight italic">Clear all demo data to start fresh. This action is permanent and cannot be undone.</p>
+                                                <button
+                                                    onClick={props.onClearDemoData}
+                                                    disabled={props.isGeneratingDemoData}
+                                                    className="w-full h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md"
+                                                >
+                                                    <XIcon className="w-5 h-5" />
+                                                    {props.isGeneratingDemoData ? 'Clearing...' : 'Clear All Data'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {props.isGeneratingDemoData && (
+                                            <div className="mt-6 space-y-3 p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-2xl animate-fade-in border border-indigo-100/50">
+                                                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                                                    <span>{props.demoDataGenerationMessage}</span>
+                                                    <span>{props.demoDataGenerationProgress}%</span>
+                                                </div>
+                                                <div className="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-indigo-600 transition-all duration-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]"
+                                                        style={{ width: `${props.demoDataGenerationProgress}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                         {generalSubTab === 'location' && <LocationSettings institution={props.currentInstitution} onSave={(id: string, data: any) => props.onUpdateInstitution && props.onUpdateInstitution(id, data)} />}

@@ -1328,5 +1328,63 @@ export const apiService = {
     // Transport Module
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
-    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); }
+    async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); },
+    async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
+        if (!_supabase) {
+            // Local Storage Logic
+            const tables = [
+                'departments', 'buildings', 'rooms', 'academic_levels', 'academic_years', 'semesters',
+                'users', 'subjects', 'courses', 'allocation_requests', 'timetable_entries', 'inventory',
+                'visitors', 'security_alerts', 'his_staff', 'his_patients', 'his_wards', 'his_beds',
+                'his_appointments', 'his_staff_attendance', 'his_financial_records', 'his_vital_statistics',
+                'his_clinical_events', 'tasks', 'activity_logs', 'requisitions', 'student_attendances',
+                'assessment_marks', 'assessments', 'student_absence_requests', 'absence_requests',
+                'enrollment_requests', 'leave_out_requests', 'mpesa_transactions', 'receipts', 'invoices',
+                'exam_timetable_entries', 'submissions', 'assignments', 'stock_transactions', 'vehicles', 
+                'transport_onboarding', 'vehicle_logs', 'his_admissions', 'his_dental_charts', 
+                'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts'
+            ];
+
+            tables.forEach(table => {
+                let records = ls.get(table);
+                if (table === 'users') {
+                    records = records.filter((r: any) => r.institution_id === institutionId && r.id === currentUserId);
+                } else {
+                    records = records.filter((r: any) => r.institution_id !== institutionId && r.target_institution_id !== institutionId);
+                }
+                ls.set(table, records);
+            });
+            return;
+        }
+
+        // Supabase Logic - Order matters for foreign keys
+        const tables = [
+            'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'student_attendances',
+            'assessment_marks', 'assessments', 'submissions', 'assignments', 'student_absence_requests',
+            'absence_requests', 'enrollment_requests', 'leave_out_requests', 'time_off_requests',
+            'tasks', 'activity_logs', 'security_alerts', 'visitors', 'requisitions', 'stock_transactions',
+            'inventory', 'courses', 'subjects', 'semesters', 'academic_years', 'academic_levels',
+            'rooms', 'buildings', 'departments', 'his_medication_logs', 'his_clinical_events', 
+            'his_vital_statistics', 'his_financial_records', 'his_staff_attendance', 'his_appointments', 
+            'his_admissions', 'his_beds', 'his_wards', 'his_patients', 'his_staff', 'his_dental_charts', 
+            'his_eye_prescriptions', 'his_broadcasts', 'vehicles', 'transport_onboarding', 'vehicle_logs'
+        ];
+
+        for (const table of tables) {
+            try {
+                // Determine filter column
+                const filterCol = (table === 'county_inventory') ? 'target_institution_id' : 'institution_id';
+                await _supabase.from(table).delete().eq(filterCol, institutionId);
+            } catch (e) {
+                console.error(`Failed to clear table ${table}:`, e);
+            }
+        }
+
+        // Handle users separately (don't delete current user)
+        try {
+            await _supabase.from('users').delete().eq('institution_id', institutionId).neq('id', currentUserId);
+        } catch (e) {
+            console.error("Failed to clear users:", e);
+        }
+    }
 };

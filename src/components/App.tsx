@@ -39,6 +39,7 @@ import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
+import { generateInstitutionalDemoData } from '../utils/demoData';
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
     INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
@@ -1413,6 +1414,105 @@ export const App: React.FC = () => {
         }
     }, [currentUser, activeInstitution, studentAttendances, loadData, users, generatedTimetable, subjects, companyDetails.emailConfig]);
 
+    const handleGenerateDemoData = useCallback(async () => {
+        if (!currentUser || !activeInstitution) return;
+        
+        setIsGeneratingDemoData(true);
+        setDemoDataGenerationMessage("Preparing to generate demo data...");
+        setDemoDataGenerationProgress(5);
+        
+        try {
+            const demoData = generateInstitutionalDemoData(activeInstitution.id, currentUser.id);
+            
+            // Map demoData keys to table names
+            const tableMap: Record<string, string> = {
+                departments: 'departments',
+                buildings: 'buildings',
+                rooms: 'rooms',
+                academicLevels: 'academic_levels',
+                academicYears: 'academic_years',
+                semesters: 'semesters',
+                users: 'users',
+                subjects: 'subjects',
+                courses: 'courses',
+                allocations: 'allocation_requests',
+                timetable: 'timetable_entries',
+                inventory: 'inventory',
+                visitors: 'visitors',
+                securityAlerts: 'security_alerts',
+                hisStaff: 'his_staff',
+                hisPatients: 'his_patients',
+                hisWards: 'his_wards',
+                hisBeds: 'his_beds',
+                hisAppointments: 'his_appointments',
+                hisAttendance: 'his_staff_attendance',
+                hisFinancials: 'his_financial_records',
+                hisVitals: 'his_vital_statistics',
+                hisEvents: 'his_clinical_events'
+            };
+
+            const dataKeys = Object.keys(demoData).filter(k => k !== 'institutionUpdates');
+            let completed = 0;
+            
+            for (const key of dataKeys) {
+                const records = demoData[key as keyof typeof demoData];
+                const tableName = tableMap[key] || key;
+                
+                if (Array.isArray(records) && records.length > 0) {
+                    setDemoDataGenerationMessage(`Populating ${tableName}...`);
+                    for (const record of records) {
+                        await apiService.saveModuleRecord(tableName, record);
+                    }
+                }
+                completed++;
+                setDemoDataGenerationProgress(5 + Math.floor((completed / dataKeys.length) * 85));
+            }
+            
+            if (demoData.institutionUpdates) {
+                await onUpdateInstitution(activeInstitution.id, demoData.institutionUpdates);
+            }
+            
+            setDemoDataGenerationProgress(100);
+            setDemoDataGenerationMessage("Demo data generated successfully.");
+            await loadData();
+            alert("Institutional demo data has been generated successfully.");
+        } catch (error) {
+            console.error("Demo data generation failed:", error);
+            alert("Failed to generate demo data.");
+        } finally {
+            setIsGeneratingDemoData(false);
+            setDemoDataGenerationProgress(0);
+            setDemoDataGenerationMessage("");
+        }
+    }, [currentUser, activeInstitution, onUpdateInstitution, loadData]);
+
+    const handleClearDemoData = useCallback(async () => {
+        if (!currentUser || !activeInstitution) return;
+        
+        const confirmed = window.confirm("Are you sure you want to clear all data for this institution? Your account will be preserved, but all other data will be permanently removed.");
+        if (!confirmed) return;
+
+        setIsGeneratingDemoData(true);
+        setDemoDataGenerationMessage("Clearing institutional data...");
+        setDemoDataGenerationProgress(10);
+
+        try {
+            await apiService.clearInstitutionalData(activeInstitution.id, currentUser.id);
+            setDemoDataGenerationProgress(100);
+            setDemoDataGenerationMessage("Data cleared successfully.");
+            
+            await loadData();
+            alert("All institutional data has been cleared.");
+        } catch (error) {
+            console.error("Failed to clear demo data:", error);
+            alert("Failed to clear data.");
+        } finally {
+            setIsGeneratingDemoData(false);
+            setDemoDataGenerationProgress(0);
+            setDemoDataGenerationMessage("");
+        }
+    }, [currentUser, activeInstitution, loadData]);
+
     const handleAddTimeOffRequest = useCallback(async (userId: string, data: any) => {
         try {
             const req: TimeOffRequest = {
@@ -1900,7 +2000,7 @@ export const App: React.FC = () => {
                                     onUpdateStudentAbsenceRequestStatus={() => { }}
                                     isTimetableGenerating={false}
                                     timetableGenerationProgress={0}
-                                    demoDataGenerationMessage=""
+                                    timetableGenerationMessage={timetableGenerationMessage}
                                     timetableGenerationEta={null}
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
@@ -1913,9 +2013,11 @@ export const App: React.FC = () => {
                                     assessments={assessments}
                                     assessmentMarks={assessmentMarks}
                                     contracts={contracts}
-                                    isGeneratingDemoData={false}
-                                    demoDataGenerationProgress={0}
-                                    timetableGenerationMessage=""
+                                    isGeneratingDemoData={isGeneratingDemoData}
+                                    demoDataGenerationProgress={demoDataGenerationProgress}
+                                    demoDataGenerationMessage={demoDataGenerationMessage}
+                                    onGenerateDemoData={handleGenerateDemoData}
+                                    onClearDemoData={handleClearDemoData}
                                     examTimetable={examTimetable}
                                     onManualInvoice={(instId: string, items: InvoiceItem[], total: number, due: string) => { }}
                                     onUpdateRequestStatus={(id, status) => apiService.updateAllocationStatus(id, status)}
@@ -2607,11 +2709,11 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     contracts={contracts}
-                                    onGenerateDemoData={() => { }}
-                                    onClearDemoData={() => { }}
-                                    isGeneratingDemoData={false}
-                                    demoDataGenerationProgress={0}
-                                    demoDataGenerationMessage=""
+                                    onGenerateDemoData={handleGenerateDemoData}
+                                    onClearDemoData={handleClearDemoData}
+                                    isGeneratingDemoData={isGeneratingDemoData}
+                                    demoDataGenerationProgress={demoDataGenerationProgress}
+                                    demoDataGenerationMessage={demoDataGenerationMessage}
                                     examTimetable={examTimetable}
                                     onSwitchPerspective={(role) => setImpersonatedRole(role)}
                                     isImpersonating={!!impersonatedRole}

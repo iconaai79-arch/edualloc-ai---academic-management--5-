@@ -153,6 +153,11 @@ export interface AdminViewProps {
     onUpdateTask?: (id: string, complete: boolean) => void;
     onDeleteTask?: (id: string) => void;
     onLogAction?: (action: string) => Promise<void>;
+    onGenerateDemoData?: () => void;
+    onClearDemoData?: () => void;
+    isGeneratingDemoData?: boolean;
+    demoDataGenerationProgress?: number;
+    demoDataGenerationMessage?: string;
     onAddTransaction?: (data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]) => Promise<TransactionStatus>;
     onAddExtensionRequest?: (reason: string) => void;
     onSendBulkCredentials?: (users: User[], method: 'email' | 'sms') => Promise<{ success_count: number; fail_count: number }>;
