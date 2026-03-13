@@ -1078,7 +1078,7 @@ export const App: React.FC = () => {
 
 
     const onLoginAsAdmin = (institutionId: string, initialRole?: Role | null) => {
-        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'reseller'];
+        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller'];
         let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
         if (!admin) {
@@ -1844,7 +1844,7 @@ export const App: React.FC = () => {
                             isHealthSystemOpen={isHealthSystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
-                            {isHealthSystemOpen ? (
+                            {(isHealthSystemOpen || activeRole === 'his_admin') ? (
                                 <HealthCoreView />
                             ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView

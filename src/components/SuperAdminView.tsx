@@ -888,6 +888,7 @@ Please change it after login.`;
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
+        { role: 'his_admin', label: 'Health System', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
         const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(selectedTenantForPerspective?.institutionType || '');
