@@ -891,7 +891,7 @@ Please change it after login.`;
         { role: 'his_admin', label: 'Health System', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
-        const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(selectedTenantForPerspective?.institutionType || '');
+        const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'HIS', 'TVET', 'Kindergarten'].includes(selectedTenantForPerspective?.institutionType || '');
         if (isEdu) {
             return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
         }

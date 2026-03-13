@@ -275,7 +275,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' }
     ].filter(opt => {
-        const isEdu = ['Primary', 'Secondary', 'University', 'Institute'].includes(selectedTenantForPerspective?.institutionType || '');
+        const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'HIS', 'TVET', 'Kindergarten'].includes(selectedTenantForPerspective?.institutionType || '');
         if (isEdu) {
             return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
         }

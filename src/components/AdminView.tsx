@@ -285,7 +285,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International'].includes(type || '');
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'HIS', 'TVET', 'Kindergarten'].includes(type || '');
     }, [props.currentInstitution]);
 
     const isSchool = useMemo(() => {
