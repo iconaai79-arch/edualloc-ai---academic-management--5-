@@ -3348,7 +3348,7 @@ Please change it after login.`;
             {/* Perspective Switching Modal */}
             {isPerspectiveModalOpen && selectedTenantForPerspective && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsPerspectiveModalOpen(false)}>
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-700 animate-scale-in" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 dark:border-slate-700 animate-scale-in" onClick={e => e.stopPropagation()}>
                         <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
                             <div>
                                 <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800 dark:text-white">Perspective Switcher</h3>
@@ -3358,7 +3358,7 @@ Please change it after login.`;
                                 <XIcon className="w-6 h-6 text-slate-400" />
                             </button>
                         </div>
-                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
                             {perspectiveOptions.map(opt => (
                                 <button
                                     key={opt.role}
@@ -3366,12 +3366,12 @@ Please change it after login.`;
                                         onLoginAsAdmin(selectedTenantForPerspective.id, opt.role as Role);
                                         setIsPerspectiveModalOpen(false);
                                     }}
-                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
+                                    className={`flex flex-col items-center text-center gap-3 p-4 rounded-2xl border-2 border-transparent transition-all group hover:border-indigo-500 hover:shadow-lg ${opt.color}`}
                                 >
-                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm transition-transform group-hover:scale-110">
-                                        {opt.icon}
+                                    <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-sm transition-transform group-hover:scale-110">
+                                        {React.cloneElement(opt.icon as React.ReactElement, { className: 'w-5 h-5' })}
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
+                                    <span className="font-bold text-[10px] uppercase tracking-tight leading-tight">{opt.label}</span>
                                 </button>
                             ))}
                         </div>
