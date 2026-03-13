@@ -16,7 +16,7 @@ import {
     Cog8ToothIcon as SettingsIcon,
     ChartBarIcon
 } from '../icons/index';
-import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon } from './HealthIcons';
+import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon, ClockIcon } from './HealthIcons';
 
 import { InpatientView } from './InpatientView';
 import { DentalView } from './DentalView';
@@ -26,14 +26,16 @@ import { HISBroadcasterView } from './HISBroadcasterView';
 import { AppointmentsView } from './AppointmentsView';
 import { HISConfigView } from './HISConfigView';
 import { HISReportsView } from './HISReportsView';
+import { StaffAttendanceView } from './StaffAttendanceView';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance';
 
 interface HealthCoreProps {
     activeRole?: Role;
+    userName?: string;
 }
 
-export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole }) => {
+export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
 
     const renderModule = () => {
@@ -51,11 +53,13 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole }) => {
             case 'broadcaster':
                 return <HISBroadcasterView />;
             case 'appointments':
-                return <AppointmentsView />;
+                return <AppointmentsView activeRole={activeRole} userName={userName} />;
             case 'config':
                 return <HISConfigView />;
             case 'reports':
                 return <HISReportsView activeRole={activeRole} />;
+            case 'attendance':
+                return <StaffAttendanceView userName={userName} />;
             default:
                 return <GeneralMedicineView />;
         }
@@ -84,6 +88,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole }) => {
                         { id: 'billing', label: 'Billing', icon: CreditCardIcon },
                         { id: 'broadcaster', label: 'Signal', icon: BellIcon },
                         { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
+                        { id: 'attendance', label: 'Presence', icon: ClockIcon },
                         { id: 'config', label: 'Nexus', icon: SettingsIcon },
                         { id: 'reports', label: 'Intelligence', icon: ChartBarIcon },
                     ].map((mod) => (
