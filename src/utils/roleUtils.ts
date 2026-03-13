@@ -16,6 +16,8 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     if (subType.includes('property')) return 'property_admin';
     if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop')) return 'retail_agent';
 
+    if (type === 'HIS') return 'his_admin';
+
     // Default for Schools
     return 'head_teacher';
 };
@@ -54,6 +56,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['admin', 'hod', 'tto', 'lecturer', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver'];
     }
 
+    // HIS / Health Information System
+    if (type === 'HIS') {
+        return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store'];
+    }
+
     // Fallback/Generic
     return ['admin', 'staff', 'customer'] as any[];
 };
@@ -85,6 +92,14 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'dos': case 'academics_officer': return 'DOS / Academics';
             case 'teacher': case 'lecturer': return 'Teacher';
             case 'boarding_master': return 'Boarding Manager';
+        }
+    }
+
+    const isHIS = type === 'HIS';
+    if (isHIS) {
+        switch (role) {
+            case 'his_admin': return 'Hospital Administrator';
+            case 'academics_officer': return 'Medical Record Officer';
         }
     }
 

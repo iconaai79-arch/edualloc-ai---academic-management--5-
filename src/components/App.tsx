@@ -1754,7 +1754,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent'].includes(activeRole || '');
+    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -1844,7 +1844,7 @@ export const App: React.FC = () => {
                             isHealthSystemOpen={isHealthSystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
-                            {(isHealthSystemOpen || activeRole === 'his_admin') ? (
+                            {(isHealthSystemOpen || activeRole === 'his_admin' || activeInstitution?.institutionType === 'HIS') ? (
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 
                                     userName={currentUser?.name} 
