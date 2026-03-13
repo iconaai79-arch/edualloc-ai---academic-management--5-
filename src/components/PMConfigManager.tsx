@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import type { PMSettings, Institution } from '../types';
 import { apiService } from '../services/apiService';
-import { 
-    GridIcon, 
-    BellIcon, 
-    CheckCircleIcon, 
+import {
+    GridIcon,
+    BellIcon,
+    CheckCircleIcon,
     ArrowPathIcon,
     SparklesIcon,
     PhoneIcon,
@@ -82,11 +82,11 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
             setSaving(false);
         }
     };
- 
+
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !settings) return;
- 
+
         setUploadingLogo(true);
         setError(null);
         try {
@@ -121,8 +121,8 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                         <p className="text-sm text-slate-500 font-medium uppercase tracking-wider text-[10px]">Manage branding and automated reminder settings</p>
                     </div>
                 </div>
-                <button 
-                    onClick={handleSave} 
+                <button
+                    onClick={handleSave}
                     disabled={saving}
                     className="btn-primary flex items-center gap-2"
                 >
@@ -144,14 +144,14 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                         <SparklesIcon className="w-5 h-5 text-[var(--color-primary)]" />
                         <h3 className="font-bold">Branding Configuration</h3>
                     </div>
-                    
+
                     <div className="space-y-3">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Display Name</label>
-                            <input 
-                                type="text" 
-                                value={settings.branding?.companyName || ''} 
-                                onChange={e => setSettings({...settings, branding: {...settings.branding, companyName: e.target.value}})}
+                            <input
+                                type="text"
+                                value={settings.branding?.companyName || ''}
+                                onChange={e => setSettings({ ...settings, branding: { ...settings.branding, companyName: e.target.value } })}
                                 className="form-input w-full"
                                 placeholder="e.g. Acme Properties Ltd"
                             />
@@ -159,15 +159,15 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Primary Brand Color</label>
                             <div className="flex gap-2">
-                                <input 
-                                    type="color" 
-                                    value={settings.branding?.primaryColor || '#4f46e5'} 
-                                    onChange={e => setSettings({...settings, branding: {...settings.branding, primaryColor: e.target.value}})}
+                                <input
+                                    type="color"
+                                    value={settings.branding?.primaryColor || '#4f46e5'}
+                                    onChange={e => setSettings({ ...settings, branding: { ...settings.branding, primaryColor: e.target.value } })}
                                     className="h-10 w-10 p-0 border-none rounded cursor-pointer"
                                 />
-                                <input 
-                                    type="text" 
-                                    value={settings.branding?.primaryColor || ''} 
+                                <input
+                                    type="text"
+                                    value={settings.branding?.primaryColor || ''}
                                     disabled
                                     className="form-input flex-grow bg-slate-50 capitalize"
                                 />
@@ -178,13 +178,13 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                             <div className="flex items-center gap-4 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
                                 {settings.branding?.logoUrl ? (
                                     <div className="relative group">
-                                        <img 
-                                            src={settings.branding.logoUrl} 
-                                            alt="Logo Preview" 
+                                        <img
+                                            src={settings.branding.logoUrl}
+                                            alt="Logo Preview"
                                             className="w-16 h-16 object-contain rounded-lg bg-white p-1 border border-slate-200"
                                         />
-                                        <button 
-                                            onClick={() => setSettings({...settings, branding: {...settings.branding!, logoUrl: ''}})}
+                                        <button
+                                            onClick={() => setSettings({ ...settings, branding: { ...settings.branding!, logoUrl: '' } })}
                                             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <XIcon className="w-3 h-3" />
@@ -196,15 +196,15 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                     </div>
                                 )}
                                 <div className="flex-grow">
-                                    <input 
-                                        type="file" 
-                                        id="logo-upload" 
-                                        className="hidden" 
+                                    <input
+                                        type="file"
+                                        id="logo-upload"
+                                        className="hidden"
                                         accept="image/*"
                                         onChange={handleLogoUpload}
                                     />
-                                    <label 
-                                        htmlFor="logo-upload" 
+                                    <label
+                                        htmlFor="logo-upload"
                                         className="btn-secondary py-2 px-4 cursor-pointer inline-flex items-center gap-2 text-sm"
                                     >
                                         {uploadingLogo ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <UploadIcon className="w-4 h-4" />}
@@ -218,9 +218,9 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-1">
                                 <MapPinIcon className="w-3 h-3" /> Statement Footer Text
                             </label>
-                            <textarea 
-                                value={settings.branding?.footerText || ''} 
-                                onChange={e => setSettings({...settings, branding: {...settings.branding, footerText: e.target.value}})}
+                            <textarea
+                                value={settings.branding?.footerText || ''}
+                                onChange={e => setSettings({ ...settings, branding: { ...settings.branding, footerText: e.target.value } })}
                                 className="form-input w-full h-20"
                                 placeholder="e.g. Thank you for choosing Acme Properties. For inquiries, call +254 700 000 000."
                             />
@@ -242,10 +242,10 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                 <p className="text-xs text-slate-500">Automatically notify tenants when rent is due.</p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    checked={settings.rentReminders?.enabled || false} 
-                                    onChange={e => setSettings({...settings, rentReminders: {...settings.rentReminders!, enabled: e.target.checked}})}
+                                <input
+                                    type="checkbox"
+                                    checked={settings.rentReminders?.enabled || false}
+                                    onChange={e => setSettings({ ...settings, rentReminders: { ...settings.rentReminders!, enabled: e.target.checked } })}
                                     className="sr-only peer"
                                 />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-[var(--color-primary)]"></div>
@@ -256,20 +256,20 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Days Before Due</label>
-                                    <input 
-                                        type="number" 
-                                        value={settings.rentReminders?.beforeDueDays || 3} 
-                                        onChange={e => setSettings({...settings, rentReminders: {...settings.rentReminders!, beforeDueDays: parseInt(e.target.value)}})}
+                                    <input
+                                        type="number"
+                                        value={settings.rentReminders?.beforeDueDays || 3}
+                                        onChange={e => setSettings({ ...settings, rentReminders: { ...settings.rentReminders!, beforeDueDays: parseInt(e.target.value) } })}
                                         className="form-input w-full"
                                         min="0"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Days After Due</label>
-                                    <input 
-                                        type="number" 
-                                        value={settings.rentReminders?.afterDueDays || 1} 
-                                        onChange={e => setSettings({...settings, rentReminders: {...settings.rentReminders!, afterDueDays: parseInt(e.target.value)}})}
+                                    <input
+                                        type="number"
+                                        value={settings.rentReminders?.afterDueDays || 1}
+                                        onChange={e => setSettings({ ...settings, rentReminders: { ...settings.rentReminders!, afterDueDays: parseInt(e.target.value) } })}
                                         className="form-input w-full"
                                         min="0"
                                     />
@@ -279,9 +279,9 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase mb-1">
                                     <PencilIcon className="w-3 h-3" /> Message Template
                                 </label>
-                                <textarea 
-                                    value={settings.rentReminders?.template || ''} 
-                                    onChange={e => setSettings({...settings, rentReminders: {...settings.rentReminders!, template: e.target.value}})}
+                                <textarea
+                                    value={settings.rentReminders?.template || ''}
+                                    onChange={e => setSettings({ ...settings, rentReminders: { ...settings.rentReminders!, template: e.target.value } })}
                                     className="form-input w-full h-32"
                                     placeholder="Use {month} and {due_date} as placeholders."
                                 />

@@ -3,7 +3,7 @@ import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName } from '../utils/roleUtils';
-import { ChevronDownIcon, ArrowRightOnRectangleIcon, PencilIcon, ClockIcon } from './icons/index';
+import { ChevronDownIcon, ArrowRightOnRectangleIcon, PencilIcon, ClockIcon, SparklesIcon } from './icons/index';
 
 interface HeaderProps {
     currentUser: User | null;
@@ -20,6 +20,8 @@ interface HeaderProps {
     activeRole?: Role;
     onSwitchRole?: (role: Role) => void;
     onExitPerspective?: () => void;
+    onToggleHealthSystem?: () => void;
+    isHealthSystemOpen?: boolean;
 }
 
 const formatRoleName = (role?: Role, institution?: Institution | null): string => {
@@ -62,7 +64,7 @@ const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
     );
 };
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole, onExitPerspective }) => {
+export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, onToggleHealthSystem, isHealthSystemOpen }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -164,6 +166,18 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                                 <TrialTimer trialEndsAt={currentInstitution.trialEndsAt} />
                             </div>
                         )}
+
+                        <button
+                            onClick={onToggleHealthSystem}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm active:scale-95 ${
+                                isHealthSystemOpen 
+                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20' 
+                                : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100'
+                            }`}
+                        >
+                            <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
+                            {isHealthSystemOpen ? 'Core ERP' : 'Health System'}
+                        </button>
 
                         <NotificationBell notifications={notifications} onMarkAsRead={onMarkAsRead} />
 

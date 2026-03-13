@@ -29,6 +29,7 @@ import { PropertyManagementView } from './PropertyManagementView';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
+import { HealthCoreView } from './his/HealthCoreView';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
 
@@ -308,6 +309,7 @@ export const App: React.FC = () => {
     });
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
+    const [isHealthSystemOpen, setIsHealthSystemOpen] = useState(false);
     const [counties, setCounties] = useState<County[]>([]);
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(INITIAL_COMPANY_DETAILS);
     const [activityLog, setActivityLog] = useState<ActivityLog[]>([]);
@@ -1838,9 +1840,13 @@ export const App: React.FC = () => {
                             activeRole={activeRole as Role}
                             onSwitchRole={(r) => setSelectedRole(r)}
                             onExitPerspective={impersonatedRole ? () => setImpersonatedRole(null) : undefined}
+                            onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
+                            isHealthSystemOpen={isHealthSystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1920px]' : 'max-w-7xl'}`}>
-                            {activeRole === 'super_admin' ? (
+                            {isHealthSystemOpen ? (
+                                <HealthCoreView />
+                            ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView
                                     currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }} onAddInstitution={async (d) => { const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, status: 'active' } as any, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
 

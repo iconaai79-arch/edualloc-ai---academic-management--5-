@@ -30,6 +30,20 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [inquiryDate, setInquiryDate] = useState('');
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
+    const [currentSlide, setCurrentSlide] = useState(0);
+
+    const promotedItems = [
+        ...listings.filter(l => l.isPromoted).map(l => ({ ...l, type: 'property' })),
+        ...retailProducts.filter(p => Number(p.quantity) > 0).slice(0, 5).map(p => ({ ...p, type: 'retail' }))
+    ] as any[];
+
+    useEffect(() => {
+        if (promotedItems.length <= 1) return;
+        const timer = setInterval(() => {
+            setCurrentSlide(prev => (prev + 1) % promotedItems.length);
+        }, 6000);
+        return () => clearInterval(timer);
+    }, [promotedItems.length]);
 
     const openInquiry = (listing: PMListing | RetailInventoryItem) => {
         if ('listingType' in listing) {
@@ -236,55 +250,109 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 pb-24 md:pb-0">
-            {/* ── Marketplace Hero Section ── */}
-            <div className="relative min-h-[60vh] md:h-[65vh] flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 animate-mesh opacity-90"></div>
-
-                {/* Floating Elements for "Futuristic" feel */}
-                <div className="absolute top-20 left-[10%] w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] animate-pulse-glow"></div>
-                <div className="absolute bottom-20 right-[10%] w-96 h-96 bg-rose-500/20 rounded-full blur-[120px] animate-pulse-glow" style={{ animationDelay: '-2s' }}></div>
-
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
-
-                <div className="relative z-10 text-center px-6 max-w-5xl mx-auto pt-20">
-                    <div className="inline-flex items-center gap-3 glass-morphism px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] text-white mb-8 animate-float">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
-                        Quantum Marketplace v2.0
-                    </div>
-
-                    <h1 className="text-6xl md:text-8xl font-black text-white tracking-tighter uppercase italic leading-[0.85] mb-8 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                        Explore the <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-indigo-300">Next Frontier</span>
-                    </h1>
-
-                    <p className="text-white/70 text-base md:text-xl font-medium max-w-2xl mx-auto leading-relaxed backdrop-blur-sm p-4 rounded-3xl">
-                        Discover premium real estate and curated retail inventory powered by advanced AI matching.
-                    </p>
+            {/* ── Marketplace Hero Section with Dynamic Slideshow ── */}
+            <div className="relative h-[70vh] md:h-[75vh] flex items-center justify-center overflow-hidden bg-slate-950">
+                {/* Background Cosmic Effects */}
+                <div className="absolute inset-0 animate-mesh opacity-50"></div>
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-slate-950/50 to-slate-950 z-[1]"></div>
+                
+                {/* Dynamic Content Slides */}
+                <div className="absolute inset-0 z-0">
+                    {promotedItems.length > 0 ? (
+                        promotedItems.map((item, idx) => (
+                            <div 
+                                key={item.id}
+                                className={`absolute inset-0 transition-all duration-[1500ms] ease-out-expo ${idx === currentSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-110 pointer-events-none'}`}
+                            >
+                                <div className="absolute inset-0 bg-black/40 z-[2]"></div>
+                                {item.images?.[0] || item.imageUrl ? (
+                                    <img 
+                                        src={item.images?.[0] || item.imageUrl} 
+                                        alt={item.title || item.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex items-center justify-center">
+                                        <BuildingOfficeIcon className="w-32 h-32 text-indigo-500/20" />
+                                    </div>
+                                )}
+                                
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-[3] pb-32">
+                                    <div className="inline-flex items-center gap-3 glass-morphism px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.4em] text-white mb-10 animate-fade-in-up">
+                                        <SparklesIcon className="w-4 h-4 text-amber-400 animate-pulse" />
+                                        Featured {item.type === 'property' ? 'Property' : 'Product'}
+                                    </div>
+                                    <h1 className="text-6xl md:text-9xl font-black text-white tracking-tighter uppercase italic leading-[0.8] mb-8 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-fade-in-up delay-100">
+                                        {item.title || item.name}
+                                    </h1>
+                                    <p className="text-white/80 text-lg md:text-2xl font-bold max-w-3xl mx-auto leading-tight italic tracking-tight animate-fade-in-up delay-200">
+                                        {item.description?.substring(0, 120)}...
+                                    </p>
+                                    <div className="mt-12 flex items-center gap-8 animate-fade-in-up delay-300">
+                                        <p className="text-4xl md:text-6xl font-black text-white italic tracking-tighter shadow-indigo-500/50">
+                                            <span className="text-xl font-medium not-italic mr-2 text-white/50">KES</span>
+                                            {Number(item.price || item.srpPrice || item.costPrice || 0).toLocaleString()}
+                                        </p>
+                                        <button 
+                                            onClick={() => item.type === 'property' ? setSelectedListing(item) : setSelectedProduct(item)}
+                                            className="px-12 py-5 bg-white text-slate-900 rounded-full font-black text-sm uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all transform hover:scale-110 active:scale-95 shadow-2xl"
+                                        >
+                                            View Details
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                             <div className="inline-flex items-center gap-3 glass-morphism px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] text-white mb-8">
+                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
+                                Quantum Marketplace v2.0
+                            </div>
+                            <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter uppercase italic leading-[0.85] mb-8 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                                Explore the <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-indigo-300">Next Frontier</span>
+                            </h1>
+                        </div>
+                    )}
                 </div>
 
+                {/* Slider Controls */}
+                {promotedItems.length > 1 && (
+                    <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-20 flex gap-3">
+                        {promotedItems.map((_, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setCurrentSlide(idx)}
+                                className={`h-1.5 transition-all duration-500 rounded-full ${idx === currentSlide ? 'w-12 bg-white' : 'w-3 bg-white/30 hover:bg-white/50'}`}
+                            />
+                        ))}
+                    </div>
+                )}
+
                 {/* Futuristic Search Container */}
-                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-full max-w-5xl px-6 z-20">
-                    <div className="glass-morphism p-3 md:p-5 rounded-[3.5rem] flex flex-col md:flex-row gap-3 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)]">
+                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-full max-w-6xl px-6 z-30">
+                    <div className="glass-morphism p-3 md:p-5 rounded-[4rem] flex flex-col md:flex-row gap-4 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] border border-white/10">
                         <div className="flex-1 relative group">
-                            <SearchIcon className="absolute left-7 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-300 group-focus-within:text-white transition-colors" />
+                            <SearchIcon className="absolute left-8 top-1/2 -translate-y-1/2 w-6 h-6 text-indigo-300 group-focus-within:text-white transition-colors" />
                             <input
                                 type="text"
                                 placeholder="Search the galaxy..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-16 pr-8 py-6 bg-white/5 hover:bg-white/10 focus:bg-white/10 rounded-[2.5rem] font-bold text-white placeholder:text-white/40 outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-white/30 transition-all border-none"
+                                className="w-full pl-20 pr-10 py-7 bg-white/5 hover:bg-white/10 focus:bg-white/10 rounded-[3rem] font-black text-xl text-white placeholder:text-white/30 outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-white/40 transition-all border-none"
                             />
                         </div>
 
                         {activeSection === 'properties' && (
-                            <div className="hidden md:flex gap-2 p-1 bg-black/20 rounded-[2.5rem]">
+                            <div className="hidden lg:flex gap-2 p-1.5 bg-black/40 rounded-[3.5rem] border border-white/5">
                                 {(['All', 'Rent', 'Sale', 'Lease'] as const).map(type => (
                                     <button
                                         key={type}
                                         onClick={() => setFilterType(type)}
-                                        className={`px-8 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${filterType === type
+                                        className={`px-10 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all ${filterType === type
                                             ? 'bg-white text-slate-900 shadow-xl'
-                                            : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                                            : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                                     >
                                         {type}
                                     </button>
@@ -292,8 +360,8 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </div>
                         )}
 
-                        <button className="md:w-20 h-16 md:h-auto bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2.5rem] flex items-center justify-center text-white shadow-lg hover:shadow-indigo-500/50 hover:scale-105 transition-all">
-                            <ArrowRightIcon className="w-6 h-6" />
+                        <button className="md:w-24 h-20 md:h-auto bg-gradient-to-br from-indigo-500 via-purple-600 to-rose-500 rounded-[3rem] flex items-center justify-center text-white shadow-[0_15px_35px_rgba(99,102,241,0.4)] hover:shadow-indigo-500/70 hover:scale-105 active:scale-95 transition-all">
+                            <ArrowRightIcon className="w-8 h-8" />
                         </button>
                     </div>
                 </div>
