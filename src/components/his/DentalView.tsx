@@ -3,10 +3,9 @@ import {
     PlusIcon, 
     SparklesIcon,
     ArrowPathIcon,
-    SearchIcon,
-    ActivityIcon
+    SearchIcon
 } from '../icons/index';
-import { ScissorsIcon } from './HealthIcons';
+import { ScissorsIcon, ActivityIcon } from './HealthIcons';
 
 interface Tooth {
     id: number;
