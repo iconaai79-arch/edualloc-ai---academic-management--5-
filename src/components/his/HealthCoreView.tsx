@@ -10,10 +10,12 @@ import {
     BuildingOfficeIcon,
     PencilIcon,
     CreditCardIcon,
+    DocumentTextIcon,
     BellIcon,
-    Cog8ToothIcon as SettingsIcon
+    Cog8ToothIcon as SettingsIcon,
+    ChartBarIcon
 } from '../icons/index';
-import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon } from './HealthIcons';
+import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon } from './HealthIcons';
 
 import { InpatientView } from './InpatientView';
 import { DentalView } from './DentalView';
@@ -22,8 +24,9 @@ import { HISBillingView } from './HISBillingView';
 import { HISBroadcasterView } from './HISBroadcasterView';
 import { AppointmentsView } from './AppointmentsView';
 import { HISConfigView } from './HISConfigView';
+import { HISReportsView } from './HISReportsView';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports';
 
 export const HealthCoreView: React.FC = () => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
@@ -46,6 +49,8 @@ export const HealthCoreView: React.FC = () => {
                 return <AppointmentsView />;
             case 'config':
                 return <HISConfigView />;
+            case 'reports':
+                return <HISReportsView />;
             default:
                 return <GeneralMedicineView />;
         }
@@ -75,6 +80,7 @@ export const HealthCoreView: React.FC = () => {
                         { id: 'broadcaster', label: 'Signal', icon: BellIcon },
                         { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
                         { id: 'config', label: 'Nexus', icon: SettingsIcon },
+                        { id: 'reports', label: 'Intelligence', icon: ChartBarIcon },
                     ].map((mod) => (
                         <button
                             key={mod.id}
