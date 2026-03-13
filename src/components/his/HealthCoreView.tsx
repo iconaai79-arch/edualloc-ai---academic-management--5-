@@ -8,18 +8,22 @@ import {
     UsersIcon,
     EyeIcon,
     BuildingOfficeIcon,
+    PencilIcon,
     CreditCardIcon,
-    BellIcon
+    BellIcon,
+    Cog8ToothIcon as SettingsIcon
 } from '../icons/index';
-import { HeartIcon, ActivityIcon, ScissorsIcon } from './HealthIcons';
+import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon } from './HealthIcons';
 
 import { InpatientView } from './InpatientView';
 import { DentalView } from './DentalView';
 import { OphthalmologyView } from './OphthalmologyView';
 import { HISBillingView } from './HISBillingView';
 import { HISBroadcasterView } from './HISBroadcasterView';
+import { AppointmentsView } from './AppointmentsView';
+import { HISConfigView } from './HISConfigView';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config';
 
 export const HealthCoreView: React.FC = () => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
@@ -38,6 +42,10 @@ export const HealthCoreView: React.FC = () => {
                 return <HISBillingView />;
             case 'broadcaster':
                 return <HISBroadcasterView />;
+            case 'appointments':
+                return <AppointmentsView />;
+            case 'config':
+                return <HISConfigView />;
             default:
                 return <GeneralMedicineView />;
         }
@@ -65,6 +73,8 @@ export const HealthCoreView: React.FC = () => {
                         { id: 'eye', label: 'Optical', icon: EyeIcon },
                         { id: 'billing', label: 'Billing', icon: CreditCardIcon },
                         { id: 'broadcaster', label: 'Signal', icon: BellIcon },
+                        { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
+                        { id: 'config', label: 'Nexus', icon: SettingsIcon },
                     ].map((mod) => (
                         <button
                             key={mod.id}
