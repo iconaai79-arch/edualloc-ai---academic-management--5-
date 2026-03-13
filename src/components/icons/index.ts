@@ -85,4 +85,7 @@ export { BanknotesIcon } from './BanknotesIcon';
 export { CurrencyEuroIcon } from './CurrencyEuroIcon';
 export { WrenchIcon } from './WrenchIcon';
 export { DocumentTextIcon } from './DocumentTextIcon';
+export { ArrowsPointingOutIcon } from './ArrowsPointingOutIcon';
+export { ArrowsPointingInIcon } from './ArrowsPointingInIcon';
+export { GlobeAltIcon } from './GlobeAltIcon';
 
