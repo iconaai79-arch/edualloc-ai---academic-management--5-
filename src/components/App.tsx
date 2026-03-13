@@ -2000,7 +2000,7 @@ export const App: React.FC = () => {
                                     onUpdateStudentAbsenceRequestStatus={() => { }}
                                     isTimetableGenerating={false}
                                     timetableGenerationProgress={0}
-                                    timetableGenerationMessage={timetableGenerationMessage}
+                                    timetableGenerationMessage=""
                                     timetableGenerationEta={null}
                                     securityAlerts={securityAlerts}
                                     visitors={visitors}
