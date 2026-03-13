@@ -13,6 +13,7 @@ import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
 import { ActivityLogView } from './ActivityLogView';
 import { UserManager } from './UserManager';
+import { InteractionsManager } from './InteractionsManager';
 import { SubjectManager } from './SubjectManager';
 import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';
@@ -358,7 +359,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onDeleteCounty
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'reports' | 'external_module'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links'>('list'); // Modified for Counties, Resellers & Business
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
@@ -826,13 +827,14 @@ Please change it after login.`;
         { key: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+        { key: 'interactions', label: 'Interactions', icon: <ChatBubbleLeftRightIcon className="w-5 h-5 mr-2" /> },
+        { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'academics', label: 'Academics', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'migration', label: 'System Build', icon: <CommandLineIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-        { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
     ];
 
     const handleProcessWithdrawal = async (request: CommissionWithdrawalRequest, action: 'approve' | 'reject') => {
@@ -980,7 +982,7 @@ Please change it after login.`;
     // Super Admin View (Default Fallback)
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2">
+            <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                 {tabs.map((tab) => (
                     <button
                         key={tab.key}
@@ -1907,6 +1909,29 @@ Please change it after login.`;
                 {activeTab === 'user_activity' && (
                     <div className="animate-fade-in-up">
                         <ActivityLogView activityLog={activityLog || []} />
+                    </div>
+                )}
+
+                {activeTab === 'interactions' && (
+                    <div className="animate-fade-in-up">
+                        <InteractionsManager
+                            institutions={institutions}
+                            users={users}
+                            requests={requests}
+                            onUpdateInstitution={props.onUpdateInstitution}
+                            onUpdateLogo={props.onUpdateLogo}
+                            onUpdateThemeColor={props.onUpdateThemeColor}
+                            onUpdateRequest={props.onUpdateRequest}
+                            onWithdrawRequest={props.onWithdrawRequest}
+                            isTimetableGenerating={props.isTimetableGenerating || false}
+                            timetableGenerationProgress={props.timetableGenerationProgress || 0}
+                            timetableGenerationMessage={props.timetableGenerationMessage || ""}
+                            timetableGenerationEta={props.timetableGenerationEta || null}
+                            onSetIsTimetableGenerating={props.onSetIsTimetableGenerating}
+                            onSetTimetableGenerationProgress={props.onSetTimetableGenerationProgress}
+                            onSetTimetableGenerationMessage={props.onSetTimetableGenerationMessage}
+                            onSetTimetableGenerationEta={props.onSetTimetableGenerationEta}
+                        />
                     </div>
                 )}
 
