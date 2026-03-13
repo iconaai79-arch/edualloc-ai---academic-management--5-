@@ -114,6 +114,7 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
                 else if (typeLower.includes('polytechnic')) finalType = 'Polytechnic';
                 else if (typeLower.includes('ecd')) finalType = 'ECD';
                 else if (typeLower.includes('international')) finalType = 'International';
+                else if (typeLower.includes('his') || typeLower.includes('health')) finalType = 'HIS';
 
                 validInstitutions.push({
                     name: String(name).trim(),

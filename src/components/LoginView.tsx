@@ -423,6 +423,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Polytechnic">Polytechnic</option>
                                                 <option value="ECD">ECD Center</option>
                                                 <option value="International">International School</option>
+                                                <option value="HIS">Health Information System (HIS)</option>
                                                 <option value="Business">Business</option>
                                                 <option value="Reseller">Reseller</option>
                                             </select>

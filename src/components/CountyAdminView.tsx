@@ -2383,6 +2383,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     <option value="Institute">Institute</option>
                                                     <option value="ECD">ECD Center</option>
                                                     <option value="International">International School</option>
+                                                    <option value="HIS">Health Information System (HIS)</option>
                                                 </select>
                                             </div>
 

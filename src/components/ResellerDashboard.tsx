@@ -681,6 +681,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                         <option value="College">College</option>
                                         <option value="Institute">Institute</option>
                                         <option value="Polytechnic">Polytechnic</option>
+                                        <option value="HIS">Health Information System (HIS)</option>
                                         <option value="Business">Business</option>
                                     </select>
                                 </div>
