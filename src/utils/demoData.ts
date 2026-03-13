@@ -2,7 +2,8 @@ import type {
     User, Department, Subject, Course, Building, Room, 
     AcademicYear, Semester, InventoryItem, Supplier, Visitor, 
     AllocationRequest, TimetableEntry, SecurityAlert, UserTask, Requisition,
-    ScheduleProfile
+    ScheduleProfile, HISStaff, HISPatient, HISWard, HISBed, HISAppointment,
+    HISStaffAttendance, HISFinancialRecord
 } from '../types';
 import { DEFAULT_SECONDARY_PROFILES, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 
@@ -78,6 +79,41 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         { id: `alloc1_${instId}`, lecturerId: staff[1].id, subjectId: subjs[0].id, status: 'approved', priority: 'High', academicYearId: ay.id, semesterId: sem.id, timestamp: todayStr, institutionId: instId, courseLevelIds: [courses[0].levels[0].id] }
     ];
 
+    // 8. HIS - Health Information System Data
+    const hisStaff: HISStaff[] = [
+        { id: `his_s1_${instId}`, name: 'Dr. John Smith', role: 'Doctor', specialty: 'General Surgeon', status: 'Available', contact: '+254711222333', institutionId: instId, createdAt: todayStr },
+        { id: `his_s2_${instId}`, name: 'Jane Wilson', role: 'Nurse', specialty: 'ICU Specialist', status: 'Busy', contact: '+254722333444', institutionId: instId, createdAt: todayStr },
+        { id: `his_s3_${instId}`, name: 'Dr. Sarah Omondi', role: 'Doctor', specialty: 'Dentist', status: 'Available', contact: '+254733444555', institutionId: instId, createdAt: todayStr }
+    ];
+
+    const hisPatients: HISPatient[] = [
+        { id: `his_p1_${instId}`, institutionId: instId, fullName: 'David Kamau', dob: '1985-05-12', gender: 'Male', bloodGroup: 'O+', insuranceProvider: 'SHA', contact: '+254700000111', createdAt: todayStr, updatedAt: todayStr },
+        { id: `his_p2_${instId}`, institutionId: instId, fullName: 'Mary Atieno', dob: '1992-08-24', gender: 'Female', bloodGroup: 'A-', insuranceProvider: 'AAR', contact: '+254700000222', createdAt: todayStr, updatedAt: todayStr }
+    ];
+
+    const hisWards: HISWard[] = [
+        { id: `his_w1_${instId}`, institutionId: instId, name: 'General Ward A', wardType: 'General', capacity: 20, createdAt: todayStr },
+        { id: `his_w2_${instId}`, institutionId: instId, name: 'ICU', wardType: 'Specialized', capacity: 5, createdAt: todayStr }
+    ];
+
+    const hisBeds: HISBed[] = [
+        { id: `his_b1_${instId}`, wardId: hisWards[0].id, bedNumber: 'B01', status: 'Vacant', isSmartBed: true, institutionId: instId, createdAt: todayStr },
+        { id: `his_b2_${instId}`, wardId: hisWards[1].id, bedNumber: 'ICU-01', status: 'Occupied', isSmartBed: true, institutionId: instId, createdAt: todayStr }
+    ];
+
+    const hisAppointments: HISAppointment[] = [
+        { id: `his_a1_${instId}`, patientId: hisPatients[0].id, doctorId: hisStaff[0].id, date: todayStr, time: '09:00', status: 'Confirmed', type: 'Consultation', institutionId: instId, createdAt: todayStr },
+        { id: `his_a2_${instId}`, patientId: hisPatients[1].id, doctorId: hisStaff[2].id, date: todayStr, time: '10:30', status: 'Pending', type: 'Procedure', institutionId: instId, createdAt: todayStr }
+    ];
+
+    const hisAttendance: HISStaffAttendance[] = [
+        { id: `his_att1_${instId}`, staffId: hisStaff[0].id, date: todayStr, checkIn: now.toISOString(), status: 'Present', institutionId: instId, createdAt: todayStr }
+    ];
+
+    const hisFinancials: HISFinancialRecord[] = [
+        { id: `his_f1_${instId}`, type: 'Consultation', amount: 3500.00, date: todayStr, department: 'General OPD', paymentMethod: 'M-Pesa', institutionId: instId, createdAt: todayStr }
+    ];
+
     return {
         departments: depts,
         buildings: [bldg],
@@ -93,6 +129,13 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
         inventory: [],
         visitors: [],
         securityAlerts: [],
+        hisStaff,
+        hisPatients,
+        hisWards,
+        hisBeds,
+        hisAppointments,
+        hisAttendance,
+        hisFinancials,
         institutionUpdates: {
             scheduleProfiles: DEFAULT_SECONDARY_PROFILES,
             timetableSettings: INITIAL_TIMETABLE_SETTINGS,

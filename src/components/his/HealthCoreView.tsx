@@ -37,6 +37,7 @@ interface HealthCoreProps {
 
 export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName }) => {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const renderModule = () => {
         switch (activeModule) {
@@ -66,50 +67,73 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-indigo-500/30">
-            {/* Top Navigation Bar */}
-            <nav className="h-20 border-b border-white/5 flex items-center justify-between px-8 glass-morphism sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <SparklesIcon className="w-6 h-6" />
-                    </div>
+        <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-sans selection:bg-indigo-500/30">
+            {/* Master Header - Property Management Style */}
+            <div className="p-8 pb-4 space-y-8">
+                <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
                     <div>
-                        <h1 className="text-sm font-black uppercase tracking-[0.3em]">Quantum <span className="text-indigo-400">HIS</span></h1>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Medical Operating System v2.0</p>
+                        <div className="flex items-center gap-4 mb-3">
+                            <div className="w-12 h-12 bg-indigo-600 rounded-[1.25rem] flex items-center justify-center shadow-xl shadow-indigo-500/20 text-white">
+                                <SparklesIcon className="w-7 h-7" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black uppercase tracking-tighter italic">Quantum <span className="text-indigo-600 dark:text-indigo-400">Medical</span></h1>
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">H.I.S Master Operating System</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                        <div className="relative group">
+                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <input 
+                                type="text"
+                                placeholder="GLOBAL SEARCH (PATIENTS, RECORDS, STAFF)..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="bg-slate-100 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all w-full md:w-80 shadow-inner"
+                            />
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex gap-2">
-                    {[
-                        { id: 'general', label: 'General', icon: HeartIcon },
-                        { id: 'inpatient', label: 'Inpatient', icon: BuildingOfficeIcon },
-                        { id: 'dental', label: 'Dental', icon: ScissorsIcon },
-                        { id: 'eye', label: 'Optical', icon: EyeIcon },
-                        { id: 'billing', label: 'Billing', icon: CreditCardIcon },
-                        { id: 'broadcaster', label: 'Signal', icon: BellIcon },
-                        { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
-                        { id: 'attendance', label: 'Presence', icon: ClockIcon },
-                        { id: 'config', label: 'Nexus', icon: SettingsIcon },
-                        { id: 'reports', label: 'Intelligence', icon: ChartBarIcon },
-                    ].map((mod) => (
-                        <button
-                            key={mod.id}
-                            onClick={() => setActiveModule(mod.id as HISModule)}
-                            className={`flex items-center gap-3 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                                activeModule === mod.id 
-                                ? 'bg-white text-slate-950 shadow-[0_10px_30px_rgba(255,255,255,0.2)]' 
-                                : 'text-slate-500 hover:text-white hover:bg-white/5'
-                            }`}
-                        >
-                            <mod.icon className="w-4 h-4" />
-                            {mod.label}
-                        </button>
-                    ))}
+                {/* Sub-navigation bar - Standardized PM Format */}
+                <div className="flex bg-slate-100/50 dark:bg-white/5 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-white/5 shadow-inner no-scrollbar">
+                    <div className="flex gap-1.5 min-w-max text-white">
+                        {[
+                            { id: 'general', label: 'Patient 360', icon: HeartIcon },
+                            { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon },
+                            { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
+                            { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
+                            { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon },
+                            { id: 'broadcaster', label: 'Signal', icon: BellIcon },
+                            { id: 'appointments', label: 'Scheduling', icon: CalendarIcon },
+                            { id: 'attendance', label: 'Presence', icon: ClockIcon },
+                            { id: 'config', label: 'Nexus', icon: SettingsIcon },
+                            { id: 'reports', label: 'Intelligence', icon: ChartBarIcon },
+                        ].map((mod) => (
+                            <button
+                                key={mod.id}
+                                onClick={() => setActiveModule(mod.id as HISModule)}
+                                className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                    activeModule === mod.id 
+                                    ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl border border-slate-200 dark:border-slate-700/50 scale-105' 
+                                    : 'text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400'
+                                }`}
+                            >
+                                <mod.icon className="w-4 h-4" />
+                                {mod.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            </nav>
+            </div>
 
-            <main className="p-8">
-                {renderModule()}
+            <main className="p-8 pt-0">
+                <div className="glass-morphism dark:bg-white/5 rounded-[3rem] border border-slate-200 dark:border-white/5 p-10 min-h-[70vh] shadow-2xl relative overflow-hidden backdrop-blur-3xl">
+                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
+                    {renderModule()}
+                </div>
             </main>
         </div>
     );

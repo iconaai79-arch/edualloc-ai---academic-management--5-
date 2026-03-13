@@ -1,5 +1,4 @@
 
-
 export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead';
 
 
@@ -2294,6 +2293,181 @@ export interface RetailCommissionLedger {
     soldPrice: number;
     commissionAmount: number;
     isPaid: boolean;
+    createdAt: string;
+}
+// ============================================================================
+// HEALTH INFORMATION SYSTEM (HIS) MODULE TYPES
+// ============================================================================
+
+export interface HISStaff {
+    id: string;
+    name: string;
+    role: string;
+    specialty?: string;
+    status: string;
+    contact?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface HISPatient {
+    id: string;
+    institutionId: string;
+    userId?: string;
+    fullName: string;
+    dob?: string;
+    gender?: string;
+    bloodGroup?: string;
+    allergies?: string[];
+    chronicConditions?: string[];
+    surgicalHistory?: string;
+    shaNumber?: string;
+    memberVerificationStatus?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    preferredLanguage?: string;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+    contact?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface HISWard {
+    id: string;
+    institutionId: string;
+    name: string;
+    wardType: string;
+    capacity: number;
+    floorLevel?: number;
+    createdAt: string;
+}
+
+export interface HISBed {
+    id: string;
+    wardId: string;
+    bedNumber: string;
+    status: string;
+    isSmartBed: boolean;
+    currentPatientId?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface HISAdmission {
+    id: string;
+    patientId: string;
+    bedId?: string;
+    admittedBy?: string;
+    admissionDate: string;
+    dischargeDate?: string;
+    reasonForAdmission?: string;
+    admissionStatus: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface HISAppointment {
+    id: string;
+    patientId: string;
+    doctorId?: string;
+    date: string;
+    time: string;
+    status: string;
+    type?: string;
+    reason?: string;
+    institutionId: string;
+    createdAt: string;
+    // UI Display helpers
+    patientName?: string;
+    doctorName?: string;
+    specialty?: string;
+}
+
+export interface HISStaffAttendance {
+    id: string;
+    staffId: string;
+    date: string;
+    checkIn?: string;
+    checkOut?: string;
+    status?: string;
+    institutionId: string;
+    createdAt: string;
+    // UI Display helpers
+    totalHours?: number;
+}
+
+export interface HISDentalChart {
+    id: string;
+    patientId: string;
+    toothNumber: number;
+    procedureCode?: string;
+    conditionNotes?: string;
+    imageUrl?: string;
+    createdBy?: string;
+    institutionId: string;
+    recordedAt: string;
+}
+
+export interface HISEyePrescription {
+    id: string;
+    patientId: string;
+    visitId?: string;
+    odSphere?: number;
+    odCylinder?: number;
+    odAxis?: number;
+    odAdd?: number;
+    odAcuityVisual?: string;
+    osSphere?: number;
+    osCylinder?: number;
+    osAxis?: number;
+    osAdd?: number;
+    osAcuityVisual?: string;
+    lensType?: string;
+    frameSpecifications?: string;
+    prescribedBy?: string;
+    institutionId: string;
+    prescribedAt: string;
+}
+
+export interface HISMedicationLog {
+    id: string;
+    admissionId: string;
+    medicationName: string;
+    dosage?: string;
+    route?: string;
+    frequency?: string;
+    administeredBy?: string;
+    scheduledAt?: string;
+    administeredAt: string;
+    status: string;
+    institutionId: string;
+    notes?: string;
+}
+
+export interface HISFinancialRecord {
+    id: string;
+    type: string;
+    amount: number;
+    date: string;
+    department?: string;
+    paymentMethod?: string;
+    patientId?: string;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface HISBroadcast {
+    id: string;
+    institutionId: string;
+    senderId?: string;
+    title: string;
+    message: string;
+    broadcastType: string;
+    priority: string;
+    isActive: boolean;
+    scheduledAt: string;
+    expiresAt?: string;
     createdAt: string;
 }
 
