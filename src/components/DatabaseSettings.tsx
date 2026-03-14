@@ -38,6 +38,8 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
     const [showEnvKey, setShowEnvKey] = useState(false);
     const [activeConfig, setActiveConfig] = useState(apiService.getActiveConfig());
     const [isMigrating, setIsMigrating] = useState(false);
+    const [isRepairing, setIsRepairing] = useState(false);
+    const [debugInfo, setDebugInfo] = useState<string | null>(null);
     const [migrationMsg, setMigrationMsg] = useState('');
 
     useEffect(() => { if (dbConfig) setConfig(dbConfig); }, [dbConfig]);
@@ -79,6 +81,20 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
         } finally {
             setIsMigrating(false);
             setMigrationMsg('');
+        }
+    };
+
+    const handleDebugSession = async () => {
+        setDebugInfo(null);
+        try {
+            const result = await apiService.debugRLSSession();
+            if (result.success) {
+                setDebugInfo(result.message);
+            } else {
+                setDebugInfo(`Error: ${result.message}`);
+            }
+        } catch (err: any) {
+            setDebugInfo(`Network error: ${err.message}`);
         }
     };
 
@@ -187,166 +203,155 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
                                 setMigrationMsg('Initializing clinical registry...');
                                 try {
                                     const hisSql = `
--- HIS CLUSTER INITIALIZATION
+-- HIS Module Initialization with Ultra-Robust RLS
 CREATE TABLE IF NOT EXISTS his_staff (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    role TEXT NOT NULL,
-    specialty TEXT,
-    status TEXT DEFAULT 'Available',
-    contact TEXT,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL,
+    user_id TEXT REFERENCES public.users(id),
+    full_name TEXT NOT NULL,
+    designation TEXT,
+    department TEXT,
+    email TEXT,
+    phone TEXT,
+    specialization TEXT,
+    license_number TEXT,
+    status TEXT DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_patients (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-    full_name TEXT NOT NULL,
-    dob DATE,
+    institution_id TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    date_of_birth DATE,
     gender TEXT,
-    blood_group VARCHAR(10),
-    allergies TEXT[],
-    chronic_conditions TEXT[],
-    surgical_history TEXT,
-    sha_number VARCHAR(100),
-    member_verification_status VARCHAR(50) DEFAULT 'Pending',
-    emergency_contact_name VARCHAR(255),
-    emergency_contact_phone VARCHAR(50),
-    preferred_language VARCHAR(50),
-    insurance_provider VARCHAR(255),
-    insurance_policy_number VARCHAR(100),
-    contact TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    blood_group TEXT,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    emergency_contact_name TEXT,
+    emergency_contact_phone TEXT,
+    medical_history JSONB,
+    allergies JSONB,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_wards (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    ward_type VARCHAR(50) NOT NULL,
-    capacity INTEGER NOT NULL,
-    floor_level INTEGER,
+    institution_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT, -- General, ICU, Pediatric, etc.
+    capacity INTEGER,
+    floor TEXT,
+    status TEXT DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_beds (
     id TEXT PRIMARY KEY,
-    ward_id TEXT REFERENCES his_wards(id) ON DELETE CASCADE,
-    bed_number VARCHAR(50) NOT NULL,
-    status VARCHAR(50) DEFAULT 'Vacant',
-    is_smart_bed BOOLEAN DEFAULT FALSE,
-    current_patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL,
+    ward_id TEXT REFERENCES his_wards(id),
+    bed_number TEXT NOT NULL,
+    type TEXT,
+    status TEXT DEFAULT 'Available',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_admissions (
     id TEXT PRIMARY KEY,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
-    bed_id TEXT REFERENCES his_beds(id) ON DELETE SET NULL,
-    admitted_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    ward_id TEXT REFERENCES his_wards(id),
+    bed_id TEXT REFERENCES his_beds(id),
     admission_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     discharge_date TIMESTAMP WITH TIME ZONE,
-    reason_for_admission TEXT,
-    admission_status VARCHAR(50) DEFAULT 'Active',
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    reason TEXT,
+    doctor_id TEXT REFERENCES his_staff(id),
+    status TEXT DEFAULT 'Admitted',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_appointments (
     id TEXT PRIMARY KEY,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
-    doctor_id TEXT REFERENCES his_staff(id) ON DELETE SET NULL,
-    date DATE NOT NULL,
-    time TEXT NOT NULL,
-    status TEXT DEFAULT 'Scheduled',
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    doctor_id TEXT REFERENCES his_staff(id),
+    appointment_date TIMESTAMP WITH TIME ZONE NOT NULL,
     type TEXT,
-    reason TEXT,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    notes TEXT,
+    status TEXT DEFAULT 'Scheduled',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_staff_attendance (
     id TEXT PRIMARY KEY,
-    staff_id TEXT REFERENCES his_staff(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    check_in TIMESTAMP WITH TIME ZONE,
+    institution_id TEXT NOT NULL,
+    staff_id TEXT REFERENCES his_staff(id),
+    check_in TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     check_out TIMESTAMP WITH TIME ZONE,
-    status TEXT,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    status TEXT, -- Present, Late, etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_dental_charts (
     id TEXT PRIMARY KEY,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
-    tooth_number INTEGER NOT NULL,
-    procedure_code VARCHAR(50),
-    condition_notes TEXT,
-    image_url TEXT,
-    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    tooth_number INTEGER,
+    condition TEXT,
+    procedure TEXT,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_eye_prescriptions (
     id TEXT PRIMARY KEY,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE CASCADE,
-    visit_id TEXT,
-    od_sphere DECIMAL(5,2),
-    od_cylinder DECIMAL(5,2),
-    od_axis INTEGER,
-    od_add DECIMAL(5,2),
-    od_acuity_visual VARCHAR(20),
-    os_sphere DECIMAL(5,2),
-    os_cylinder DECIMAL(5,2),
-    os_axis INTEGER,
-    os_add DECIMAL(5,2),
-    os_acuity_visual VARCHAR(20),
-    lens_type VARCHAR(100),
-    frame_specifications TEXT,
-    prescribed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    prescribed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    od_sphere TEXT,
+    od_cylinder TEXT,
+    od_axis TEXT,
+    os_sphere TEXT,
+    os_cylinder TEXT,
+    os_axis TEXT,
+    add_power TEXT,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_medication_logs (
     id TEXT PRIMARY KEY,
-    admission_id TEXT REFERENCES his_admissions(id) ON DELETE CASCADE,
-    medication_name VARCHAR(255) NOT NULL,
-    dosage VARCHAR(100),
-    route VARCHAR(100),
-    frequency VARCHAR(100),
-    administered_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-    scheduled_at TIMESTAMP WITH TIME ZONE,
-    administered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    status VARCHAR(50) DEFAULT 'Administered',
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    notes TEXT
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    medication_name TEXT NOT NULL,
+    dosage TEXT,
+    frequency TEXT,
+    prescribed_by TEXT,
+    start_date DATE,
+    end_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_financial_records (
     id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    amount DECIMAL(15,2) NOT NULL,
-    date DATE NOT NULL,
-    department TEXT,
-    payment_method TEXT,
-    patient_id TEXT REFERENCES his_patients(id) ON DELETE SET NULL,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT NOT NULL,
+    patient_id TEXT REFERENCES his_patients(id),
+    type TEXT, -- Bill, Payment
+    amount DECIMAL(12,2) NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'Pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_broadcasts (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    sender_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
+    institution_id TEXT NOT NULL,
+    title TEXT NOT NULL,
     message TEXT NOT NULL,
-    broadcast_type VARCHAR(50) DEFAULT 'Info',
+    target_type TEXT, -- All, Doctors, Staff
     priority VARCHAR(20) DEFAULT 'Medium',
     is_active BOOLEAN DEFAULT TRUE,
     scheduled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -365,68 +370,86 @@ ALTER TABLE his_dental_charts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_eye_prescriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_medication_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_financial_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;-- Integrated Fail-Safe RLS Policies using direct JWT fallback
-DROP POLICY IF EXISTS "HIS staff access" ON his_staff;
-CREATE POLICY "HIS staff access" ON his_staff FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "HIS patients access" ON his_patients;
-CREATE POLICY "HIS patients access" ON his_patients FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+-- DEFINITIVE ULTRA-ROBUST RLS POLICIES
+-- Combines LOWER() email check, direct role bypass, and explicit text casting
+DO $$ 
+BEGIN
+    -- Staff
+    DROP POLICY IF EXISTS "HIS staff access" ON his_staff;
+    CREATE POLICY "HIS staff access" ON his_staff FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS wards access" ON his_wards;
-CREATE POLICY "HIS wards access" ON his_wards FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Patients
+    DROP POLICY IF EXISTS "HIS patients access" ON his_patients;
+    CREATE POLICY "HIS patients access" ON his_patients FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS beds access" ON his_beds;
-CREATE POLICY "HIS beds access" ON his_beds FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Wards
+    DROP POLICY IF EXISTS "HIS wards access" ON his_wards;
+    CREATE POLICY "HIS wards access" ON his_wards FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS admissions access" ON his_admissions;
-CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Beds
+    DROP POLICY IF EXISTS "HIS beds access" ON his_beds;
+    CREATE POLICY "HIS beds access" ON his_beds FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS appointments access" ON his_appointments;
-CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Admissions
+    DROP POLICY IF EXISTS "HIS admissions access" ON his_admissions;
+    CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS staff attendance access" ON his_staff_attendance;
-CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Appointments
+    DROP POLICY IF EXISTS "HIS appointments access" ON his_appointments;
+    CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS dental charts access" ON his_dental_charts;
-CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Attendance
+    DROP POLICY IF EXISTS "HIS staff attendance access" ON his_staff_attendance;
+    CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS eye prescriptions access" ON his_eye_prescriptions;
-CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Dental charts
+    DROP POLICY IF EXISTS "HIS dental charts access" ON his_dental_charts;
+    CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS medication logs access" ON his_medication_logs;
-CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Eye prescriptions
+    DROP POLICY IF EXISTS "HIS eye prescriptions access" ON his_eye_prescriptions;
+    CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS financial records access" ON his_financial_records;
-CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Medication logs
+    DROP POLICY IF EXISTS "HIS medication logs access" ON his_medication_logs;
+    CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
-DROP POLICY IF EXISTS "HIS broadcasts access" ON his_broadcasts;
-CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL 
-USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
+    -- Financial records
+    DROP POLICY IF EXISTS "HIS financial records access" ON his_financial_records;
+    CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
 
--- Explicitly Grant Permissions to resolve 42501
+    -- Broadcasts
+    DROP POLICY IF EXISTS "HIS broadcasts access" ON his_broadcasts;
+    CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL 
+    USING (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text)
+    WITH CHECK (LOWER(auth.jwt() ->> 'email') = 'super@app.com' OR public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id::text);
+END $$;
+
+-- Explicitly Grant Permissions
 GRANT ALL ON public.his_staff TO anon, authenticated, service_role;
 GRANT ALL ON public.his_patients TO anon, authenticated, service_role;
 GRANT ALL ON public.his_wards TO anon, authenticated, service_role;
@@ -439,8 +462,7 @@ GRANT ALL ON public.his_eye_prescriptions TO anon, authenticated, service_role;
 GRANT ALL ON public.his_medication_logs TO anon, authenticated, service_role;
 GRANT ALL ON public.his_financial_records TO anon, authenticated, service_role;
 GRANT ALL ON public.his_broadcasts TO anon, authenticated, service_role;
-;
-                                    `;
+`;
                                     const result = await apiService.runMigration(hisSql);
                                     if (result.success) {
                                         alert("HIS Module Initialized Successfully.");
@@ -550,6 +572,30 @@ GRANT ALL ON public.tasks TO anon, authenticated, service_role;
                     >
                         <ShieldIcon className="w-4 h-4" /> Repair System Schema
                     </button>
+                </div>
+                <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 mt-6">
+                    <h3 className="text-xl font-bold text-white mb-4">Diagnostic Tools</h3>
+                    <p className="text-gray-400 mb-6">Use these tools to troubleshoot database and RLS issues.</p>
+                    
+                    <div className="flex flex-wrap gap-4">
+                        <button
+                            onClick={handleDebugSession}
+                            className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                        >
+                            <span className="material-icons text-sm">terminal</span>
+                            Debug RLS Session
+                        </button>
+                    </div>
+
+                    {debugInfo && (
+                        <div className="mt-4 p-4 bg-black/50 rounded-lg border border-gray-600 font-mono text-xs text-green-400 overflow-auto max-h-60">
+                            <div className="flex justify-between items-center mb-2">
+                                <span>Session Debug Info:</span>
+                                <button onClick={() => setDebugInfo(null)} className="text-gray-400 hover:text-white">✕</button>
+                            </div>
+                            <pre>{debugInfo}</pre>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

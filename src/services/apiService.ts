@@ -241,6 +241,19 @@ export const apiService = {
             return { success: false, message: e.message || "Execution engine failure." };
         }
     },
+    async debugRLSSession(): Promise<any> {
+        const sql = `
+            SELECT 
+                current_user as db_user,
+                auth.uid() as auth_uid,
+                auth.jwt() ->> 'email' as jwt_email,
+                auth.jwt() ->> 'role' as jwt_role,
+                public.get_curr_user_role() as calculated_role,
+                public.get_curr_user_inst_id() as calculated_inst_id,
+                current_setting('role') as current_role_setting;
+        `;
+        return this.runMigration(sql);
+    },
     async uploadFile(bucket: string, path: string, file: File, contentType?: string): Promise<string | null> {
         try {
             if (!_supabase) {

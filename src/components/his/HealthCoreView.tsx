@@ -107,6 +107,12 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                 updatedAt: new Date().toISOString()
             };
             
+            console.log("Saving Patient Record:", {
+                module: 'his_patients',
+                record,
+                activeInstitutionId: institutionId
+            });
+
             await apiService.saveModuleRecord('his_patients', record);
             alert("Success: Patient registered successfully in Quantum Medical Registry");
             setIsRegisterModalOpen(false);
