@@ -179,39 +179,87 @@ ALTER TABLE his_medication_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_financial_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;
 
--- Standard HIS Policies
-DROP POLICY IF EXISTS "HIS staff viewable by institution" ON his_staff;
-CREATE POLICY "HIS staff viewable by institution" ON his_staff FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- Standard HIS Policies with Super Admin Bypass
+-- his_staff
+DROP POLICY IF EXISTS "HIS staff access" ON his_staff;
+CREATE POLICY "HIS staff access" ON his_staff FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Patients viewable by institution" ON his_patients;
-CREATE POLICY "Patients viewable by institution" ON his_patients FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_patients
+DROP POLICY IF EXISTS "HIS patients access" ON his_patients;
+CREATE POLICY "HIS patients access" ON his_patients FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Wards viewable by institution" ON his_wards;
-CREATE POLICY "Wards viewable by institution" ON his_wards FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_wards
+DROP POLICY IF EXISTS "HIS wards access" ON his_wards;
+CREATE POLICY "HIS wards access" ON his_wards FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Beds viewable by institution" ON his_beds;
-CREATE POLICY "Beds viewable by institution" ON his_beds FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_beds
+DROP POLICY IF EXISTS "HIS beds access" ON his_beds;
+CREATE POLICY "HIS beds access" ON his_beds FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Admissions viewable by institution" ON his_admissions;
-CREATE POLICY "Admissions viewable by institution" ON his_admissions FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_admissions
+DROP POLICY IF EXISTS "HIS admissions access" ON his_admissions;
+CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Appointments viewable by institution" ON his_appointments;
-CREATE POLICY "Appointments viewable by institution" ON his_appointments FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_appointments
+DROP POLICY IF EXISTS "HIS appointments access" ON his_appointments;
+CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Staff attendance viewable by institution" ON his_staff_attendance;
-CREATE POLICY "Staff attendance viewable by institution" ON his_staff_attendance FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_staff_attendance
+DROP POLICY IF EXISTS "HIS staff attendance access" ON his_staff_attendance;
+CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Dental charts viewable by institution" ON his_dental_charts;
-CREATE POLICY "Dental charts viewable by institution" ON his_dental_charts FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_dental_charts
+DROP POLICY IF EXISTS "HIS dental charts access" ON his_dental_charts;
+CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Eye prescriptions viewable by institution" ON his_eye_prescriptions;
-CREATE POLICY "Eye prescriptions viewable by institution" ON his_eye_prescriptions FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_eye_prescriptions
+DROP POLICY IF EXISTS "HIS eye prescriptions access" ON his_eye_prescriptions;
+CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "Medication logs viewable by institution" ON his_medication_logs;
-CREATE POLICY "Medication logs viewable by institution" ON his_medication_logs FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_medication_logs
+DROP POLICY IF EXISTS "HIS medication logs access" ON his_medication_logs;
+CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "HIS financial records viewable by institution" ON his_financial_records;
-CREATE POLICY "HIS financial records viewable by institution" ON his_financial_records FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_financial_records
+DROP POLICY IF EXISTS "HIS financial records access" ON his_financial_records;
+CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
 
-DROP POLICY IF EXISTS "HIS broadcasts viewable by institution" ON his_broadcasts;
-CREATE POLICY "HIS broadcasts viewable by institution" ON his_broadcasts FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+-- his_broadcasts
+DROP POLICY IF EXISTS "HIS broadcasts access" ON his_broadcasts;
+CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
+    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+);
