@@ -236,8 +236,20 @@ export const apiService = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sql })
             });
-            return await response.json();
+            
+            // Handle non-JSON or empty responses gracefully
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                return await response.json();
+            } else {
+                const text = await response.text();
+                return { 
+                    success: response.ok, 
+                    message: text || (response.ok ? "Operation completed successfully" : "Execution engine returned an empty response.")
+                };
+            }
         } catch (e: any) {
+            console.error("Migration Error:", e);
             return { success: false, message: e.message || "Execution engine failure." };
         }
     },
