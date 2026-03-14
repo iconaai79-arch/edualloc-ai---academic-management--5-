@@ -1,7 +1,12 @@
 -- 097_fix_tasks_schema.sql
 -- Fixes missing institution_id column and standardizes RLS
 
--- 1. Add institution_id column if missing
+-- 1. DROP POLICY IF EXISTS BEFORE altering column types
+DROP POLICY IF EXISTS "User personal tasks" ON tasks;
+DROP POLICY IF EXISTS "Enable all access for authenticated users" ON tasks;
+DROP POLICY IF EXISTS "Institutional tasks access" ON tasks;
+
+-- 2. Add institution_id column if missing or fix type
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -22,13 +27,10 @@ BEGIN
     WHERE institution_id IS NULL;
 END $$;
 
--- 2. Ensure RLS is enabled
+-- 3. Ensure RLS is enabled
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
--- 3. Update RLS Policies
-DROP POLICY IF EXISTS "User personal tasks" ON tasks;
-DROP POLICY IF EXISTS "Enable all access for authenticated users" ON tasks;
-DROP POLICY IF EXISTS "Institutional tasks access" ON tasks;
+-- 4. Re-create RLS Policies
 
 -- Private tasks (Owned by user)
 CREATE POLICY "User personal tasks"
