@@ -167,17 +167,28 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                             </div>
                         )}
 
-                        <button
-                            onClick={onToggleHealthSystem}
-                            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm active:scale-95 ${
-                                isHealthSystemOpen 
-                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20' 
-                                : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100'
-                            }`}
-                        >
-                            <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
-                            {isHealthSystemOpen ? 'Core ERP' : 'Health System'}
-                        </button>
+                        {(() => {
+                            const isPropertyManagement = activeRole === 'property_admin' || 
+                                                        activeRole === 'landlord' || 
+                                                        activeRole === 'tenant' || 
+                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management');
+                            
+                            if (isPropertyManagement) return null;
+
+                            return (
+                                <button
+                                    onClick={onToggleHealthSystem}
+                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm active:scale-95 ${
+                                        isHealthSystemOpen 
+                                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-500/20' 
+                                        : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100'
+                                    }`}
+                                >
+                                    <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
+                                    {isHealthSystemOpen ? 'Core ERP' : 'Health System'}
+                                </button>
+                            );
+                        })()}
 
                         <NotificationBell notifications={notifications} onMarkAsRead={onMarkAsRead} />
 
