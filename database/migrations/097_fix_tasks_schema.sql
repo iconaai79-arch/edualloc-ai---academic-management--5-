@@ -10,13 +10,16 @@ BEGIN
         WHERE table_name = 'tasks' 
         AND column_name = 'institution_id'
     ) THEN
-        ALTER TABLE tasks ADD COLUMN institution_id UUID;
-        
-        -- Try to populate from user's institution if possible
-        UPDATE tasks t
-        SET institution_id = (SELECT u.institution_id FROM users u WHERE u.id = t.user_id LIMIT 1)
-        WHERE institution_id IS NULL;
+        ALTER TABLE tasks ADD COLUMN institution_id TEXT;
+    ELSE
+        -- If it exists as UUID, convert it to TEXT to match users table and HIS module pattern
+        ALTER TABLE tasks ALTER COLUMN institution_id TYPE TEXT USING institution_id::text;
     END IF;
+
+    -- Try to populate from user's institution if possible
+    UPDATE tasks t
+    SET institution_id = (SELECT u.institution_id FROM users u WHERE u.id::text = t.user_id::text LIMIT 1)
+    WHERE institution_id IS NULL;
 END $$;
 
 -- 2. Ensure RLS is enabled
