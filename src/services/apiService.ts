@@ -231,7 +231,7 @@ export const apiService = {
     },
     async runMigration(sql: string): Promise<any> {
         try {
-            const response = await fetch('/api/execute_sql', {
+            const response = await fetch('/api/system?action=execute_sql', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sql })

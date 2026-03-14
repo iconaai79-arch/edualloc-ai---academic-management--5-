@@ -1,5 +1,16 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServerClient } from '../lib/supabase';
+import pg from 'pg';
+
+const { Pool } = pg;
+
+// Use connection string from environment variables
+const pool = new Pool({
+  connectionString: process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createServerClient(req.headers.authorization);
@@ -27,13 +38,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'migrate') {
             const { sql } = req.body;
-            // NOTE: Supabase client doesn't support raw SQL execution directly for security.
-            // In a production app, you'd use a postgres client like 'pg' or a Supabase RPC function.
-            // For this implementation, we return a mock success or guide the user.
             return res.status(200).json({
                 success: true,
                 message: "Migration script received. Please run this SQL in your Supabase SQL Editor to initialize the schema."
             });
+        }
+
+        if (action === 'execute_sql') {
+            const { sql } = req.body;
+            if (!sql) return res.status(400).json({ error: 'SQL query required' });
+
+            let client;
+            try {
+                client = await pool.connect();
+                const result = await client.query(sql);
+                return res.status(200).json({
+                    success: true,
+                    data: result.rows,
+                    command: result.command,
+                    rowCount: result.rowCount
+                });
+            } catch (err: any) {
+                return res.status(500).json({
+                    success: false,
+                    error: err.message,
+                    detail: err.detail,
+                    hint: err.hint
+                });
+            } finally {
+                if (client) client.release();
+            }
         }
     }
 
