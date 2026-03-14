@@ -367,77 +367,209 @@ ALTER TABLE his_medication_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_financial_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;
 
--- Standard HIS Policies with Super Admin Bypass
+-- Improved Robust RLS Policies using EXISTS for all HIS tables
 DROP POLICY IF EXISTS "HIS staff access" ON his_staff;
-CREATE POLICY "HIS staff access" ON his_staff FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS staff access" ON his_staff FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_staff.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_staff.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS patients access" ON his_patients;
-CREATE POLICY "HIS patients access" ON his_patients FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS patients access" ON his_patients FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_patients.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_patients.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS wards access" ON his_wards;
-CREATE POLICY "HIS wards access" ON his_wards FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS wards access" ON his_wards FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_wards.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_wards.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS beds access" ON his_beds;
-CREATE POLICY "HIS beds access" ON his_beds FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS beds access" ON his_beds FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_beds.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_beds.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS admissions access" ON his_admissions;
-CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_admissions.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_admissions.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS appointments access" ON his_appointments;
-CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_appointments.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_appointments.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS staff attendance access" ON his_staff_attendance;
-CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_staff_attendance.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_staff_attendance.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS dental charts access" ON his_dental_charts;
-CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_dental_charts.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_dental_charts.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS eye prescriptions access" ON his_eye_prescriptions;
-CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_eye_prescriptions.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_eye_prescriptions.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS medication logs access" ON his_medication_logs;
-CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_medication_logs.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_medication_logs.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS financial records access" ON his_financial_records;
-CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_financial_records.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_financial_records.institution_id OR users.role = 'super_admin')
+  )
 );
 
 DROP POLICY IF EXISTS "HIS broadcasts access" ON his_broadcasts;
-CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL USING (
-    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text) 
-    OR (SELECT role FROM users WHERE id = auth.uid()::text) = 'super_admin'
+CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_broadcasts.institution_id OR users.role = 'super_admin')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users 
+    WHERE users.id = auth.uid()::text 
+    AND (users.institution_id = his_broadcasts.institution_id OR users.role = 'super_admin')
+  )
 );
                                     `;
                                     const result = await apiService.runMigration(hisSql);
