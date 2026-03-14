@@ -37,6 +37,7 @@ import {
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';
+import { ExternalModuleView } from './ExternalModuleView';
 
 interface CountyAdminViewProps {
     currentUser: User;
@@ -113,7 +114,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     activityLog = [],
     onLogAction
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'bursaries' | 'settings'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'staff' | 'inventory' | 'bursaries' | 'settings' | 'external_module'>('dashboard');
     const [inventorySubTab, setInventorySubTab] = useState<'items' | 'categories' | 'stores' | 'dispatch' | 'reports'>('items');
     const [bursarySubTab, setBursarySubTab] = useState<'applications' | 'vetting' | 'disbursement' | 'funds' | 'reports'>('applications');
     const [settingsSubTab, setSettingsSubTab] = useState<'branding'>('branding');
@@ -752,6 +753,16 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             Settings
                         </button>
                     )}
+                    <button
+                        onClick={() => setActiveTab('external_module')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'external_module'
+                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                            }`}
+                    >
+                        <SparklesIcon className="w-5 h-5" />
+                        External
+                    </button>
                 </nav>
 
                 <div className="pt-6 border-t border-slate-800">
@@ -3156,6 +3167,15 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         </div >
                     )
                 }
+                {activeTab === 'external_module' && (
+                    <div className="animate-fade-in-up h-[calc(100vh-8rem)]">
+                        <ExternalModuleView
+                            title="EduAI Advanced Analytics & Support Portal"
+                            url="https://support.edualloc.com"
+                            description="Independent portal for system-wide analytics, support tickets, and advanced platform configuration."
+                        />
+                    </div>
+                )}
             </main >
 
             {/* Perspective Switching Modal */}
