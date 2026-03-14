@@ -93,18 +93,33 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     };
 
     const handleRegisterPatient = async (patientData: any) => {
+        if (!institutionId) {
+            alert("Security Error: No active institutional context detected. Please select a valid HIS facility.");
+            return;
+        }
+
         try {
-            await apiService.saveModuleRecord('his_patients', {
+            const record = {
                 ...patientData,
                 institutionId,
                 id: `his_p_${Date.now()}`,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-            });
-            alert("Patient registered successfully in Quantum Medical Registry");
-        } catch (error) {
+            };
+            
+            await apiService.saveModuleRecord('his_patients', record);
+            alert("Success: Patient registered successfully in Quantum Medical Registry");
+            setIsRegisterModalOpen(false);
+            
+            // Optionally refresh demo data to reflect new registration if in general view
+            if (activeModule === 'general') {
+                // This would normally be handled by a real data fetch, 
+                // but since we are using demo data memoization, we just alert for now.
+            }
+        } catch (error: any) {
             console.error("Patient registration failed:", error);
-            alert("Intake failed. Please check your data connection.");
+            const errorMsg = error.message || "Unknown gateway error";
+            alert(`Intake Failed: ${errorMsg}\n\nPlease ensure the database tables are initialized and your connection is stable.`);
         }
     };
 

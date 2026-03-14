@@ -1948,7 +1948,7 @@ export const App: React.FC = () => {
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 
                                     userName={currentUser?.name} 
-                                    institutionId={currentUser?.institutionId}
+                                    institutionId={activeInstitution?.id || currentUser?.institutionId}
                                 />
                             ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView
