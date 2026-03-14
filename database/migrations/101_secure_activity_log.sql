@@ -12,11 +12,28 @@ BEGIN
     
     -- 3. Create Secure Targeted Policies
     
-    -- A. Global INSERT (Necessary for various actions across the app to be logged)
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'activity_log' AND policyname = 'activity_log_insert_all') THEN
-        CREATE POLICY "activity_log_insert_all" 
+    -- A. Authenticated INSERT (User can only log for themselves)
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'activity_log' AND policyname = 'activity_log_insert_authenticated') THEN
+        CREATE POLICY "activity_log_insert_authenticated" 
         ON public.activity_log FOR INSERT 
-        WITH CHECK (true);
+        TO authenticated
+        WITH CHECK (
+            user_id = auth.uid()::text 
+            OR user_id = 'u_' || auth.uid()::text
+            OR (public.get_curr_user_role() = 'super_admin')
+        );
+    END IF;
+
+    -- B. Anon INSERT (Only for non-logged-in actions, limited to anonymous user_id)
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'activity_log' AND policyname = 'activity_log_insert_anon') THEN
+        CREATE POLICY "activity_log_insert_anon" 
+        ON public.activity_log FOR INSERT 
+        TO anon
+        WITH CHECK (
+            user_id IS NULL 
+            OR user_id = 'anonymous'
+            OR user_id = 'system'
+        );
     END IF;
 
     -- B. Super Admin SELECT (Full visibility)
