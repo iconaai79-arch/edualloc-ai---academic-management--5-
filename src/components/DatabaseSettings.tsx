@@ -489,6 +489,69 @@ GRANT ALL ON public.his_broadcasts TO anon, authenticated, service_role;
                     </div>
                 )}
             </div>
+
+            {/* System Repair & Maintenance */}
+            <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-10 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <div className="flex items-center gap-4 mb-8">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center border border-amber-100 dark:border-amber-800/50">
+                        <ShieldIcon className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">System Maintenance & Repair</h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Fix schema regressions and stabilize multi-tenancy</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4">
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('This will fix the Tasks table schema and ensure institution IDs are correctly assigned. Proceed?')) {
+                                setIsMigrating(true);
+                                setMigrationMsg('Repairing tasks schema...');
+                                try {
+                                    const repairSql = `
+-- Fix tasks table schema
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'tasks' 
+        AND column_name = 'institution_id'
+    ) THEN
+        ALTER TABLE tasks ADD COLUMN institution_id UUID;
+        UPDATE tasks t SET institution_id = (SELECT u.institution_id FROM users u WHERE u.id = t.user_id LIMIT 1) WHERE institution_id IS NULL;
+    END IF;
+END $$;
+
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "User personal tasks" ON tasks;
+DROP POLICY IF EXISTS "Institutional tasks access" ON tasks;
+
+CREATE POLICY "User personal tasks" ON tasks FOR ALL USING (auth.uid()::text = user_id::text OR 'u_' || auth.uid()::text = user_id::text OR auth.jwt() ->> 'email' = 'super@app.com') WITH CHECK (auth.uid()::text = user_id::text OR 'u_' || auth.uid()::text = user_id::text OR auth.jwt() ->> 'email' = 'super@app.com');
+CREATE POLICY "Institutional tasks access" ON tasks FOR SELECT USING (institution_id::text = public.get_curr_user_inst_id() AND public.get_curr_user_role() IN ('admin', 'super_admin', 'head_teacher'));
+GRANT ALL ON public.tasks TO anon, authenticated, service_role;
+                                    `;
+                                    const result = await apiService.runMigration(repairSql);
+                                    if (result.success) {
+                                        alert("System repair completed successfully.");
+                                    } else {
+                                        alert("Repair failed: " + result.message);
+                                    }
+                                } catch (err: any) {
+                                    alert(`Repair error: ${err.message}`);
+                                } finally {
+                                    setIsMigrating(false);
+                                    setMigrationMsg('');
+                                }
+                            }
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                    >
+                        <ShieldIcon className="w-4 h-4" /> Repair System Schema
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

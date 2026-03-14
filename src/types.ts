@@ -473,6 +473,7 @@ export interface CompanyDetails {
 export interface UserTask {
     id: string;
     userId: string;
+    institutionId?: string;
     title: string;
     isComplete: boolean;
     createdAt: string;
