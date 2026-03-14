@@ -81,4 +81,4 @@ RETURNS void AS $$
 BEGIN
     EXECUTE format('UPDATE %I SET %I = COALESCE(%I, 0) + 1 WHERE id = %L', t_name, f_name, f_name, r_id);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

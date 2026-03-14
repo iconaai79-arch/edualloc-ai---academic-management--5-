@@ -28,7 +28,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- 2. Drop existing trigger if it exists, then recreate
 DROP TRIGGER IF EXISTS trg_reduce_retail_stock ON public.retail_sales;

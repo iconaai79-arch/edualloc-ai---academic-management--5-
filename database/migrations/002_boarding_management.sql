@@ -149,7 +149,8 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_logs_status ON boarding_maintenance_l
 -- ============================================
 
 -- View: Current Bed Occupancy
-CREATE OR REPLACE VIEW v_bed_occupancy AS
+CREATE OR REPLACE VIEW v_bed_occupancy 
+WITH (security_invoker = true) AS
 SELECT 
     bh.id as house_id,
     bh.institution_id,
@@ -172,7 +173,8 @@ JOIN boarding_beds bb ON br.id = bb.room_id
 LEFT JOIN bed_allocations ba ON bb.id = ba.bed_id AND ba.status = 'Active';
 
 -- View: House Statistics
-CREATE OR REPLACE VIEW v_house_statistics AS
+CREATE OR REPLACE VIEW v_house_statistics 
+WITH (security_invoker = true) AS
 SELECT 
     bh.id,
     bh.institution_id,
@@ -215,7 +217,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Trigger for bed status updates
 DROP TRIGGER IF EXISTS trg_update_bed_status ON bed_allocations;
@@ -238,7 +240,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Trigger to prevent double allocation
 DROP TRIGGER IF EXISTS trg_prevent_double_allocation ON bed_allocations;

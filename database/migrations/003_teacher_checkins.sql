@@ -108,7 +108,7 @@ BEGIN
     
     RETURN 'Pending';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Trigger to update check-in status automatically
 CREATE OR REPLACE FUNCTION update_checkin_status()
@@ -127,7 +127,7 @@ BEGIN
     NEW.updated_at := CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER trg_update_checkin_status
     BEFORE INSERT OR UPDATE ON teacher_checkins
@@ -198,7 +198,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER trg_update_attendance_summary
     AFTER INSERT OR UPDATE ON teacher_checkins
@@ -206,7 +206,8 @@ CREATE TRIGGER trg_update_attendance_summary
     EXECUTE FUNCTION update_attendance_summary();
 
 -- View for today's check-ins
-CREATE OR REPLACE VIEW v_today_teacher_checkins AS
+CREATE OR REPLACE VIEW v_today_teacher_checkins 
+WITH (security_invoker = true) AS
 SELECT 
     tc.*,
     u.name as teacher_name,
@@ -226,7 +227,8 @@ JOIN institutions i ON tc.institution_id = i.id
 WHERE tc.check_in_date = CURRENT_DATE;
 
 -- View for pending reminders
-CREATE OR REPLACE VIEW v_pending_reminders AS
+CREATE OR REPLACE VIEW v_pending_reminders 
+WITH (security_invoker = true) AS
 SELECT 
     r.*,
     u.name as teacher_name,
@@ -287,7 +289,7 @@ BEGIN
     
     RETURN v_count;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Function to process a check-in
 CREATE OR REPLACE FUNCTION process_teacher_checkin(
@@ -344,7 +346,7 @@ BEGIN
     
     RETURN v_checkin_id;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Comments
 COMMENT ON TABLE teacher_checkins IS 'Tracks teacher check-ins for morning and afternoon sessions';

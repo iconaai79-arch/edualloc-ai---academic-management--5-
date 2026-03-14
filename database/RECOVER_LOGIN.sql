@@ -25,14 +25,14 @@ BEGIN
 
     -- 3. Restore Functions using EXECUTE to keep it in one block
     EXECUTE 'CREATE OR REPLACE FUNCTION public.get_curr_user_role()
-    RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $f$
+    RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
     BEGIN
         RETURN (SELECT role FROM public.users WHERE id = auth.uid()::text OR id = ''u_'' || auth.uid()::text LIMIT 1);
     END;
     $f$';
 
     EXECUTE 'CREATE OR REPLACE FUNCTION public.get_curr_user_inst_id()
-    RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $f$
+    RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
     BEGIN
         RETURN (SELECT institution_id FROM public.users WHERE id = auth.uid()::text OR id = ''u_'' || auth.uid()::text LIMIT 1);
     END;

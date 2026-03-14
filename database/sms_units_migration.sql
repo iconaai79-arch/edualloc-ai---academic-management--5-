@@ -11,7 +11,7 @@ BEGIN
     SET sms_balance = GREATEST(0, sms_balance - amount)
     WHERE id = inst_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 3. Create RPC for safe balance increment
 CREATE OR REPLACE FUNCTION increment_sms_balance(inst_id TEXT, amount INTEGER)
@@ -21,4 +21,4 @@ BEGIN
     SET sms_balance = COALESCE(sms_balance, 0) + amount
     WHERE id = inst_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

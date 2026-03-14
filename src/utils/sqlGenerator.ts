@@ -566,7 +566,8 @@ CREATE TABLE IF NOT EXISTS library_settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE OR REPLACE VIEW v_library_statistics AS
+CREATE OR REPLACE VIEW v_library_statistics 
+WITH (security_invoker = true) AS
 SELECT 
     institution_id,
     COUNT(id) as total_books,
