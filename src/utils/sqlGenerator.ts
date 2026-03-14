@@ -673,6 +673,7 @@ CREATE TABLE IF NOT EXISTS student_absence_requests (
 CREATE TABLE IF NOT EXISTS absence_requests (
     id TEXT PRIMARY KEY,
     lecturer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     timetable_entry_id TEXT NOT NULL REFERENCES timetable_entries(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
