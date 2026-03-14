@@ -22,6 +22,7 @@ import { SettingsManager } from './SettingsManager';
 import {
     CheckCircleIcon,
     ChatBubbleBottomCenterTextIcon,
+    ChatBubbleLeftRightIcon,
     ClipboardListIcon,
     ChartPieIcon,
     BuildingOfficeIcon,
