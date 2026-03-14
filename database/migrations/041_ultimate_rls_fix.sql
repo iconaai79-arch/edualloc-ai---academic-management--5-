@@ -42,7 +42,7 @@ LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     RETURN QUERY SELECT auth.uid()::text, public.get_curr_user_inst_id(), public.get_curr_user_role();
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 4. MASTER UNBLOCK LOOP
 DO $$

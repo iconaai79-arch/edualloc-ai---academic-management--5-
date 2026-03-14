@@ -102,4 +102,13 @@ BEGIN
         EXECUTE 'ALTER FUNCTION public.update_property_unit_count() SET search_path = public';
     END IF;
 
+    -- Reminders and Debugging
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'cleanup_old_reminders') THEN
+        EXECUTE 'ALTER FUNCTION public.cleanup_old_reminders() SET search_path = public';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'rls_debug_info') THEN
+        EXECUTE 'ALTER FUNCTION public.rls_debug_info() SET search_path = public';
+    END IF;
+
 END $$;
