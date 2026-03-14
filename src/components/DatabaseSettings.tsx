@@ -89,9 +89,13 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
         try {
             const result = await apiService.debugRLSSession();
             if (result.success) {
-                setDebugInfo(result.message);
+                // Formatting for the pre block
+                const data = result.data ? JSON.stringify(result.data, null, 2) : result.message || "Operation completed successfully.";
+                setDebugInfo(data);
             } else {
-                setDebugInfo(`Error: ${result.message}`);
+                const errorDetail = result.error || result.message || "Unknown error";
+                const envStatus = result.env ? `\n\nEnvironment Diagnostics:\n${JSON.stringify(result.env, null, 2)}` : '';
+                setDebugInfo(`Error: ${errorDetail}${envStatus}`);
             }
         } catch (err: any) {
             setDebugInfo(`Network error: ${err.message}`);

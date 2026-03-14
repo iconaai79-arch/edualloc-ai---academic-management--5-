@@ -55,3 +55,21 @@ export const testSupabaseConnection = async (url: string, key: string): Promise<
         return { success: false, message: `Connection failed: ${err.message}` };
     }
 };
+
+/**
+ * Creates a server-side Supabase client with the user's authorization token.
+ */
+export const createServerClient = (authHeader?: string): SupabaseClient | null => {
+    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+    if (!url || !key) return null;
+
+    return createClient(url, key, {
+        global: {
+            headers: {
+                Authorization: authHeader || ''
+            }
+        }
+    });
+};
