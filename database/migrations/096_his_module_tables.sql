@@ -179,66 +179,68 @@ ALTER TABLE his_medication_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_financial_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;
 
--- Integrated Robust RLS Policies using System Helpers
+-- FAIL-SAFE RLS Policies using direct JWT fallback
+-- These policies bypass the users table lookup for Super Admins to ensure reliability.
+
 DROP POLICY IF EXISTS "HIS staff access" ON his_staff;
 CREATE POLICY "HIS staff access" ON his_staff FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS patients access" ON his_patients;
 CREATE POLICY "HIS patients access" ON his_patients FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS wards access" ON his_wards;
 CREATE POLICY "HIS wards access" ON his_wards FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS beds access" ON his_beds;
 CREATE POLICY "HIS beds access" ON his_beds FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS admissions access" ON his_admissions;
 CREATE POLICY "HIS admissions access" ON his_admissions FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS appointments access" ON his_appointments;
 CREATE POLICY "HIS appointments access" ON his_appointments FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS staff attendance access" ON his_staff_attendance;
 CREATE POLICY "HIS staff attendance access" ON his_staff_attendance FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS dental charts access" ON his_dental_charts;
 CREATE POLICY "HIS dental charts access" ON his_dental_charts FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS eye prescriptions access" ON his_eye_prescriptions;
 CREATE POLICY "HIS eye prescriptions access" ON his_eye_prescriptions FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS medication logs access" ON his_medication_logs;
 CREATE POLICY "HIS medication logs access" ON his_medication_logs FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS financial records access" ON his_financial_records;
 CREATE POLICY "HIS financial records access" ON his_financial_records FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 DROP POLICY IF EXISTS "HIS broadcasts access" ON his_broadcasts;
 CREATE POLICY "HIS broadcasts access" ON his_broadcasts FOR ALL 
-USING (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id)
-WITH CHECK (public.get_curr_user_role() = 'super_admin' OR public.get_curr_user_inst_id() = institution_id);
+USING (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id)
+WITH CHECK (auth.jwt() ->> 'email' = 'super@app.com' OR public.get_curr_user_inst_id() = institution_id);
 
 -- Explicitly Grant Permissions to resolve 42501
 GRANT ALL ON public.his_staff TO anon, authenticated, service_role;
