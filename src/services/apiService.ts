@@ -243,9 +243,10 @@ export const apiService = {
                 return await response.json();
             } else {
                 const text = await response.text();
+                console.error(`[SQL Engine] Server Error (${response.status}):`, text.substring(0, 500));
                 return { 
                     success: response.ok, 
-                    message: text || (response.ok ? "Operation completed successfully" : "Execution engine returned an empty response.")
+                    message: text.substring(0, 200) || (response.ok ? "Operation completed successfully" : `Server Error (${response.status}) - The execution engine returned an invalid response.`)
                 };
             }
         } catch (e: any) {

@@ -1,16 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServerClient } from '../lib/supabase';
-import pg from 'pg';
-
-const { Pool } = pg;
-
-// Use connection string from environment variables
-const pool = new Pool({
-  connectionString: process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+import pkg from 'pg';
+const { Pool } = pkg;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createServerClient(req.headers.authorization);
@@ -48,6 +39,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { sql } = req.body;
             if (!sql) return res.status(400).json({ error: 'SQL query required' });
 
+            // Connection string validation
+            const connectionString = 
+                process.env.DATABASE_URL || 
+                process.env.POSTGRES_URL || 
+                process.env.VITE_DATABASE_URL ||
+                process.env.SUPABASE_DB_URL; // Reordered to prioritize common ones, VITE_DATABASE_URL is now explicitly checked earlier
+
+            if (!connectionString) {
+                return res.status(500).json({
+                    success: false,
+                    error: "Database connection string missing.",
+                    message: "Please add DATABASE_URL to your .env.local file to enable direct SQL execution.",
+                    hint: "Format: postgresql://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres"
+                });
+            }
+
+            const pool = new Pool({
+                connectionString,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000 // 10s timeout
+            });
+
             let client;
             try {
                 client = await pool.connect();
@@ -59,14 +72,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     rowCount: result.rowCount
                 });
             } catch (err: any) {
+                console.error("[SQL Engine Error]:", err);
                 return res.status(500).json({
                     success: false,
-                    error: err.message,
+                    error: err.message || "SQL Execution Error",
                     detail: err.detail,
-                    hint: err.hint
+                    hint: err.hint || "Check your SQL syntax and database connection string."
                 });
             } finally {
                 if (client) client.release();
+                await pool.end(); // Clear the pool for this request to avoid leaks in serverless/Vite context
             }
         }
     }
