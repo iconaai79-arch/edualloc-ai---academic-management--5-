@@ -357,6 +357,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 return ['admin', 'head_teacher', 'deputy', 'dos', 'tto', 'retail_agent'].includes(roleToUse || '');
             }
 
+            if (tab.id === 'external_module') {
+                return roleToUse === 'super_admin';
+            }
+
             return true;
         });
 

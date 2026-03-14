@@ -378,7 +378,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'system_build'>('profile');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -831,7 +831,6 @@ Please change it after login.`;
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-        { key: 'migration', label: 'System Build', icon: <CommandLineIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
     ];
@@ -1766,39 +1765,6 @@ Please change it after login.`;
                 )}
 
 
-                {activeTab === 'migration' && (
-                    <div className="space-y-6 animate-fade-in-up">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <div>
-                                <h3 className="text-xl font-black">Database Setup & Schema</h3>
-                                <p className="text-sm text-slate-500 mt-1">Export SQL DDL scripts or execute migration directly on the cloud.</p>
-                            </div>
-                            <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-xl">
-                                <button onClick={() => setMigrationSubTab('full')} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${migrationSubTab === 'full' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-50'}`}>Full Platform</button>
-                                <button onClick={() => setMigrationSubTab('semester')} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${migrationSubTab === 'semester' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-50'}`}>Modules Only</button>
-                            </div>
-                        </div>
-                        <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl relative border-4 border-slate-800">
-                            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                                <h4 className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">PostgreSQL Deployment Script</h4>
-                                <div className="flex gap-3">
-                                    <button onClick={() => handleCopySql(getFullSqlScriptValue())} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
-                                        {copyStatus ? <CheckIcon className="w-4 h-4 text-green-500" /> : <CommandLineIcon className="w-4 h-4" />}
-                                        {copyStatus ? 'Copied' : 'Copy SQL'}
-                                    </button>
-                                    <button onClick={handleDownloadSql} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl transition-all active:scale-95">
-                                        <DocumentArrowDownIcon className="w-4 h-4" /> Download .sql
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="relative group">
-                                <pre className="bg-slate-950 text-indigo-300 p-8 rounded-2xl overflow-auto h-[500px] text-xs font-mono leading-relaxed border border-slate-800/50">
-                                    {getFullSqlScriptValue()}
-                                </pre>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {activeTab === 'academics' && (
                     <div className="space-y-6 animate-fade-in-up">
@@ -1980,10 +1946,49 @@ Please change it after login.`;
                                 >
                                     <ShoppingCartIcon className="w-4 h-4" /> Marketplace
                                 </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('system_build')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'system_build' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <CommandLineIcon className="w-4 h-4" /> System Build
+                                </button>
                             </nav>
                         </div>
 
                         <div className="mt-6">
+                            {settingsSubTab === 'system_build' && (
+                                <div className="space-y-6 animate-fade-in-up">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <div>
+                                            <h3 className="text-xl font-black">Database Setup & Schema</h3>
+                                            <p className="text-sm text-slate-500 mt-1">Export SQL DDL scripts or execute migration directly on the cloud.</p>
+                                        </div>
+                                        <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-xl">
+                                            <button onClick={() => setMigrationSubTab('full')} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${migrationSubTab === 'full' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>Full Platform</button>
+                                            <button onClick={() => setMigrationSubTab('semester')} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${migrationSubTab === 'semester' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>Modules Only</button>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl relative border-4 border-slate-800">
+                                        <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+                                            <h4 className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">PostgreSQL Deployment Script</h4>
+                                            <div className="flex gap-3">
+                                                <button onClick={() => handleCopySql(getFullSqlScriptValue())} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+                                                    {copyStatus ? <CheckIcon className="w-4 h-4 text-green-500" /> : <CommandLineIcon className="w-4 h-4" />}
+                                                    {copyStatus ? 'Copied' : 'Copy SQL'}
+                                                </button>
+                                                <button onClick={handleDownloadSql} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl transition-all active:scale-95">
+                                                    <DocumentArrowDownIcon className="w-4 h-4" /> Download .sql
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="relative group">
+                                            <pre className="bg-slate-950 text-indigo-300 p-8 rounded-2xl overflow-auto h-[500px] text-xs font-mono leading-relaxed border border-slate-800/50">
+                                                {getFullSqlScriptValue()}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {settingsSubTab === 'profile' && (
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm animate-fade-in">
                                     <h3 className="text-lg font-black uppercase mb-6 tracking-tighter">Identity Records</h3>

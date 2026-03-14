@@ -753,16 +753,18 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                             Settings
                         </button>
                     )}
-                    <button
-                        onClick={() => setActiveTab('external_module')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'external_module'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
-                            }`}
-                    >
-                        <SparklesIcon className="w-5 h-5" />
-                        External
-                    </button>
+                    {currentUser.role === 'super_admin' && (
+                        <button
+                            onClick={() => setActiveTab('external_module')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'external_module'
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                        >
+                            <SparklesIcon className="w-5 h-5" />
+                            External
+                        </button>
+                    )}
                 </nav>
 
                 <div className="pt-6 border-t border-slate-800">
