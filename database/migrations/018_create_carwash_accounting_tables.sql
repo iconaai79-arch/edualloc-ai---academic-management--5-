@@ -99,7 +99,7 @@ BEGIN
         ('acc_' || inst_id || '_5030', inst_id, '5030', 'Maintenance Expense', 'Expense', 'Machine and equipment repairs')
     ON CONFLICT (institution_id, account_code) DO NOTHING;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Add RLS Policies
 ALTER TABLE public.carwash_accounts ENABLE ROW LEVEL SECURITY;

@@ -93,7 +93,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER trg_unit_status_on_lease
 AFTER INSERT OR UPDATE ON pm_leases
@@ -110,7 +110,7 @@ BEGIN
     END IF;
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER trg_property_unit_count
 AFTER INSERT OR DELETE ON pm_units

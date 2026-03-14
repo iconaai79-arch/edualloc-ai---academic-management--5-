@@ -112,7 +112,7 @@ BEGIN
     WHERE id = NEW.product_id;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER trg_update_agrovet_stock
 AFTER INSERT ON agrovet_sale_items

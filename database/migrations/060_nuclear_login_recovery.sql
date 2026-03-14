@@ -20,14 +20,14 @@ END $$;
 
 -- 3. Simplify Helper Functions (Standard syntax)
 CREATE OR REPLACE FUNCTION public.get_curr_user_role()
-RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN (SELECT role FROM public.users WHERE id = auth.uid()::text OR id = 'u_' || auth.uid()::text LIMIT 1);
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_curr_user_inst_id()
-RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
     RETURN (SELECT institution_id FROM public.users WHERE id = auth.uid()::text OR id = 'u_' || auth.uid()::text LIMIT 1);
 END;

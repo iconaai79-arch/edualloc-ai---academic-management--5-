@@ -83,4 +83,23 @@ BEGIN
         EXECUTE 'ALTER FUNCTION public.prevent_double_allocation() SET search_path = public';
     END IF;
 
+    -- Car Wash Seeding
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'seed_default_carwash_accounts') THEN
+        EXECUTE 'ALTER FUNCTION public.seed_default_carwash_accounts(text) SET search_path = public';
+    END IF;
+
+    -- Agrovet Triggers
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'update_agrovet_stock_on_sale') THEN
+        EXECUTE 'ALTER FUNCTION public.update_agrovet_stock_on_sale() SET search_path = public';
+    END IF;
+
+    -- Property Management Triggers
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'update_unit_status_on_lease') THEN
+        EXECUTE 'ALTER FUNCTION public.update_unit_status_on_lease() SET search_path = public';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'update_property_unit_count') THEN
+        EXECUTE 'ALTER FUNCTION public.update_property_unit_count() SET search_path = public';
+    END IF;
+
 END $$;
