@@ -34,7 +34,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error(`[API Records] GET Error [${module}]:`, error);
+            return res.status(500).json({ error: 'Failed to fetch records. Internal server error.' });
+        }
         return res.status(200).json(data);
     }
 
@@ -50,7 +53,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const { data, error } = await supabase.from(module as string).upsert(secureData).select();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error(`[API Records] POST Error [${module}]:`, error);
+            return res.status(500).json({ error: 'Failed to save record. Internal server error.' });
+        }
         return res.status(200).json(data[0]);
     }
 
@@ -71,7 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const { data, error } = await supabase.from(module as string).update(updates).eq('id', recordId).select();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error(`[API Records] PATCH Error [${module}]:`, error);
+            return res.status(500).json({ error: 'Failed to update record. Internal server error.' });
+        }
         return res.status(200).json(data[0]);
     }
 
@@ -92,7 +101,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const { error } = await supabase.from(module as string).delete().eq('id', id);
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) {
+            console.error(`[API Records] DELETE Error [${module}]:`, error);
+            return res.status(500).json({ error: 'Failed to delete record. Internal server error.' });
+        }
         return res.status(200).json({ success: true });
     }
 
