@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ status: 'ok', env: getEnvInfo() });
         }
 
-        const supabase = getSupabaseClient(req.headers.authorization);
+        const supabase = createServerClient();
         if (!supabase) return res.status(500).json({ error: 'Database service unavailable - Missing keys', env: getEnvInfo() });
 
         if (req.method === 'GET') {

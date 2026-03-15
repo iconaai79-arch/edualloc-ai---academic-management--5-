@@ -15,7 +15,7 @@ export default async function handler(
   if (request.method === 'OPTIONS') return response.status(200).end();
 
   // Verify Auth
-  const supabase = createServerClient(request.headers.authorization);
+  const supabase = createServerClient();
   if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
 
   // JWT Validation & Institution Derivation

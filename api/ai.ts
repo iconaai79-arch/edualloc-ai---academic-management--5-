@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     // Verify Auth
-    const supabase = createServerClient(req.headers.authorization);
+    const supabase = createServerClient();
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
     const userResult = await getAuthenticatedUser(supabase);
     if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
