@@ -51,6 +51,24 @@ export const createServerClient = (authHeader?: string): SupabaseClient | null =
 };
 
 /**
+ * Creates a privileged Supabase client using the SERVICE_ROLE_KEY.
+ * Use this ONLY on the server to bypass RLS.
+ */
+export const createServiceClient = (): SupabaseClient | null => {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+        console.error('[Supabase] Cannot create service client: missing URL or service role key');
+        return null;
+    }
+
+    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    });
+};
+
+/**
  * UTILITY: Optional helper to pick the right client
  * - Use this in API routes if you want auto-switching
  */
