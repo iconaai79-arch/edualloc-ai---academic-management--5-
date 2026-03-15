@@ -77,7 +77,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         const tenantId = generateId('inst');
         const adminId = generateUserId();
 
-        console.log("Starting tenant onboarding process...", { tenantId, adminId });
+        // Starting tenant onboarding process
 
         try {
             // Step 1: Prepare Institution
@@ -100,7 +100,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 }
             };
 
-            console.log("Step 1: Saving Institution...", newInst);
+            // Saving Institution
             try {
                 await apiService.saveInstitution(newInst);
             } catch (instError: any) {
@@ -120,7 +120,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 expertise: ['Administration'],
             };
 
-            console.log("Step 2: Registering Admin...", newAdmin);
+            // Registering Admin
             try {
                 await apiService.registerUser(newAdmin, newTenantName);
             } catch (adminError: any) {

@@ -20,7 +20,7 @@ export default async function handler(
   if (!supabase) return response.status(500).json({ error: 'Database service unavailable' });
 
   // JWT Validation & Institution Derivation
-  const user = await getAuthenticatedUser(supabase);
+  const user = await getAuthenticatedUser(supabase, request.headers.authorization);
   if (!user) return response.status(401).json({ error: 'Unauthorized' });
 
   const { institutionId, role } = user;

@@ -4,16 +4,28 @@ import ReactDOM from 'react-dom/client';
 import { App } from './components/App';
 import '../index.css';
 
-// Suppress specific Vercel branding/info logs that inject into the console
+// Suppress sensitive info and non-essential logs
 if (typeof window !== 'undefined') {
   const originalLog = console.log;
   const originalInfo = console.info;
-  const suppressedKeywords = ['vercel.com/oss', 'vercel.com/careers', 'vercel-status.com'];
+  const suppressedKeywords = [
+    'vercel.com/oss', 'vercel.com/careers', 'vercel-status.com',
+    'Fetch [', 'Save Error [', 'raw records', 'to Supabase', 
+    'allocation_requests', 'mpesa_transactions', 'users', 'institutions'
+  ];
+
+  const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+  const isDebugMode = new URLSearchParams(window.location.search).has('debug');
 
   const filterLogs = (originalFn: any) => (...args: any[]) => {
+    // 1. Kill all non-error logs in production unless debug mode is active
+    if (isProduction && !isDebugMode) return;
+
+    // 2. Filter sensitive keywords in dev/debug mode
     const isSuppressed = args.some(arg =>
       typeof arg === 'string' && suppressedKeywords.some(kw => arg.includes(kw))
     );
+    
     if (!isSuppressed) {
       originalFn(...args);
     }

@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     // JWT Validation & Institution Derivation
-    const user = await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase, req.headers.authorization);
     if (!user) return res.status(401).json({ error: 'Unauthorized: Invalid session' });
 
     const { module, id } = req.query;
@@ -18,11 +18,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
         let query = supabase.from(module as string).select('*');
 
-        // Always filter by institution_id unless it's a super_admin accessing institutions
-        if (module === 'institutions' && user.role === 'super_admin') {
-            // Allow super admin to see all institutions or filter by ID
+        // Always filter by institution_id unless it's a super_admin
+        if (user.role === 'super_admin') {
+            // Super admins see everything
             if (req.query.institutionId) {
-                query = query.eq('id', req.query.institutionId);
+                const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                query = query.eq(filterCol, req.query.institutionId);
             }
         } else if (module === 'institutions') {
             // Regular users can only see THEIR institution
@@ -40,8 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST') {
         const { data: recordData } = req.body;
 
-        // Enforce institutionId parity on POST
-        const secureData = { ...recordData, institution_id: institutionId };
+        // Enforce institutionId parity on POST unless super_admin
+        const secureData = user.role === 'super_admin' ? recordData : { ...recordData, institution_id: institutionId };
 
         // Special case: if user is not super_admin, they can only upsert records for their institution
         if (module === 'institutions' && user.role !== 'super_admin') {

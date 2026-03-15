@@ -17,6 +17,38 @@ export const generateFullSqlScript = () => {
 
     sql += `-- 1. CORE SYSTEM & TENANCY --\n`;
     sql += `
+-- RLS Helper Functions (Optimized)
+CREATE OR REPLACE FUNCTION public.get_curr_user_inst_id()
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    RETURN (
+        SELECT institution_id 
+        FROM public.users 
+        WHERE id = auth.uid()::text 
+           OR id = 'u_' || auth.uid()::text 
+        LIMIT 1
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_curr_user_role()
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    -- Bootstrap super_admin based on common service emails
+    IF (SELECT email FROM auth.users WHERE id = auth.uid()) IN ('admin@eduai.com', 'super@eduai.com', 'admin@system.com') THEN
+        RETURN 'super_admin';
+    END IF;
+
+    RETURN (
+        SELECT role 
+        FROM public.users 
+        WHERE id = auth.uid()::text 
+           OR id = 'u_' || auth.uid()::text 
+        LIMIT 1
+    );
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS institutions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -1115,13 +1147,105 @@ DROP POLICY IF EXISTS "Public can view published listings" ON pm_listings;
 CREATE POLICY "Public can view published listings" ON pm_listings FOR SELECT USING (status = 'Published');
 
 DROP POLICY IF EXISTS "Allow anonymous inquiries" ON pm_inquiries;
-CREATE POLICY "Allow anonymous inquiries" ON pm_inquiries FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous inquiries" ON pm_inquiries FOR INSERT WITH CHECK (
+    institution_id IS NOT NULL 
+    AND (public.get_curr_user_inst_id() IS NULL OR institution_id = public.get_curr_user_inst_id())
+);
 
-DROP POLICY IF EXISTS "Allow anonymous inquiry updates" ON pm_inquiries;
-CREATE POLICY "Allow anonymous inquiry updates" ON pm_inquiries FOR UPDATE USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Institutional tenancy select: pm_inquiries" ON pm_inquiries;
+CREATE POLICY "Institutional tenancy select: pm_inquiries" ON pm_inquiries FOR SELECT USING (
+    (public.get_curr_user_role() = 'super_admin') 
+    OR (institution_id::text = public.get_curr_user_inst_id())
+);
 
-DROP POLICY IF EXISTS "Allow anonymous inquiry view" ON pm_inquiries;
-CREATE POLICY "Allow anonymous inquiry view" ON pm_inquiries FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Institutional tenancy manage: pm_inquiries" ON pm_inquiries;
+CREATE POLICY "Institutional tenancy manage: pm_inquiries" ON pm_inquiries FOR ALL USING (
+    (public.get_curr_user_role() = 'super_admin') 
+    OR (
+        institution_id::text = public.get_curr_user_inst_id()
+        AND public.get_curr_user_role() IN ('admin', 'head_teacher', 'property_admin', 'field_agent')
+    )
+);
+
+-- Standard Carwash RLS
+ALTER TABLE carwash_packages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carwash_shifts ENABLE ROW LEVEL SECURITY;
+
+-- Standard Carwash Policies (Institutional Tenancy)
+DO $policy$
+DECLARE
+    t TEXT;
+BEGIN
+    FOR t IN SELECT unnest(ARRAY['carwash_packages', 'carwash_customers', 'carwash_vehicles', 'carwash_jobs', 'carwash_inventory', 'carwash_feedback', 'carwash_shifts']) LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (
+            (public.get_curr_user_role() = ''super_admin'') 
+            OR (institution_id::text = public.get_curr_user_inst_id())
+        )', t, t);
+
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (
+            (public.get_curr_user_role() = ''super_admin'') 
+            OR (
+                institution_id::text = public.get_curr_user_inst_id()
+                AND public.get_curr_user_role() IN (''admin'', ''head_teacher'', ''carwash_admin'', ''carwash_attendant'')
+            )
+        )', t, t);
+    END LOOP;
+END $policy$;
+
+-- Standard Agrovet RLS
+ALTER TABLE agrovet_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_animals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_consultations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agrovet_credit ENABLE ROW LEVEL SECURITY;
+
+-- Standard Agrovet Policies (Institutional Tenancy)
+DO $policy$
+DECLARE
+    t TEXT;
+BEGIN
+    FOR t IN SELECT unnest(ARRAY['agrovet_products', 'agrovet_batches', 'agrovet_customers', 'agrovet_animals', 'agrovet_sales', 'agrovet_consultations', 'agrovet_credit']) LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (
+            (public.get_curr_user_role() = ''super_admin'') 
+            OR (institution_id::text = public.get_curr_user_inst_id())
+        )', t, t);
+
+        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
+        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (
+            (public.get_curr_user_role() = ''super_admin'') 
+            OR (
+                institution_id::text = public.get_curr_user_inst_id()
+                AND public.get_curr_user_role() IN (''admin'', ''head_teacher'', ''agrovet_admin'', ''vet'')
+            )
+        )', t, t);
+    END LOOP;
+END $policy$;
+
+-- Standard Cafe RLS
+ALTER TABLE cafe_orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Institutional tenancy select: cafe_orders" ON cafe_orders;
+CREATE POLICY "Institutional tenancy select: cafe_orders" ON cafe_orders FOR SELECT USING (
+    (public.get_curr_user_role() = 'super_admin') 
+    OR (institution_id::text = public.get_curr_user_inst_id())
+);
+DROP POLICY IF EXISTS "Institutional tenancy manage: cafe_orders" ON cafe_orders;
+CREATE POLICY "Institutional tenancy manage: cafe_orders" ON cafe_orders FOR ALL USING (
+    (public.get_curr_user_role() = 'super_admin') 
+    OR (
+        institution_id::text = public.get_curr_user_inst_id()
+        AND public.get_curr_user_role() IN ('admin', 'head_teacher', 'chef', 'waiter')
+    )
+);
 
 -- 12. HEALTH INFORMATION SYSTEM (HIS) MODULE
 CREATE TABLE IF NOT EXISTS his_staff (
@@ -1306,40 +1430,83 @@ ALTER TABLE his_broadcasts ENABLE ROW LEVEL SECURITY;
 
 -- Standard HIS Policies
 DROP POLICY IF EXISTS "HIS staff viewable by institution" ON his_staff;
-CREATE POLICY "HIS staff viewable by institution" ON his_staff FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "HIS staff viewable by institution" ON his_staff FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Patients viewable by institution" ON his_patients;
-CREATE POLICY "Patients viewable by institution" ON his_patients FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Patients viewable by institution" ON his_patients FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Wards viewable by institution" ON his_wards;
-CREATE POLICY "Wards viewable by institution" ON his_wards FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Wards viewable by institution" ON his_wards FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Beds viewable by institution" ON his_beds;
-CREATE POLICY "Beds viewable by institution" ON his_beds FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Beds viewable by institution" ON his_beds FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Admissions viewable by institution" ON his_admissions;
-CREATE POLICY "Admissions viewable by institution" ON his_admissions FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Admissions viewable by institution" ON his_admissions FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Appointments viewable by institution" ON his_appointments;
-CREATE POLICY "Appointments viewable by institution" ON his_appointments FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Appointments viewable by institution" ON his_appointments FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Staff attendance viewable by institution" ON his_staff_attendance;
-CREATE POLICY "Staff attendance viewable by institution" ON his_staff_attendance FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Staff attendance viewable by institution" ON his_staff_attendance FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Dental charts viewable by institution" ON his_dental_charts;
-CREATE POLICY "Dental charts viewable by institution" ON his_dental_charts FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Dental charts viewable by institution" ON his_dental_charts FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Eye prescriptions viewable by institution" ON his_eye_prescriptions;
-CREATE POLICY "Eye prescriptions viewable by institution" ON his_eye_prescriptions FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Eye prescriptions viewable by institution" ON his_eye_prescriptions FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "Medication logs viewable by institution" ON his_medication_logs;
-CREATE POLICY "Medication logs viewable by institution" ON his_medication_logs FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "Medication logs viewable by institution" ON his_medication_logs FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "HIS financial records viewable by institution" ON his_financial_records;
-CREATE POLICY "HIS financial records viewable by institution" ON his_financial_records FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "HIS financial records viewable by institution" ON his_financial_records FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
 
 DROP POLICY IF EXISTS "HIS broadcasts viewable by institution" ON his_broadcasts;
-CREATE POLICY "HIS broadcasts viewable by institution" ON his_broadcasts FOR SELECT USING (institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()::text));
+CREATE POLICY "HIS broadcasts viewable by institution" ON his_broadcasts FOR SELECT USING (institution_id = public.get_curr_user_inst_id());
+
+-- Core Academic RLS (Standardized for initial setup)
+DROP POLICY IF EXISTS "Institutions are public" ON institutions;
+CREATE POLICY "Institutions are public" ON institutions FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
+CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id OR 'u_' || auth.uid()::text = id OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Institutional tenancy select: subjects" ON subjects;
+CREATE POLICY "Institutional tenancy select: subjects" ON subjects FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+
+DROP POLICY IF EXISTS "Institutional tenancy select: courses" ON courses;
+CREATE POLICY "Institutional tenancy select: courses" ON courses FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
+
+-- Standardize RLS for remaining core tables
+DO $core_policy$
+DECLARE
+    t TEXT;
+BEGIN
+    FOR t IN SELECT unnest(ARRAY[
+        'academic_levels', 'departments', 'academic_years', 'semesters', 'buildings', 'rooms', 
+        'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'assignments', 
+        'student_attendances', 'enrollment_requests', 'vote_heads', 'financial_periods', 
+        'fee_structures', 'inventory', 'stock_transactions', 'absence_requests',
+        'activity_log', 'system_settings', 'counties', 'suppliers', 'requisitions',
+        'books', 'library_transactions', 'library_fines', 'book_reservations',
+        'book_stock_receipts', 'library_settings', 'security_alerts', 'visitors',
+        'appointments', 'tasks', 'feedback_submissions', 'lesson_ratings',
+        'student_absence_requests', 'time_off_requests', 'bulletin_items',
+        'document_collections', 'watchlist_records', 'maintenance_requests',
+        'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
+        'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
+        'his_broadcasts'
+    ]) LOOP
+        IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
+            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
+            EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+            
+            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
+            EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+        END IF;
+    END LOOP;
+END $core_policy$;
 
 `;
 

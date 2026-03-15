@@ -410,21 +410,13 @@ export const App: React.FC = () => {
 
     const initialLoadDone = useRef(false);
 
-    // Debugging hooks to track initialization
+    // App Initialization monitoring
     useEffect(() => {
-        console.log("App Initialization Debug:", {
-            hasUser: !!currentUser,
-            userRole: currentUser?.role,
-            institutionsCount: institutions.length,
-            usersCount: users.length,
-            appInitializing,
-            isApiOnline,
-            env: {
-                URL: process.env.SUPABASE_URL ? 'PRESENT' : 'MISSING',
-                KEY: process.env.SUPABASE_ANON_KEY ? 'PRESENT' : 'MISSING'
-            }
-        });
-    }, [currentUser, institutions, users, appInitializing, isApiOnline]);
+        // Initialization state tracked internally
+        if (!appInitializing) {
+            initialLoadDone.current = true;
+        }
+    }, [appInitializing]);
 
     const onStudentLessonCheckIn = useCallback(async (timetableEntryId: string) => {
         if (!currentUser) return;
@@ -1944,7 +1936,13 @@ export const App: React.FC = () => {
                             isHealthSystemOpen={isHealthSystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
-                            {(isHealthSystemOpen || activeRole === 'his_admin' || activeInstitution?.institutionType === 'HIS') ? (
+                            {(activeInstitution?.institutionType === 'HIS') ? (
+                                <HealthCoreView 
+                                    activeRole={activeRole as Role} 
+                                    userName={currentUser?.name} 
+                                    institutionId={activeInstitution?.id || currentUser?.institutionId}
+                                />
+                            ) : (isHealthSystemOpen || activeRole === 'his_admin') ? (
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 
                                     userName={currentUser?.name} 

@@ -171,7 +171,8 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                         activeRole === 'landlord' || 
                                                         activeRole === 'tenant' || 
-                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management');
+                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management') ||
+                                                        currentInstitution?.institutionType === 'HIS';
                             
                             if (isPropertyManagement) return null;
 

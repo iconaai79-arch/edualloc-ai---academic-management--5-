@@ -35,17 +35,17 @@ const HouseManager: React.FC<HouseManagerProps> = ({
 
     const loadHouses = async () => {
         setLoading(true);
-        console.log('HouseManager: Loading houses for institution:', currentInstitution.id);
+        // Loading houses for institution
         try {
             // First attempt: Fetch from stats view
             let data = await apiService.fetchModuleRecords<BoardingHouseWithStats>('v_house_statistics', currentInstitution.id);
 
             // Fallback: If view returns nothing, try fetching raw houses to see if records exist at all
             if (!data || data.length === 0) {
-                console.warn('HouseManager: v_house_statistics returned no data, trying raw boarding_houses table...');
+                // Falling back to raw boarding_houses table
                 const rawHouses = await apiService.fetchModuleRecords<any>('boarding_houses', currentInstitution.id);
                 if (rawHouses && rawHouses.length > 0) {
-                    console.log('HouseManager: Found raw records, mapping to stats structure', rawHouses.length);
+                    // Found raw records
                     // Map raw records to the stats structure so the UI doesn't crash
                     data = rawHouses.map(h => ({
                         ...h,
@@ -59,7 +59,7 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                 }
             }
 
-            console.log('HouseManager: Final data for state:', data);
+            // Final data loaded
             setHouses(data || []);
             await onLogAction('Viewed boarding houses');
         } catch (error) {

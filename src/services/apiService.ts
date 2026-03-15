@@ -303,7 +303,7 @@ export const apiService = {
                     .from(bucket)
                     .getPublicUrl(path);
 
-                console.log(`[Storage] Uploaded to Supabase: ${publicUrl}`);
+                // console.log(`[Storage] Uploaded to Supabase: ${publicUrl}`);
                 return publicUrl;
             }
 
@@ -346,24 +346,38 @@ export const apiService = {
         }
 
         try {
-            let query = _supabase.from(module as any).select('*');
+            // Determine Auth Token (Internal ID fallback)
+            let token = '';
+            const session = this.getSession();
+            if (session?.id) token = session.id;
 
-            if (institutionId && institutionId !== 'ALL') {
-                const filterCol = getFilterCol(module, 'institution');
-                query = query.eq(filterCol, institutionId);
+            const url = new URL(`${window.location.origin}/api/records`);
+            url.searchParams.append('module', module);
+            if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+            if (countyId) url.searchParams.append('countyId', countyId);
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                console.error(`Fetch API Error [${module}]:`, response.status, errData);
+                
+                // Fallback to direct supabase if API fails (as a last resort)
+                if (_supabase) {
+                     let query = _supabase.from(module as any).select('*');
+                     if (institutionId && institutionId !== 'ALL') query = query.eq(getFilterCol(module, 'institution'), institutionId);
+                     const { data, error } = await query;
+                     if (!error) return toCamelCase(data) || [];
+                }
+                return [];
             }
 
-            if (countyId) {
-                const filterCol = getFilterCol(module, 'county');
-                query = query.eq(filterCol, countyId);
-            }
-
-            const { data, error } = await query;
-            if (error) {
-                console.error(`Fetch Error [${module}]:`, error);
-                throw error;
-            }
-            console.log(`Fetch [${module}]: Found ${data?.length || 0} raw records`);
+            const data = await response.json();
             return toCamelCase(data) || [];
         } catch (e) {
             console.error(`Fetch Exception [${module}]:`, e);
@@ -580,7 +594,7 @@ export const apiService = {
                 .maybeSingle();
 
             if (existing) {
-                console.log('[apiService] Transaction already exists, skipping duplicate creation');
+                // Duplicate transaction handled silently
                 return 'completed';
             }
         } catch (e) {
@@ -840,7 +854,7 @@ export const apiService = {
                 if (session?.id) token = session.id;
             }
 
-            console.log('[M-Pesa Client] Initiating payment request...');
+            // initiating payment request
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
             const response = await fetch('/api/integrations', {
@@ -849,8 +863,7 @@ export const apiService = {
                 body: JSON.stringify({ action: 'initiateStkPush', recipient: formattedPhone, amount, config, metadata })
             });
 
-            console.log('[M-Pesa Client] Response :', response);
-            console.log('[M-Pesa Client] Response status:', response.status);
+            // Logging removed for production security
 
             let resData: any = {};
             let rawText = '';
@@ -924,7 +937,7 @@ export const apiService = {
     },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
         // Mock KCB Buni STK Push Integration
-        console.log(`[KCB Buni] Initiating STK Push for ${tenantId}. Amount: ${amount}, Type: ${paymentType}`);
+        // Initiating KCB STK Push
 
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -937,7 +950,7 @@ export const apiService = {
     },
     async verifyKcbAccount(tenantId: string): Promise<{ success: boolean; message: string; details?: any }> {
         // Mock KCB Buni Account Verification
-        console.log(`[KCB Buni] Verifying account for ${tenantId}`);
+        // Verifying KCB account
 
         await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -1031,7 +1044,7 @@ export const apiService = {
                     })
                     .eq('id', request.institution_id);
 
-                console.log(`[Extension] Institution ${request.institution_id} extended to ${newExpiry.toISOString()}`);
+                // Extension successful
             }
         } catch (error) {
             console.error("Failed to update extension request status:", error);
