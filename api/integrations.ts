@@ -1,20 +1,12 @@
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../lib/supabase';
 
 export const config = {
     maxDuration: 60,
 };
 
-const getSupabaseClient = () => {
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!url || !key) return null;
-    // We use a clean client without global headers to avoid the "invalid jwt" error 
-    // when the token is a custom User ID instead of a Supabase JWT.
-    return createClient(url, key);
-};
+// getSupabaseClient removed in favor of createServiceClient
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -74,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const authHeader = req.headers.authorization || (req.query.token as string ? `Bearer ${req.query.token}` : undefined);
-        const supabase = getSupabaseClient();
+        const supabase = createServiceClient();
 
         // Helper for fetch with timeout
         const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {

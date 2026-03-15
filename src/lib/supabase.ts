@@ -58,6 +58,7 @@ export const testSupabaseConnection = async (url: string, key: string): Promise<
 
 /**
  * Creates a server-side Supabase client with the user's authorization token.
+ * Uses ANON_KEY by default.
  */
 export const createServerClient = (authHeader?: string): SupabaseClient | null => {
     const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -70,6 +71,24 @@ export const createServerClient = (authHeader?: string): SupabaseClient | null =
             headers: {
                 Authorization: authHeader || ''
             }
+        }
+    });
+};
+
+/**
+ * Creates a privileged Supabase client using the SERVICE_ROLE_KEY.
+ * Use this ONLY on the server to bypass RLS.
+ */
+export const createServiceClient = (): SupabaseClient | null => {
+    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) return null;
+
+    return createClient(url, key, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
         }
     });
 };

@@ -1,8 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createServerClient } from '../lib/supabase';
+import { createServiceClient } from '../lib/supabase';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     if (!supabase) {
         return res.status(200).json({
             success: false,

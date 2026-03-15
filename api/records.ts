@@ -1,9 +1,9 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createServerClient } from '../lib/supabase';
+import { createServiceClient } from '../lib/supabase';
 import { getAuthenticatedUser } from '../lib/auth-server';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     // JWT Validation & Institution Derivation

@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../lib/supabase';
 
 export const config = {
     maxDuration: 60,
@@ -38,19 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('========================================');
 
     try {
-        // Initialize Supabase client (service role for backend operations)
-        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseServiceKey) {
-            console.error('[M-Pesa Callback] Missing Supabase credentials');
-            return res.status(500).json({
-                ResultCode: 1,
-                ResultDesc: 'Server configuration error'
-            });
-        }
-
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const supabase = createServiceClient();
 
         // Helper for fetch with timeout
         const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {

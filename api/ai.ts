@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from "@google/generative-ai"; // Use the correct SDK package
 
-import { createServerClient } from '../lib/supabase';
+import { createServiceClient } from '../lib/supabase';
 import { getAuthenticatedUser } from '../lib/auth-server';
 
 const getSafeKey = () => {
@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     // Verify Auth
-    const supabase = createServerClient();
+    const supabase = createServiceClient();
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
     const userResult = await getAuthenticatedUser(supabase);
     if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });

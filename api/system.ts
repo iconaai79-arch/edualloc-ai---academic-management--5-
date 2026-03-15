@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../lib/supabase';
 import pkg from 'pg';
 const { Pool } = pkg;
 
@@ -11,18 +11,7 @@ const getEnvInfo = () => ({
     nodeEnv: process.env.NODE_ENV
 });
 
-const getSupabaseClient = (authHeader?: string) => {
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!url || !key) return null;
-
-    return createClient(url, key, {
-        global: {
-            headers: authHeader ? { Authorization: authHeader } : undefined
-        }
-    });
-};
+// Unused getSupabaseClient removed in favor of createServiceClient
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`[System API] Request: ${req.method} ${req.url}`);
@@ -34,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ status: 'ok', env: getEnvInfo() });
         }
 
-        const supabase = createServerClient();
+        const supabase = createServiceClient();
         if (!supabase) return res.status(500).json({ error: 'Database service unavailable - Missing keys', env: getEnvInfo() });
 
         if (req.method === 'GET') {
