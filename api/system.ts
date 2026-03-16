@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServiceClient } from '../lib/supabase';
+import { getAuthenticatedUser } from '../lib/auth-server';
 import pkg from 'pg';
 const { Pool } = pkg;
 

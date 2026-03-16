@@ -40,6 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (queryInstitutionId) {
                     const filterCol = module === 'institutions' ? 'id' : 'institution_id';
                     query = query.eq(filterCol, queryInstitutionId);
+                } else {
+                    // Prevent over-fetching on public unauthenticated requests
+                    query = query.limit(100);
                 }
             } else if (user) {
                 // Regular users can only see THEIR institution
