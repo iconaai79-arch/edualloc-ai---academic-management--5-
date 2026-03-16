@@ -79,12 +79,17 @@ export const createServiceClient = (): SupabaseClient | null => {
         return null;
     }
 
-    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    });
+    try {
+        return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
+    } catch (err) {
+        console.error('[Supabase] Factory error:', err);
+        return null;
+    }
 };
 
 /**

@@ -26,10 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
             const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
             console.error(`[API Records] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
-            return res.status(500).json({ 
+            
+            // Return a 200 with error info to avoid hard 500 crashes in frontend
+            return res.status(200).json({ 
                 success: false, 
-                error: 'Database service unavailable',
-                details: `Missing environment configuration (URL: ${hasUrl}, Key: ${hasKey})`
+                error: 'Database service unavailable: Missing environment keys.',
+                diagnostic: { hasUrl, hasKey, vercel: !!process.env.VERCEL }
             });
         }
         
@@ -124,10 +126,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (error) {
                     console.error(`[API Records] GET Error [${moduleName}]:`, error);
-                    return res.status(500).json({ 
+                    return res.status(200).json({ 
                         success: false,
-                        error: `Database Error [${moduleName}]: ${error.message}`,
-                        code: error.code
+                        error: `Database Error: ${error.message}`,
+                        code: error.code,
+                        module: moduleName
                     });
                 }
                 return res.status(200).json(data || []);
