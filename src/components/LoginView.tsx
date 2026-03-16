@@ -5,7 +5,7 @@ import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon,
 
 interface LoginViewProps {
     // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx
-    onLogin: (email: string, password: string) => 'success' | 'expired' | 'failed' | 'suspended' | 'otp_required';
+    onLogin: (email: string, password: string) => Promise<'success' | 'expired' | 'failed' | 'suspended' | 'otp_required'>;
     onVerifyOtp: (code: string) => boolean;
     onResendOtp: () => void;
     onInstitutionRegister: (data: InstitutionRegistrationData) => Promise<{ success: boolean; message: string; credentials?: { email: string; password: string; } }>;
