@@ -1,6 +1,7 @@
-
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServiceClient } from '../lib/supabase';
+import nodemailer from 'nodemailer';
+import { randomBytes } from 'crypto';
 
 export const config = {
     maxDuration: 60,
@@ -216,7 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
             const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi';
 
-            const { default: nodemailer } = await import('nodemailer');
+            
             const transporter = nodemailer.createTransport({
                 host: host,
                 port: Number(port || 587),
@@ -455,7 +456,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 await supabase.rpc('increment_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
                             }
 
-                            // Record log
                             try {
                                 await supabase.from('sms_logs').insert({
                                     institution_id: institutionId,
@@ -471,17 +471,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 console.error('[SMS Logging] Failed to record log:', logErr);
                             }
                         }
+
                         return res.status(200).json({
                             success: true,
                             message: 'SMS sent successfully.',
                             detail: smsDetail,
                             recipient: phone
                         });
+                    } catch (e: any) {
+                        return res.status(504).json({ success: false, message: 'SMS gateway connection timeout.', error: e.message });
                     }
-
-                } catch (e: any) {
-                    return res.status(504).json({ success: false, message: 'SMS gateway connection timeout.', error: e.message });
-                }
             } else if (provider === 'Sematime') {
                 // Placeholder for Sematime implementation
                 return res.status(501).json({ success: false, message: 'Sematime integration is currently under maintenance. Please use ABMIS or Zettatel.' });
@@ -498,7 +497,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!user || user.id === 'system' && !user.email) return res.status(404).json({ success: false, message: 'Account not found.' });
 
             // Generate a secure reset token
-            const { randomBytes } = await import('crypto');
             const token = randomBytes(32).toString('hex');
             const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
 
@@ -510,7 +508,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (updateError) {
                 console.error('[Forgot Password] Failed to store reset token:', updateError);
-                return res.status(500).json({ success: false, message: 'Failed to initiate recovery. System storage error.' });
+                return res.status(500).json({ success: false, message: 'Failed to initiate recovery. System storage error.', details: updateError.message });
             }
 
             // Handle both snake_case and camelCase keys
@@ -521,9 +519,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
             const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi Notification';
 
+            if (!host || !username || !password) {
+                return res.status(400).json({ success: false, message: 'Email gateway configuration is incomplete. Host, username, and password are required.' });
+            }
+
             console.log(`[Forgot Password] Dispatching recovery link to: ${recipient} using ${host}:${port}`);
 
-            const { default: nodemailer } = await import('nodemailer');
             const transporter = nodemailer.createTransport({
                 host: host,
                 port: Number(port || 587),
@@ -532,11 +533,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 tls: { rejectUnauthorized: false }
             });
 
-            const protocol = req.headers['x-forwarded-proto'] || 'http';
-            const resetLink = `${protocol}://${req.headers.host}/?resetToken=${token}`;
+            const protocol = String(req.headers['x-forwarded-proto'] || 'https');
+            const hostHeader = req.headers.host || 'eduai.co.ke';
+            const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
             const recoverySubject = "Password Reset Request - Eduai Automation";
-            const recoveryBody = `Dear ${user.name},\n\nYou requested a password reset for your account on the EduAlloc Academic Management System.\n\nPlease click the link below to set a new password. This link is valid for 1 hour:\n\n${resetLink}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n\nBest Regards,\nSystem Admin`;
+            const recoveryBody = `Dear ${user.name || 'User'},\n\nYou requested a password reset for your account on the Eduai Automation System.\n\nPlease click the link below to set a new password. This link is valid for 1 hour:\n\n${resetLink}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n\nBest Regards,\nEduai Automation System`;
 
             const info = await transporter.sendMail({
                 from: `"${fromName}" <${fromEmail}>`,
@@ -1080,7 +1082,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const emailConfig = settings.email_config || settings.emailConfig;
                     if (emailConfig && inst.email) {
                         try {
-                            const { default: nodemailer } = await import('nodemailer');
+                            
                             const transporter = nodemailer.createTransport({
                                 host: emailConfig.host,
                                 port: Number(emailConfig.port || 587),
