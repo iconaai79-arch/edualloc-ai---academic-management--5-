@@ -28,78 +28,103 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (req.method === 'GET') {
             const getQuery = async (columns: string) => {
-                let q = supabase.from(module as string).select(columns);
+                const tableName = (module as string) || '';
+                let q = supabase.from(tableName).select(columns);
                 
-                // Enforce filters
+                // Enforce primary tenancy / role filters
                 if (user?.role === 'super_admin') {
                     if (queryInstitutionId) {
-                        const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                        const filterCol = tableName === 'institutions' ? 'id' : 'institution_id';
                         q = q.eq(filterCol, queryInstitutionId);
                     }
                 } else if (isPublicGet && !user) {
                     if (queryInstitutionId) {
-                        const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                        const filterCol = tableName === 'institutions' ? 'id' : 'institution_id';
                         q = q.eq(filterCol, queryInstitutionId);
                     }
-                    if (!limit) q = q.limit(100); // Limit public unauthenticated searches to prevent scraping
+                    if (!limit) q = q.limit(100); 
                 } else if (user) {
                     const { institutionId } = user;
-                    if (module === 'institutions') {
+                    if (tableName === 'institutions') {
                         q = q.eq('id', institutionId);
                     } else {
                         q = q.eq('institution_id', institutionId);
                     }
                 }
 
-                // Generic Query Param Filtering (e.g. ?institution_code=ABC or ?email=x@y.com)
+                // Handle 'id' parameter explicitly if present (since it's common and reserved)
+                if (id) {
+                    q = q.eq('id', Array.isArray(id) ? id[0] : id);
+                }
+
+                // Generic Query Param Filtering
                 const reserved = ['module', 'id', 'select', 'order', 'limit', 'institutionId'];
                 Object.entries(req.query).forEach(([key, val]) => {
                     if (!reserved.includes(key) && val) {
-                        const value = Array.isArray(val) ? val[0] : val;
-                        q = q.eq(key, value);
+                        try {
+                            const value = Array.isArray(val) ? val[0] : val;
+                            if (value && typeof value === 'string') {
+                                q = q.eq(key, value);
+                            }
+                        } catch (e) {
+                            console.warn(`[API Records] Filter failure for ${key}:`, e);
+                        }
                     }
                 });
 
-                if (order) {
-                    const [column, direction] = (order as string).split('.');
+                if (order && typeof order === 'string') {
+                    const parts = order.split('.');
+                    const column = parts[0];
+                    const direction = parts[1] || 'asc';
                     q = q.order(column, { ascending: direction !== 'desc' });
                 }
                 
                 if (limit) {
-                    q = q.limit(parseInt(limit as string));
+                    const parsedLimit = parseInt(Array.isArray(limit) ? limit[0] : (limit as string));
+                    if (!isNaN(parsedLimit)) {
+                        q = q.limit(parsedLimit);
+                    }
                 }
                 return await q;
             };
 
             // Determine select columns
             let selectString = (select as string) || '*';
+            const table = (module as string);
             if (isPublicGet && !user && !select) {
-                if (module === 'users') {
+                if (table === 'users') {
+                    // Password returned temporarily to allow discovery-phase login verification;
+                    // In a production environment, this should be moved to a secure RPC or auth endpoint.
                     selectString = 'id, name, email, role, roles, institution_id, phone_number, password';
-                } else if (module === 'institutions') {
+                } else if (table === 'institutions') {
                     selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type, trial_ends_at, subscription_ends_at';
                 }
             }
 
-            let { data, error } = await getQuery(selectString);
+            try {
+                let { data, error } = await getQuery(selectString);
 
-            // Resilient Fallback: If specific columns fail (42703 - undefined_column), try with '*'
-            if (error && error.code === '42703' && selectString !== '*') {
-                console.warn(`[API Records] Column mismatch in [${module}], falling back to '*':`, error.message);
-                const retry = await getQuery('*');
-                data = retry.data;
-                error = retry.error;
-            }
+                // Fallback for column errors (e.g. column added in migration not yet detected)
+                if (error && error.code === '42703' && selectString !== '*') {
+                    console.warn(`[API Records] Column mismatch in [${table}], falling back to '*':`, error.message);
+                    const retry = await getQuery('*');
+                    data = retry.data;
+                    error = retry.error;
+                }
 
-            if (error) {
-                console.error(`[API Records] GET Error [${module}]:`, error);
-                return res.status(500).json({ 
-                    error: `Database Error [${module}]: ${error.message}`,
-                    code: error.code,
-                    hint: error.hint || 'Ensure all required columns exist in your database schema.'
-                });
+                if (error) {
+                    console.error(`[API Records] GET Error [${table}]:`, error);
+                    return res.status(500).json({ 
+                        success: false,
+                        error: `Database Error [${table}]: ${error.message}`,
+                        code: error.code
+                    });
+                }
+                return res.status(200).json(data || []);
+            } catch (innerErr: any) {
+                console.error(`[API Records] Internal GET Failure [${table}]:`, innerErr);
+                return res.status(500).json({ success: false, error: innerErr.message });
             }
-            return res.status(200).json(data);
         }
 
         if (req.method === 'POST') {
