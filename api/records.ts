@@ -27,65 +27,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!module) return res.status(400).json({ error: 'Module parameter required' });
 
         if (req.method === 'GET') {
+            const getQuery = async (columns: string) => {
+                let q = supabase.from(module as string).select(columns);
+                
+                // Enforce filters
+                if (user?.role === 'super_admin') {
+                    if (queryInstitutionId) {
+                        const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                        q = q.eq(filterCol, queryInstitutionId);
+                    }
+                } else if (isPublicGet && !user) {
+                    if (queryInstitutionId) {
+                        const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                        q = q.eq(filterCol, queryInstitutionId);
+                    }
+                    if (!limit) q = q.limit(10000);
+                } else if (user) {
+                    const { institutionId } = user;
+                    if (module === 'institutions') {
+                        q = q.eq('id', institutionId);
+                    } else {
+                        q = q.eq('institution_id', institutionId);
+                    }
+                }
+
+                if (order) {
+                    const [column, direction] = (order as string).split('.');
+                    q = q.order(column, { ascending: direction !== 'desc' });
+                }
+                
+                if (limit) {
+                    q = q.limit(parseInt(limit as string));
+                }
+                return await q;
+            };
+
             // Determine select columns
             let selectString = (select as string) || '*';
             if (isPublicGet && !user && !select) {
                 if (module === 'users') {
-                    // Include roles and phoneNumber for proper client-side matching
                     selectString = 'id, name, email, role, roles, institution_id, phone_number, password';
                 } else if (module === 'institutions') {
-                    // Include all fields needed for login/handshake/suspended checks
                     selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type';
                 }
             }
 
-            let query = supabase.from(module as string).select(selectString);
+            let { data, error } = await getQuery(selectString);
 
-            // Always filter by institution_id based on session context if available
-            if (user?.role === 'super_admin') {
-                // Super admins see everything
-                if (queryInstitutionId) {
-                    const filterCol = module === 'institutions' ? 'id' : 'institution_id';
-                    query = query.eq(filterCol, queryInstitutionId);
-                }
-            } else if (isPublicGet && !user) {
-                // Public unauthenticated request (e.g., login registry check)
-                if (queryInstitutionId) {
-                    const filterCol = module === 'institutions' ? 'id' : 'institution_id';
-                    query = query.eq(filterCol, queryInstitutionId);
-                }
-
-                // Increased limit for public discovery to support larger demo environments
-                if (!limit) {
-                    query = query.limit(10000);
-                }
-            } else if (user) {
-                // Regular users can only see THEIR institution
-                const { institutionId } = user;
-                if (module === 'institutions') {
-                    query = query.eq('id', institutionId);
-                } else {
-                    // For all other tables, enforce institution_id filter
-                    query = query.eq('institution_id', institutionId);
-                }
+            // Resilient Fallback: If specific columns fail (42703 - undefined_column), try with '*'
+            if (error && error.code === '42703' && selectString !== '*') {
+                console.warn(`[API Records] Column mismatch in [${module}], falling back to '*':`, error.message);
+                const retry = await getQuery('*');
+                data = retry.data;
+                error = retry.error;
             }
 
-            if (order) {
-                const [column, direction] = (order as string).split('.');
-                query = query.order(column, { ascending: direction !== 'desc' });
-            }
-            
-            if (limit) {
-                query = query.limit(parseInt(limit as string));
-            }
-
-            const { data, error } = await query;
             if (error) {
                 console.error(`[API Records] GET Error [${module}]:`, error);
                 return res.status(500).json({ 
                     error: `Database Error [${module}]: ${error.message}`,
                     code: error.code,
-                    hint: error.hint
+                    hint: error.hint || 'Ensure all required columns exist in your database schema.'
                 });
             }
             return res.status(200).json(data);
@@ -109,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data, error } = await supabase.from(module as string).upsert(secureData).select();
             if (error) {
                 console.error(`[API Records] POST Error [${module}]:`, error);
-                return res.status(500).json({ error: 'Failed to save record. Internal server error.' });
+                return res.status(500).json({ error: `Save Error: ${error.message}` });
             }
             return res.status(200).json(data[0]);
         }
@@ -133,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data, error } = await supabase.from(module as string).update(updates).eq('id', recordId).select();
             if (error) {
                 console.error(`[API Records] PATCH Error [${module}]:`, error);
-                return res.status(500).json({ error: 'Failed to update record. Internal server error.' });
+                return res.status(500).json({ error: `Update Error: ${error.message}` });
             }
             return res.status(200).json(data[0]);
         }
@@ -157,7 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { error } = await supabase.from(module as string).delete().eq('id', id);
             if (error) {
                 console.error(`[API Records] DELETE Error [${module}]:`, error);
-                return res.status(500).json({ error: 'Failed to delete record. Internal server error.' });
+                return res.status(500).json({ error: `Delete Error: ${error.message}` });
             }
             return res.status(200).json({ success: true });
         }
