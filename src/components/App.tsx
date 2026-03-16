@@ -2834,7 +2834,13 @@ export const App: React.FC = () => {
                 ) : (
                     <>
                         <LoginView
-                            onLogin={(e: string, p: string) => {
+                                // Error Check: If both users and institutions are empty, there's likely an API/Database failure
+                                if ((!users || users.length === 0) && (!institutions || institutions.length === 0)) {
+                                    console.error("[Login] Critical: Users and Institutions lists are empty. Fetch failure likely.");
+                                    alert("Connection Error: Unable to fetch account registry. Please check your internet or refresh the page.");
+                                    return 'failed';
+                                }
+
                                 const matchedUsers = (users || []).filter(user =>
                                     user &&
                                     (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
@@ -2842,7 +2848,7 @@ export const App: React.FC = () => {
                                 );
 
                                 // Prioritize administrative roles over portal/client roles
-                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin'];
+                                const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin', 'his_admin'];
                                 matchedUsers.sort((a, b) => {
                                     const indexA = rolePriority.indexOf(a.role);
                                     const indexB = rolePriority.indexOf(b.role);
@@ -2875,8 +2881,8 @@ export const App: React.FC = () => {
                                         Promise.all([
                                             u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, undefined, u.id) : Promise.resolve({ success: true }),
                                             u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage, undefined, 1, u.institutionId, u.id) : Promise.resolve({ success: true })
-                                        ]).then(results => {
-                                            const smsResult = (results[1] || results[0]) as any;
+                                        ]).then((results: any) => {
+                                            const smsResult = (results[1] || results[0]);
                                             if (smsResult && smsResult.success === false) {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
                                                 // Alert super admins of gateway failures immediately

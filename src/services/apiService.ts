@@ -409,10 +409,13 @@ export const apiService = {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                console.error(`Fetch API Error [${module}]:`, response.status, errData);
+                console.error(`[apiService] Fetch API Error [${module}]:`, response.status, errData);
                 
-                // Fallback: We no longer fallback to direct supabase to avoid exposing keys
-                // instead we return empty list and log error
+                // If it's a 500 error from our proxy, it usually contains a 'Database Error' string with column details
+                if (response.status === 500 && errData.error) {
+                    console.warn(`[apiService] Critical Database Failure in [${module}]:`, errData.error);
+                }
+                
                 return [];
             }
 
@@ -1121,16 +1124,6 @@ export const apiService = {
     async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
     async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
     async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
-    async incrementCount(type: string): Promise<void> {
-        if (!_supabase) return;
-        try {
-            await fetch('/api/system?action=rpc', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ function: 'increment_count', params: { metric_type: type } })
-            });
-        } catch (e) {}
-    },
     async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
         try {
             const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
