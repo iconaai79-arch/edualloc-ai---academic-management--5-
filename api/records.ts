@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!select) {
                     // Apply strict column selection for security and performance
                     if (module === 'users') {
-                        query = query.select('id, name, email, role, institution_id, phone_number, password, status');
+                        query = query.select('id, name, email, role, institution_id, phone_number, password');
                     } else if (module === 'institutions') {
                         query = query.select('id, name, logo_url, institution_type, is_otp_enabled, status');
                     }
