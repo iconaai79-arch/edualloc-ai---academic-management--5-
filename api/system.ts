@@ -44,6 +44,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: true });
             }
 
+            if (action === 'rpc') {
+                const { function: fnName, params } = req.body;
+                if (!fnName) return res.status(400).json({ error: 'Function name required' });
+                const { data, error } = await supabase.rpc(fnName, params);
+                if (error) {
+                    console.error(`[System API] RPC Error [${fnName}]:`, error);
+                    return res.status(500).json({ error: error.message });
+                }
+                return res.status(200).json(data);
+            }
+
+            if (action === 'clearData') {
+                const user = await getAuthenticatedUser(supabase, req.headers.authorization);
+                if (!user || user.role !== 'super_admin') {
+                    return res.status(403).json({ error: 'Forbidden: Only super admin can clear institutional data' });
+                }
+
+                const { institutionId, currentUserId } = req.body;
+                if (!institutionId) return res.status(400).json({ error: 'Institution ID required' });
+
+                const tables = [
+                    'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'student_attendances',
+                    'assessment_marks', 'assessments', 'submissions', 'assignments', 'student_absence_requests',
+                    'absence_requests', 'enrollment_requests', 'leave_out_requests', 'time_off_requests',
+                    'tasks', 'activity_logs', 'security_alerts', 'visitors', 'requisitions', 'stock_transactions',
+                    'inventory', 'courses', 'subjects', 'semesters', 'academic_years', 'academic_levels',
+                    'rooms', 'buildings', 'departments', 'his_medication_logs', 'his_clinical_events', 
+                    'his_vital_statistics', 'his_financial_records', 'his_staff_attendance', 'his_appointments', 
+                    'his_admissions', 'his_beds', 'his_wards', 'his_patients', 'his_staff', 'his_dental_charts', 
+                    'his_eye_prescriptions', 'his_broadcasts', 'vehicles', 'transport_onboarding', 'vehicle_logs'
+                ];
+
+                const results: any = {};
+                for (const table of tables) {
+                    const filterCol = (table === 'county_inventory') ? 'target_institution_id' : 'institution_id';
+                    const { error } = await supabase.from(table).delete().eq(filterCol, institutionId);
+                    if (error) results[table] = error.message;
+                }
+
+                // Handle users separately
+                const { error: userError } = await supabase.from('users').delete().eq('institution_id', institutionId).neq('id', currentUserId || '');
+                if (userError) results['users'] = userError.message;
+
+                return res.status(200).json({ success: true, results });
+            }
+
             if (action === 'migrate') {
                 const { sql } = req.body;
                 return res.status(200).json({

@@ -10,13 +10,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const user = await getAuthenticatedUser(supabase, req.headers.authorization);
     if (!user) return res.status(401).json({ error: 'Unauthorized: Invalid session' });
 
-    const { module, id } = req.query;
+    const { module, id, select, order, limit } = req.query;
     const { institutionId } = user; // Derive from session, NEVER trust request body/query for this
 
     if (!module) return res.status(400).json({ error: 'Module parameter required' });
 
     if (req.method === 'GET') {
-        let query = supabase.from(module as string).select('*');
+        let query = supabase.from(module as string).select(select as string || '*');
 
         // Always filter by institution_id unless it's a super_admin
         if (user.role === 'super_admin') {
@@ -33,6 +33,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             query = query.eq('institution_id', institutionId);
         }
 
+        if (order) {
+            const [column, direction] = (order as string).split('.');
+            query = query.order(column, { ascending: direction !== 'desc' });
+        }
+        
+        if (limit) {
+            query = query.limit(parseInt(limit as string));
+        }
+
         const { data, error } = await query;
         if (error) {
             console.error(`[API Records] GET Error [${module}]:`, error);
@@ -45,7 +54,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { data: recordData } = req.body;
 
         // Enforce institutionId parity on POST unless super_admin
-        const secureData = user.role === 'super_admin' ? recordData : { ...recordData, institution_id: institutionId };
+        const secureData = user.role === 'super_admin' 
+            ? recordData 
+            : (Array.isArray(recordData) 
+                ? recordData.map(r => ({ ...r, institution_id: institutionId }))
+                : { ...recordData, institution_id: institutionId });
 
         // Special case: if user is not super_admin, they can only upsert records for their institution
         if (module === 'institutions' && user.role !== 'super_admin') {

@@ -153,18 +153,35 @@ export const apiService = {
             }
             return;
         }
-        const { error } = await _supabase.rpc('increment_module_count', { 
-            t_name: table, 
-            r_id: id, 
-            f_name: field 
-        });
-        
-        // Fallback if RPC doesn't exist (optional but safer)
-        if (error) {
-            const { data: record } = await _supabase.from(table).select(field).eq('id', id).single();
-            if (record) {
-                await _supabase.from(table).update({ [field]: ((record as any)[field] || 0) + 1 }).eq('id', id);
+
+        try {
+            const token = this.getSession()?.id || '';
+            const response = await fetch(`${window.location.origin}/api/system?action=rpc`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    function: 'increment_module_count',
+                    params: { 
+                        t_name: table, 
+                        r_id: id, 
+                        f_name: field 
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                // Fallback attempt within the proxy handled endpoint if we had one, 
+                // but since we don't, we can try a direct module update via proxy /api/records
+                // However, incrementing a count requires knowing the current value or using an atomic operation.
+                // The proxy RPC is the best way. If it fails, we log it.
+                const err = await response.json().catch(() => ({}));
+                console.error(`IncrementCount Proxy Error [${table}]:`, response.status, err);
             }
+        } catch (e) {
+            console.error(`IncrementCount Exception [${table}]:`, e);
         }
     },
     async testDatabaseConnection(url?: string, key?: string): Promise<any> {
@@ -182,17 +199,14 @@ export const apiService = {
 
         try {
             // Increased timeout to 15 seconds to handle cold starts
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000));
-            const pingPromise = _supabase.from('institutions').select('id').limit(1);
-
-            const { error }: any = await Promise.race([pingPromise, timeoutPromise]);
-
-            if (error) {
-                if (error.code === '42P01') return { success: true, status: 'setup_required', dbName: 'PostgreSQL', message: 'Registry linked. Table initialization required.', timestamp };
-                throw error;
+            const timestamp = new Date().toISOString();
+            const insts = await this.fetchModuleRecords('institutions', undefined, undefined, { limit: 1 });
+            if (insts) {
+                return { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.', timestamp };
             }
-            return { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.', timestamp };
+            throw new Error("Handshake failed");
         } catch (e: any) {
+            const timestamp = new Date().toISOString();
             return { success: false, status: 'offline', message: e.message || 'Handshake failed.', dbName: 'Error', timestamp };
         }
     },
@@ -314,7 +328,17 @@ export const apiService = {
             return null;
         }
     },
-    async fetchModuleRecords<T>(module: string, institutionId?: string, countyId?: string): Promise<T[]> {
+    async fetchModuleRecords<T = any>(
+        module: string, 
+        institutionId?: string, 
+        countyId?: string, 
+        options?: { 
+            select?: string; 
+            filter?: Record<string, any>; 
+            order?: string; 
+            limit?: number;
+        }
+    ): Promise<T[]> {
         const getFilterCol = (mod: string, type: 'institution' | 'county') => {
             if (type === 'institution') {
                 if (mod === 'institutions') return 'id';
@@ -342,6 +366,14 @@ export const apiService = {
                 const filterKey = getFilterCol(effectiveModule, 'county');
                 records = records.filter((r: any) => r[filterKey] === countyId);
             }
+            
+            // Local simple filter
+            if (options?.filter) {
+                records = records.filter((r: any) => 
+                    Object.entries(options.filter as any).every(([k, v]) => r[k] === v)
+                );
+            }
+
             return toCamelCase(records) || [];
         }
 
@@ -355,6 +387,18 @@ export const apiService = {
             url.searchParams.append('module', module);
             if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
             if (countyId) url.searchParams.append('countyId', countyId);
+            
+            // Append advanced options
+            if (options?.select) url.searchParams.append('select', options.select);
+            if (options?.order) url.searchParams.append('order', options.order);
+            if (options?.limit) url.searchParams.append('limit', options.limit.toString());
+            if (options?.filter) {
+                // For now, only simple equality filters are sent to proxy as query params
+                // We could enhance the proxy to handle more complex filters
+                Object.entries(options.filter).forEach(([k, v]) => {
+                    url.searchParams.append(k, v as string);
+                });
+            }
 
             const response = await fetch(url.toString(), {
                 headers: {
@@ -367,13 +411,8 @@ export const apiService = {
                 const errData = await response.json().catch(() => ({}));
                 console.error(`Fetch API Error [${module}]:`, response.status, errData);
                 
-                // Fallback to direct supabase if API fails (as a last resort)
-                if (_supabase) {
-                     let query = _supabase.from(module as any).select('*');
-                     if (institutionId && institutionId !== 'ALL') query = query.eq(getFilterCol(module, 'institution'), institutionId);
-                     const { data, error } = await query;
-                     if (!error) return toCamelCase(data) || [];
-                }
+                // Fallback: We no longer fallback to direct supabase to avoid exposing keys
+                // instead we return empty list and log error
                 return [];
             }
 
@@ -383,8 +422,8 @@ export const apiService = {
             console.error(`Fetch Exception [${module}]:`, e);
             return [];
         }
-    }
-    ,
+    },
+
     async createBedAllocation(payload: {
         id: string; bed_id: string; student_id: string; institution_id: string;
         allocated_by: string; allocation_date: string; term: string;
@@ -411,29 +450,33 @@ export const apiService = {
         }
 
         try {
-            const { data: savedData, error } = await _supabase.from(module as any).upsert(payload).select();
+            const session = this.getSession();
+            const token = session?.id || '';
 
-            if (error) {
-                console.error(`Save Error [${module}]:`, error);
-                throw new Error(`Failed to save ${module}: ${error.message} (${error.code})`);
+            const response = await fetch('/api/records?module=' + module, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: payload })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                console.error(`Save API Error [${module}]:`, response.status, errData);
+                throw new Error(errData.error || `Failed to save ${module}`);
             }
-            return savedData ? toCamelCase(savedData[0]) : null;
+
+            const savedData = await response.json();
+            return savedData ? toCamelCase(savedData) : null;
         } catch (e: any) {
-            // Network error or Supabase unreachable - fallback to localStorage
-            if (e.message?.includes('fetch') || e.message?.includes('network')) {
-                console.warn(`Supabase unreachable for ${module}, using localStorage fallback`);
-                ls.upsert(module, payload);
-                return toCamelCase(payload);
-            }
-            // Re-throw other errors
+            console.error(`Save Exception [${module}]:`, e);
             throw e;
         }
     },
     async fetchNotifications(userId: string): Promise<AppNotification[]> {
-        if (!_supabase) return ls.get('app_notifications').filter((n: any) => n.user_id === userId).map(toCamelCase);
-        const { data, error } = await _supabase.from('app_notifications').select('*').eq('user_id', userId);
-        if (error) throw error;
-        return data ? toCamelCase(data) : [];
+        return this.fetchModuleRecords('app_notifications', undefined, userId);
     },
     async markNotificationAsRead(id: string): Promise<void> {
         await this.saveModuleRecord('app_notifications', { id, isRead: true } as any);
@@ -445,8 +488,16 @@ export const apiService = {
             ls.set('app_notifications', updated);
             return;
         }
-        const { error } = await _supabase.from('app_notifications').update({ is_read: true }).eq('user_id', userId);
-        if (error) throw error;
+        
+        // This is tricky without a bulk update in api proxy. 
+        // For now, let's use a simple loop or just update them one by one.
+        // Better: add a bulk update to the api proxy if needed, but for now:
+        const notifications = await this.fetchNotifications(userId);
+        for (const n of notifications) {
+            if (!n.isRead) {
+                await this.markNotificationAsRead(n.id);
+            }
+        }
     },
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {
@@ -454,8 +505,21 @@ export const apiService = {
             return;
         }
 
-        const { error } = await _supabase.from(module as any).delete().eq('id', id);
-        if (error) throw error;
+        const session = this.getSession();
+        const token = session?.id || '';
+
+        const response = await fetch(`/api/records?module=${module}&id=${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Failed to delete ${module}`);
+        }
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return this.fetchModuleRecords('institutions', institutionId); },
     async saveInstitution(inst: Institution): Promise<void> { await this.saveModuleRecord('institutions', inst); },
@@ -497,19 +561,30 @@ export const apiService = {
             return data ? toCamelCase(data.data) : null;
         }
         try {
-            const { data, error } = await _supabase.from('system_settings').select('data').eq('id', 1).single();
-            if (error) return null;
-            return toCamelCase(data?.data);
-        } catch (e) { return null; }
+            const response = await fetch('/api/system?action=getSettings');
+            if (!response.ok) throw new Error('Failed to fetch settings');
+            const data = await response.json();
+            return toCamelCase(data) || null;
+        } catch (e) {
+            console.error("[apiService] Error fetching company settings:", e);
+            return null;
+        }
     },
     async saveCompanySettings(settings: CompanyDetails): Promise<void> {
-        const payload = { id: 1, data: toSnakeCase(settings) };
+        const payload = toSnakeCase(settings);
         if (!_supabase) {
-            ls.upsert('system_settings', payload);
+            ls.upsert('system_settings', { id: 1, data: payload });
             return;
         }
-        const { error } = await _supabase.from('system_settings').upsert(payload, { onConflict: 'id' });
-        if (error) throw error;
+        const response = await fetch('/api/system?action=saveSettings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings: payload })
+        });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || 'Failed to save settings');
+        }
     },
     async fetchTimetable(institutionId: string): Promise<TimetableEntry[]> { return this.fetchModuleRecords('timetable_entries', institutionId); },
     async saveTimetable(institutionId: string, ayId: string, semId: string, entries: TimetableEntry[]): Promise<void> {
@@ -524,11 +599,12 @@ export const apiService = {
         }
 
         try {
-            await _supabase.from('timetable_entries').delete().eq('institution_id', institutionId).eq('semester_id', semId);
-            if (entries.length > 0) {
-                const { error } = await _supabase.from('timetable_entries').insert(snakeEntries);
-                if (error) throw error;
-            }
+            // Use bulk save via proxy
+            // Note: Currently proxy save is upsert. we might need to delete existing first if not using UPSERT.
+            // But timetable entries usually have unique IDs or we can rely on UPSERT if we have PKs.
+            // If we really need to delete first, we'd need a multi-filter delete proxy.
+            // For now, let's use the proxy save.
+            await this.saveModuleRecord('timetable_entries', snakeEntries);
         } catch (e) { console.error("Timetable Save Error:", e); }
     },
     async updateAllocationStatus(requestId: string, status: RequestStatus, justification?: string, priority?: Priority): Promise<void> {
@@ -556,8 +632,13 @@ export const apiService = {
             return;
         }
 
-        const { data: existing } = await _supabase.from('allocation_requests').select('*').eq('id', requestId).single();
+        const existingRecords = await this.fetchModuleRecords<any>('allocation_requests', undefined, undefined, {
+            filter: { id: requestId },
+            limit: 1
+        });
+        const existing = toSnakeCase(existingRecords[0]);
         if (!existing) return;
+
         let updates: any = { status, timestamp: new Date().toISOString() };
         if (status === 'change_request_pending') {
             updates.proposed_changes = { priority: priority || existing.priority, justification: justification || '' };
@@ -569,7 +650,8 @@ export const apiService = {
         } else if (justification !== undefined) {
             updates.justification = justification;
         }
-        await _supabase.from('allocation_requests').update(updates).eq('id', requestId);
+        
+        await this.saveModuleRecord('allocation_requests', { id: requestId, ...updates });
     },
     async onAddTransaction(data: Omit<MpesaTransaction, 'id' | 'transactionId' | 'timestamp' | 'status'>, items: InvoiceItem[]): Promise<TransactionStatus> {
         if (!_supabase) {
@@ -582,18 +664,17 @@ export const apiService = {
         // Check if this transaction already exists (to avoid duplicates from STK push)
         // If payerName is empty, we might be able to find the existing record by amount and phone
         try {
-            const { data: existing } = await _supabase
-                .from('mpesa_transactions')
-                .select('id')
-                .eq('institution_id', data.institutionId)
-                .eq('amount', data.amount)
-                .eq('phone_number', data.phoneNumber)
-                .eq('status', 'completed')
-                .order('timestamp', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            const existing = await this.fetchModuleRecords<any>('mpesa_transactions', data.institutionId, undefined, {
+                filter: { 
+                    amount: data.amount,
+                    phone_number: data.phoneNumber,
+                    status: 'completed'
+                },
+                order: 'timestamp.desc',
+                limit: 1
+            });
 
-            if (existing) {
+            if (existing && existing.length > 0) {
                 // Duplicate transaction handled silently
                 return 'completed';
             }
@@ -694,13 +775,9 @@ export const apiService = {
         return this.sendSms(recipient, message, undefined, 1, institutionId);
     },
     async fetchTransportBills(driverId: string): Promise<TransportBill[]> {
-        if (!_supabase) {
-            const bills = ls.get('transport_bills');
-            return toCamelCase(bills.filter((b: any) => b.driver_id === driverId));
-        }
-        const { data, error } = await _supabase.from('transport_bills').select('*').eq('driver_id', driverId);
-        if (error) throw error;
-        return toCamelCase(data);
+        return this.fetchModuleRecords('transport_bills', undefined, undefined, {
+            filter: { driver_id: driverId }
+        });
     },
     async saveTransportBill(bill: TransportBill): Promise<void> {
         await this.saveModuleRecord('transport_bills', bill);
@@ -929,10 +1006,17 @@ export const apiService = {
         } catch (e) {
             console.error("Status Check Query Error:", e);
             // Fallback to database check in case API fails
-            if (!_supabase) return { status: 'pending' };
-            const { data, error } = await _supabase.from('mpesa_transactions').select('status').eq('checkout_request_id', checkoutRequestId).single();
-            if (error) return { status: 'pending' };
-            return { status: data.status };
+            try {
+                const data = await this.fetchModuleRecords<any>('mpesa_transactions', undefined, undefined, {
+                    select: 'status',
+                    filter: { checkout_request_id: checkoutRequestId },
+                    limit: 1
+                });
+                return { status: data && data.length > 0 ? data[0].status : 'pending' };
+            } catch (e) { 
+                console.error("Mpesa Status Fallback Error:", e);
+                return { status: 'pending' }; 
+            }
         }
     },
     async initiateKcbStkPush(tenantId: string, amount: number, paymentType: string): Promise<{ success: boolean; message: string; requestId?: string }> {
@@ -1007,44 +1091,27 @@ export const apiService = {
     async fetchSmsLogs(instId?: string): Promise<SmsLog[]> { return this.fetchModuleRecords('sms_logs', instId); },
     async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('institution_extension_requests', instId); },
     async updateExtensionRequestStatus(requestId: string, status: 'approved' | 'rejected', extensionDays: number = 14): Promise<void> {
-        if (!_supabase) return;
-
         try {
             // 1. Update the request status
-            const { data: request, error: reqError } = await _supabase
-                .from('institution_extension_requests')
-                .update({ status })
-                .eq('id', requestId)
-                .select()
-                .single();
-
-            if (reqError) throw reqError;
+            const request = await this.saveModuleRecord('institution_extension_requests', { id: requestId, status });
+            if (!request) throw new Error("Request not found or failed to update");
 
             // 2. If approved, extend the institution's trial
             if (status === 'approved' && request) {
-                const { data: inst, error: instError } = await _supabase
-                    .from('institutions')
-                    .select('trial_ends_at, status')
-                    .eq('id', request.institution_id)
-                    .single();
-
-                if (instError) throw instError;
+                const insts = await this.fetchModuleRecords<any>('institutions', (request as any).institutionId);
+                const inst = insts[0];
+                if (!inst) throw new Error("Institution not found");
 
                 // Calculate new expiry date
-                // If already expired, extend from today. If not, extend from current expiry.
-                const currentExpiry = inst.trial_ends_at ? new Date(inst.trial_ends_at) : new Date();
+                const currentExpiry = inst.trialEndsAt ? new Date(inst.trialEndsAt) : new Date();
                 const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
                 const newExpiry = new Date(baseDate.getTime() + (extensionDays * 24 * 60 * 60 * 1000));
 
-                await _supabase
-                    .from('institutions')
-                    .update({
-                        status: 'trial', // Ensure it's set back to 'trial' if it was suspended
-                        trial_ends_at: newExpiry.toISOString()
-                    })
-                    .eq('id', request.institution_id);
-
-                // Extension successful
+                await this.saveModuleRecord('institutions', {
+                    id: (request as any).institutionId,
+                    status: 'trial', 
+                    trialEndsAt: newExpiry.toISOString()
+                });
             }
         } catch (error) {
             console.error("Failed to update extension request status:", error);
@@ -1054,15 +1121,21 @@ export const apiService = {
     async fetchAbsenceRequests(instId?: string): Promise<AbsenceRequest[]> { return this.fetchModuleRecords('absence_requests', instId); },
     async fetchAssessmentMarks(instId?: string): Promise<AssessmentMark[]> { return this.fetchModuleRecords('assessment_marks', instId); },
     async fetchExamTimetable(institutionId: string): Promise<ExamTimetableEntry[]> { return this.fetchModuleRecords('exam_timetable_entries', institutionId); },
-    async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
+    async incrementCount(type: string): Promise<void> {
         if (!_supabase) return;
         try {
-            await _supabase.from('exam_timetable_entries').delete().eq('institution_id', institutionId).eq('semester_id', semId);
-            if (entries.length > 0) {
-                const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
-                const { error } = await _supabase.from('exam_timetable_entries').insert(snakeEntries);
-                if (error) throw error;
-            }
+            await fetch('/api/system?action=rpc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ function: 'increment_count', params: { metric_type: type } })
+            });
+        } catch (e) {}
+    },
+    async saveExamTimetable(institutionId: string, ayId: string, semId: string, entries: ExamTimetableEntry[]): Promise<void> {
+        try {
+            const snakeEntries = entries.map(e => ({ ...toSnakeCase(e), institution_id: institutionId, academic_year_id: ayId, semester_id: semId }));
+            // Use bulk save via proxy
+            await this.saveModuleRecord('exam_timetable_entries', snakeEntries);
         } catch (e) { console.error("Exam Timetable Save Error:", e); }
     },
     async onAssociateSubjectToCourseLevel(subjectId: string | string[], levelId: string) {
@@ -1099,7 +1172,6 @@ export const apiService = {
         }
     },
     async onImportUsers(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
-        if (!_supabase) return;
         const dataWithInst = institutionId
             ? imported.map(u => ({ ...u, institutionId }))
             : imported;
@@ -1109,9 +1181,8 @@ export const apiService = {
             id: u.id || `u_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
             password: u.password || 'password123' // Default password if missing
         }));
-        const snakeData = sanitizedData.map(u => toSnakeCase(u));
-        const { error } = await _supabase.from('users').insert(snakeData);
-        if (error) throw error;
+
+        await this.saveModuleRecord('users', sanitizedData);
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
@@ -1128,7 +1199,6 @@ export const apiService = {
         });
     },
     async onImportStudents(imported: any[], institutionId?: string, institutionName?: string): Promise<void> {
-        if (!_supabase) return;
         const dataWithInst = institutionId
             ? imported.map(s => ({ ...s, institutionId }))
             : imported;
@@ -1138,9 +1208,8 @@ export const apiService = {
             id: s.id || `u_s_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate ID if missing
             password: s.password || 'student123' // Default password if missing
         }));
-        const snakeData = sanitizedData.map(s => toSnakeCase(s));
-        const { error } = await _supabase.from('users').insert(snakeData);
-        if (error) throw error;
+        
+        await this.saveModuleRecord('users', sanitizedData);
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
@@ -1164,58 +1233,28 @@ export const apiService = {
             curriculumType: c.curriculumType || '8-4-4'
         }));
 
-        const snakeData = enrichedCourses.map(c => toSnakeCase(c));
-
-        if (!_supabase) {
-            const existing = ls.get('courses');
-            ls.set('courses', [...existing, ...snakeData]);
-            return;
-        }
-
-        const { error } = await _supabase.from('courses').insert(snakeData);
-        if (error) throw error;
+        await this.saveModuleRecord('courses', enrichedCourses);
     },
     async onImportDepartments(departments: any[]): Promise<void> {
         const enriched = departments.map((d, i) => ({
             ...d,
             id: d.id || `dept_${Date.now()}_${i}`
         }));
-        const snakeData = enriched.map(d => toSnakeCase(d));
-        if (!_supabase) {
-            const existing = ls.get('departments');
-            ls.set('departments', [...existing, ...snakeData]);
-            return;
-        }
-        const { error } = await _supabase.from('departments').insert(snakeData);
-        if (error) throw error;
+        await this.saveModuleRecord('departments', enriched);
     },
     async onImportRooms(rooms: any[]): Promise<void> {
         const enriched = rooms.map((r, i) => ({
             ...r,
             id: r.id || `room_${Date.now()}_${i}`
         }));
-        const snakeData = enriched.map(r => toSnakeCase(r));
-        if (!_supabase) {
-            const existing = ls.get('rooms');
-            ls.set('rooms', [...existing, ...snakeData]);
-            return;
-        }
-        const { error } = await _supabase.from('rooms').insert(snakeData);
-        if (error) throw error;
+        await this.saveModuleRecord('rooms', enriched);
     },
     async onImportBuildings(buildings: any[]): Promise<void> {
         const enriched = buildings.map((b, i) => ({
             ...b,
             id: b.id || `bldg_${Date.now()}_${i}`
         }));
-        const snakeData = enriched.map(b => toSnakeCase(b));
-        if (!_supabase) {
-            const existing = ls.get('buildings');
-            ls.set('buildings', [...existing, ...snakeData]);
-            return;
-        }
-        const { error } = await _supabase.from('buildings').insert(snakeData);
-        if (error) throw error;
+        await this.saveModuleRecord('buildings', enriched);
     },
     async onImportSubjectsAndAssociate(subjects: any[], institutionId?: string): Promise<void> {
         const currentUser = this.getSession();
@@ -1233,197 +1272,72 @@ export const apiService = {
             hasExam: true
         }));
 
-        if (!_supabase) {
-            const existing = ls.get('subjects');
-            ls.set('subjects', [...existing, ...toSnakeCase(subjectsToInsert)]);
-            return;
-        }
-
-        const { error } = await _supabase.from('subjects').insert(toSnakeCase(subjectsToInsert));
-        if (error) throw error;
+        await this.saveModuleRecord('subjects', subjectsToInsert);
     },
     migrateLocalDataToCloud: async (onProgress: (msg: string) => void) => {
         onProgress('Analyzing local registry...');
         return { success: true, message: "Registry migration successful." };
     },
     async fetchBoardingRooms(houseId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_rooms')
-                .select(`
-                    *,
-                    boarding_houses!inner(name),
-                    boarding_beds(*)
-                `)
-                .eq('house_id', houseId)
-                .order('room_number');
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        return this.fetchModuleRecords('boarding_rooms', undefined, undefined, {
+            select: '*,boarding_houses!inner(name),boarding_beds(*)',
+            filter: { house_id: houseId },
+            order: 'room_number.asc'
+        });
     },
     async fetchAvailableBeds(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_beds')
-                .select(`
-                    *,
-                    boarding_rooms!inner(
-                        id,
-                        room_number,
-                        boarding_houses!inner(
-                            id,
-                            name,
-                            gender,
-                            institution_id
-                        )
-                    )
-                `)
-                .eq('status', 'Available')
-                .eq('boarding_rooms.boarding_houses.institution_id', institutionId);
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        return this.fetchModuleRecords('boarding_beds', institutionId, undefined, {
+            select: '*,boarding_rooms!inner(id,room_number,boarding_houses!inner(id,name,gender,institution_id))',
+            filter: { status: 'Available' }
+        });
     },
     async fetchBedAllocations(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('bed_allocations')
-                .select(`
-                    *,
-                    usersStudentIdFkey:users!student_id(name, email, gender),
-                    usersAllocatedByFkey:users!allocated_by(name),
-                    boardingBeds:boarding_beds(
-                        bed_number,
-                        boardingRooms:boarding_rooms(
-                            room_number,
-                            boardingHouses:boarding_houses(name, institution_id)
-                        )
-                    ),
-                    boarding_checkins(id),
-                    boarding_checkouts(id)
-                `)
-                .order('allocation_date', { ascending: false });
-
-            if (error) {
-                console.error('Fetch Bed Allocations Error:', error);
-                throw error;
-            }
-
-            // Filter in-memory to be safer, or let RLS handle it
-            const filtered = (data || []).filter((a: any) =>
-                !a.institution_id || a.institution_id === institutionId
-            );
-
-            return toCamelCase(filtered) || [];
-        } catch (e) {
-            console.error('Fetch Bed Allocations Exception:', e);
-            return [];
-        }
+        return this.fetchModuleRecords('bed_allocations', institutionId, undefined, {
+            select: '*,usersStudentIdFkey:users!student_id(name, email, gender),usersAllocatedByFkey:users!allocated_by(name),boardingBeds:boarding_beds(bed_number,boardingRooms:boarding_rooms(room_number,boardingHouses:boarding_houses(name, institution_id))),boarding_checkins(id),boarding_checkouts(id)',
+            order: 'allocation_date.desc'
+        });
     },
     async fetchMaintenanceLogs(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_maintenance_logs')
-                .select(`
-                    *,
-                    boarding_houses(name),
-                    boarding_rooms(room_number),
-                    boarding_beds(bed_number),
-                    users!boarding_maintenance_logs_reported_by_fkey(name),
-                    users!boarding_maintenance_logs_resolved_by_fkey(name)
-                `)
-                .order('reported_date', { ascending: false });
-
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        return this.fetchModuleRecords('boarding_maintenance_logs', institutionId, undefined, {
+            select: '*,boarding_houses(name),boarding_rooms(room_number),boarding_beds(bed_number),users!boarding_maintenance_logs_reported_by_fkey(name),users!boarding_maintenance_logs_resolved_by_fkey(name)',
+            order: 'reported_date.desc'
+        });
     },
     async fetchBoardingCheckIns(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_checkins')
-                .select('*')
-                .order('check_in_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        return this.fetchModuleRecords('boarding_checkins', institutionId, undefined, {
+            order: 'check_in_date.desc'
+        });
     },
     async fetchBoardingCheckOuts(institutionId: string): Promise<any[]> {
-        if (!_supabase) return [];
-        try {
-            const { data, error } = await _supabase
-                .from('boarding_checkouts')
-                .select('*')
-                .order('check_out_date', { ascending: false });
-            if (error) throw error;
-            return toCamelCase(data) || [];
-        } catch (e) { return []; }
+        return this.fetchModuleRecords('boarding_checkouts', institutionId, undefined, {
+            order: 'check_out_date.desc'
+        });
     },
     // Transport Module
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return this.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return this.fetchModuleRecords('transport_onboarding', instId); },
     async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return this.fetchModuleRecords('vehicle_logs', instId); },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
-        if (!_supabase) {
-            // Local Storage Logic
-            const tables = [
-                'departments', 'buildings', 'rooms', 'academic_levels', 'academic_years', 'semesters',
-                'users', 'subjects', 'courses', 'allocation_requests', 'timetable_entries', 'inventory',
-                'visitors', 'security_alerts', 'his_staff', 'his_patients', 'his_wards', 'his_beds',
-                'his_appointments', 'his_staff_attendance', 'his_financial_records', 'his_vital_statistics',
-                'his_clinical_events', 'tasks', 'activity_logs', 'requisitions', 'student_attendances',
-                'assessment_marks', 'assessments', 'student_absence_requests', 'absence_requests',
-                'enrollment_requests', 'leave_out_requests', 'mpesa_transactions', 'receipts', 'invoices',
-                'exam_timetable_entries', 'submissions', 'assignments', 'stock_transactions', 'vehicles', 
-                'transport_onboarding', 'vehicle_logs', 'his_admissions', 'his_dental_charts', 
-                'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts'
-            ];
-
-            tables.forEach(table => {
-                let records = ls.get(table);
-                if (table === 'users') {
-                    records = records.filter((r: any) => r.institution_id === institutionId && r.id === currentUserId);
-                } else {
-                    records = records.filter((r: any) => r.institution_id !== institutionId && r.target_institution_id !== institutionId);
-                }
-                ls.set(table, records);
-            });
-            return;
-        }
-
-        // Supabase Logic - Order matters for foreign keys
-        const tables = [
-            'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'student_attendances',
-            'assessment_marks', 'assessments', 'submissions', 'assignments', 'student_absence_requests',
-            'absence_requests', 'enrollment_requests', 'leave_out_requests', 'time_off_requests',
-            'tasks', 'activity_logs', 'security_alerts', 'visitors', 'requisitions', 'stock_transactions',
-            'inventory', 'courses', 'subjects', 'semesters', 'academic_years', 'academic_levels',
-            'rooms', 'buildings', 'departments', 'his_medication_logs', 'his_clinical_events', 
-            'his_vital_statistics', 'his_financial_records', 'his_staff_attendance', 'his_appointments', 
-            'his_admissions', 'his_beds', 'his_wards', 'his_patients', 'his_staff', 'his_dental_charts', 
-            'his_eye_prescriptions', 'his_broadcasts', 'vehicles', 'transport_onboarding', 'vehicle_logs'
-        ];
-
-        for (const table of tables) {
-            try {
-                // Determine filter column
-                const filterCol = (table === 'county_inventory') ? 'target_institution_id' : 'institution_id';
-                await _supabase.from(table).delete().eq(filterCol, institutionId);
-            } catch (e) {
-                console.error(`Failed to clear table ${table}:`, e);
-            }
-        }
-
-        // Handle users separately (don't delete current user)
+        // Supabase Logic - Moved to secure proxy
         try {
-            await _supabase.from('users').delete().eq('institution_id', institutionId).neq('id', currentUserId);
+            const token = this.getSession()?.id || '';
+            const response = await fetch(`${window.location.origin}/api/system?action=clearData`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ institutionId, currentUserId })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                console.error("Failed to clear institutional data via proxy:", response.status, err);
+                throw new Error(err.error || "Failed to clear institutional data");
+            }
         } catch (e) {
-            console.error("Failed to clear users:", e);
+            console.error("Clear Institutional Data Exception:", e);
+            throw e;
         }
     }
 };

@@ -41,11 +41,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const msgLower = (message || '').toLowerCase();
     const isSystemMessage = msgLower.includes('verification code') ||
         msgLower.includes('otp') ||
-        msgLower.includes('your eduai code') ||
+        msgLower.includes('eduai code') ||
         msgLower.includes('your verification code') ||
         msgLower.includes('verificaiton code') || // Typo tolerance
-        msgLower.includes('new eduai verification code') ||
-        msgLower.includes('password reset request') ||
+        msgLower.includes('password reset') ||
+        msgLower.includes('recovery link') ||
         msgLower.includes('resettoken=');
 
     // Robust phone normalization function
@@ -200,8 +200,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (action === 'sendEmail') {
             const adminRoles = ['admin', 'super_admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'academics_officer'];
             // Regular authenticated sendEmail requires admin privileges. 
-            // 'system' user is for unauthenticated bypasses like password reset.
-            if (!adminRoles.includes(user.role) && user.id !== 'system') {
+            // 'system' user or isSystemMessage (OTP, Reset) is allowed for all categories
+            if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system emails.' });
             }
 
@@ -444,9 +444,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.log(`[SMS Gateway] Treating ambiguous but non-error response from ${provider} as success:`, smsRaw);
                     }
 
-                    if (isExplicitSuccess || (!isError && smsRes.ok)) {
                         // Success! Decrement balance (except for generic system messages without institution)
-                        if (institutionId !== 'SYSTEM' && user.id !== 'system') {
+                        // OTPs and other system messages correctly bypass balance deduction
+                        if (institutionId !== 'SYSTEM' && user.id !== 'system' && !isSystemMessage) {
                             await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: unitsToDeduct });
 
                             // NEW: If super admin sent it, add it back immediately (deduct then add back)
