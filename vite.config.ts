@@ -37,8 +37,9 @@ export default defineConfig(({ mode }) => {
     },
     configureServer(server: any) {
       server.middlewares.use(async (req: any, res: any, next: any) => {
-        if (req.url?.startsWith('/api/') && (req.method === 'POST' || req.method === 'OPTIONS')) {
-          const urlParts = req.url.split('?')[0].split('/');
+        if (req.url?.startsWith('/api/')) {
+          const urlObj = new URL(req.url, `http://${req.headers.host}`);
+          const urlParts = urlObj.pathname.split('/');
           const endpoint = urlParts[2];
 
           if (!endpoint || endpoint.includes('..') || endpoint.includes('\\')) {
@@ -48,25 +49,15 @@ export default defineConfig(({ mode }) => {
 
           const handlerPath = `/api/${endpoint}.ts`;
 
+          // Handle CORS for all methods
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
           if (req.method === 'OPTIONS') {
-            try {
-              const vRes: any = {
-                setHeader: (k: string, v: string) => res.setHeader(k, v),
-                status: (code: number) => { res.statusCode = code; return vRes; },
-                end: () => res.end(),
-                json: (data: any) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(data)); return vRes; }
-              };
-              const handlerModule = await server.ssrLoadModule(handlerPath);
-              await handlerModule.default({ method: 'OPTIONS', headers: req.headers }, vRes);
-              return;
-            } catch (e) {
-              res.statusCode = 200;
-              res.setHeader('Access-Control-Allow-Origin', '*');
-              res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
-              res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-              res.end();
-              return;
-            }
+            res.statusCode = 200;
+            res.end();
+            return;
           }
 
           let body = '';
@@ -74,12 +65,16 @@ export default defineConfig(({ mode }) => {
           req.on('end', async () => {
             try {
               const payload = body ? JSON.parse(body) : {};
+              
               // Mock Vercel Request/Response
               const vReq: any = {
-                method: 'POST',
+                method: req.method,
                 body: payload,
-                headers: req.headers
+                headers: req.headers,
+                query: Object.fromEntries(urlObj.searchParams.entries()),
+                url: req.url
               };
+
               const vRes: any = {
                 setHeader: (k: string, v: string) => res.setHeader(k, v),
                 status: (code: number) => {
@@ -95,9 +90,13 @@ export default defineConfig(({ mode }) => {
               };
 
               // Load handler dynamically based on endpoint
-              const handlerPath = `/api/${endpoint}.ts`;
               const handlerModule = await server.ssrLoadModule(handlerPath);
-              await handlerModule.default(vReq, vRes);
+              if (handlerModule && handlerModule.default) {
+                await handlerModule.default(vReq, vRes);
+              } else {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: `Handler not found for ${endpoint}` }));
+              }
             } catch (e: any) {
               console.error(`API Middleware Error [${endpoint}]:`, e);
               if (!res.headersSent) {

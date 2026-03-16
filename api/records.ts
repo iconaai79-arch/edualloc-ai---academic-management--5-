@@ -13,17 +13,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
-    console.log(`[API Records] ${req.method} request for module: ${module}`);
-
     const getStrParam = (p: any): string => (Array.isArray(p) ? p[0] : (p as string) || '');
+    const moduleName = getStrParam(module);
+    const recordId = getStrParam(id);
+    const queryInstId = getStrParam(queryInstitutionId);
+    
+    console.log(`[API Records] ${req.method} request for module: ${moduleName || 'NONE'}`);
 
     try {
         const supabase = createServiceClient();
-        if (!supabase) return res.status(500).json({ success: false, error: 'Database service unavailable' });
-
-        const moduleName = getStrParam(module);
-        const recordId = getStrParam(id);
-        const queryInstId = getStrParam(queryInstitutionId);
+        if (!supabase) {
+            const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+            const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+            console.error(`[API Records] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
+            return res.status(500).json({ 
+                success: false, 
+                error: 'Database service unavailable',
+                details: `Missing environment configuration (URL: ${hasUrl}, Key: ${hasKey})`
+            });
+        }
         
         if (!moduleName) return res.status(400).json({ success: false, error: 'Module parameter required' });
 

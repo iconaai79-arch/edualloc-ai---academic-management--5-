@@ -51,10 +51,7 @@ BEGIN
             ELSE
                 EXECUTE format('CREATE POLICY "Anon discovery read" ON public.%I FOR SELECT TO anon USING (true)', t_name);
             END IF;
-            RAISE NOTICE 'Added discovery policy for %', t_name;
-        END IF;
-
-        -- 6. AUTHENTICATED: Institutional Tenancy
+            -- 6. AUTHENTICATED: Institutional Tenancy
         IF has_inst_id THEN
             -- Standard Tenancy
             EXECUTE format('CREATE POLICY "Institutional tenancy read" ON public.%I FOR SELECT TO authenticated USING (
@@ -93,11 +90,9 @@ BEGIN
     CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE TO authenticated 
     USING (id::text = auth.uid()::text OR id::text = 'u_' || auth.uid()::text)
     WITH CHECK (id::text = auth.uid()::text OR id::text = 'u_' || auth.uid()::text);
-
-    RAISE NOTICE 'Comprehensive RLS fix applied to all tables.';
 END $$;
 
 -- Global Grants for sequences and functions (Required for inserts/updates)
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;

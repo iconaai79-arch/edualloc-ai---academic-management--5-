@@ -345,6 +345,7 @@ export const App: React.FC = () => {
     const [isBootstrapped, setIsBootstrapped] = useState(false);
     const [appInitializing, setAppInitializing] = useState(true);
     const [loadStatus, setLoadStatus] = useState<string>("");
+    const [loadError, setLoadError] = useState<string>("");
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
@@ -718,13 +719,16 @@ export const App: React.FC = () => {
             setJobs(cwJobs || []);
 
             setIsGeneratingDemoData(false);
-            setAppInitializing(false);
             setLoadStatus("");
-        } catch (error) {
+            setLoadError("");
+        } catch (error: any) {
             console.error("Critical Load Error:", error);
-            setLoadStatus("Connection Error. Please check your internet or service keys.");
+            const msg = error.message || "Unknown connectivity failure";
+            setLoadStatus(`Diagnostic Failure: ${msg}`);
+            setLoadError(msg);
         } finally {
             initialLoadDone.current = true;
+            setAppInitializing(false);
         }
     }, [currentUser]);
 
@@ -1883,7 +1887,13 @@ export const App: React.FC = () => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
     }, [activeRole, isAdminCatchAll]);
 
-    if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." status={loadStatus} onRetry={() => loadData(true)} />;
+    if (appInitializing) return (
+        <SystemPulseLoader 
+            message={loadError ? "System Handshake Compromised" : "Establishing secure cloud registry link..."} 
+            status={loadError || loadStatus || "Synchronizing Neural Buffers..."} 
+            onRetry={loadError ? () => loadData(true) : undefined} 
+        />
+    );
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
     if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {

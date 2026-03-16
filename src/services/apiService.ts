@@ -225,6 +225,12 @@ export const apiService = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'forgotPassword', recipient: email })
             });
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                return { success: false, message: `Server error: ${text.substring(0, 100)}` };
+            }
+
             const result = await response.json();
             if (!response.ok || !result.success) {
                 return { success: false, message: result.message || "Account verification failed." };
@@ -243,6 +249,12 @@ export const apiService = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'resetPasswordWithToken', token, newPassword })
             });
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                return { success: false, message: `Server error: ${text.substring(0, 100)}` };
+            }
+
             const result = await response.json();
             return { success: response.ok && result.success, message: result.message };
         } catch (e: any) {
@@ -426,6 +438,13 @@ export const apiService = {
                 return [];
             }
 
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error(`[apiService] Non-JSON response for [${module}]:`, text.substring(0, 200));
+                return [];
+            }
+
             const data = await response.json();
             return toCamelCase(data) || [];
         } catch (e) {
@@ -473,7 +492,13 @@ export const apiService = {
             });
 
             if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
+                const contentType = response.headers.get('content-type');
+                let errData: any = {};
+                if (contentType && contentType.includes('application/json')) {
+                    errData = await response.json().catch(() => ({}));
+                } else {
+                    errData = { error: await response.text().catch(() => `Status ${response.status}`) };
+                }
                 console.error(`Save API Error [${module}]:`, response.status, errData);
                 throw new Error(errData.error || `Failed to save ${module}`);
             }
@@ -527,7 +552,13 @@ export const apiService = {
         });
 
         if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
+            const contentType = response.headers.get('content-type');
+            let errData: any = {};
+            if (contentType && contentType.includes('application/json')) {
+                errData = await response.json().catch(() => ({}));
+            } else {
+                errData = { error: await response.text().catch(() => `Status ${response.status}`) };
+            }
             throw new Error(errData.error || `Failed to delete ${module}`);
         }
     },
@@ -573,6 +604,12 @@ export const apiService = {
         try {
             const response = await fetch('/api/system?action=getSettings');
             if (!response.ok) throw new Error('Failed to fetch settings');
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error("Received non-JSON response for settings");
+            }
+
             const data = await response.json();
             return toCamelCase(data) || null;
         } catch (e) {

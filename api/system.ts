@@ -32,7 +32,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const supabase = createServiceClient();
-        if (!supabase) return res.status(500).json({ error: 'Database service unavailable - Missing keys', env: getEnvInfo() });
+        if (!supabase) {
+            const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+            const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+            console.error(`[System API] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
+            return res.status(500).json({ 
+                error: 'Database service unavailable - Missing keys', 
+                details: `Missing environment configuration (URL: ${hasUrl}, Key: ${hasKey})`,
+                env: getEnvInfo() 
+            });
+        }
 
         if (req.method === 'GET') {
             if (action === 'getSettings') {
