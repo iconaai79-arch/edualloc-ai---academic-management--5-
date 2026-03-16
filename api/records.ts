@@ -2,35 +2,53 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServiceClient } from '../lib/supabase';
 import { getAuthenticatedUser } from '../lib/auth-server';
 
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createServiceClient();
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
     // JWT Validation & Institution Derivation
     const user = await getAuthenticatedUser(supabase, req.headers.authorization);
-    if (!user) return res.status(401).json({ error: 'Unauthorized: Invalid session' });
+    
+    const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
+    
+    // Check if it's a public read request
+    const isPublicGet = req.method === 'GET' && PUBLIC_MODULES.includes(module as string);
 
-    const { module, id, select, order, limit } = req.query;
-    const { institutionId } = user; // Derive from session, NEVER trust request body/query for this
+    if (!user && !isPublicGet) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid session' });
+    }
+
+    const institutionId = user?.institutionId;
 
     if (!module) return res.status(400).json({ error: 'Module parameter required' });
 
     if (req.method === 'GET') {
         let query = supabase.from(module as string).select(select as string || '*');
 
-        // Always filter by institution_id unless it's a super_admin
-        if (user.role === 'super_admin') {
+        // Always filter by institution_id based on session context if available
+        if (user?.role === 'super_admin') {
             // Super admins see everything
-            if (req.query.institutionId) {
+            if (queryInstitutionId) {
                 const filterCol = module === 'institutions' ? 'id' : 'institution_id';
-                query = query.eq(filterCol, req.query.institutionId);
+                query = query.eq(filterCol, queryInstitutionId);
             }
-        } else if (module === 'institutions') {
+        } else if (isPublicGet && !user) {
+            // Public unauthenticated request - allow respect of query institutionId if provided
+            if (queryInstitutionId) {
+                const filterCol = module === 'institutions' ? 'id' : 'institution_id';
+                query = query.eq(filterCol, queryInstitutionId);
+            }
+        } else if (user) {
             // Regular users can only see THEIR institution
-            query = query.eq('id', institutionId);
-        } else {
-            // For all other tables, enforce institution_id filter
-            query = query.eq('institution_id', institutionId);
+            const { institutionId } = user;
+            if (module === 'institutions') {
+                query = query.eq('id', institutionId);
+            } else {
+                // For all other tables, enforce institution_id filter
+                query = query.eq('institution_id', institutionId);
+            }
         }
 
         if (order) {
