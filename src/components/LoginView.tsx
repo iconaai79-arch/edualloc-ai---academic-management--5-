@@ -86,19 +86,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
     }, []);
 
-    const handleLoginSubmit = (e: React.FormEvent) => {
+    const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const cleanIdentifier = identifier.trim();
-        const result = onLogin(cleanIdentifier, password);
-        if (result === 'failed') {
-            setError('Invalid email or password.');
-        } else if (result === 'suspended') {
-            setError('This institution account is suspended. Redirecting to billing...');
-        } else if (result === 'expired') {
-            setError('Your session or access has expired.');
-        } else if (result === 'otp_required') {
-            setView('otp');
+        setIsSubmitting(true);
+        try {
+            const cleanIdentifier = identifier.trim();
+            const result = await onLogin(cleanIdentifier, password);
+            if (result === 'failed') {
+                setError('Invalid email or password.');
+            } else if (result === 'suspended') {
+                setError('This institution account is suspended. Redirecting to billing...');
+            } else if (result === 'expired') {
+                setError('Your session or access has expired.');
+            } else if (result === 'otp_required') {
+                setView('otp');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Login system encountered an error.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -245,7 +252,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     </div>
                                     <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="******************" className={inputClasses} required />
                                 </div>
-                                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-lg active:scale-95" type="submit">Sign In to Portal</button>
+                                <button 
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2" 
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
+                                </button>
                             </form>
                             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-3 gap-2">
                                 <button type="button" onClick={onOpenGuestPortal} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
