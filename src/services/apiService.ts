@@ -207,7 +207,14 @@ export const apiService = {
             throw new Error("Handshake failed");
         } catch (e: any) {
             const timestamp = new Date().toISOString();
-            return { success: false, status: 'offline', message: e.message || 'Handshake failed.', dbName: 'Error', timestamp };
+            console.error("[apiService] Connection Test Failed:", e);
+            return { 
+                success: false, 
+                status: 'offline', 
+                message: `Connection Error: ${e.message || 'Handshake failed'}. Ensure SUPABASE_URL and ANON_KEY are correctly configured in your environment.`, 
+                dbName: 'Error', 
+                timestamp 
+            };
         }
     },
     async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
