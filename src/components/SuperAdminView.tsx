@@ -61,7 +61,9 @@ import {
     ArrowRightOnRectangleIcon,
     HomeIcon,
     TruckIcon,
-    ShoppingCartIcon
+    ShoppingCartIcon,
+    BanknotesIcon,
+    ArrowTrendingUpIcon
 } from './icons/index';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
@@ -825,7 +827,7 @@ Please change it after login.`;
     };
 
     const tabs = [
-        { key: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+        { key: 'dashboard', label: 'Dashboard', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
         { key: 'institutions', label: 'Institutions', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> },
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
@@ -1063,6 +1065,72 @@ Please change it after login.`;
                             </div>
                         </div>
 
+
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-xl font-black tracking-tighter uppercase mb-6 flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                Platform Command Center
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                                <button
+                                    onClick={() => setActiveTab('institutions')}
+                                    className="flex flex-col items-start p-6 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl border border-indigo-100 dark:border-indigo-800 hover:border-indigo-400 transition-all group text-left"
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <BuildingOfficeIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Tenant Manager</span>
+                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Deploy & Monitor Systems</p>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('users')}
+                                    className="flex flex-col items-start p-6 bg-emerald-50 dark:bg-emerald-900/30 rounded-3xl border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 transition-all group text-left"
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <UserGroupIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">User Directory</span>
+                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Cross-Platform Identity</p>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('reports')}
+                                    className="flex flex-col items-start p-6 bg-sky-50 dark:bg-sky-900/30 rounded-3xl border border-sky-100 dark:border-sky-800 hover:border-sky-400 transition-all group text-left"
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-sky-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <ChartBarIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">System Analytics</span>
+                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Performance Benchmarks</p>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const systemInst = (institutions || []).find(i => i.id === 'SYSTEM' || i.name.toLowerCase().includes('system') || i.name.toLowerCase().includes('eduai'));
+                                        if (systemInst) {
+                                            onLoginAsAdmin(systemInst.id);
+                                        } else if (institutions.length > 0) {
+                                            onLoginAsAdmin(institutions[0].id);
+                                        }
+                                    }}
+                                    className="flex flex-col items-start p-6 bg-amber-50 dark:bg-amber-900/30 rounded-3xl border border-amber-100 dark:border-amber-800 hover:border-amber-400 transition-all group text-left"
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <SparklesIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Admin Dashboard</span>
+                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Access Institutional ERP</p>
+                                </button>
+                                <button
+                                    onClick={() => setRequestedSettingsTab('billing')}
+                                    className="flex flex-col items-start p-6 bg-rose-50 dark:bg-rose-900/30 rounded-3xl border border-rose-100 dark:border-rose-800 hover:border-rose-400 transition-all group text-left"
+                                >
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-rose-600 mb-4 group-hover:scale-110 transition-transform">
+                                        <BanknotesIcon className="w-6 h-6" />
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Revenue & Billing</span>
+                                    <p className="text-[10px] text-slate-400 uppercase mt-1">Platform Monetization</p>
+                                </button>
+                            </div>
+                        </div>
 
 
                         <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">

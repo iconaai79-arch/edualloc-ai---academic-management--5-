@@ -1881,7 +1881,7 @@ export const App: React.FC = () => {
 
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
-    const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin'].includes(activeRole || '');
+    const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin'].includes(activeRole || '');
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
