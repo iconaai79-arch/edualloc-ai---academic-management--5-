@@ -2834,6 +2834,7 @@ export const App: React.FC = () => {
                 ) : (
                     <>
                         <LoginView
+                            onLogin={(e: string, p: string) => {
                                 // Error Check: If both users and institutions are empty, there's likely an API/Database failure
                                 if ((!users || users.length === 0) && (!institutions || institutions.length === 0)) {
                                     console.error("[Login] Critical: Users and Institutions lists are empty. Fetch failure likely.");
