@@ -53,8 +53,8 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
 
     // 5. Faculty & Staff
     const staff: User[] = [
-        { id: `u_dos_${instId}`, name: 'Director of Studies', email: `dos@demo-${instId}.edu`, phoneNumber: '0711000001', role: 'dos', institutionId: instId, departmentId: depts[0].id, expertise: ['Curriculum'], password: 'password123' },
-        { id: `u_tea1_${instId}`, name: 'Mr. James Maxwell', email: `james@demo-${instId}.edu`, phoneNumber: '0711000002', role: 'teacher', institutionId: instId, departmentId: depts[0].id, expertise: ['Physics'], password: 'password123' },
+        { id: `u_dos_${instId}`, name: 'Director of Studies', email: `dos@demo-${instId}.edu`, phoneNumber: '0711000001', role: 'dos', roles: ['dos'], institutionId: instId, departmentId: depts[0].id, expertise: ['Curriculum'], password: 'password123' },
+        { id: `u_tea1_${instId}`, name: 'Mr. James Maxwell', email: `james@demo-${instId}.edu`, phoneNumber: '0711000002', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[0].id, expertise: ['Physics'], password: 'password123' },
     ];
 
     // 6. Subjects & Courses

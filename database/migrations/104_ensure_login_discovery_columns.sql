@@ -11,6 +11,8 @@ BEGIN
         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS phone_number TEXT;
         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS business_sub_type TEXT;
         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'trial';
+        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS subscription_ends_at TIMESTAMPTZ;
         
         -- Add unique constraint to institution_code if not present
         IF NOT EXISTS (
@@ -29,5 +31,13 @@ BEGIN
         UPDATE public.users SET roles = ARRAY[role]::TEXT[] WHERE roles = '{}' OR roles IS NULL;
     END IF;
 
+    -- 3. Ensure Counties Columns
+    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'counties') THEN
+        ALTER TABLE public.counties ADD COLUMN IF NOT EXISTS phone_number TEXT;
+        ALTER TABLE public.counties ADD COLUMN IF NOT EXISTS email TEXT;
+        ALTER TABLE public.counties ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+        ALTER TABLE public.counties ADD COLUMN IF NOT EXISTS logo_url TEXT;
+    END IF;
+              
     RAISE NOTICE 'Login discovery columns verified/added.';
 END $$;

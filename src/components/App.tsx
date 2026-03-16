@@ -2834,7 +2834,7 @@ export const App: React.FC = () => {
                 ) : (
                     <>
                         <LoginView
-                            onLogin={(e: string, p: string) => {
+                            onLogin={async (e: string, p: string) => {
                                 // Error Check: If both users and institutions are empty, there's likely an API/Database failure
                                 if ((!users || users.length === 0) && (!institutions || institutions.length === 0)) {
                                     console.error("[Login] Critical: Users and Institutions lists are empty. Fetch failure likely.");
@@ -2842,11 +2842,32 @@ export const App: React.FC = () => {
                                     return 'failed';
                                 }
 
-                                const matchedUsers = (users || []).filter(user =>
+                                let matchedUsers = (users || []).filter(user =>
                                     user &&
                                     (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
                                     (user.password === p || (!user.password && p === 'password123'))
                                 );
+
+                                // Discovery Phase: If no match in local state, try searching the API directly
+                                if (matchedUsers.length === 0) {
+                                    console.log(`[Login Discovery] No local match for ${e}. Querying registry...`);
+                                    const isEmail = e.includes('@');
+                                    const filter = isEmail ? { email: e.toLowerCase() } : { phone_number: e };
+                                    
+                                    try {
+                                        const discovered = await apiService.fetchModuleRecords('users', { filter });
+                                        if (discovered && Array.isArray(discovered)) {
+                                            matchedUsers = discovered.filter(u => u.password === p || (!u.password && p === 'password123'));
+                                            if (matchedUsers.length > 0) {
+                                                console.log(`[Login Discovery] Found ${matchedUsers.length} matches via API.`);
+                                                // Sync discovered users to state to prevent future discovery hits
+                                                setUsers(prev => [...(prev || []), ...matchedUsers]);
+                                            }
+                                        }
+                                    } catch (err) {
+                                        console.error("[Login Discovery] Search failed:", err);
+                                    }
+                                }
 
                                 // Prioritize administrative roles over portal/client roles
                                 const rolePriority = ['super_admin', 'reseller', 'county_admin', 'admin', 'head_teacher', 'property_admin', 'agrovet_admin', 'carwash_admin', 'transport_admin', 'his_admin'];
@@ -2860,7 +2881,22 @@ export const App: React.FC = () => {
 
                                 const u = matchedUsers[0];
                                 if (u) {
-                                    const inst = institutions.find(i => i.id === u.institutionId);
+                                    let inst = institutions.find(i => i.id === u.institutionId);
+                                    
+                                    // Institutional Discovery: If institution not in local cache, fetch it
+                                    if (!inst && u.institutionId) {
+                                        console.log(`[Login Discovery] Institution ${u.institutionId} not in local state. Fetching...`);
+                                        try {
+                                            const discovered = await apiService.fetchModuleRecords('institutions', { filter: { id: u.institutionId } });
+                                            if (discovered && Array.isArray(discovered) && discovered.length > 0) {
+                                                inst = discovered[0];
+                                                console.log(`[Login Discovery] Found institution: ${inst?.name}`);
+                                                setInstitutions(prev => [...(prev || []), inst!]);
+                                            }
+                                        } catch (err) {
+                                            console.error("[Login Discovery] Institution lookup failed:", err);
+                                        }
+                                    }
                                     if (inst?.status === 'suspended' && u.role !== 'super_admin') {
                                         setCurrentUser(u);
                                         apiService.storeSession(u);

@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const filterCol = module === 'institutions' ? 'id' : 'institution_id';
                         q = q.eq(filterCol, queryInstitutionId);
                     }
-                    if (!limit) q = q.limit(10000);
+                    if (!limit) q = q.limit(100); // Limit public unauthenticated searches to prevent scraping
                 } else if (user) {
                     const { institutionId } = user;
                     if (module === 'institutions') {
@@ -50,6 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.eq('institution_id', institutionId);
                     }
                 }
+
+                // Generic Query Param Filtering (e.g. ?institution_code=ABC or ?email=x@y.com)
+                const reserved = ['module', 'id', 'select', 'order', 'limit', 'institutionId'];
+                Object.entries(req.query).forEach(([key, val]) => {
+                    if (!reserved.includes(key) && val) {
+                        const value = Array.isArray(val) ? val[0] : val;
+                        q = q.eq(key, value);
+                    }
+                });
 
                 if (order) {
                     const [column, direction] = (order as string).split('.');
@@ -68,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (module === 'users') {
                     selectString = 'id, name, email, role, roles, institution_id, phone_number, password';
                 } else if (module === 'institutions') {
-                    selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type';
+                    selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type, trial_ends_at, subscription_ends_at';
                 }
             }
 
