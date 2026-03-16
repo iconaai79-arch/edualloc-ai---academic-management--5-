@@ -15,6 +15,13 @@ const getEnvInfo = () => ({
 // Unused getSupabaseClient removed in favor of createServiceClient
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
     console.log(`[System API] Request: ${req.method} ${req.url}`);
     
     try {

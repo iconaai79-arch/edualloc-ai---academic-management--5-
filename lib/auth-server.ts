@@ -39,7 +39,7 @@ export async function getAuthenticatedUser(supabase: SupabaseClient, authHeader?
         }
 
         if (!userId) {
-            console.error('[Auth] Validation failed: No valid session or token found');
+            if (token) console.warn('[Auth] Invalid or expired token provided');
             return null;
         }
 

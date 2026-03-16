@@ -5,6 +5,13 @@ import { getAuthenticatedUser } from '../lib/auth-server';
 const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
     const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
     console.log(`[API Records] ${req.method} request for module: ${module}`);
 

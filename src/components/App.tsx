@@ -59,7 +59,7 @@ import type {
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
-const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
+const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; status?: string }> = ({ message, onRetry, status }) => (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
         {/* Animated Background Mesh */}
         <div className="absolute inset-0 animate-mesh opacity-40"></div>
@@ -93,6 +93,19 @@ const SystemPulseLoader: React.FC<{ message: string }> = ({ message }) => (
                     <p className="text-indigo-200/60 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse bg-indigo-500/10 px-4 py-1.5 rounded-full border border-indigo-500/20">
                         {message}
                     </p>
+                    
+                    {status && (
+                        <p className="text-white/40 text-[9px] font-bold uppercase tracking-widest">{status}</p>
+                    )}
+
+                    {onRetry && (
+                        <button 
+                            onClick={onRetry}
+                            className="bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold py-2 px-6 rounded-lg transition-all border border-white/10 mt-2"
+                        >
+                            Retry Connection
+                        </button>
+                    )}
                     
                     {/* Premium Progress Indicator */}
                     <div className="w-48 h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
@@ -331,6 +344,7 @@ export const App: React.FC = () => {
     const [isSchemaInitializationRequired, setIsSchemaInitializationRequired] = useState(false);
     const [isBootstrapped, setIsBootstrapped] = useState(false);
     const [appInitializing, setAppInitializing] = useState(true);
+    const [loadStatus, setLoadStatus] = useState<string>("");
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
@@ -487,11 +501,13 @@ export const App: React.FC = () => {
 
     const loadData = useCallback(async (isFirstLoad = false) => {
         if (isFirstLoad) setAppInitializing(true);
+        setLoadStatus("Initializing...");
 
         try {
             if (!apiService.isConfigured()) initSupabaseClient();
             setIsBootstrapped(true);
 
+            setLoadStatus("Testing Database Connection...");
             const health = await apiService.testDatabaseConnection();
             if (health.status === 'setup_required') {
                 setIsSchemaInitializationRequired(true);
@@ -503,29 +519,38 @@ export const App: React.FC = () => {
             setIsApiOnline(health.status !== 'offline');
             setIsSchemaInitializationRequired(false);
 
+            setLoadStatus("Fetching Core Registry Data...");
             const instId = currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId;
             const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
 
-            const [insts, cnts, sett, u, d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = await Promise.all([
+            const [insts, cnts, sett, u] = await Promise.all([
                 apiService.fetchInstitutions(instId).catch(() => []),
                 apiService.fetchModuleRecords<County>('counties').catch(() => []),
                 apiService.fetchCompanySettings().catch(() => null),
                 apiService.fetchUsers(instId).catch(() => []),
-                apiService.fetchDepartments(instId).catch(() => []),
-                apiService.fetchSubjects(instId).catch(() => []),
-                apiService.fetchCourses(instId).catch(() => []),
-                apiService.fetchAllocations(instId).catch(() => []),
-                apiService.fetchAcademicYears(instId).catch(() => []),
-                apiService.fetchSemesters(instId).catch(() => []),
-                apiService.fetchRooms(instId).catch(() => []),
-                apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []),
-                apiService.fetchAcademicLevels(instId).catch(() => []),
-                apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
-                apiService.fetchTransactions(instId).catch(() => []),
-                apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
-                apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
-                currentUser ? apiService.fetchNotifications(currentUser.id).catch(() => []) : Promise.resolve([]),
             ]);
+
+            let d: any[] = [], s: any[] = [], c: any[] = [], a: any[] = [], ay: any[] = [], sem: any[] = [], r: any[] = [], b: any[] = [], al: any[] = [], tasks: any[] = [], txns: any[] = [], recs: any[] = [], logs: any[] = [], notifs: any[] = [];
+
+            if (currentUser) {
+                setLoadStatus("Downloading Module Records...");
+                [d, s, c, a, ay, sem, r, b, al, tasks, txns, recs, logs, notifs] = await Promise.all([
+                    apiService.fetchDepartments(instId).catch(() => []),
+                    apiService.fetchSubjects(instId).catch(() => []),
+                    apiService.fetchCourses(instId).catch(() => []),
+                    apiService.fetchAllocations(instId).catch(() => []),
+                    apiService.fetchAcademicYears(instId).catch(() => []),
+                    apiService.fetchSemesters(instId).catch(() => []),
+                    apiService.fetchRooms(instId).catch(() => []),
+                    apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []),
+                    apiService.fetchAcademicLevels(instId).catch(() => []),
+                    apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
+                    apiService.fetchTransactions(instId).catch(() => []),
+                    apiService.fetchModuleRecords<Receipt>('receipts', instId).catch(() => []),
+                    apiService.fetchModuleRecords<ActivityLog>('activity_log', instId).catch(() => []),
+                    apiService.fetchNotifications(currentUser.id).catch(() => []),
+                ]);
+            }
 
             if (insts && insts.length > 0) setInstitutions(insts);
             if (cnts && cnts.length > 0) setCounties(cnts);
@@ -582,59 +607,63 @@ export const App: React.FC = () => {
             setActivityLog(logs || []);
             setNotifications(notifs || []);
 
-            const [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, req, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs] = await Promise.all([
-                apiService.fetchInvoices(instId).catch(() => []),
-                apiService.fetchExtensionRequests(instId).catch(() => []),
-                apiService.fetchVoteHeads(instId).catch(() => []),
-                apiService.fetchFeeStructures(instId).catch(() => []),
-                apiService.fetchFinancialPeriods(instId).catch(() => []),
-                apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', instId).catch(() => []),
-                apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', instId).catch(() => []),
-                apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', instId).catch(() => []),
-                apiService.fetchAbsenceRequests(instId).catch(() => []),
-                apiService.fetchModuleRecords<LecturerContract>('contracts', instId).catch(() => []),
-                apiService.fetchModuleRecords<StudentAttendance>('student_attendances', instId).catch(() => []),
-                apiService.fetchModuleRecords<InventoryItem>('inventory', instId).catch(() => []),
-                apiService.fetchTimetable(instId || '').catch(() => []),
-                apiService.fetchExamTimetable(instId || '').catch(() => []),
-                apiService.fetchModuleRecords<Assignment>('assignments', instId).catch(() => []),
-                apiService.fetchModuleRecords<Submission>('submissions', instId).catch(() => []),
-                apiService.fetchModuleRecords<LessonRating>('lesson_ratings', instId).catch(() => []),
-                apiService.fetchModuleRecords<TaAssignment>('ta_assignments', instId).catch(() => []),
-                apiService.fetchModuleRecords<Assessment>('assessments', instId).catch(() => []),
-                apiService.fetchAssessmentMarks(instId).catch(() => []),
-                apiService.fetchModuleRecords<Book>('books', instId).catch(() => []),
-                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', instId).catch(() => []),
-                apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
-                apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
-                apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId, cntId).catch(() => []),
-                apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
-                apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
-                apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId, cntId).catch(() => []),
-                apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
-                apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
-                apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
-                apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
-                apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
-                apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
-                apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
-                apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
-                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', instId).catch(() => []),
-                apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
-                apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
-                apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),
-                apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
-                apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
-                apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
-                apiService.fetchModuleRecords<TransportVehicle>('vehicles', instId).catch(() => []),
-                apiService.fetchTransportOnboarding(instId).catch(() => []),
-                apiService.fetchVehicleLogs(instId).catch(() => []),
-                apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', instId).catch(() => []),
-                apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
-                apiService.fetchModuleRecords<RetailSale>('retail_sales', instId).catch(() => []),
-                apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', instId).catch(() => []),
-            ]);
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [];
+            
+            if (currentUser) {
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs] = await Promise.all([
+                    apiService.fetchInvoices(instId).catch(() => []),
+                    apiService.fetchExtensionRequests(instId).catch(() => []),
+                    apiService.fetchVoteHeads(instId).catch(() => []),
+                    apiService.fetchFeeStructures(instId).catch(() => []),
+                    apiService.fetchFinancialPeriods(instId).catch(() => []),
+                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', instId).catch(() => []),
+                    apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', instId).catch(() => []),
+                    apiService.fetchAbsenceRequests(instId).catch(() => []),
+                    apiService.fetchModuleRecords<LecturerContract>('contracts', instId).catch(() => []),
+                    apiService.fetchModuleRecords<StudentAttendance>('student_attendances', instId).catch(() => []),
+                    apiService.fetchModuleRecords<InventoryItem>('inventory', instId).catch(() => []),
+                    apiService.fetchTimetable(instId || '').catch(() => []),
+                    apiService.fetchExamTimetable(instId || '').catch(() => []),
+                    apiService.fetchModuleRecords<Assignment>('assignments', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Submission>('submissions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<LessonRating>('lesson_ratings', instId).catch(() => []),
+                    apiService.fetchModuleRecords<TaAssignment>('ta_assignments', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Assessment>('assessments', instId).catch(() => []),
+                    apiService.fetchAssessmentMarks(instId).catch(() => []),
+                    apiService.fetchModuleRecords<Book>('books', instId).catch(() => []),
+                    apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
+                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
+                    apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
+                    apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
+                    apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', instId).catch(() => []),
+                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
+                    apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
+                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),
+                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
+                    apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
+                    apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
+                    apiService.fetchModuleRecords<TransportVehicle>('vehicles', instId).catch(() => []),
+                    apiService.fetchTransportOnboarding(instId).catch(() => []),
+                    apiService.fetchVehicleLogs(instId).catch(() => []),
+                    apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailSale>('retail_sales', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', instId).catch(() => []),
+                ]);
+            }
 
 
             setInvoices(inv || []);
@@ -672,7 +701,7 @@ export const App: React.FC = () => {
             setObservationNotes(obs || []);
             setVisitors(vis || []);
             setSecurityAlerts(sec || []);
-            setRequisitions(req || []);
+            setRequisitions(reqRecords || []);
             setRetailExpenses(retExp || []);
             setRetailStores(rStores || []);
             setRetailInventory(rInv || []);
@@ -689,10 +718,12 @@ export const App: React.FC = () => {
             setJobs(cwJobs || []);
 
             setIsGeneratingDemoData(false);
-        } catch (error) {
-            console.error("Sync Error:", error);
-        } finally {
             setAppInitializing(false);
+            setLoadStatus("");
+        } catch (error) {
+            console.error("Critical Load Error:", error);
+            setLoadStatus("Connection Error. Please check your internet or service keys.");
+        } finally {
             initialLoadDone.current = true;
         }
     }, [currentUser]);
@@ -1852,7 +1883,7 @@ export const App: React.FC = () => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
     }, [activeRole, isAdminCatchAll]);
 
-    if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." />;
+    if (appInitializing) return <SystemPulseLoader message="Establishing secure cloud registry link..." status={loadStatus} onRetry={() => loadData(true)} />;
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
 
     if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
@@ -2855,7 +2886,7 @@ export const App: React.FC = () => {
                                     const filter = isEmail ? { email: e.toLowerCase() } : { phone_number: e };
                                     
                                     try {
-                                        const discovered = await apiService.fetchModuleRecords('users', { filter });
+                                        const discovered = await apiService.fetchModuleRecords('users', undefined, undefined, { filter });
                                         if (discovered && Array.isArray(discovered)) {
                                             matchedUsers = discovered.filter(u => u.password === p || (!u.password && p === 'password123'));
                                             if (matchedUsers.length > 0) {
@@ -2887,7 +2918,7 @@ export const App: React.FC = () => {
                                     if (!inst && u.institutionId) {
                                         console.log(`[Login Discovery] Institution ${u.institutionId} not in local state. Fetching...`);
                                         try {
-                                            const discovered = await apiService.fetchModuleRecords('institutions', { filter: { id: u.institutionId } });
+                                            const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: u.institutionId } });
                                             if (discovered && Array.isArray(discovered) && discovered.length > 0) {
                                                 inst = discovered[0];
                                                 console.log(`[Login Discovery] Found institution: ${inst?.name}`);

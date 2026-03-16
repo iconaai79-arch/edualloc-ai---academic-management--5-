@@ -15,6 +15,9 @@ BEGIN
         WHERE table_schema = 'public' 
         AND table_type = 'BASE TABLE'
     LOOP
+        -- 0. Grant baseline permissions
+        EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t_name);
+        
         -- 1. Enable RLS
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t_name);
         
@@ -93,3 +96,8 @@ BEGIN
 
     RAISE NOTICE 'Comprehensive RLS fix applied to all tables.';
 END $$;
+
+-- Global Grants for sequences and functions (Required for inserts/updates)
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
