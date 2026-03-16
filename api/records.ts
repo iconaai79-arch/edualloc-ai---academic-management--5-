@@ -31,9 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let selectString = (select as string) || '*';
             if (isPublicGet && !user && !select) {
                 if (module === 'users') {
-                    selectString = 'id, name, email, role, institution_id, phone_number, password';
+                    // Include roles and phoneNumber for proper client-side matching
+                    selectString = 'id, name, email, role, roles, institution_id, phone_number, password';
                 } else if (module === 'institutions') {
-                    selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status';
+                    // Include all fields needed for login/handshake/suspended checks
+                    selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type';
                 }
             }
 
@@ -53,9 +55,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     query = query.eq(filterCol, queryInstitutionId);
                 }
 
-                // Default limit for public searches to ensure stability
+                // Increased limit for public discovery to support larger demo environments
                 if (!limit) {
-                    query = query.limit(2000);
+                    query = query.limit(10000);
                 }
             } else if (user) {
                 // Regular users can only see THEIR institution
