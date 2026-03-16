@@ -41,8 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const filterCol = module === 'institutions' ? 'id' : 'institution_id';
                     query = query.eq(filterCol, queryInstitutionId);
                 } else {
-                    // Prevent over-fetching on public unauthenticated requests while ensuring all users/institutions load
-                    query = query.limit(50000);
+                    // Prevent over-fetching on public unauthenticated requests while ensuring stability (Vercel payload limits)
+                    query = query.limit(2000);
                 }
             } else if (user) {
                 // Regular users can only see THEIR institution
