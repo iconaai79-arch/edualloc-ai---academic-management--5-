@@ -82,7 +82,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data, error } = await query;
             if (error) {
                 console.error(`[API Records] GET Error [${module}]:`, error);
-                return res.status(500).json({ error: 'Failed to fetch records. Internal server error.' });
+                return res.status(500).json({ 
+                    error: `Database Error [${module}]: ${error.message}`,
+                    code: error.code,
+                    hint: error.hint
+                });
             }
             return res.status(200).json(data);
         }
