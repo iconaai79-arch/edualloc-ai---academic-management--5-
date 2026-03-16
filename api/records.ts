@@ -27,7 +27,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!module) return res.status(400).json({ error: 'Module parameter required' });
 
         if (req.method === 'GET') {
-            let query = supabase.from(module as string).select(select as string || '*');
+            // Determine select columns
+            let selectString = (select as string) || '*';
+            if (isPublicGet && !user && !select) {
+                if (module === 'users') {
+                    selectString = 'id, name, email, role, institution_id, phone_number, password';
+                } else if (module === 'institutions') {
+                    selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status';
+                }
+            }
+
+            let query = supabase.from(module as string).select(selectString);
 
             // Always filter by institution_id based on session context if available
             if (user?.role === 'super_admin') {
@@ -41,15 +51,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (queryInstitutionId) {
                     const filterCol = module === 'institutions' ? 'id' : 'institution_id';
                     query = query.eq(filterCol, queryInstitutionId);
-                }
-
-                if (!select) {
-                    // Apply strict column selection for security and performance
-                    if (module === 'users') {
-                        query = query.select('id, name, email, role, institution_id, phone_number, password');
-                    } else if (module === 'institutions') {
-                        query = query.select('id, name, logo_url, institution_type, is_otp_enabled, status');
-                    }
                 }
 
                 // Default limit for public searches to ensure stability

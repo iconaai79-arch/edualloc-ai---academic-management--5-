@@ -2834,7 +2834,7 @@ export const App: React.FC = () => {
                 ) : (
                     <>
                         <LoginView
-                            onLogin={(e, p) => {
+                            onLogin={(e: string, p: string) => {
                                 const matchedUsers = (users || []).filter(user =>
                                     user &&
                                     (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
@@ -2895,9 +2895,17 @@ export const App: React.FC = () => {
                                     apiService.storeSession(u);
                                     return 'success';
                                 }
+
+                                // Debugging Login Failures
+                                const accountExists = (users || []).some(user => user && (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e));
+                                if (accountExists) {
+                                    console.warn(`[Login] Account found for "${e}", but password mismatch occurred.`);
+                                } else {
+                                    console.warn(`[Login] No account found for "${e}". Total users in state: ${users?.length || 0}`);
+                                }
                                 return 'failed';
                             }}
-                            onVerifyOtp={(code) => {
+                            onVerifyOtp={(code: string) => {
                                 if (code === currentOtp && otpPendingUser) {
                                     setCurrentUser(otpPendingUser);
                                     apiService.storeSession(otpPendingUser);

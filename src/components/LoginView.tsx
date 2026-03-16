@@ -89,7 +89,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const handleLoginSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const result = onLogin(identifier, password);
+        const cleanIdentifier = identifier.trim();
+        const result = onLogin(cleanIdentifier, password);
         if (result === 'failed') {
             setError('Invalid email or password.');
         } else if (result === 'suspended') {
