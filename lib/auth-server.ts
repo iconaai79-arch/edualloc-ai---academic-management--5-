@@ -16,19 +16,20 @@ export async function getAuthenticatedUser(supabase: SupabaseClient, authHeader?
         let userId: string | null = null;
         let userEmail: string | null = null;
 
+        const token = authHeader?.replace('Bearer ', '');
+        const isJwt = token?.includes('.') && token?.split('.').length === 3;
+
         // 1. Try Supabase Auth (JWT)
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const { data, error: authError } = await (isJwt ? supabase.auth.getUser(token) : supabase.auth.getUser());
+        const user = data?.user;
         
         if (user) {
             userId = user.id;
             userEmail = user.email || null;
-        } else if (authHeader && authHeader.startsWith('Bearer ')) {
+        } else if (token && (token.startsWith('u_') || token.includes('-'))) {
             // 2. Fallback: Internal User ID (u_...) passed as Bearer token
             // This is used by the frontend's custom login system
-            const token = authHeader.split(' ')[1];
-            if (token && (token.startsWith('u_') || token.includes('-'))) {
-                userId = token;
-            }
+            userId = token;
         }
 
         if (!userId) {
