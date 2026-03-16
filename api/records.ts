@@ -5,14 +5,15 @@ import { getAuthenticatedUser } from '../lib/auth-server';
 const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
+    console.log(`[API Records] ${req.method} request for module: ${module}`);
+
     try {
         const supabase = createServiceClient();
         if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
 
         // JWT Validation & Institution Derivation
         const user = await getAuthenticatedUser(supabase, req.headers.authorization);
-        
-        const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
         
         // Check if it's a public read request
         const isPublicGet = req.method === 'GET' && PUBLIC_MODULES.includes(module as string);
@@ -42,7 +43,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     query = query.eq(filterCol, queryInstitutionId);
                 } else {
                     // Prevent over-fetching on public unauthenticated requests while ensuring stability (Vercel payload limits)
-                    query = query.limit(2000);
+                    // Reduced from 2000 to 500 to prevent payload/timeout issues on login
+                    query = query.limit(500);
+                }
+
+                if (isPublicGet && !user && !req.query.select) {
+                    // Only fetch essential columns for public listings if not specified
+                    if (module === 'institutions') {
+                        query = query.select('id, name, logo_url, status, type');
+                    } else if (module === 'users') {
+                        // Only fetch columns needed for client-side authentication to keep payload small
+                        query = query.select('id, email, phone, phone_number, password, role, institution_id, status');
+                    }
                 }
             } else if (user) {
                 // Regular users can only see THEIR institution
