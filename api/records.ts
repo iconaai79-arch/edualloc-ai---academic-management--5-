@@ -37,24 +37,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     query = query.eq(filterCol, queryInstitutionId);
                 }
             } else if (isPublicGet && !user) {
-                // Public unauthenticated request - allow respect of query institutionId if provided
+                // Public unauthenticated request (e.g., login registry check)
                 if (queryInstitutionId) {
                     const filterCol = module === 'institutions' ? 'id' : 'institution_id';
                     query = query.eq(filterCol, queryInstitutionId);
-                } else {
-                    // Prevent over-fetching on public unauthenticated requests while ensuring stability (Vercel payload limits)
-                    // Reduced from 2000 to 500 to prevent payload/timeout issues on login
-                    query = query.limit(500);
                 }
 
-                if (isPublicGet && !user && !req.query.select) {
-                    // Only fetch essential columns for public listings if not specified
-                    if (module === 'institutions') {
-                        query = query.select('id, name, logo_url, status, type');
-                    } else if (module === 'users') {
-                        // Only fetch columns needed for client-side authentication to keep payload small
-                        query = query.select('id, email, phone, phone_number, password, role, institution_id, status');
+                if (!select) {
+                    // Apply strict column selection for security and performance
+                    if (module === 'users') {
+                        query = query.select('id, name, email, role, institution_id, phone_number, password');
+                    } else if (module === 'institutions') {
+                        query = query.select('id, name, logo_url, institution_type, is_otp_enabled, status');
                     }
+                }
+
+                // Default limit for public searches to ensure stability
+                if (!limit) {
+                    query = query.limit(2000);
                 }
             } else if (user) {
                 // Regular users can only see THEIR institution
