@@ -2,10 +2,6 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServiceClient } from '../lib/supabase';
 import { getAuthenticatedUser } from '../lib/auth-server';
 
-export const config = {
-    maxDuration: 60, // Increase timeout for database queries
-};
-
 const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
