@@ -1,6 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { getAuthenticatedUser } from '../lib/auth-server';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
@@ -12,6 +11,26 @@ const getSupabase = () => {
     });
 };
 
+// Simplified Auth check to avoid external lib crashes
+async function getAuthUser(supabase: any, authHeader?: string) {
+    if (!authHeader) return null;
+    const token = authHeader.replace('Bearer ', '');
+    if (!token) return null;
+    try {
+        if (token.includes('.') && token.split('.').length === 3) {
+            const { data } = await supabase.auth.getUser(token);
+            if (data?.user) {
+                const { data: p } = await supabase.from('users').select('id, institution_id, role').eq('id', data.user.id).single();
+                if (p) return { id: p.id, institutionId: p.institution_id, role: p.role };
+            }
+        }
+        if (token.startsWith('u_') || token.includes('-')) {
+            const { data: p } = await supabase.from('users').select('id, institution_id, role').eq('id', token).single();
+            if (p) return { id: p.id, institutionId: p.institution_id, role: p.role };
+        }
+    } catch (e) { console.error('[Auth Internal] Failure:', e); }
+    return null;
+}
 
 // Diagnostic helper
 const getEnvInfo = () => ({
@@ -110,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (action === 'clearData') {
-                const user = await getAuthenticatedUser(supabase, req.headers.authorization);
+                const user = await getAuthUser(supabase, req.headers.authorization);
                 if (!user || user.role !== 'super_admin') {
                     return res.status(403).json({ error: 'Forbidden: Only super admin can clear institutional data' });
                 }
