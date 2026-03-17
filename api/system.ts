@@ -1,7 +1,16 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createServiceClient } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { getAuthenticatedUser } from '../lib/auth-server';
-// pg import moved to dynamic import inside execute_sql block to prevent top-level initialization crashes
+
+// Self-contained Supabase service client factory to avoid external lib crashes
+const getSupabase = () => {
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return null;
+    return createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false }
+    });
+};
 
 
 // Diagnostic helper
@@ -31,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ status: 'ok', env: getEnvInfo() });
         }
 
-        const supabase = createServiceClient();
+        const supabase = getSupabase();
         if (!supabase) {
             const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
             const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
