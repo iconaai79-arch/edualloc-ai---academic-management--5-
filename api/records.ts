@@ -5,7 +5,6 @@ import { getAuthenticatedUser } from '../lib/auth-server';
 const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS Headers
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,DELETE');
@@ -13,29 +12,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { module, id, select, order, limit, institutionId: queryInstitutionId, countyId: queryCountyId } = req.query;
+    const { module, id, select, order, limit, institutionId: queryInstitutionId } = req.query;
     const getStrParam = (p: any): string => (Array.isArray(p) ? p[0] : (p as string) || '');
-    
     const moduleName = getStrParam(module);
     const recordId = getStrParam(id);
     const queryInstId = getStrParam(queryInstitutionId);
-    const qCountyId = getStrParam(queryCountyId);
     
     console.log(`[API Records] ${req.method} request for module: ${moduleName || 'NONE'}`);
 
     try {
         const supabase = createServiceClient();
         if (!supabase) {
-            console.error(`[API Records] Supabase client creation failed.`);
+            const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+            const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+            console.error(`[API Records] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
+            
             return res.status(200).json({ 
                 success: false, 
-                error: 'Database service unavailable: Missing environment keys.'
+                error: 'Database service unavailable: Missing environment keys.',
+                diagnostic: { hasUrl, hasKey, vercel: !!process.env.VERCEL }
             });
         }
         
         if (!moduleName) return res.status(400).json({ success: false, error: 'Module parameter required' });
 
-        // JWT Validation
         const user = await getAuthenticatedUser(supabase, req.headers.authorization);
         const isPublicGet = req.method === 'GET' && PUBLIC_MODULES.includes(moduleName);
 
@@ -44,31 +44,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const institutionId = user?.institutionId;
-        const isCountyRole = user?.role?.startsWith('county_');
+        const isCountyRole = user?.role === 'county_admin' || user?.role?.startsWith('county_');
 
         if (req.method === 'GET') {
             const getQuery = async (columns: string) => {
                 let q = supabase.from(moduleName).select(columns);
                 
-                // Enforce multi-tenancy filters
                 if (user?.role === 'super_admin') {
                     if (queryInstId) {
                         const filterCol = moduleName === 'institutions' ? 'id' : 'institution_id';
                         q = q.eq(filterCol, queryInstId);
                     }
-                    if (qCountyId) {
-                         const filterCol = moduleName === 'counties' ? 'id' : 'county_id';
-                         q = q.eq(filterCol, qCountyId);
-                    }
                 } else if (isPublicGet && !user) {
-                    // Guests can see public modules with optional specific filters
                     if (queryInstId) {
                         const filterCol = moduleName === 'institutions' ? 'id' : 'institution_id';
                         q = q.eq(filterCol, queryInstId);
-                    }
-                    if (qCountyId) {
-                         const filterCol = moduleName === 'counties' ? 'id' : 'county_id';
-                         q = q.eq(filterCol, qCountyId);
                     }
                     if (!limit) q = q.limit(100); 
                 } else if (user) {
@@ -85,20 +75,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else {
                         if (moduleName === 'institutions') {
                             q = q.eq('id', instId);
-                        } else if (moduleName !== 'counties') {
-                            q = q.eq('institution_id', instId);
+                        } else {
+                            if (moduleName !== 'counties') {
+                                q = q.eq('institution_id', instId);
+                            }
                         }
                     }
                 }
 
-                if (recordId) q = q.eq('id', recordId);
+                if (recordId) {
+                    q = q.eq('id', recordId);
+                }
 
-                // Generic Query Param Filtering (skip reserved)
-                const reserved = ['module', 'id', 'select', 'order', 'limit', 'institutionId', 'countyId'];
+                const reserved = ['module', 'id', 'select', 'order', 'limit', 'institutionId'];
                 Object.entries(req.query).forEach(([key, val]) => {
                     if (!reserved.includes(key) && val) {
-                        const value = getStrParam(val);
-                        if (value) q = q.eq(key, value);
+                        try {
+                            const value = getStrParam(val);
+                            if (value) q = q.eq(key, value);
+                        } catch (e) {
+                            console.warn(`[API Records] Filter failure for ${key}:`, e);
+                        }
                     }
                 });
 
@@ -111,43 +108,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const parsedLimit = parseInt(getStrParam(limit));
                     if (!isNaN(parsedLimit)) q = q.limit(parsedLimit);
                 }
-                
                 return await q;
             };
 
-            // Select Optimization
             let selectString = getStrParam(select) || '*';
             if (isPublicGet && !user && !select) {
                 if (moduleName === 'users') {
-                    selectString = 'id, name, email, role, roles, institution_id, phone_number';
+                    selectString = 'id, name, email, role, roles, institution_id, phone_number, password';
                 } else if (moduleName === 'institutions') {
                     selectString = 'id, name, logo_url, institution_type, is_otp_enabled, status, phone_number, institution_code, business_sub_type, trial_ends_at, subscription_ends_at';
                 }
             }
 
-            const { data, error } = await getQuery(selectString);
+            try {
+                let { data, error } = await getQuery(selectString);
 
-            if (error) {
-                // Handle column mismatch or missing RLS
-                console.error(`[API Records] GET Database Error [${moduleName}]:`, error.message);
-                
-                // Final fallback if first attempt fails
-                if (error.code === '42703' && selectString !== '*') {
+                if (error && error.code === '42703' && selectString !== '*') {
                     const retry = await getQuery('*');
-                    if (retry.error) {
-                        return res.status(500).json({ success: false, error: retry.error.message });
-                    }
-                    return res.status(200).json(retry.data || []);
+                    data = retry.data;
+                    error = retry.error;
                 }
 
-                return res.status(200).json({ 
-                    success: false, 
-                    error: `Database error: ${error.message}`,
-                    code: error.code 
-                });
-            }
+                if (error && error.code === '42703' && isCountyRole) {
+                     const retry = await supabase.from(moduleName).select(selectString).limit(100);
+                     data = retry.data;
+                     error = retry.error;
+                }
 
-            return res.status(200).json(data || []);
+                if (error) {
+                    console.error(`[API Records] GET Error [${moduleName}]:`, error);
+                    return res.status(200).json({ 
+                        success: false,
+                        error: `Database Error: ${error.message}`,
+                        code: error.code,
+                        module: moduleName
+                    });
+                }
+                return res.status(200).json(data || []);
+            } catch (innerErr: any) {
+                console.error(`[API Records] Internal GET Failure [${moduleName}]:`, innerErr);
+                return res.status(500).json({ success: false, error: innerErr.message });
+            }
         }
 
         if (req.method === 'POST') {
@@ -157,16 +158,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let secureData: any;
             if (user?.role === 'super_admin' || moduleName === 'counties') {
                 secureData = recordData;
-            } else {
-                const tenantKey = isCountyRole ? 'county_id' : 'institution_id';
+            } else if (isCountyRole) {
                 secureData = Array.isArray(recordData) 
-                    ? recordData.map((r: any) => ({ ...r, [tenantKey]: institutionId }))
-                    : { ...recordData, [tenantKey]: institutionId };
+                    ? recordData.map((r: any) => ({ ...r, county_id: institutionId }))
+                    : { ...recordData, county_id: institutionId };
+            } else {
+                secureData = Array.isArray(recordData) 
+                    ? recordData.map((r: any) => ({ ...r, institution_id: institutionId }))
+                    : { ...recordData, institution_id: institutionId };
             }
 
             const { data, error } = await supabase.from(moduleName).upsert(secureData).select();
             if (error) {
-                console.error(`[API Records] POST Error [${moduleName}]:`, error.message);
+                console.error(`[API Records] POST Error [${moduleName}]:`, error);
                 return res.status(500).json({ success: false, error: `Save Error: ${error.message}` });
             }
             return res.status(200).json(data?.[0] || { success: true });
@@ -178,19 +182,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { data, error } = await supabase.from(moduleName).update(updates).eq('id', targetId).select();
             if (error) {
-                console.error(`[API Records] PATCH Error [${moduleName}]:`, error.message);
                 return res.status(500).json({ success: false, error: `Update Error: ${error.message}` });
             }
             return res.status(200).json(data?.[0] || { success: true });
         }
 
         if (req.method === 'DELETE') {
-            const targetId = recordId || req.body?.id;
+            const targetId = id || req.body?.id;
             if (!targetId) return res.status(400).json({ success: false, error: 'ID required for deletion' });
 
             const { error } = await supabase.from(moduleName).delete().eq('id', targetId);
             if (error) {
-                console.error(`[API Records] DELETE Error [${moduleName}]:`, error.message);
                 return res.status(500).json({ success: false, error: `Delete Error: ${error.message}` });
             }
             return res.status(200).json({ success: true });
@@ -198,11 +200,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return res.status(405).json({ success: false, error: 'Method not allowed' });
     } catch (err: any) {
-        console.error(`[API Records] Critical Crash:`, err);
+        console.error(`[API Records] Critical Failure:`, err);
         return res.status(500).json({ 
-            success: false, 
-            error: 'Server Error', 
-            message: err?.message || 'Unexpected failure' 
+            success: false,
+            error: 'Internal Server Error', 
+            message: err?.message || 'Unexpected server failure'
         });
     }
 }
