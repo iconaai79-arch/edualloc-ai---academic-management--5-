@@ -51,6 +51,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 return res.status(200).json(data?.data || {});
             }
+
+            if (action === 'health') {
+                try {
+                    const { error } = await supabase.from('institutions').select('id', { count: 'exact', head: true }).limit(1);
+                    const url = process.env.SUPABASE_URL || '';
+                    const dbName = url.replace('https://', '').split('.')[0] || 'supabase-instance';
+                    if (error && error.code !== '42P01') throw error;
+                    return res.status(200).json({
+                        success: true,
+                        status: error?.code === '42P01' ? 'setup_required' : 'online',
+                        dbName,
+                        engine: 'PostgreSQL (Supabase)',
+                        message: error?.code === '42P01' ? 'Supabase connected. Schema initialization required.' : 'Connected to cloud cluster successfully.',
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (e: any) {
+                    return res.status(200).json({ success: false, status: 'offline', message: 'Cloud database unreachable.', error_detail: e.message });
+                }
+            }
+
+            if (action === 'debug') {
+                return res.status(200).json({
+                    status: 'online',
+                    timestamp: new Date().toISOString(),
+                    env: getEnvInfo(),
+                    headers: req.headers
+                });
+            }
         }
 
         if (req.method === 'POST') {
