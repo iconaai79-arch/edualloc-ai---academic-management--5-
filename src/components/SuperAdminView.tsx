@@ -411,7 +411,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         email: '',
         phoneNumber: '',
         institutionType: 'University' as Institution['institutionType'],
-        businessSubType: '' as Institution['businessSubType']
+        businessSubType: '' as Institution['businessSubType'],
+        countyId: ''
     });
 
     // Timetable state
@@ -806,6 +807,7 @@ Please change it after login.`;
                     phoneNumber: newInstData.phoneNumber,
                     institutionType: newInstData.institutionType,
                     businessSubType: newInstData.businessSubType,
+                    countyId: newInstData.countyId || undefined,
                     status: isReseller ? 'active' : 'trial',
                     trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                     institutionCode: `INST-${Date.now().toString().slice(-4)}`,
@@ -815,7 +817,7 @@ Please change it after login.`;
                     smsConfig: props.smsConfig
                 });
                 setIsAddingInstitution(false);
-                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University', businessSubType: '' });
+                setNewInstData({ name: '', email: '', phoneNumber: '', institutionType: 'University', businessSubType: '', countyId: '' });
                 alert("New institution tenant created successfully.");
             } catch (err: any) {
                 console.error("Failed to add institution:", err);
@@ -1280,6 +1282,19 @@ Please change it after login.`;
                                                     <option value="HIS">Health Information System (HIS)</option>
                                                 </select>
                                             </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned County (Optional)</label>
+                                                <select
+                                                    value={newInstData.countyId}
+                                                    onChange={e => setNewInstData({ ...newInstData, countyId: e.target.value })}
+                                                    className="form-select border-indigo-100"
+                                                >
+                                                    <option value="">No County Assigned</option>
+                                                    {counties.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                             {newInstData.institutionType === 'Business' && (
                                                 <div className="animate-fade-in-up">
                                                     <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Select Business Niche / Category</label>
@@ -1312,6 +1327,7 @@ Please change it after login.`;
                                             <tr>
                                                 <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Tenant Name</th>
                                                 <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Category</th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">County</th>
                                                 <th className="px-6 py-4 text-left text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Lifecycle</th>
                                                 <th className="px-6 py-4 text-right text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Actions</th>
                                             </tr>
@@ -1331,6 +1347,9 @@ Please change it after login.`;
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-medium">{inst.institutionType}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
+                                                        {counties.find(c => c.id === inst.countyId)?.name || '—'}
+                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`px-2.5 py-1 inline-flex text-[10px] font-black uppercase rounded-lg ${inst.status === 'active' ? 'bg-green-100 text-green-700' :
                                                             inst.status === 'trial' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'

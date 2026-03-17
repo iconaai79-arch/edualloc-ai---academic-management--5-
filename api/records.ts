@@ -48,6 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const institutionId = user?.institutionId;
+        const isCountyRole = user?.role === 'county_admin' || user?.role?.startsWith('county_');
 
         if (req.method === 'GET') {
             const getQuery = async (columns: string) => {
@@ -67,10 +68,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!limit) q = q.limit(100); 
                 } else if (user) {
                     const instId = user.institutionId;
-                    if (moduleName === 'institutions') {
-                        q = q.eq('id', instId);
+                    
+                    if (isCountyRole) {
+                        // County Multi-Tenancy Logic
+                        if (moduleName === 'counties') {
+                            q = q.eq('id', instId);
+                        } else if (moduleName === 'institutions') {
+                            // County admin can see their county record (above) AND schools in their county
+                            // If they are searching for a specific school, instId is their county, so we check county_id
+                            q = q.eq('county_id', instId);
+                        } else {
+                            // For other modules (users, etc), filter by county_id if it exists
+                            // Note: This assumes these tables have a county_id column or we fall back to RLS
+                            q = q.eq('county_id', instId);
+                        }
                     } else {
-                        q = q.eq('institution_id', instId);
+                        // Standard Institutional multi-tenancy
+                        if (moduleName === 'institutions') {
+                            q = q.eq('id', instId);
+                        } else {
+                            // Fallback: Skip institution_id filter for counties module even for regular users
+                            if (moduleName !== 'counties') {
+                                q = q.eq('institution_id', instId);
+                            }
+                        }
                     }
                 }
 
@@ -125,6 +146,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (error) {
+                    // Special case: if table doesn't have county_id, it might fail for county_admins
+                    if (error.code === '42703' && isCountyRole) {
+                         console.info(`[API Records] Module ${moduleName} lacks county_id, trying without filter.`);
+                         const retry = await supabase.from(moduleName).select(selectString).limit(100);
+                         data = retry.data;
+                         error = retry.error;
+                    }
+                }
+
+                if (error) {
                     console.error(`[API Records] GET Error [${moduleName}]:`, error);
                     return res.status(200).json({ 
                         success: false,
@@ -144,13 +175,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: recordData } = req.body || {};
             if (!recordData) return res.status(400).json({ success: false, error: 'Record data required' });
 
-            const secureData = user?.role === 'super_admin' 
-                ? recordData 
-                : (Array.isArray(recordData) 
+            let secureData: any;
+            if (user?.role === 'super_admin') {
+                secureData = recordData;
+            } else if (moduleName === 'counties') {
+                // Counties don't have institution_id
+                secureData = recordData;
+            } else if (isCountyRole) {
+                // For county admins, we inject county_id instead of institution_id for managed records
+                secureData = Array.isArray(recordData) 
+                    ? recordData.map((r: any) => ({ ...r, county_id: institutionId }))
+                    : { ...recordData, county_id: institutionId };
+            } else {
+                secureData = Array.isArray(recordData) 
                     ? recordData.map((r: any) => ({ ...r, institution_id: institutionId }))
-                    : { ...recordData, institution_id: institutionId });
+                    : { ...recordData, institution_id: institutionId };
+            }
 
-            if (moduleName === 'institutions' && user?.role !== 'super_admin') {
+            if (moduleName === 'institutions' && user?.role !== 'super_admin' && !isCountyRole) {
                 return res.status(403).json({ success: false, error: 'Forbidden: Unauthorized to modify institution details' });
             }
 
@@ -169,12 +211,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Verify ownership before update
             const { data: existing, error: fetchError } = await supabase
                 .from(moduleName)
-                .select('institution_id')
+                .select('institution_id, county_id')
                 .eq('id', targetId)
                 .single();
 
-            if (fetchError || !existing || existing.institution_id !== institutionId) {
+            if (fetchError || !existing) {
                 if (user?.role !== 'super_admin') {
+                    return res.status(403).json({ success: false, error: 'Forbidden: Access denied to this record' });
+                }
+            } else {
+                const ownsByInst = existing.institution_id === institutionId;
+                const ownsByCounty = isCountyRole && existing.county_id === institutionId;
+                const matchesId = moduleName === 'counties' && targetId === institutionId;
+
+                if (!ownsByInst && !ownsByCounty && !matchesId && user?.role !== 'super_admin') {
                     return res.status(403).json({ success: false, error: 'Forbidden: Access denied to this record' });
                 }
             }
@@ -194,12 +244,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Verify ownership
             const { data: existing, error: fetchError } = await supabase
                 .from(moduleName)
-                .select('institution_id')
+                .select('institution_id, county_id')
                 .eq('id', targetId)
                 .single();
 
-            if (fetchError || !existing || existing.institution_id !== institutionId) {
+            if (fetchError || !existing) {
                 if (user?.role !== 'super_admin') {
+                    return res.status(403).json({ success: false, error: 'Forbidden: Access denied to delete this record' });
+                }
+            } else {
+                const ownsByInst = existing.institution_id === institutionId;
+                const ownsByCounty = isCountyRole && existing.county_id === institutionId;
+
+                if (!ownsByInst && !ownsByCounty && user?.role !== 'super_admin') {
                     return res.status(403).json({ success: false, error: 'Forbidden: Access denied to delete this record' });
                 }
             }
@@ -211,6 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             return res.status(200).json({ success: true });
         }
+
 
         return res.status(405).json({ success: false, error: 'Method not allowed' });
     } catch (err: any) {

@@ -563,9 +563,15 @@ export const apiService = {
         }
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return this.fetchModuleRecords('institutions', institutionId); },
-    async saveInstitution(inst: Institution): Promise<void> { await this.saveModuleRecord('institutions', inst); },
+    async saveInstitution(inst: Institution): Promise<void> { 
+        const { countyId, ...rest } = inst;
+        await this.saveModuleRecord('institutions', { ...rest, county_id: countyId }); 
+    },
     async fetchUsers(institutionId?: string): Promise<User[]> { return this.fetchModuleRecords('users', institutionId); },
-    async saveUser(user: Partial<User>): Promise<void> { await this.saveModuleRecord('users', user); },
+    async saveUser(user: Partial<User>): Promise<void> { 
+        const { countyId, ...rest } = user;
+        await this.saveModuleRecord('users', { ...rest, county_id: countyId }); 
+    },
     async registerUser(userData: Partial<User>, institutionName?: string): Promise<void> {
         const password = userData.password || (userData.role === 'student' ? 'student123' : 'password123');
         const userWithPass = { ...userData, password };

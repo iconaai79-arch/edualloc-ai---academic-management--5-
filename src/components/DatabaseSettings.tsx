@@ -576,6 +576,65 @@ GRANT ALL ON public.tasks TO anon, authenticated, service_role;
                     >
                         <ShieldIcon className="w-4 h-4" /> Repair System Schema
                     </button>
+
+                    <button
+                        onClick={async () => {
+                            if (window.confirm('Initialize County Management: This will create the counties table and migration columns. Continue?')) {
+                                setIsMigrating(true);
+                                setMigrationMsg('Initializing county registry...');
+                                try {
+                                    const countySql = `
+-- County Management Initialization
+CREATE TABLE IF NOT EXISTS counties (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    admin_name TEXT,
+    admin_id UUID REFERENCES public.users(id),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    location JSONB
+);
+
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS county_id TEXT REFERENCES counties(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS county_id TEXT REFERENCES counties(id) ON DELETE SET NULL;
+
+-- Enable RLS
+ALTER TABLE counties ENABLE ROW LEVEL SECURITY;
+
+-- Super Admin Policy
+DROP POLICY IF EXISTS "SuperAdminFullAccessCounties" ON counties;
+CREATE POLICY "SuperAdminFullAccessCounties" ON counties FOR ALL 
+USING (public.get_curr_user_role() = 'super_admin' OR auth.jwt() ->> 'email' = 'super@app.com')
+WITH CHECK (public.get_curr_user_role() = 'super_admin' OR auth.jwt() ->> 'email' = 'super@app.com');
+
+-- Public View for discovery
+DROP POLICY IF EXISTS "PublicViewCounties" ON counties;
+CREATE POLICY "PublicViewCounties" ON counties FOR SELECT USING (true);
+
+-- Permissions
+GRANT ALL ON public.counties TO anon, authenticated, service_role;
+                                    `;
+                                    const result = await apiService.runMigration(countySql);
+                                    if (result.success) {
+                                        alert("County Management Registry Initialized.");
+                                    } else {
+                                        alert("Initialization Failed: " + result.message);
+                                    }
+                                } catch (err: any) {
+                                    alert(`Gateway Error: ${err.message}`);
+                                } finally {
+                                    setIsMigrating(false);
+                                    setMigrationMsg('');
+                                }
+                            }
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-indigo-100 dark:shadow-none"
+                    >
+                        <SparklesIcon className="w-4 h-4" /> Initialize County Registry
+                    </button>
                 </div>
                 <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 mt-6">
                     <h3 className="text-xl font-bold text-white mb-4">Diagnostic Tools</h3>
