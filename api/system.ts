@@ -1,8 +1,8 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createServiceClient } from '../lib/supabase';
 import { getAuthenticatedUser } from '../lib/auth-server';
-import pg from 'pg';
-const { Pool } = pg;
+// pg import moved to dynamic import inside execute_sql block to prevent top-level initialization crashes
+
 
 // Diagnostic helper
 const getEnvInfo = () => ({
@@ -164,6 +164,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 console.log("[SQL Engine] Initializing pool...");
+                let Pool;
+                try {
+                    const pgModule = await import('pg');
+                    Pool = pgModule.Pool || (pgModule.default ? (pgModule.default as any).Pool : null);
+                    if (!Pool) throw new Error("Could not find Pool in pg module");
+                } catch (importErr: any) {
+                    console.error("[SQL Engine] pg module load failed:", importErr);
+                    return res.status(500).json({ error: "SQL Support unavailable: pg module load failure", details: importErr.message });
+                }
+
                 const pool = new Pool({
                     connectionString,
                     ssl: { rejectUnauthorized: false },
