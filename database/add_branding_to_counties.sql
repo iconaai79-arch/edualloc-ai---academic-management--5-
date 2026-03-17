@@ -14,3 +14,8 @@ CREATE TABLE IF NOT EXISTS counties (
 -- Add branding columns
 ALTER TABLE counties ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE counties ADD COLUMN IF NOT EXISTS letterhead_url TEXT;
+ALTER TABLE counties ADD COLUMN IF NOT EXISTS primary_color TEXT;
+ALTER TABLE counties ADD COLUMN IF NOT EXISTS secondary_color TEXT;
+ALTER TABLE counties ADD COLUMN IF NOT EXISTS motto TEXT;
+ALTER TABLE counties ADD COLUMN IF NOT EXISTS website TEXT;
+

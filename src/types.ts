@@ -93,6 +93,10 @@ export interface County {
     location?: { latitude: number; longitude: number };
     logoUrl?: string;
     letterheadUrl?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    motto?: string;
+    website?: string;
 }
 
 export interface Institution {

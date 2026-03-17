@@ -139,6 +139,14 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
         ward: ''
     });
 
+    const [brandingForm, setBrandingForm] = useState({
+        primaryColor: '#4f46e5',
+        secondaryColor: '#0f172a',
+        motto: '',
+        website: ''
+    });
+
+
     // Logic to find the admin's county. 
     // We match by direct admin association or via the institution's county registration.
     const myCounty = useMemo(() => {
@@ -548,7 +556,31 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
     useEffect(() => {
         if (myCounty?.logoUrl) setLogoPreview(myCounty.logoUrl);
         if (myCounty?.letterheadUrl) setLetterheadPreview(myCounty.letterheadUrl);
+        if (myCounty) {
+            setBrandingForm({
+                primaryColor: myCounty.primaryColor || '#4f46e5',
+                secondaryColor: myCounty.secondaryColor || '#0f172a',
+                motto: myCounty.motto || '',
+                website: myCounty.website || ''
+            });
+        }
     }, [myCounty]);
+
+    const handleSaveBranding = async () => {
+        if (!myCounty || !onUpdateCounty) return;
+        setIsUploading(true);
+        try {
+            await onUpdateCounty(myCounty.id, brandingForm);
+            onLogAction?.(`Updated county branding settings: ${brandingForm.motto || 'Identity updated'}`);
+            alert("Branding settings saved successfully!");
+        } catch (error) {
+            console.error("Save failed:", error);
+            alert("Failed to save branding settings.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead') => {
         const file = e.target.files?.[0];
@@ -665,8 +697,12 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
             {/* Sidebar */}
             <aside className="fixed left-0 top-0 bottom-0 w-72 bg-slate-900 text-white p-6 flex flex-col z-50">
                 <div className="flex items-center gap-3 mb-10 px-2">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/50">
-                        <BuildingOfficeIcon className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shadow-lg shadow-black/20 overflow-hidden border border-white/10">
+                        {myCounty.logoUrl ? (
+                            <img src={myCounty.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                        ) : (
+                            <BuildingOfficeIcon className="w-6 h-6 text-white" />
+                        )}
                     </div>
                     <div>
                         <h1 className="text-lg font-black uppercase tracking-tight">County Portal</h1>
@@ -2297,32 +2333,83 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                             </div>
                                         </div>
 
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">County Motto</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={brandingForm.motto} 
+                                                    onChange={e => setBrandingForm({ ...brandingForm, motto: e.target.value })}
+                                                    placeholder="e.g., Unity and Excellence"
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Official Website</label>
+                                                <input 
+                                                    type="url" 
+                                                    value={brandingForm.website} 
+                                                    onChange={e => setBrandingForm({ ...brandingForm, website: e.target.value })}
+                                                    placeholder="https://county.go.ke"
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold" 
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="grid grid-cols-2 gap-6">
                                             <div>
                                                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Primary Brand Color</label>
                                                 <div className="flex items-center gap-3">
-                                                    <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#4f46e5" />
+                                                    <input 
+                                                        type="color" 
+                                                        value={brandingForm.primaryColor} 
+                                                        onChange={e => setBrandingForm({ ...brandingForm, primaryColor: e.target.value })}
+                                                        className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent disabled:opacity-50" 
+                                                    />
                                                     <div className="flex-1">
-                                                        <input type="text" defaultValue="#4f46e5" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
+                                                        <input 
+                                                            type="text" 
+                                                            value={brandingForm.primaryColor} 
+                                                            onChange={e => setBrandingForm({ ...brandingForm, primaryColor: e.target.value })}
+                                                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" 
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Secondary Brand Color</label>
                                                 <div className="flex items-center gap-3">
-                                                    <input type="color" className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent" defaultValue="#1e293b" />
+                                                    <input 
+                                                        type="color" 
+                                                        value={brandingForm.secondaryColor} 
+                                                        onChange={e => setBrandingForm({ ...brandingForm, secondaryColor: e.target.value })}
+                                                        className="w-12 h-12 rounded-xl cursor-pointer border-none p-0 bg-transparent disabled:opacity-50" 
+                                                    />
                                                     <div className="flex-1">
-                                                        <input type="text" defaultValue="#1e293b" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" />
+                                                        <input 
+                                                            type="text" 
+                                                            value={brandingForm.secondaryColor} 
+                                                            onChange={e => setBrandingForm({ ...brandingForm, secondaryColor: e.target.value })}
+                                                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase" 
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="pt-6 border-t border-slate-100 flex justify-end">
-                                            <button className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-wide rounded-xl shadow-xl shadow-indigo-500/20 transition-all">
-                                                Save Changes
+                                            <button 
+                                                onClick={handleSaveBranding}
+                                                disabled={isUploading}
+                                                className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black uppercase tracking-wide rounded-xl shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-2"
+                                            >
+                                                {isUploading ? (
+                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                ) : <CheckCircleIcon className="w-4 h-4" />}
+                                                {isUploading ? 'Saving...' : 'Save Branding Changes'}
                                             </button>
                                         </div>
+
                                     </div>
                                 </div>
                             )}

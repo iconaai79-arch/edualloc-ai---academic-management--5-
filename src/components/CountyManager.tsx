@@ -24,8 +24,16 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
         email: '',
         phoneNumber: '',
         adminName: '',
-        status: 'active' as 'active' | 'suspended'
+        status: 'active' as 'active' | 'suspended',
+        primaryColor: '#4f46e5',
+        secondaryColor: '#0f172a',
+        motto: '',
+        website: '',
+        logoUrl: '',
+        letterheadUrl: ''
     });
+    const [isUploading, setIsUploading] = useState(false);
+
 
     const filteredCounties = useMemo(() => {
         if (!searchTerm) return counties;
@@ -63,9 +71,16 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
             email: '',
             phoneNumber: '',
             adminName: '',
-            status: 'active'
+            status: 'active',
+            primaryColor: '#4f46e5',
+            secondaryColor: '#0f172a',
+            motto: '',
+            website: '',
+            logoUrl: '',
+            letterheadUrl: ''
         });
     };
+
 
     const handleEdit = (county: County) => {
         setFormData({
@@ -74,11 +89,40 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
             email: county.email,
             phoneNumber: county.phoneNumber,
             adminName: county.adminName || '',
-            status: county.status
+            status: county.status,
+            primaryColor: county.primaryColor || '#4f46e5',
+            secondaryColor: county.secondaryColor || '#0f172a',
+            motto: county.motto || '',
+            website: county.website || '',
+            logoUrl: county.logoUrl || '',
+            letterheadUrl: county.letterheadUrl || ''
         });
         setEditingCounty(county);
         setIsAddModalOpen(true);
     };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'letterheadUrl') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Dynamic import to avoid circular dependencies if any, though apiService is usually safe
+        const { apiService } = await import('../services/apiService');
+        
+        setIsUploading(true);
+        try {
+            const path = `counties/${Date.now()}_${file.name}`;
+            const url = await apiService.uploadFile('eduai', path, file);
+            if (url) {
+                setFormData(prev => ({ ...prev, [field]: url }));
+            }
+        } catch (error) {
+            console.error("Upload failed:", error);
+            alert("Failed to upload image. Please try again.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
 
     const handleDelete = (id: string) => {
         if (confirm('Are you sure you want to delete this county? This action cannot be undone.')) {
@@ -274,6 +318,102 @@ export const CountyManager: React.FC<CountyManagerProps> = ({
                                     </select>
                                 </div>
                             </div>
+
+                            <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Branding & Identity</h4>
+                                
+                                <div className="grid grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">County Motto</label>
+                                        <input
+                                            type="text"
+                                            value={formData.motto}
+                                            onChange={(e) => setFormData({ ...formData, motto: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                            placeholder="e.g., Unity and Progress"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">Official Website</label>
+                                        <input
+                                            type="url"
+                                            value={formData.website}
+                                            onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                                            placeholder="https://county.go.ke"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">Primary Color</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="color"
+                                                value={formData.primaryColor}
+                                                onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
+                                                className="h-12 w-12 rounded-lg border-0 p-0 cursor-pointer overflow-hidden"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={formData.primaryColor}
+                                                onChange={(e) => setFormData({ ...formData, primaryColor: e.target.value })}
+                                                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm uppercase"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">Secondary Color</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="color"
+                                                value={formData.secondaryColor}
+                                                onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
+                                                className="h-12 w-12 rounded-lg border-0 p-0 cursor-pointer overflow-hidden"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={formData.secondaryColor}
+                                                onChange={(e) => setFormData({ ...formData, secondaryColor: e.target.value })}
+                                                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm uppercase"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">County Logo</label>
+                                        <div className="flex items-center gap-4">
+                                            {formData.logoUrl && (
+                                                <img src={formData.logoUrl} alt="Logo" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
+                                            )}
+                                            <label className="flex-1">
+                                                <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer text-center text-xs font-bold uppercase tracking-widest border-2 border-dashed border-slate-300 dark:border-slate-700">
+                                                    {isUploading ? 'Uploading...' : formData.logoUrl ? 'Change Logo' : 'Upload Logo'}
+                                                </div>
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'logoUrl')} disabled={isUploading} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold mb-2">Letterhead Image</label>
+                                        <div className="flex items-center gap-4">
+                                            {formData.letterheadUrl && (
+                                                <img src={formData.letterheadUrl} alt="Letterhead" className="w-12 h-12 object-contain rounded-lg border border-slate-200 p-1 bg-white" />
+                                            )}
+                                            <label className="flex-1">
+                                                <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer text-center text-xs font-bold uppercase tracking-widest border-2 border-dashed border-slate-300 dark:border-slate-700">
+                                                    {isUploading ? 'Uploading...' : formData.letterheadUrl ? 'Change Image' : 'Upload Image'}
+                                                </div>
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'letterheadUrl')} disabled={isUploading} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
 
                             <div className="flex gap-4 pt-4">
                                 {/* ... Buttons ... */}
