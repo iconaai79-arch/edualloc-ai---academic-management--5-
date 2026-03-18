@@ -447,7 +447,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         letterheadConfig: props.companyDetails?.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
         welcomeMessage: props.companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
-        enforceGlobalOtp: props.companyDetails?.enforceGlobalOtp ?? false
+        enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
+        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -474,7 +475,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 letterheadConfig: props.companyDetails.letterheadConfig || { headerImageUrl: null, stampImageUrl: null },
                 welcomeMessage: props.companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
-                enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false
+                enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
+                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -1098,6 +1100,62 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalMpesaConfig({ ...localMpesaConfig, passkey: e.target.value })} className="form-input" /></div>
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalMpesaConfig({ ...localMpesaConfig, consumerKey: e.target.value })} className="form-input" /></div>
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Secret</label><input type="password" value={localMpesaConfig.consumerSecret} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalMpesaConfig({ ...localMpesaConfig, consumerSecret: e.target.value })} className="form-input" /></div>
+                                        
+                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                                            <h4 className="text-sm font-bold uppercase text-slate-500 mb-4 flex items-center gap-2">
+                                                <div className="w-6 h-6 bg-teal-600 rounded-lg flex items-center justify-center text-white text-[8px] font-black">N</div>
+                                                NCBA Bank Gateway (Platform Default)
+                                            </h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client ID</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localCompanyInfo.ncbaConfig?.clientId || ''} 
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...(localCompanyInfo.ncbaConfig || {}), clientId: e.target.value } })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Client Secret</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...(localCompanyInfo.ncbaConfig || {}), clientSecret: e.target.value } })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Account Number</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localCompanyInfo.ncbaConfig?.accountNumber || ''} 
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...(localCompanyInfo.ncbaConfig || {}), accountNumber: e.target.value } })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Environment</label>
+                                                    <select 
+                                                        value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...(localCompanyInfo.ncbaConfig || {}), environment: e.target.value as any } })}
+                                                        className="form-select"
+                                                    >
+                                                        <option value="sandbox">Sandbox / Testing</option>
+                                                        <option value="production">Live Production</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Key</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localCompanyInfo.ncbaConfig?.apiKey || ''} 
+                                                        onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...(localCompanyInfo.ncbaConfig || {}), apiKey: e.target.value } })}
+                                                        className="form-input" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-6">
