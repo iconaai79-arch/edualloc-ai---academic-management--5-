@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { XIcon, SparklesIcon, CalendarIcon, ClockIcon, UsersIcon, BuildingOfficeIcon } from '../icons/index';
+import { XIcon, SparklesIcon, UsersIcon, BuildingOfficeIcon } from '../icons/index';
+import { CalendarIcon, ClockIcon } from './HealthIcons';
 
 interface AddVisitModalProps {
     isOpen: boolean;
