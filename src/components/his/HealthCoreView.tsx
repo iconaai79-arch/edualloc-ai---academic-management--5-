@@ -31,6 +31,7 @@ import { StaffAttendanceView } from './StaffAttendanceView';
 import { RegisterPatientModal } from './RegisterPatientModal';
 import { UpdateVitalsModal } from './UpdateVitalsModal';
 import { AddWardModal } from './AddWardModal';
+import { AddVisitModal } from './AddVisitModal';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 
@@ -52,6 +53,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [isUpdateVitalsOpen, setIsUpdateVitalsOpen] = useState(false);
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
+    const [isAddVisitOpen, setIsAddVisitOpen] = useState(false);
 
     const demoData = React.useMemo(() => {
         return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
@@ -146,6 +148,22 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         }
     };
 
+    const handleAddVisit = async (visitData: any) => {
+        if (!institutionId || !activePatientId) return;
+        try {
+            await apiService.saveModuleRecord('his_clinical_events', { 
+                ...visitData, 
+                institutionId, 
+                patientId: activePatientId, 
+                id: `evt_${Date.now()}` 
+            });
+            alert("Clinical Record Saved Successfully");
+        } catch (error) {
+            console.error(error);
+            alert("Record Save Failed");
+        }
+    };
+
     const patientData = activePatient || (patients.length > 0 ? patients[0] : null);
 
     return (
@@ -225,7 +243,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'general': return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} />;
+                            case 'general': return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} />;
                             case 'dental': return <DentalView />;
                             case 'eye': return <OphthalmologyView />;
@@ -235,7 +253,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                             case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
                             case 'reports': return <HISReportsView activeRole={activeRole} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;
-                            default: return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} />;
+                            default: return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
                         }
                     })()}
                 </div>
@@ -244,11 +262,12 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             <RegisterPatientModal isOpen={isRegisterModalOpen} onClose={() => setIsRegisterModalOpen(false)} onRegister={handleRegisterPatient} />
             <UpdateVitalsModal isOpen={isUpdateVitalsOpen} onClose={() => setIsUpdateVitalsOpen(false)} patientId={activePatientId || ''} patientName={activePatient?.fullName} onUpdate={handleUpdateVitals} />
             <AddWardModal isOpen={isAddWardOpen} onClose={() => setIsAddWardOpen(false)} onAdd={handleAddWard} />
+            <AddVisitModal isOpen={isAddVisitOpen} onClose={() => setIsAddVisitOpen(false)} patientName={activePatient?.fullName} onAdd={handleAddVisit} />
         </div>
     );
 };
 
-const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void }) => (
+const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void }) => (
     <div className="animate-fade-in-up">
         <div className="flex justify-between items-end mb-10">
             <div>
@@ -281,8 +300,16 @@ const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOp
                         </div>
                     </div>
 
-                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 h-[500px] relative overflow-hidden">
-                        <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] mb-8 italic">Clinical Timeline</p>
+                    <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 min-h-[500px] relative overflow-hidden bg-white/5">
+                        <div className="flex justify-between items-center mb-8">
+                            <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Clinical Timeline</p>
+                            <button 
+                                onClick={onAddVisit}
+                                className="bg-emerald-500/10 text-emerald-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                            >
+                                <PlusIcon className="w-3 h-3" /> Add Visit
+                            </button>
+                        </div>
                         <div className="space-y-12">
                             {(events || [
                                 { date: 'Oct 12', time: '14:30', event: 'Dental Extraction (Tooth 14)', dept: 'Dental', provider: 'Dr. Sarah' },
