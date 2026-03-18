@@ -446,7 +446,8 @@ export const apiService = {
             }
 
             const data = await response.json();
-            return toCamelCase(data) || [];
+            const result = toCamelCase(data);
+            return Array.isArray(result) ? result : [];
         } catch (e) {
             console.error(`Fetch Exception [${module}]:`, e);
             return [];
