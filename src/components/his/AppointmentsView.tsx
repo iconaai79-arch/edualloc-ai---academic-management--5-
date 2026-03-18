@@ -89,6 +89,8 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
             console.error('Failed to reschedule:', error);
             alert('Failed to reschedule appointment.');
         }
+    };
+
     const handleCreateAppointment = async (data: any) => {
         if (!institutionId) return;
         try {
