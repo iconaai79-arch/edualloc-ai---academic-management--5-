@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Role } from '../../types';
+import { Role, HISPatient } from '../../types';
 import { 
     PlusIcon, 
     SparklesIcon,
@@ -41,9 +41,17 @@ interface HealthCoreProps {
 }
 
 export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName, institutionId }) => {
+    const [activeModule, setActiveModule] = useState<HISModule>('general');
+    const [searchTerm, setSearchTerm] = useState('');
     const [patients, setPatients] = useState<HISPatient[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [activePatientId, setActivePatientId] = useState<string | null>(null);
+
+    const demoData = React.useMemo(() => {
+        return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
+    }, [institutionId]);
+
+    const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
     const fetchPatients = React.useCallback(async () => {
         if (!institutionId) return;
@@ -120,7 +128,11 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     demoAttendance={demoData?.hisAttendance}
                 />;
             default:
-                return <GeneralMedicineView vitals={demoData?.hisVitals} events={demoData?.hisEvents} />;
+                return <GeneralMedicineView 
+                    activePatient={patientData}
+                    vitals={demoData?.hisVitals} 
+                    events={demoData?.hisEvents} 
+                />;
         }
     };
 
