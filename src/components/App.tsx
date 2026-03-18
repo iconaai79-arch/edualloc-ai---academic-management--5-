@@ -1829,6 +1829,10 @@ export const App: React.FC = () => {
                 const newAdmin: User = { id: adminId, name: data.adminName, email: data.adminEmail, phoneNumber: data.institutionPhone, role: adminRole, institutionId: instId, password: generatedPassword, expertise: ['Administration'], staffId: 'ADMIN-01' };
                 await apiService.saveInstitution(newInstitution);
                 await apiService.saveUser(newAdmin);
+                
+                // Temporarily store session to allow authorized creation of demo data/settings
+                apiService.storeSession(newAdmin);
+
                 if (data.loadDemoData) {
                     const { generateInstitutionalDemoData } = await import('../utils/demoData');
                     const d = generateInstitutionalDemoData(instId, adminId);

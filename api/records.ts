@@ -60,8 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await getAuthUser(supabase, req.headers.authorization);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
-
-        if (!user && !isPublicGet) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        const isRegistration = req.method === 'POST' && (moduleName === 'users' || moduleName === 'institutions' || moduleName === 'counties');
+        
+        if (!user && !isPublicGet && !isRegistration) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
         if (req.method === 'GET') {
             let q = supabase.from(moduleName).select(getStrParam(select) || '*');
