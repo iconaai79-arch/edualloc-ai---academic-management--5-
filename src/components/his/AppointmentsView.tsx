@@ -58,7 +58,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
 
     const filteredAppointments = appointments.filter(app => {
         const matchesSearch = app.reason?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                             app.patientId.toLowerCase().includes(searchTerm.toLowerCase());
+                             app.patientId?.toLowerCase().includes(searchTerm.toLowerCase());
         return matchesSearch;
     });
 
@@ -134,14 +134,14 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                     </p>
                 </div>
                 <div className="flex gap-4">
-                    {!isDoctor && (
+                    {!isDoctor ? (
                         <button 
                             onClick={() => setIsAddAppointmentOpen(true)}
                             className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20"
                         >
                             <PlusIcon className="w-4 h-4" /> Add Visit
                         </button>
-                    ) || (
+                    ) : (
                         <div className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-2">
                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                              <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest italic tracking-tight underline underline-offset-4 decoration-2 decoration-emerald-500">Live Practice Mode</span>
@@ -351,7 +351,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                     </div>
                 </div>
             )}
-            {/* Add Appointment Modal */}
+            
             <AddAppointmentModal 
                 isOpen={isAddAppointmentOpen} 
                 onClose={() => setIsAddAppointmentOpen(false)} 
