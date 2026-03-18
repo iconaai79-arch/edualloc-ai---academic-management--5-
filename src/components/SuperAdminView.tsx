@@ -381,6 +381,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'system_build'>('profile');
+    const [billingSubTab, setBillingSubTab] = useState<'main' | 'ncba'>('main');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -475,7 +476,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         welcomeMessage: companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
-        marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' }
+        marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -501,7 +503,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 welcomeMessage: companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
-                marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' }
+                marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -2505,71 +2508,184 @@ Please change it after login.`;
 
                             {settingsSubTab === 'billing' && (
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
-                                            <MpesaIcon className="w-6 h-6 text-green-600" />
-                                        </div>
-                                        <h3 className="text-xl font-black uppercase tracking-tight">Platform Billing Configuration</h3>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                        <div className="space-y-6">
-                                            <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">M-Pesa Daraja Gateway</h4>
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6 mb-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                                                <CreditCardIcon className="w-6 h-6 text-green-600" />
+                                            </div>
                                             <div>
-                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway Environment</label>
-                                                <select
-                                                    value={localMpesaConfig.environment || 'sandbox'}
-                                                    onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, environment: e.target.value as any })}
-                                                    className="form-select h-12 font-bold text-sm"
-                                                >
-                                                    <option value="sandbox">Sandbox (Testing)</option>
-                                                    <option value="production">Production (Live)</option>
-                                                </select>
-                                            </div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Short Code (Paybill)</label><input type="text" value={localMpesaConfig.paybillNumber} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, paybillNumber: e.target.value })} className="form-input font-mono" placeholder="7-digit code" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, passkey: e.target.value })} className="form-input" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerKey: e.target.value })} className="form-input" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Secret</label><input type="password" value={localMpesaConfig.consumerSecret} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerSecret: e.target.value })} className="form-input" /></div>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-indigo-600 mb-1.5 ml-1">Base Cost Per Additional Student (KES)</label><input type="number" value={localSubConfig.baseCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, baseCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg border-indigo-200 focus:ring-indigo-500" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Library Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.libraryCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, libraryCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Boarding Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.boardingCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, boardingCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
-                                            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Transport Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.transportCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, transportCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
-
-                                            <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <InformationCircleIcon className="w-5 h-5 text-indigo-500" />
-                                                    <span className="text-[10px] font-black uppercase text-slate-600">Gateway Policy</span>
-                                                </div>
-                                                <p className="text-xs text-slate-500 leading-relaxed">Incoming payments are validated against the Paybill and Account Reference (Institution Code). Subscriptions are automatically extended upon successful callback.</p>
+                                                <h3 className="text-xl font-black uppercase tracking-tight">Platform Billing Map</h3>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Manage global payment gateways & subscription models</p>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
-                                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
-                                            <input
-                                                type="text"
-                                                placeholder="Phone e.g. 2547XXXXXXXX"
-                                                value={testRecipient}
-                                                onChange={e => setTestRecipient(e.target.value)}
-                                                className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
-                                            />
-                                            <button
-                                                onClick={handleTestMpesa}
-                                                disabled={isTesting}
-                                                className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition-colors"
+                                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto overflow-x-auto no-scrollbar">
+                                            <button 
+                                                onClick={() => setBillingSubTab('main')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'main' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                                             >
-                                                {isTesting ? 'Testing...' : 'Test STK Push'}
+                                                <MpesaIcon className="w-4 h-4" /> Global M-Pesa
+                                            </button>
+                                            <button 
+                                                onClick={() => setBillingSubTab('ncba')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'ncba' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                            >
+                                                <BuildingOfficeIcon className="w-4 h-4" /> NCBA Config
                                             </button>
                                         </div>
-                                        <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save Billing Map</button>
                                     </div>
+
+                                    {/* Main Billing Content */}
+                                    {billingSubTab === 'main' && (
+                                        <div className="animate-fade-in space-y-8">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                                                <div className="space-y-6">
+                                                    <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">M-Pesa Daraja Gateway</h4>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway Environment</label>
+                                                        <select
+                                                            value={localMpesaConfig.environment || 'sandbox'}
+                                                            onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, environment: e.target.value as any })}
+                                                            className="form-select h-12 font-bold text-sm"
+                                                        >
+                                                            <option value="sandbox">Sandbox (Testing)</option>
+                                                            <option value="production">Production (Live)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Short Code (Paybill)</label><input type="text" value={localMpesaConfig.paybillNumber} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, paybillNumber: e.target.value })} className="form-input font-mono" placeholder="7-digit code" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Lipa Na M-Pesa Passkey</label><input type="password" value={localMpesaConfig.passkey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, passkey: e.target.value })} className="form-input" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Key</label><input type="text" value={localMpesaConfig.consumerKey} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerKey: e.target.value })} className="form-input" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Consumer Secret</label><input type="password" value={localMpesaConfig.consumerSecret} onChange={e => setLocalMpesaConfig({ ...localMpesaConfig, consumerSecret: e.target.value })} className="form-input" /></div>
+                                                </div>
+
+                                                <div className="space-y-6">
+                                                    <h4 className="text-sm font-bold uppercase text-slate-500 border-b pb-1">Standard Subscription Pricing</h4>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Monthly License (KES)</label><input type="number" value={localSubConfig.defaultMonthlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultMonthlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Yearly License (KES)</label><input type="number" value={localSubConfig.defaultYearlyPrice} onChange={e => setLocalSubConfig({ ...localSubConfig, defaultYearlyPrice: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-indigo-600 mb-1.5 ml-1">Base Cost Per Additional Student (KES)</label><input type="number" value={localSubConfig.baseCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, baseCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg border-indigo-200 focus:ring-indigo-500" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Library Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.libraryCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, libraryCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Boarding Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.boardingCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, boardingCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+                                                    <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Transport Module Cost per Student/Month (KES)</label><input type="number" value={localSubConfig.transportCostPerStudent || 0} onChange={e => setLocalSubConfig({ ...localSubConfig, transportCostPerStudent: Number(e.target.value) })} className="form-input font-bold text-lg" /></div>
+
+                                                    <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <InformationCircleIcon className="w-5 h-5 text-indigo-500" />
+                                                            <span className="text-[10px] font-black uppercase text-slate-600">Gateway Policy</span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 leading-relaxed">Incoming payments are validated against the Paybill and Account Reference (Institution Code). Subscriptions are automatically extended upon successful callback.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Phone e.g. 2547XXXXXXXX"
+                                                        value={testRecipient}
+                                                        onChange={e => setTestRecipient(e.target.value)}
+                                                        className="bg-transparent border-none focus:ring-0 text-xs font-bold w-40"
+                                                    />
+                                                    <button
+                                                        onClick={handleTestMpesa}
+                                                        disabled={isTesting}
+                                                        className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-100 transition-colors"
+                                                    >
+                                                        {isTesting ? 'Testing...' : 'Test STK Push'}
+                                                    </button>
+                                                </div>
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Save Billing Map</button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* NCBA Config Content */}
+                                    {billingSubTab === 'ncba' && (
+                                        <div className="animate-fade-in space-y-8">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700">
+                                                <div className="flex items-center gap-4 mb-8">
+                                                    <div className="p-4 bg-teal-50 dark:bg-teal-900/30 rounded-2xl text-teal-600">
+                                                        <BuildingOfficeIcon className="w-8 h-8" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-2xl font-black uppercase tracking-tight">Global NCBA Gateway</h4>
+                                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Master configuration for NCBA Direct Settlement & B2B/B2C Integrations</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA OAuth Client ID</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.clientId || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientId: e.target.value } as any })}
+                                                            className="form-input h-12 font-mono" 
+                                                            placeholder="Enter Client ID"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Client Secret</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.clientSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientSecret: e.target.value } as any })}
+                                                            className="form-input h-12" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">API Key / Primary Key</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.apiKey || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, apiKey: e.target.value } as any })}
+                                                            className="form-input h-12" 
+                                                            placeholder="Enter API Key"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Gateway Base URL</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.baseUrl || ''} 
+                                                            placeholder="https://api.ncbagroup.com"
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, baseUrl: e.target.value } as any })}
+                                                            className="form-input h-12" 
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Disbursement Account Number</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.accountNumber || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, accountNumber: e.target.value } as any })}
+                                                            className="form-input h-12 font-bold" 
+                                                            placeholder="Enter NCBA Account Number"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">API Environment</label>
+                                                        <select 
+                                                            value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, environment: e.target.value } as any })}
+                                                            className="form-select h-12 font-bold"
+                                                        >
+                                                            <option value="sandbox">Sandbox / Testing</option>
+                                                            <option value="production">Live Production</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end pt-4 gap-4">
+                                                <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20 text-xs text-amber-700 flex-1 max-w-xl">
+                                                    <div className="flex gap-2 items-center mb-1"><InformationCircleIcon className="w-4 h-4" /><span className="font-bold uppercase tracking-tight">Security Notice</span></div>
+                                                    <p>NCBA API credentials allow programmatic movement of funds. Ensure your client secret and API keys are stored securely. These settings apply globally to platform-level settlement.</p>
+                                                </div>
+                                                <button onClick={handleSaveGlobalConfigs} className="btn-primary h-14 px-12 shadow-xl shadow-teal-100 dark:shadow-none bg-teal-600 border-none uppercase tracking-widest text-[10px]">Save NCBA Config</button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {settingsSubTab === 'sms_pricing' && (

@@ -500,6 +500,7 @@ export interface CompanyDetails {
         welcomeMessage?: string;
     };
     enforceGlobalOtp?: boolean;
+    ncbaConfig?: NcbaConfig;
 }
 
 export interface UserTask {
