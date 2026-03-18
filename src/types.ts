@@ -151,7 +151,7 @@ export interface NcbaConfig {
     apiKey: string;
     baseUrl: string;
     accountNumber: string;
-    environment: 'sandbox' | 'production';
+    environment?: 'sandbox' | 'production';
 }
 
 

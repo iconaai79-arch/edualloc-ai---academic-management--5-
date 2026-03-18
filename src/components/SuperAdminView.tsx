@@ -381,7 +381,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'system_build'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'main' | 'ncba'>('main');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
@@ -2520,8 +2520,8 @@ Please change it after login.`;
                                         </div>
                                         <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto overflow-x-auto no-scrollbar">
                                             <button 
-                                                onClick={() => setBillingSubTab('main')} 
-                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'main' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                                onClick={() => setBillingSubTab('mpesa')} 
+                                                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${billingSubTab === 'mpesa' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-none' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                                             >
                                                 <MpesaIcon className="w-4 h-4" /> Global M-Pesa
                                             </button>
@@ -2535,7 +2535,7 @@ Please change it after login.`;
                                     </div>
 
                                     {/* Main Billing Content */}
-                                    {billingSubTab === 'main' && (
+                                    {billingSubTab === 'mpesa' && (
                                         <div className="animate-fade-in space-y-8">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                                 <div className="space-y-6">
