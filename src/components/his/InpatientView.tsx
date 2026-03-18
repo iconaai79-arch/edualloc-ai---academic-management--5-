@@ -25,7 +25,12 @@ const MOCK_WARDS: Ward[] = [
     { id: 'w4', name: 'Pediatric Unit', type: 'Pediatric', beds: 15, occupied: 10 },
 ];
 
-export const InpatientView: React.FC = () => {
+interface InpatientViewProps {
+    institutionId?: string;
+    onAddWard?: () => void;
+}
+
+export const InpatientView: React.FC<InpatientViewProps> = ({ onAddWard }) => {
     const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
 
     return (
@@ -39,7 +44,10 @@ export const InpatientView: React.FC = () => {
                     <button className="glass-morphism px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all">
                         <ArrowPathIcon className="w-4 h-4" /> Refresh
                     </button>
-                    <button className="bg-emerald-500 text-slate-950 px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">
+                    <button 
+                        onClick={onAddWard}
+                        className="bg-emerald-500 text-slate-950 px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20"
+                    >
                         <PlusIcon className="w-4 h-4" /> Add Ward
                     </button>
                 </div>
