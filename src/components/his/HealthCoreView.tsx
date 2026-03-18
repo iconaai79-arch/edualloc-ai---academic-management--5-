@@ -142,11 +142,19 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         try {
             await apiService.saveModuleRecord('his_wards', { ...wardData, institutionId, id: `ward_${Date.now()}` });
             alert("Ward Added Successfully");
+            // Automatically refresh if we are in inpatient view
+            if (activeModule === 'inpatient') {
+                // We'll use a hack to trigger useEffect if we don't have a better way
+                // Or just the user clicks refresh. But let's add a state.
+                setWardsRefreshTrigger(prev => prev + 1);
+            }
         } catch (error) {
             console.error(error);
             alert("Ward Addition Failed");
         }
     };
+
+    const [wardsRefreshTrigger, setWardsRefreshTrigger] = useState(0);
 
     const handleAddVisit = async (visitData: any) => {
         if (!institutionId || !activePatientId) return;
@@ -244,7 +252,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     {(() => {
                         switch (activeModule) {
                             case 'general': return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
-                            case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} />;
+                            case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'dental': return <DentalView />;
                             case 'eye': return <OphthalmologyView />;
                             case 'billing': return <HISBillingView />;

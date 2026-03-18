@@ -9,29 +9,35 @@ import {
     SparklesIcon,
     BuildingOfficeIcon
 } from '../icons/index';
-
-interface Ward {
-    id: string;
-    name: string;
-    type: 'ICU' | 'General' | 'Maternity' | 'Pediatric';
-    beds: number;
-    occupied: number;
-}
-
-const MOCK_WARDS: Ward[] = [
-    { id: 'w1', name: 'ICU Alpha', type: 'ICU', beds: 10, occupied: 8 },
-    { id: 'w2', name: 'Maternity Wing', type: 'Maternity', beds: 20, occupied: 15 },
-    { id: 'w3', name: 'General Ward B', type: 'General', beds: 40, occupied: 32 },
-    { id: 'w4', name: 'Pediatric Unit', type: 'Pediatric', beds: 15, occupied: 10 },
-];
+import { apiService } from '../../services/apiService';
 
 interface InpatientViewProps {
     institutionId?: string;
     onAddWard?: () => void;
+    refreshTrigger?: number;
 }
 
-export const InpatientView: React.FC<InpatientViewProps> = ({ onAddWard }) => {
-    const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
+export const InpatientView: React.FC<InpatientViewProps> = ({ institutionId, onAddWard, refreshTrigger }) => {
+    const [selectedWard, setSelectedWard] = useState<any | null>(null);
+    const [wards, setWards] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const fetchWards = React.useCallback(async () => {
+        if (!institutionId) return;
+        setIsLoading(true);
+        try {
+            const data = await apiService.fetchModuleRecords('his_wards', institutionId);
+            setWards(data || []);
+        } catch (error) {
+            console.error("Failed to fetch wards:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [institutionId]);
+
+    React.useEffect(() => {
+        fetchWards();
+    }, [fetchWards, refreshTrigger]);
 
     return (
         <div className="animate-fade-in-up space-y-8">
@@ -41,8 +47,11 @@ export const InpatientView: React.FC<InpatientViewProps> = ({ onAddWard }) => {
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Real-time facility occupancy tracking</p>
                 </div>
                 <div className="flex gap-4">
-                    <button className="glass-morphism px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all">
-                        <ArrowPathIcon className="w-4 h-4" /> Refresh
+                    <button 
+                        onClick={fetchWards}
+                        className="glass-morphism px-6 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-all"
+                    >
+                        <ArrowPathIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
                     </button>
                     <button 
                         onClick={onAddWard}
@@ -54,43 +63,45 @@ export const InpatientView: React.FC<InpatientViewProps> = ({ onAddWard }) => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {MOCK_WARDS.map(ward => (
-                    <button 
-                        key={ward.id}
-                        onClick={() => setSelectedWard(ward)}
-                        className={`glass-morphism p-6 rounded-[2rem] border transition-all text-left group ${
-                            selectedWard?.id === ward.id ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-white/5 hover:border-emerald-500/30'
-                        }`}
-                    >
-                        <div className="flex justify-between items-start mb-6">
-                            <div className={`p-3 rounded-xl ${
-                                ward.type === 'ICU' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
-                            }`}>
-                                <BedIcon className="w-6 h-6" />
+                {isLoading ? (
+                    [1,2,3,4].map(i => (
+                        <div key={i} className="glass-morphism p-6 rounded-[2rem] border border-white/5 animate-pulse min-h-[150px]"></div>
+                    ))
+                ) : wards.length > 0 ? (
+                    wards.map(ward => (
+                        <button 
+                            key={ward.id}
+                            onClick={() => setSelectedWard(ward)}
+                            className={`glass-morphism p-6 rounded-[2rem] border transition-all text-left group ${
+                                selectedWard?.id === ward.id ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-white/5 hover:border-emerald-500/30'
+                            }`}
+                        >
+                            <div className="flex justify-between items-start mb-6">
+                                <div className={`p-3 rounded-xl ${
+                                    ward.wardType === 'ICU' ? 'bg-rose-500/20 text-rose-400' : 'bg-emerald-500/20 text-emerald-400'
+                                }`}>
+                                    <BedIcon className="w-6 h-6" />
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Node Status</p>
+                                    <p className="text-xl font-black">{ward.capacity} Beds</p>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Occupancy</p>
-                                <p className="text-xl font-black">{Math.round((ward.occupied / ward.beds) * 100)}%</p>
+                            <h3 className="font-black uppercase tracking-tight text-lg mb-1">{ward.name}</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">{ward.wardType} Ward • Floor {ward.floorLevel}</p>
+                            
+                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500">100% Vacant</span>
+                                <span className="text-emerald-500">Ready</span>
                             </div>
-                        </div>
-                        <h3 className="font-black uppercase tracking-tight text-lg mb-1">{ward.name}</h3>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">{ward.type} Facility</p>
-                        
-                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-4">
-                            <div 
-                                className={`h-full transition-all duration-1000 ${
-                                    ward.type === 'ICU' ? 'bg-rose-500' : 'bg-emerald-500'
-                                }`}
-                                style={{ width: `${(ward.occupied / ward.beds) * 100}%` }}
-                            ></div>
-                        </div>
-
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                            <span className="text-slate-500">{ward.beds - ward.occupied} Empty</span>
-                            <span className="text-white">{ward.occupied} Active</span>
-                        </div>
-                    </button>
-                ))}
+                        </button>
+                    ))
+                ) : (
+                    <div className="md:col-span-4 p-20 glass-morphism rounded-[3rem] border border-white/5 text-center">
+                        <BuildingOfficeIcon className="w-20 h-20 text-slate-800 mx-auto mb-6 opacity-20" />
+                        <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500">No active wards found <br/>Initialize your facility infrastructure</p>
+                    </div>
+                )}
             </div>
 
             {selectedWard ? (
