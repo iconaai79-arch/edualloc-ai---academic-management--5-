@@ -1591,7 +1591,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                             <div className="absolute top-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg">
                                 <p className="text-sm font-black text-slate-900 dark:text-white italic">KES {listing.price?.toLocaleString()}</p>
                             </div>
-                            <span className={`absolute bottom-4 left-4 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic shadow-sm ${listing.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                            <span className={`absolute bottom-4 left-4 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest italic shadow-sm ${listing.status === 'Active' || listing.status === 'Published' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
                                 {listing.status}
                             </span>
                         </div>

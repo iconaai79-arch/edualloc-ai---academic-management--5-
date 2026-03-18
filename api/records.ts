@@ -37,7 +37,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings'];
+const PUBLIC_MODULES = ['users', 'institutions', 'counties', 'system_settings', 'pm_listings', 'retail_inventory_items'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -58,15 +58,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!supabase) return res.status(500).json({ success: false, error: 'Supabase keys missing in environment' });
 
         const user = await getAuthUser(supabase, req.headers.authorization);
-        const isPublicGet = req.method === 'GET' && PUBLIC_MODULES.includes(moduleName);
+        const isPublicModule = PUBLIC_MODULES.includes(moduleName);
+        const isPublicGet = req.method === 'GET' && isPublicModule;
 
         if (!user && !isPublicGet) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
         if (req.method === 'GET') {
             let q = supabase.from(moduleName).select(getStrParam(select) || '*');
             
-            // Apply tenancy
-            if (user && user.role !== 'super_admin') {
+            // Apply tenancy filter
+            // Skip tenancy filter for super admins OR for public modules (unless a specific institution is requested)
+            const shouldSkipTenancy = (user?.role === 'super_admin') || (isPublicModule && !getStrParam(queryInstitutionId));
+
+            if (user && !shouldSkipTenancy) {
                 const isCounty = user.role.startsWith('county_');
                 if (isCounty) {
                     if (moduleName === 'counties') q = q.eq('id', user.institutionId);
