@@ -15,7 +15,8 @@ import {
     BellIcon,
     Cog8ToothIcon as SettingsIcon,
     ChartBarIcon,
-    XIcon
+    XIcon,
+    BeakerIcon
 } from '../icons/index';
 import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon, ClockIcon } from './HealthIcons';
 
@@ -32,10 +33,11 @@ import { RegisterPatientModal } from './RegisterPatientModal';
 import { UpdateVitalsModal } from './UpdateVitalsModal';
 import { AddWardModal } from './AddWardModal';
 import { AddVisitModal } from './AddVisitModal';
+import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance';
+type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -231,6 +233,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         {[
                             { id: 'general', label: 'Patient 360', icon: HeartIcon },
                             { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon },
+                            { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon },
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
                             { id: 'billing', label: 'Revenue/SHA', icon: CreditCardIcon },
@@ -255,6 +258,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         switch (activeModule) {
                             case 'general': return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
+                            case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} />;
                             case 'dental': return <DentalView />;
                             case 'eye': return <OphthalmologyView />;
                             case 'billing': return <HISBillingView />;
