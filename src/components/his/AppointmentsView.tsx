@@ -10,8 +10,10 @@ import {
     CheckCircleIcon,
     XCircleIcon as XMarkIcon,
     BellIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    CalendarIcon
 } from '../icons/index';
+import { AddAppointmentModal } from './AddAppointmentModal';
 import { Role, HISAppointment } from '../../types';
 import { apiService } from '../../services/apiService';
 
@@ -26,6 +28,7 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
     const isDoctor = activeRole === 'lecturer';
     const [searchTerm, setSearchTerm] = useState('');
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+    const [isAddAppointmentOpen, setIsAddAppointmentOpen] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<HISAppointment | null>(null);
     const [notification, setNotification] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
     const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +89,22 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
             console.error('Failed to reschedule:', error);
             alert('Failed to reschedule appointment.');
         }
+    const handleCreateAppointment = async (data: any) => {
+        if (!institutionId) return;
+        try {
+            const newApp = { 
+                ...data, 
+                institution_id: institutionId, 
+                id: `app_${Date.now()}` 
+            };
+            await apiService.saveModuleRecord('his_appointments', newApp);
+            setAppointments(prev => [newApp, ...prev]);
+            setNotification({ show: true, message: 'Appointment Scheduled Successfully' });
+            setTimeout(() => setNotification({ show: false, message: '' }), 5000);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to schedule appointment");
+        }
     };
 
     const statusStyles = {
@@ -114,7 +133,10 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                 </div>
                 <div className="flex gap-4">
                     {!isDoctor && (
-                        <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20">
+                        <button 
+                            onClick={() => setIsAddAppointmentOpen(true)}
+                            className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-600/20"
+                        >
                             <PlusIcon className="w-4 h-4" /> Add Visit
                         </button>
                     ) || (
@@ -327,6 +349,12 @@ export const AppointmentsView: React.FC<AppointmentsViewProps> = ({ activeRole, 
                     </div>
                 </div>
             )}
+            {/* Add Appointment Modal */}
+            <AddAppointmentModal 
+                isOpen={isAddAppointmentOpen} 
+                onClose={() => setIsAddAppointmentOpen(false)} 
+                onAdd={handleCreateAppointment}
+            />
         </div>
     );
 };
