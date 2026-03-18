@@ -51,6 +51,8 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [patients, setPatients] = useState<HISPatient[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [activePatientId, setActivePatientId] = useState<string | null>(null);
+    const [activePatientVitals, setActivePatientVitals] = useState<any[]>([]);
+    const [activePatientEvents, setActivePatientEvents] = useState<any[]>([]);
 
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [isUpdateVitalsOpen, setIsUpdateVitalsOpen] = useState(false);
@@ -82,6 +84,22 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         if (!activePatientId) return null;
         return patients.find(p => p.id === activePatientId) || null;
     }, [activePatientId, patients]);
+
+    const fetchPatientData = React.useCallback(async () => {
+        if (!activePatientId || !institutionId) return;
+        try {
+            const vitals = await apiService.fetchModuleRecords('his_vital_statistics', institutionId, undefined, { filter: { patient_id: activePatientId } });
+            const events = await apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, { filter: { patient_id: activePatientId }, order: 'created_at.desc' });
+            setActivePatientVitals(vitals || []);
+            setActivePatientEvents(events || []);
+        } catch (error) {
+            console.error("Failed to fetch patient records:", error);
+        }
+    }, [activePatientId, institutionId]);
+
+    React.useEffect(() => {
+        fetchPatientData();
+    }, [fetchPatientData]);
 
     const filteredPatients = React.useMemo(() => {
         if (!searchTerm.trim()) return [];
@@ -134,10 +152,33 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     ...v, institutionId, patientId: activePatientId, recordedAt: new Date().toISOString()
                 });
             }
-            alert("Vitals Updated Successfully");
+            alert("Vitals updated successfully");
+            setIsUpdateVitalsOpen(false);
+            fetchPatientData();
         } catch (error) {
             console.error(error);
-            alert("Vitals Update Failed");
+            alert("Failed to update vitals");
+        }
+    };
+
+    const [wardsRefreshTrigger, setWardsRefreshTrigger] = useState(0);
+
+    const handleAddVisit = async (visitData: any) => {
+        if (!activePatientId || !institutionId) return;
+        try {
+            const clinicalEvent = {
+                ...visitData,
+                patientId: activePatientId,
+                institutionId,
+                id: `evt_${Date.now()}`
+            };
+            await apiService.saveModuleRecord('his_clinical_events', clinicalEvent);
+            alert("Clinical record saved successfully");
+            setIsAddVisitOpen(false);
+            fetchPatientData();
+        } catch (error) {
+            console.error(error);
+            alert("Record saving failed");
         }
     };
 
@@ -256,7 +297,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'general': return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
+                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} />;
                             case 'dental': return <DentalView />;
