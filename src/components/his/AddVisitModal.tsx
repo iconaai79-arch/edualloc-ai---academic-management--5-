@@ -35,7 +35,7 @@ export const AddVisitModal: React.FC<AddVisitModalProps> = ({ isOpen, onClose, p
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
             <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden animate-zoom-in">
                 <div className="p-10 border-b border-slate-50 dark:border-white/5 flex justify-between items-center bg-indigo-600">
                     <div>

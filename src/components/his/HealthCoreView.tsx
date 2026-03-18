@@ -94,10 +94,12 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         (window as any).openRegisterModal = () => setIsRegisterModalOpen(true);
         (window as any).openUpdateVitalsModal = () => setIsUpdateVitalsOpen(true);
         (window as any).openAddWardModal = () => setIsAddWardOpen(true);
+        (window as any).openAddVisitModal = () => setIsAddVisitOpen(true);
         return () => { 
             delete (window as any).openRegisterModal; 
             delete (window as any).openUpdateVitalsModal;
             delete (window as any).openAddWardModal;
+            delete (window as any).openAddVisitModal;
         };
     }, []);
 
