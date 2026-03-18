@@ -848,7 +848,9 @@ export const apiService = {
             phoneNumber: driver.phoneNumber,
             institutionId: driver.institutionId,
             payerName: driver.name,
-            description: `SMS Top-up (${units} units)`
+            description: `SMS Top-up (${units} units)`,
+            provider: 'mpesa',
+            paymentMethod: 'stk_push'
         }, []);
     },
     async activateDriverSubscription(driver: User, months: number): Promise<void> {
@@ -870,7 +872,9 @@ export const apiService = {
             phoneNumber: driver.phoneNumber,
             institutionId: driver.institutionId,
             payerName: driver.name,
-            description: `Portal Subscription (${months} months)`
+            description: `Portal Subscription (${months} months)`,
+            provider: 'mpesa',
+            paymentMethod: 'stk_push'
         }, []);
     },
     async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string, attachments?: any[]): Promise<any> {
@@ -959,83 +963,115 @@ export const apiService = {
         }
         return { success_count, fail_count };
     },
-    async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
+    async initiatePayment(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', amount: number, phoneNumber: string, metadata?: any, config?: any) {
         const formattedPhone = formatPhoneNumber(phoneNumber);
         if (!_supabase) {
-            return { success: false, message: "Database service (Supabase) not initialized. Live M-Pesa requires an active backend." };
+            return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
         }
         try {
-            const { data } = await _supabase.auth.getSession();
-            let token = data?.session?.access_token;
+            const session = this.getSession();
+            const token = session?.id || '';
 
-            if (!token) {
-                const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
-                if (storageKey) {
-                    try {
-                        const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                        token = stored.access_token;
-                    } catch (e) { }
-                }
-            }
+            let action = 'initiateStkPush';
+            if (provider === 'airtel') action = 'initiateAirtelMoneyStk';
+            if (provider === 'intasend') action = 'initiateIntasendPayment';
+            if (provider === 'ncba') action = 'ncbaInitiateStk';
 
-            // Final Deep Fallback: Use the Internal User ID as a token
-            if (!token) {
-                const session = this.getSession();
-                if (session?.id) token = session.id;
-            }
-
-            // initiating payment request
-            let headers: any = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
             const response = await fetch('/api/integrations', {
                 method: 'POST',
-                headers,
-                body: JSON.stringify({ action: 'initiateStkPush', recipient: formattedPhone, amount, config, metadata })
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                     'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
             });
 
-            // Logging removed for production security
-
-            let resData: any = {};
-            let rawText = '';
-            try {
-                rawText = await response.text();
-                resData = JSON.parse(rawText);
-            } catch (e) {
-                resData = { message: rawText || `HTTP Error ${response.status}` };
+            const result = await response.json();
+            if (response.ok && result.success && metadata?.invoiceId) {
+                // Auto-record a pending transaction
+                await this.recordPayment({
+                    transactionId: result.checkoutRequestId || result.requestId || `PENDING_${Date.now()}`,
+                    amount,
+                    phoneNumber: formattedPhone,
+                    payerName: 'Pending Payer',
+                    description: `Payment for Invoice ${metadata.invoiceId}`,
+                    status: 'pending',
+                    provider,
+                    paymentMethod: 'stk_push',
+                    metadata: { ...metadata, checkoutRequestId: result.checkoutRequestId }
+                });
             }
-
-            if (!response.ok) {
-                // Provide detailed error information
-                let errorMessage = '';
-
-                if (response.status === 500) {
-                    errorMessage = `Server Error (500): ${resData.error || resData.message || 'Internal server error'}`;
-                    if (resData.error?.includes('Database service unavailable')) {
-                        errorMessage += '\n\nPossible causes:\n- SUPABASE_SERVICE_ROLE_KEY not configured\n- Supabase connection failed';
-                    } else if (resData.message?.includes('configuration is missing')) {
-                        errorMessage += '\n\nPlease configure M-Pesa credentials in Super Admin > System Settings';
-                    }
-                } else if (response.status === 401) {
-                    errorMessage = resData.message || resData.error || 'Authentication failed. Please log in again.';
-                    if (resData.hint) errorMessage += `\n\nHint: ${resData.hint}`;
-                } else if (response.status === 400) {
-                    errorMessage = resData.message || resData.error || 'Bad request';
-                } else {
-                    errorMessage = resData.error || resData.message || `HTTP Error: ${response.status}`;
-                }
-
-                const detail = resData.errorDetail ? `\n\nDetails: ${JSON.stringify(resData.errorDetail, null, 2)}` : '';
-                throw new Error(`${errorMessage}${detail}`);
-            }
-            return resData;
+            return result;
         } catch (e: any) {
-            console.error("M-Pesa API Handshake Failed:", e);
-            return {
-                success: false,
-                message: e.message || "M-Pesa gateway connection failed.",
-                error: e
-            };
+            console.error(`${provider} API Handshake Failed:`, e);
+            return { success: false, message: e.message || `${provider} gateway connection failed.` };
         }
+    },
+    async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {
+        try {
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'queryPaymentStatus',
+                    provider,
+                    checkoutRequestId,
+                    config
+                })
+            });
+            const result = await response.json();
+            if (result.status === 'completed' && result.metadata?.invoiceId) {
+                await this.reconcilePayment(result);
+            }
+            return result;
+        } catch (e) {
+            console.error("Payment Status Check Error:", e);
+            return { status: 'pending' };
+        }
+    },
+    async recordPayment(data: Partial<MpesaTransaction>) {
+        return this.saveModuleRecord('mpesa_transactions', {
+            ...data,
+            timestamp: data.timestamp || new Date().toISOString(),
+            status: data.status || 'pending'
+        });
+    },
+    async reconcilePayment(transaction: MpesaTransaction) {
+        try {
+            const metadata = typeof transaction.metadata === 'string' ? JSON.parse(transaction.metadata) : transaction.metadata;
+            const invoiceId = metadata?.invoiceId;
+            if (!invoiceId) return;
+
+            // 1. Create a receipt
+            await this.saveModuleRecord('receipts', {
+                id: `RCT_${Date.now()}`,
+                receiptNumber: `RCT-${Date.now()}`,
+                institutionId: transaction.institutionId,
+                paymentDate: new Date().toISOString(),
+                amountPaid: transaction.amount,
+                paidFor: transaction.description || 'Service Payment',
+                paymentMethod: transaction.provider,
+                relatedTransactionId: transaction.transactionId,
+                invoiceId: invoiceId,
+                studentId: metadata?.studentId
+            });
+
+            // 2. Update invoice status if fully paid
+            const invoice = await this.fetchModuleRecords<Invoice>('invoices', undefined, undefined, { filter: { id: invoiceId }, limit: 1 });
+            if (invoice?.[0]) {
+                const totalPaid = (await this.fetchModuleRecords<Receipt>('receipts', undefined, undefined, { filter: { invoice_id: invoiceId } }))
+                    .reduce((sum, r) => sum + (r.amountPaid || 0), 0);
+                
+                if (totalPaid >= invoice[0].totalAmount) {
+                    await this.saveModuleRecord('invoices', { id: invoiceId, status: 'paid' });
+                }
+            }
+        } catch (e) {
+            console.error("Reconciliation Error:", e);
+        }
+    },
+    async initiateMpesaPayment(amount: number, phoneNumber: string, metadata?: any, config?: MpesaConfig) {
+        return this.initiatePayment('mpesa', amount, phoneNumber, metadata, config);
     },
     async checkMpesaStatus(checkoutRequestId: string, config?: MpesaConfig) {
         try {

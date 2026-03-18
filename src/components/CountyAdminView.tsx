@@ -713,40 +713,43 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 </div>
 
                 <nav className="flex-1 space-y-2">
-                    <button
-                        onClick={() => setActiveTab('dashboard')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'dashboard'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
-                            }`}
-                    >
-                        <ChartPieIcon className="w-5 h-5" />
-                        Dashboard
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('institutions')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'institutions'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
-                            }`}
-                    >
-                        <AcademicCapIcon className="w-5 h-5" />
-                        Institutions
-                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
-                            {myInstitutions.length}
-                        </span>
-                    </button>
+                        <button
+                            onClick={() => setActiveTab('dashboard')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'dashboard'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                            style={{ backgroundColor: activeTab === 'dashboard' ? 'var(--brand-primary, #4f46e5)' : undefined }}
+                        >
+                            <ChartPieIcon className="w-5 h-5" />
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('institutions')}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'institutions'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
+                                }`}
+                            style={{ backgroundColor: activeTab === 'institutions' ? 'var(--brand-primary, #4f46e5)' : undefined }}
+                        >
+                            <AcademicCapIcon className="w-5 h-5" />
+                            Institutions
+                            <span className="ml-auto bg-black/20 text-white text-[10px] py-0.5 px-2 rounded-full">
+                                {myInstitutions.length}
+                            </span>
+                        </button>
                     {currentUser.role !== 'county_store_keeper' && (
                         <button
                             onClick={() => setActiveTab('staff')}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'staff'
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                                 }`}
+                            style={{ backgroundColor: activeTab === 'staff' ? 'var(--brand-primary, #4f46e5)' : undefined }}
                         >
                             <UserGroupIcon className="w-5 h-5" />
                             County Staff
-                            <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                            <span className="ml-auto bg-black/20 text-white text-[10px] py-0.5 px-2 rounded-full">
                                 {myStaff.length}
                             </span>
                         </button>
@@ -754,26 +757,28 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                     <button
                         onClick={() => setActiveTab('inventory')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'inventory'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            ? 'text-white shadow-lg shadow-black/20 font-bold'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                             }`}
+                        style={{ backgroundColor: activeTab === 'inventory' ? 'var(--brand-primary, #4f46e5)' : undefined }}
                     >
                         <ArchiveBoxIcon className="w-5 h-5" />
                         Inventory
-                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                        <span className="ml-auto bg-black/20 text-white text-[10px] py-0.5 px-2 rounded-full">
                             {inventoryItems.length}
                         </span>
                     </button>
                     <button
                         onClick={() => setActiveTab('bursaries')}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'bursaries'
-                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                            ? 'text-white shadow-lg shadow-black/20 font-bold'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                             }`}
+                        style={{ backgroundColor: activeTab === 'bursaries' ? 'var(--brand-primary, #4f46e5)' : undefined }}
                     >
                         <CurrencyIcon className="w-5 h-5" />
                         Bursaries
-                        <span className="ml-auto bg-slate-800 text-white text-[10px] py-0.5 px-2 rounded-full">
+                        <span className="ml-auto bg-black/20 text-white text-[10px] py-0.5 px-2 rounded-full">
                             {bursaryApplications.filter(a => a.status === 'pending').length}
                         </span>
                     </button>
@@ -781,9 +786,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         <button
                             onClick={() => setActiveTab('settings')}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings'
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                                 }`}
+                            style={{ backgroundColor: activeTab === 'settings' ? 'var(--brand-primary, #4f46e5)' : undefined }}
                         >
                             <Cog8ToothIcon className="w-5 h-5" />
                             Settings
@@ -793,9 +799,10 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                         <button
                             onClick={() => setActiveTab('external_module')}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'external_module'
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 font-bold'
+                                ? 'text-white shadow-lg shadow-black/20 font-bold'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white font-medium'
                                 }`}
+                            style={{ backgroundColor: activeTab === 'external_module' ? 'var(--brand-primary, #4f46e5)' : undefined }}
                         >
                             <SparklesIcon className="w-5 h-5" />
                             External
@@ -828,11 +835,22 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                 {activeTab === 'dashboard' && (
                     <div className="space-y-6 animate-fade-in-up">
                         <div className="mb-8">
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
-                                {myCounty.name} Overview
-                            </h2>
+                            <div className="flex items-center gap-4 mb-2">
+                                {myCounty.logoUrl && <img src={myCounty.logoUrl} className="h-12 w-12 object-contain" alt="County Logo" />}
+                                <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900">
+                                    {myCounty.name} Overview
+                                </h2>
+                            </div>
+                            {myCounty.motto && (
+                                <p 
+                                    className="font-black italic uppercase tracking-widest text-[10px] mb-2 px-2 border-l-2"
+                                    style={{ color: 'var(--brand-primary, #4f46e5)', borderColor: 'var(--brand-primary, #4f46e5)' }}
+                                >
+                                    "{myCounty.motto}"
+                                </p>
+                            )}
                             <p className="text-slate-500 font-medium">
-                                Manage education resources for county code: {myCounty.code}
+                                Manage education resources for county code: {myCounty.code} {myCounty.website && <>| <a href={myCounty.website} target="_blank" rel="noopener noreferrer" className="hover:underline font-bold" style={{ color: 'var(--brand-primary, #4f46e5)' }}>{myCounty.website}</a></>}
                             </p>
                         </div>
 
@@ -891,7 +909,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                 <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
                                     <div className="p-8 border-b border-slate-50 flex justify-between items-center">
                                         <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-3">
-                                            <SparklesIcon className="w-6 h-6 text-indigo-600" />
+                                            <SparklesIcon className="w-6 h-6" style={{ color: 'var(--brand-primary, #4f46e5)' }} />
                                             Recent System Activity
                                         </h3>
                                         <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500">
@@ -908,7 +926,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                                     <div className="flex-1">
                                                         <p className="text-xs font-bold text-slate-900">{log.action}</p>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{log.userName || 'System'}</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--brand-primary, #4f46e5)' }}>{log.userName || 'System'}</span>
                                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">[{log.institutionName || 'SYSTEM'}]</span>
                                                             <span className="text-[9px] text-slate-400">•</span>
                                                             <span className="text-[9px] text-slate-400 uppercase font-medium">
@@ -932,7 +950,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
                                         <CurrencyIcon className="w-32 h-32" />
                                     </div>
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-6 font-mono">Financial Snapshot</h4>
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 font-mono" style={{ color: 'var(--brand-primary, #4f46e5)' }}>Financial Snapshot</h4>
                                     <div className="space-y-6 relative z-10">
                                         <div>
                                             <p className="text-3xl font-black tracking-tight">
@@ -943,20 +961,21 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                         <div className="pt-6 border-t border-white/10">
                                             <div className="flex justify-between items-end mb-2">
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Disbursement Progress</span>
-                                                <span className="text-xs font-black text-indigo-400">
+                                                <span className="text-xs font-black" style={{ color: 'var(--brand-primary, #4f46e5)' }}>
                                                     {Math.round((bursaryFunds.reduce((acc, f) => acc + (f.allocatedAmount || 0), 0) / (bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0) || 1)) * 100)}%
                                                 </span>
                                             </div>
                                             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                                                 <div
-                                                    className="h-full bg-indigo-500 rounded-full"
-                                                    style={{ width: `${(bursaryFunds.reduce((acc, f) => acc + (f.allocatedAmount || 0), 0) / (bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0) || 1)) * 100}%` }}
+                                                    className="h-full rounded-full"
+                                                    style={{ width: `${(bursaryFunds.reduce((acc, f) => acc + (f.allocatedAmount || 0), 0) / (bursaryFunds.reduce((acc, f) => acc + (f.totalBudget || 0), 0) || 1)) * 100}%`, backgroundColor: 'var(--brand-primary, #4f46e5)' }}
                                                 />
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => { setActiveTab('bursaries'); setBursarySubTab('funds'); }}
-                                            className="w-full py-3 bg-white hover:bg-indigo-50 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-4"
+                                            className="w-full py-3 bg-white hover:bg-slate-50 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all mt-4 border border-slate-100"
+                                            style={{ color: 'var(--brand-primary, #4f46e5)' }}
                                         >
                                             Manage Funds
                                         </button>
@@ -967,7 +986,7 @@ export const CountyAdminView: React.FC<CountyAdminViewProps> = ({
                                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-6">Quick Actions</h4>
                                     <div className="space-y-3">
                                         <button onClick={() => setShowRegisterModal(true)} className="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all border border-slate-100 flex items-center gap-3 group text-left">
-                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform" style={{ backgroundColor: `${myCounty.primaryColor || '#4f46e5'}20`, color: myCounty.primaryColor || '#4f46e5' }}>
                                                 <PlusIcon className="w-4 h-4" />
                                             </div>
                                             <div>

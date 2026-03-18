@@ -140,6 +140,18 @@ export interface Institution {
     parentAbsenceNotificationsEnabled?: boolean;
     marketplaceEnabled?: boolean;
     listingQuota?: number;
+    airtelMoneyConfig?: AirtelMoneyConfig;
+    intasendConfig?: IntasendConfig;
+    ncbaConfig?: NcbaConfig;
+}
+
+export interface NcbaConfig {
+    clientId: string;
+    clientSecret: string;
+    apiKey: string;
+    baseUrl: string;
+    accountNumber: string;
+    environment: 'sandbox' | 'production';
 }
 
 
@@ -447,6 +459,20 @@ export interface MpesaConfig {
     environment?: 'sandbox' | 'production';
 }
 
+export interface AirtelMoneyConfig {
+    businessId: string;
+    apiKey: string;
+    consumerKey: string;
+    consumerSecret: string;
+    environment?: 'sandbox' | 'production';
+}
+
+export interface IntasendConfig {
+    publishableKey: string;
+    secretKey: string;
+    environment?: 'sandbox' | 'test' | 'production';
+}
+
 export interface CompanyDetails {
     name: string;
     address: string;
@@ -463,6 +489,8 @@ export interface CompanyDetails {
     themeColor?: string;
     subscriptionConfig: SubscriptionConfig;
     mpesaConfig: MpesaConfig;
+    airtelMoneyConfig?: AirtelMoneyConfig;
+    intasendConfig?: IntasendConfig;
     emailConfig: EmailConfig;
     smsConfig: SmsConfig;
     letterheadConfig: LetterheadConfig;
@@ -762,6 +790,8 @@ export interface MpesaTransaction {
     status: TransactionStatus;
     metadata?: any;
     checkoutRequestId?: string;
+    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba';
+    paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit';
 }
 
 export interface InvoiceItem {

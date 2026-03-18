@@ -8,7 +8,10 @@ interface BuySMSModalProps {
     isOpen: boolean;
     onClose: () => void;
     onPurchaseComplete: (units: number) => void;
-    mpesaConfig: MpesaConfig;
+    mpesaConfig?: MpesaConfig;
+    airtelMoneyConfig?: any;
+    intasendConfig?: any;
+    ncbaConfig?: any;
     institutionId: string;
     institutionCode: string;
     institutionName: string;
@@ -29,6 +32,9 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
     onClose,
     onPurchaseComplete,
     mpesaConfig,
+    airtelMoneyConfig,
+    intasendConfig,
+    ncbaConfig,
     institutionId,
     institutionCode,
     institutionName,
@@ -38,6 +44,7 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [units, setUnits] = useState<number>(SMS_PACKAGES[0].units);
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
@@ -67,21 +74,32 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 institutionCode,
                 institutionName,
                 requesterId,
-                payerPhoneNumber: phoneNumber
+                payerPhoneNumber: phoneNumber,
+                provider
             };
 
-            const mpesaResult = await apiService.initiateMpesaPayment(calculatedTotal, phoneNumber, metadata, mpesaConfig);
+            const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'intasend' ? intasendConfig : ncbaConfig));
+            const result: any = await apiService.initiatePayment(provider, calculatedTotal, phoneNumber, metadata, config);
 
-            if (mpesaResult.success && mpesaResult.data?.CheckoutRequestID) {
-                const checkoutRequestId = mpesaResult.data.CheckoutRequestID;
-                setStatusMessage('STK Push Sent! Enter your M-Pesa PIN on your phone.');
+            if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
+                if (result.url) {
+                    window.open(result.url, '_blank');
+                    setStatusMessage('Payment window opened. Please complete the payment and wait for confirmation.');
+                } else {
+                    setStatusMessage(`${provider.toUpperCase()} prompt sent! Enter your PIN on your phone.`);
+                }
 
+                const checkoutRequestId = result.data?.CheckoutRequestID || result.checkoutRequestId;
+                
                 let attempts = 0;
-                const maxAttempts = 40;
+                const maxAttempts = 60;
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const { status } = await apiService.checkMpesaStatus(checkoutRequestId, mpesaConfig);
+                    const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
+                        provider === 'mpesa' ? mpesaConfig : 
+                        (provider === 'airtel' ? airtelMoneyConfig : 
+                        (provider === 'intasend' ? intasendConfig : ncbaConfig)));
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
@@ -95,10 +113,10 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         setStatusMessage(status === 'failed' ? 'Transaction failed. Please try again.' : 'Timeout waiting for payment confirmation. If you have paid, it will reflect shortly.');
                         setIsLoading(false);
                     }
-                }, 3000);
+                }, 4000);
             } else {
                 setFinalStatus('failed');
-                setStatusMessage(mpesaResult.message || 'Failed to initiate STK push.');
+                setStatusMessage(result.message || `Failed to initiate ${provider} payment.`);
                 setIsLoading(false);
             }
         } catch (error: any) {
@@ -149,15 +167,53 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                         <button onClick={() => setFinalStatus(null)} className="mt-8 w-full bg-slate-900 dark:bg-slate-700 text-white font-black py-3.5 rounded-xl transition-all active:scale-[0.98]">Try Again</button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="p-6">
+                    <form onSubmit={handleSubmit} className="p-8">
                         <div className="flex justify-between items-start mb-5">
                             <div>
                                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Buy SMS Units</h3>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Instant delivery via M-Pesa STK</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Instant delivery via multi-provider gateway</p>
                             </div>
                             <button type="button" onClick={handleClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-400">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Choose Payment Provider</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('mpesa')}
+                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'mpesa' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <MpesaIcon className="w-6 h-6 mb-1" />
+                                    <span className="text-[10px] font-black uppercase">M-Pesa</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('airtel')}
+                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'airtel' ? 'border-red-600 bg-red-50/50 dark:bg-red-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-6 h-6 mb-1 bg-red-600 rounded-full flex items-center justify-center text-white text-[8px] font-black">A</div>
+                                    <span className="text-[10px] font-black uppercase">Airtel</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('intasend')}
+                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'intasend' ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-6 h-6 mb-1 bg-emerald-600 rounded flex items-center justify-center text-white text-[8px] font-black">IS</div>
+                                    <span className="text-[10px] font-black uppercase">IntaSend</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('ncba')}
+                                    className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-6 h-6 mb-1 bg-teal-600 rounded flex items-center justify-center text-white text-[8px] font-black">NB</div>
+                                    <span className="text-[10px] font-black uppercase">NCBA</span>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -213,20 +269,19 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                             </div>
 
                             <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">M-Pesa Number</label>
+                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'intasend' ? 'Payer Contact' : (provider === 'airtel' ? 'Airtel Number' : 'M-Pesa Number')}</label>
                                 <div className="relative">
                                     <input
                                         type="tel"
                                         id="phoneNumber"
                                         value={phoneNumber}
                                         onChange={(e) => setPhoneNumber(e.target.value)}
-                                        className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base' outline-none"
+                                        className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-xl py-2.5 px-4 font-black text-slate-900 dark:text-white shadow-sm transition-all text-base outline-none"
                                         placeholder="2547..."
                                         required
-                                        pattern="^(254)\d{9}$"
                                     />
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                        <MpesaIcon className="w-5 h-5 opacity-40" />
+                                        {provider === 'mpesa' ? <MpesaIcon className="w-5 h-5 opacity-40" /> : <div className="text-[10px] font-black opacity-20 uppercase">{provider}</div>}
                                     </div>
                                 </div>
                             </div>

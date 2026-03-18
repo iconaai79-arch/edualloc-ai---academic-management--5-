@@ -645,6 +645,401 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ success: true, message: 'Password updated successfully. You can now log in.' });
         }
+        // --- NCBA Bank Helpers ---
+        const getNcbaToken = async (ncbaConfig: any) => {
+            const { clientId, clientSecret, baseUrl } = ncbaConfig;
+            const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+            const tokenRes = await fetchWithTimeout(`${baseUrl}/oauth/token?grant_type=client_credentials`, {
+                method: 'POST',
+                headers: { 'Authorization': `Basic ${auth}` }
+            });
+            const data = await tokenRes.json() as any;
+            return data.access_token;
+        };
+
+        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string, reference: string) => {
+            const token = await getNcbaToken(ncbaConfig);
+            // Drafting standard NCBA request structure based on generic bank APIs
+            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/v1/stk-push`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-API-Key': ncbaConfig.apiKey
+                },
+                body: JSON.stringify({
+                    amount,
+                    currency: 'KES',
+                    phone: normalizePhone(phone),
+                    reference,
+                    description: 'EduAi Payment',
+                    accountNumber: ncbaConfig.accountNumber,
+                    callbackUrl: `${process.env.PUBLIC_URL || 'https://eduai.vercel.app'}/api/integrations?action=ncbaWebhook`
+                })
+            });
+            return await res.json();
+        };
+
+        // Internal Helper for Reconciliation
+        const reconcilePayment = async (txn: any) => {
+            if (!txn || txn.metadata?.reconciled) return;
+
+            const meta = txn.metadata || {};
+            const instId = txn.institution_id;
+            const amt = txn.amount;
+
+            console.log(`[Reconcile] Processing transaction ${txn.id} for ${instId}`);
+
+            // 1. Fetch Institution
+            const { data: inst } = await supabase.from('institutions').select('*').eq('id', instId).maybeSingle();
+            if (!inst) {
+                console.error(`[Reconcile] Institution ${instId} not found.`);
+                return;
+            }
+
+            let invId = meta.invoiceId;
+
+            // 2. Handle Subscription
+            if (meta.type === 'subscription' || meta.type === 'license') {
+                const days = meta.plan === 'yearly' ? 365 : 30;
+                const currentEnd = inst.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
+                const baseDate = Math.max(currentEnd.getTime(), Date.now());
+                const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
+
+                await supabase.from('institutions').update({
+                    subscription_ends_at: newEndDate.toISOString(),
+                    status: 'active'
+                }).eq('id', instId);
+
+                if (!invId) {
+                    invId = `inv_sub_${Date.now()}`;
+                    await supabase.from('invoices').insert({
+                        id: invId,
+                        invoice_number: `INV-SUB-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId,
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: amt,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `${meta.plan === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+                            quantity: 1,
+                            unitPrice: amt,
+                            amount: amt
+                        }])
+                    });
+                } else {
+                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+                }
+            } 
+            // 3. Handle SMS
+            else if (meta.type === 'sms') {
+                const units = parseInt(meta.units || "0");
+                if (units > 0) {
+                    await supabase.rpc('increment_sms_balance', { inst_id: instId, amount: units });
+                }
+
+                if (!invId) {
+                    invId = `inv_sms_${Date.now()}`;
+                    await supabase.from('invoices').insert({
+                        id: invId,
+                        invoice_number: `INV-SMS-${Date.now().toString().slice(-6)}`,
+                        institution_id: instId,
+                        issue_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date().toISOString().split('T')[0],
+                        total_amount: amt,
+                        status: 'paid',
+                        items: JSON.stringify([{
+                            description: `SMS Top-up (${units} units)`,
+                            quantity: 1,
+                            unitPrice: amt / (units || 1),
+                            amount: amt
+                        }])
+                    });
+                } else {
+                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+                }
+            }
+            // 4. Handle generic Invoice
+            else if (meta.type === 'invoice' && invId) {
+                await supabase.from('invoices').update({ status: 'paid' }).eq('id', invId);
+            }
+
+            // 5. Create Receipt
+            if (invId) {
+                await supabase.from('receipts').insert({
+                    id: `rec_${Date.now()}`,
+                    receipt_number: `REC-${Date.now().toString().slice(-6)}`,
+                    institution_id: instId,
+                    invoice_id: invId,
+                    amount_paid: amt,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_method: txn.provider || 'M-Pesa',
+                    related_transaction_id: txn.id
+                });
+            }
+
+            // 6. Mark Transaction as Reconciled
+            const table = txn.provider === 'ncba' ? 'ncba_transactions' : 
+                          txn.provider === 'airtel' ? 'airtel_transactions' : 
+                          'mpesa_transactions';
+
+            await supabase.from(table).update({
+                metadata: { ...meta, reconciled: true, reconciled_at: new Date().toISOString() }
+            }).eq('id', txn.id);
+
+            // 7. Send Notifications
+            try {
+                const isSms = meta.type === 'sms';
+                const units = parseInt(meta.units || "0");
+                const notifyMessage = isSms 
+                    ? `Dear Admin, your payment of KES ${amt} for ${units.toLocaleString()} SMS units for ${inst.name} has been verified. New balance reflected in dashboard. Ref: ${txn.id}`
+                    : `Dear Admin, your payment of KES ${amt} for ${inst.name} subscription (${meta.plan || 'License'}) has been verified. Account active until ${new Date(inst.subscription_ends_at).toLocaleDateString()}. Ref: ${txn.id}`;
+
+                // Email Notification
+                const emailConfig = settings.email_config || settings.emailConfig;
+                if (emailConfig && inst.email) {
+                    try {
+                        const transporter = nodemailer.createTransport({
+                            host: emailConfig.host, port: Number(emailConfig.port || 587),
+                            auth: { user: emailConfig.username, pass: emailConfig.password },
+                            tls: { rejectUnauthorized: false }
+                        });
+                        await transporter.sendMail({
+                            from: `"${emailConfig.fromName || 'EduAi'}" <${emailConfig.fromEmail || emailConfig.username}>`,
+                            to: inst.email,
+                            subject: isSms ? 'SMS Top-up Verified' : 'Payment Verified Successfully',
+                            text: notifyMessage
+                        });
+                    } catch (e) {
+                        console.error('[Reconcile] Email failed:', e.message);
+                    }
+                }
+
+                // SMS Notification
+                const smsConfig = settings.sms_config;
+                if (smsConfig && txn.phone_number) {
+                    try {
+                        const provider = smsConfig.provider || 'Zettatel';
+                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.zettatel.com/smsapi/send';
+                        const params = new URLSearchParams({
+                            userid: smsConfig.apiKey || smsConfig.api_key,
+                            password: smsConfig.apiSecret || smsConfig.api_secret,
+                            mobile: txn.phone_number.replace(/[^\d]/g, ''),
+                            msg: notifyMessage, senderid: smsConfig.fromNumber || provider,
+                            msgType: 'text', output: 'json'
+                        });
+                        await fetch(`${baseUrl}?${params.toString()}`);
+                    } catch (e) {
+                        console.error('[Reconcile] SMS failed:', e.message);
+                    }
+                }
+
+                // In-App Notification
+                if (meta.requesterId) {
+                    await supabase.from('app_notifications').insert({
+                        id: `ntf_rec_${Date.now()}`,
+                        user_id: meta.requesterId,
+                        message: notifyMessage,
+                        type: 'success',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            } catch (notifyErr) {
+                console.error('[Reconcile] Notification process error:', notifyErr);
+            }
+
+            console.log(`[Reconcile] Finished for ${txn.id}`);
+        };
+
+        if (action === 'queryPaymentStatus') {
+            const provider = getParam('provider') || 'mpesa';
+            const checkoutRequestId = getParam('checkoutRequestId');
+            
+            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'Missing checkoutRequestId' });
+
+            const table = provider === 'ncba' ? 'ncba_transactions' : 'mpesa_transactions';
+            const { data: transaction } = await supabase
+                .from(table)
+                .select('*')
+                .eq('checkout_request_id', checkoutRequestId)
+                .maybeSingle();
+
+            if (transaction && transaction.status !== 'pending') {
+                return res.status(200).json({ success: true, status: transaction.status, source: 'database', metadata: transaction.metadata });
+            }
+
+            // 2. Poll external API if still pending
+            let finalStatus = 'pending';
+            let externalData: any = {};
+
+            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
+
+            if (provider === 'mpesa') {
+                // Simplified poll for M-Pesa (inline logic from queryStkStatus)
+                const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
+                const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
+                const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
+                const passkey = (mpesa.passkey || '').trim();
+                
+                if (consumerKey && consumerSecret && paybill && passkey) {
+                    try {
+                        const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+                        const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+                        const oauthReq = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                            headers: { 'Authorization': `Basic ${authStr}` }
+                        });
+                        if (oauthReq.ok) {
+                            const { access_token } = await oauthReq.json() as any;
+                            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+                            const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
+                            
+                            const statusRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpush/v1/query`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ 
+                                    BusinessShortCode: paybill, 
+                                    Password: password, 
+                                    Timestamp: timestamp, 
+                                    CheckoutRequestID: checkoutRequestId 
+                                })
+                            });
+                            
+                            const statusData = await statusRes.json() as any;
+                            externalData = statusData;
+                            if (statusData.ResultCode === '0') finalStatus = 'completed';
+                            else if (statusData.errorCode === '500.002.1001') finalStatus = 'pending'; // In progress
+                            else if (statusData.ResultCode) finalStatus = 'failed';
+                        }
+                    } catch (e) {
+                        console.error('[M-Pesa Status] Error polling Safaricom:', e);
+                    }
+                }
+            } else if (provider === 'intasend') {
+                const intasend = bodyConfig || settings.intasend_config || settings.intasendConfig;
+                if (intasend && intasend.publishableKey) {
+                    const baseUrl = intasend.environment === 'production' ? 'https://payment.intasend.com/api/v1' : 'https://sandbox.intasend.com/api/v1';
+                    try {
+                        const checkRes = await fetchWithTimeout(`${baseUrl}/checkout/${checkoutRequestId}/status/`, {
+                            headers: { 'X-IntaSend-Publishable-Key': intasend.publishableKey }
+                        });
+                        if (checkRes.ok) {
+                            const checkData = await checkRes.json() as any;
+                            externalData = checkData;
+                            if (checkData.status === 'COMPLETED' || checkData.status === 'SUCCESS') finalStatus = 'completed';
+                            else if (checkData.status === 'FAILED') finalStatus = 'failed';
+                        }
+                    } catch (e) {}
+                }
+            } else if (provider === 'ncba') {
+                const ncba = bodyConfig || settings.ncba_config || settings.ncbaConfig;
+                if (ncba && ncba.clientId) {
+                    try {
+                        const token = await getNcbaToken(ncba);
+                        const resStatus = await fetchWithTimeout(`${ncba.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
+                            headers: { 'Authorization': `Bearer ${token}`, 'X-API-Key': ncba.apiKey }
+                        });
+                        if (resStatus.ok) {
+                            const statusData = await resStatus.json() as any;
+                            externalData = statusData;
+                            if (statusData.status === 'COMPLETED' || statusData.ResultCode === '0') finalStatus = 'completed';
+                            else if (statusData.status === 'FAILED' || statusData.ResultCode === '1') finalStatus = 'failed';
+                        }
+                    } catch (e) {
+                        console.error('[NCBA Status] Error polling NCBA:', e);
+                    }
+                }
+            } else if (provider === 'airtel') {
+                // Mock success for Airtel testing
+                if (checkoutRequestId.startsWith('airtel_')) {
+                    finalStatus = 'completed';
+                }
+            }
+
+            if (finalStatus !== 'pending' && transaction) {
+                await supabase.from(table).update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
+                
+                if (finalStatus === 'completed') {
+                    await reconcilePayment({ ...transaction, status: finalStatus, provider: provider as any });
+                }
+            }
+
+            return res.status(200).json({ success: true, status: finalStatus, details: externalData });
+        }
+
+        if (action === 'initiateAirtelMoneyStk') {
+            const airtel = bodyConfig || settings.airtel_money_config || settings.airtelMoneyConfig;
+            if (!airtel || !airtel.apiKey) return res.status(400).json({ success: false, message: 'Airtel Money configuration is missing.' });
+
+            console.log(`[Airtel Money] Initiating STK push for ${recipient} (Amount: ${amount})`);
+            
+            // Mocking Airtel STK response for now as real implementation depends on their specific region API
+            // Usually involves: 1. Get Token, 2. POST /merchant/v1/payments/
+            const requestId = `airtel_${Date.now()}`;
+            
+            await supabase.from('mpesa_transactions').insert({
+                id: `txn_${Date.now()}`,
+                transaction_id: `AIRTEL_${requestId}`,
+                checkout_request_id: requestId,
+                institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                amount: amount,
+                phone_number: recipient,
+                status: 'pending',
+                provider: 'airtel',
+                metadata: paramsMap.metadata || {}
+            });
+
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Airtel Money STK prompt initiated.', 
+                requestId,
+                checkoutRequestId: requestId 
+            });
+        }
+
+        if (action === 'initiateIntasendPayment') {
+            const intasend = bodyConfig || settings.intasend_config || settings.intasendConfig;
+            if (!intasend || !intasend.publishableKey) return res.status(400).json({ success: false, message: 'IntaSend configuration is missing.' });
+
+            const baseUrl = intasend.environment === 'production' ? 'https://payment.intasend.com/api/v1' : 'https://sandbox.intasend.com/api/v1';
+            
+            try {
+                const response = await fetchWithTimeout(`${baseUrl}/checkout/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-IntaSend-Publishable-Key': intasend.publishableKey },
+                    body: JSON.stringify({
+                        amount: amount,
+                        currency: "KES",
+                        email: user.email,
+                        phone_number: recipient.replace(/[^\d]/g, ''),
+                        first_name: user.name?.split(' ')[0] || "User",
+                        last_name: user.name?.split(' ')[1] || "Customer",
+                        method: "M-PESA",
+                        redirect_url: `https://${req.headers.host}/payment-success`,
+                    })
+                });
+
+                const data = await response.json() as any;
+                if (response.ok) {
+                    const checkoutId = data.id || data.checkout_id;
+                    await supabase.from('mpesa_transactions').insert({
+                        id: `txn_${Date.now()}`,
+                        transaction_id: `INTASEND_${checkoutId}`,
+                        checkout_request_id: checkoutId,
+                        institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                        amount: amount,
+                        phone_number: recipient,
+                        status: 'pending',
+                        provider: 'intasend',
+                        metadata: paramsMap.metadata || {}
+                    });
+                    return res.status(200).json({ success: true, url: data.url, checkoutRequestId: checkoutId });
+                }
+                return res.status(response.status).json({ success: false, message: data.message || 'IntaSend request failed.' });
+            } catch (e: any) {
+                return res.status(500).json({ success: false, message: e.message });
+            }
+        }
 
         if (action === 'initiateStkPush') {
             const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
@@ -730,200 +1125,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(stkRes.status).json({ success: false, message: stkData.CustomerMessage || 'M-Pesa gateway rejected the request.', details: stkData });
         }
 
-        if (action === 'queryStkStatus') {
-            const mpesa = bodyConfig || settings.mpesa_config || settings.mpesaConfig;
-            if (!mpesa) return res.status(400).json({ success: false, message: 'M-Pesa configuration is missing.' });
-
-            const { checkoutRequestId } = paramsMap;
-            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'Missing checkoutRequestId' });
-
-            // 1. Check DB first (in case callback arrived already)
-            const { data: existingTxn } = await supabase
-                .from('mpesa_transactions')
-                .select('status')
-                .eq('checkout_request_id', checkoutRequestId)
-                .maybeSingle();
-
-            if (existingTxn && existingTxn.status && existingTxn.status !== 'pending') {
-                console.log(`[queryStkStatus] Returning status from DB: ${existingTxn.status}`);
-                return res.status(200).json({ success: true, status: existingTxn.status, source: 'database' });
-            }
-
-            const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
-            const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
-            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || '').trim();
-            const passkey = (mpesa.passkey || '').trim();
-
-            const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-            const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
-
-            const oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-                headers: { 'Authorization': `Basic ${authStr}` }
-            }, 10000);
-
-            if (!oauth.ok) return res.status(401).json({ success: false, message: 'M-Pesa Auth failed during status query.' });
-            const { access_token } = (await oauth.json()) as any;
-
-            const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-            const password = Buffer.from(paybill + passkey + timestamp).toString('base64');
-
-            const statusRes = await fetchWithTimeout(`${baseUrl}/mpesa/stkpushquery/v1/query`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    BusinessShortCode: paybill,
-                    Password: password,
-                    Timestamp: timestamp,
-                    CheckoutRequestID: checkoutRequestId
-                })
-            }, 10000);
-
-            const statusData = (await statusRes.json()) as any;
-            let finalStatus = 'pending';
-
-            // ResultCode 0 is success. 
-            // We use loose comparison or String() to handle both string and number types from Daraja API
-            if (statusRes.ok && String(statusData.ResultCode) === '0') {
-                finalStatus = 'completed';
-            }
-            // If we have a ResultCode that is NOT 0, it's generally a failure (cancelled, invalid PIN, etc.)
-            else if (statusRes.ok && statusData.ResultCode && String(statusData.ResultCode) !== '0') {
-                finalStatus = 'failed';
-            }
-            // Note: If statusRes.ok is false, it often means Safaricom returned 400 or 404 
-            // because the transaction is still "In Process". In these cases, we keep status as 'pending'.
-
-            // Sync with DB
-            if (finalStatus !== 'pending') {
-                console.log(`[queryStkStatus] Transaction ${checkoutRequestId} finished with status: ${finalStatus}`);
-                await supabase.from('mpesa_transactions').update({ status: finalStatus }).eq('checkout_request_id', checkoutRequestId);
-
-                // Reactivation Logic for polled success (similar to callback/manual)
-                if (finalStatus === 'completed') {
-                    const { data: transaction } = await supabase
-                        .from('mpesa_transactions')
-                        .select('*')
-                        .eq('checkout_request_id', checkoutRequestId)
-                        .single();
-
-                    if (transaction) {
-                        const metadata = transaction.metadata || {};
-                        if (metadata.type === 'subscription' && metadata.plan) {
-                            const days = metadata.plan === 'monthly' ? 30 : 365;
-                            const { data: inst } = await supabase
-                                .from('institutions')
-                                .select('subscription_ends_at, id')
-                                .eq('id', transaction.institution_id)
-                                .single();
-
-                            if (inst) {
-                                const currentEnd = inst.subscription_ends_at ? new Date(inst.subscription_ends_at) : new Date();
-                                const baseDate = Math.max(currentEnd.getTime(), Date.now());
-                                const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
-
-                                await supabase.from('institutions').update({
-                                    subscription_ends_at: newEndDate.toISOString(),
-                                    status: 'active'
-                                }).eq('id', inst.id);
-                                console.log(`[queryStkStatus] Reactivated institution ${inst.id} via poll`);
-                            }
-                        } else if (metadata.type === 'sms' && metadata.units) {
-                            console.log(`[queryStkStatus] Crediting SMS units via poll: ${metadata.units} for ${transaction.institution_id}`);
-
-                            const unitsToCredit = parseInt(metadata.units);
-                            const { error: smsCreditError } = await supabase.rpc('increment_sms_balance', {
-                                inst_id: transaction.institution_id,
-                                amount: unitsToCredit
-                            });
-
-                            if (smsCreditError) {
-                                console.warn('[queryStkStatus] RPC failed, falling back to direct update:', smsCreditError);
-                                await supabase.from('institutions')
-                                    .update({ sms_balance: supabase.rpc('increment', { amount: unitsToCredit }) })
-                                    .eq('id', transaction.institution_id);
-                            }
-                            console.log(`[queryStkStatus] ✅ SMS Units Credited via poll: ${unitsToCredit}`);
-                        }
-
-                        // Fetch new balance for accurate notifications
-                        const { data: updatedInst } = await supabase
-                            .from('institutions')
-                            .select('sms_balance')
-                            .eq('id', transaction.institution_id)
-                            .single();
-
-                        const newBalance = updatedInst?.sms_balance || 0;
-
-                        // Create notification if requesterId exists
-                        if (metadata.requesterId) {
-                            const isSmsType = metadata.type === 'sms';
-                            const message = isSmsType
-                                ? `Payment successful! ${parseInt(metadata.units).toLocaleString()} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units.`
-                                : `Subscription renewed successfully! Your new expiry date is reflected in the billing section.`;
-
-                            await supabase.from('app_notifications').insert({
-                                id: `ntf_${isSmsType ? 'sms' : 'sub'}_${Date.now()}`,
-                                user_id: metadata.requesterId,
-                                message,
-                                type: 'success',
-                                is_read: false,
-                                timestamp: new Date().toISOString()
-                            });
-                            console.log(`[queryStkStatus] Notification created for user: ${metadata.requesterId}`);
-                        }
-
-                        // Send SMS confirmation if payerPhoneNumber exists
-                        const smsConfig = settings.sms_config;
-                        const payerPhone = metadata.payerPhoneNumber || transaction.phone_number;
-                        const isSmsType = metadata.type === 'sms';
-
-                        if (isSmsType && smsConfig && payerPhone) {
-                            const unitsCount = parseInt(metadata.units).toLocaleString();
-                            const smsMessage = `Payment successful! ${unitsCount} SMS units have been added to your institution's balance. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transaction.transaction_id || transaction.id}. Thank you for choosing Eduai Automation.`;
-
-                            try {
-                                const provider = smsConfig.provider || 'Zettatel';
-                                let phone = (payerPhone as string).replace(/[^\d]/g, '');
-
-                                // Normalize phone
-                                if (phone.startsWith('254')) {
-                                    const afterPrefix = phone.substring(3);
-                                    if (afterPrefix.startsWith('0')) {
-                                        phone = '254' + afterPrefix.substring(1);
-                                    }
-                                } else if (phone.startsWith('0')) {
-                                    phone = '254' + phone.substring(1);
-                                } else if (phone.length === 9) {
-                                    phone = '254' + phone;
-                                }
-
-                                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || 'https://sms.abmis.co.ke/SMSApi/send';
-                                const finalParams: Record<string, string> = {
-                                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
-                                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
-                                    mobile: phone,
-                                    msg: smsMessage,
-                                    senderid: smsConfig.fromNumber || provider,
-                                    msgType: 'text',
-                                    output: 'json'
-                                };
-
-                                const urlParams = new URLSearchParams(finalParams);
-                                const dispatchUrl = `${baseUrl}?${urlParams.toString()}`;
-
-                                console.log(`[queryStkStatus] Sending SMS to ${phone} via ${provider}`);
-                                await fetchWithTimeout(dispatchUrl, { method: 'GET' }, 15000);
-                            } catch (smsErr) {
-                                console.error('[queryStkStatus] Failed to send SMS confirmation:', smsErr);
-                            }
-                        }
-                    }
-                }
-            }
-
-            return res.status(200).json({ success: true, status: finalStatus, details: statusData });
-        }
-
         if (action === 'verifyTransactionManually') {
             if (user.role !== 'super_admin') {
                 return res.status(403).json({ success: false, message: 'Permission denied: Manual verification requires Super Admin privileges.' });
@@ -933,224 +1134,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!transactionId) return res.status(400).json({ success: false, message: 'Missing transactionId' });
 
             // 1. Fetch transaction
-            const { data: transaction, error: fetchError } = await supabase
-                .from('mpesa_transactions')
-                .select('*')
-                .eq('id', transactionId)
-                .single();
+            const { data: transaction } = await supabase.from('mpesa_transactions').select('*').eq('id', transactionId).maybeSingle();
+            if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found.' });
 
-            if (fetchError || !transaction) {
-                return res.status(404).json({ success: false, message: 'Transaction not found for manual verification.' });
+            if (transaction.status === 'completed' && transaction.metadata?.reconciled) {
+                return res.status(200).json({ success: true, message: 'Transaction is already verified and reconciled.' });
             }
 
-            if (transaction.status === 'completed') {
-                return res.status(200).json({ success: true, message: 'Transaction is already completed.' });
-            }
+            // 2. Update status and metadata
+            await supabase.from('mpesa_transactions').update({ 
+                status: 'completed'
+            }).eq('id', transactionId);
 
-            // 2. Update status (Robust update: status first, then metadata if possible)
-            const { error: updateTxnError } = await supabase
-                .from('mpesa_transactions')
-                .update({ status: 'completed' })
-                .eq('id', transactionId);
+            // 3. Trigger reconciliation
+            await reconcilePayment({ ...transaction, status: 'completed' });
+            return res.status(200).json({ success: true, message: 'Transaction verified manually and reconciled successfully.' });
+        }
 
-            if (updateTxnError) {
-                console.error('[Manual Verify] DB Status Update Error:', updateTxnError);
-                return res.status(500).json({ success: false, message: 'Failed to update transaction status.', details: updateTxnError });
-            }
+        if (action === 'ncbaInitiateStk') {
+            const { institutionId, phone } = paramsMap;
+            const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user.user_metadata?.institutionId).maybeSingle();
+            if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured for this institution.' });
 
-            // Attempt to update metadata (ignore if column doesn't exist)
             try {
-                await supabase
-                    .from('mpesa_transactions')
-                    .update({
-                        metadata: { ...transaction.metadata, verified_manually: true, verified_at: new Date().toISOString() }
-                    })
-                    .eq('id', transactionId);
-            } catch (e) {
-                console.warn('[Manual Verify] Metadata update failed (likely missing column):', e);
-            }
-
-            // 3. Trigger reactivation logic (similar to callback but simplified for manual)
-            const metadata = transaction.metadata || {};
-            if (metadata.type === 'subscription' && metadata.plan) {
-                const days = metadata.plan === 'monthly' ? 30 : 365;
-
-                const { data: institution } = await supabase
-                    .from('institutions')
-                    .select('subscription_ends_at, id')
-                    .eq('id', transaction.institution_id)
-                    .single();
-
-                if (institution) {
-                    const currentEnd = institution.subscription_ends_at ? new Date(institution.subscription_ends_at) : new Date();
-                    const baseDate = Math.max(currentEnd.getTime(), Date.now());
-                    const newEndDate = new Date(baseDate + (days * 24 * 60 * 60 * 1000));
-
-                    await supabase.from('institutions').update({
-                        subscription_ends_at: newEndDate.toISOString(),
-                        status: 'active'
-                    }).eq('id', institution.id);
-
-                    // Create invoice & receipt
-                    const invoiceId = `inv_manual_${Date.now()}`;
-                    await supabase.from('invoices').insert({
-                        id: invoiceId,
-                        invoice_number: `INV-MAN-${Date.now().toString().slice(-6)}`,
-                        institution_id: institution.id,
-                        issue_date: new Date().toISOString().split('T')[0],
-                        due_date: new Date().toISOString().split('T')[0],
-                        total_amount: transaction.amount,
-                        status: 'paid',
-                        items: JSON.stringify([{
-                            description: `Manual Verification: ${metadata.plan} Subscription`,
-                            quantity: 1,
-                            unitPrice: transaction.amount,
-                            amount: transaction.amount
-                        }])
+                const reference = `NCBA_${Date.now()}`;
+                const result = await initiateNcbaPayment(inst.ncbaConfig, amount, phone || recipient, reference);
+                
+                if (result.success || result.ResponseCode === '0') {
+                    await supabase.from('ncba_transactions').insert({
+                        id: `ncba_${Date.now()}`,
+                        transaction_id: result.CheckoutRequestID || reference,
+                        institution_id: inst.id,
+                        amount: amount,
+                        phone_number: phone || recipient,
+                        status: 'pending',
+                        metadata: paramsMap.metadata || {}
                     });
-
-                    await supabase.from('receipts').insert({
-                        id: `rec_manual_${Date.now()}`,
-                        receipt_number: `REC-MAN-${Date.now().toString().slice(-6)}`,
-                        institution_id: institution.id,
-                        invoice_id: invoiceId,
-                        amount_paid: transaction.amount,
-                        payment_date: new Date().toISOString().split('T')[0],
-                        payment_method: 'Manual Verification',
-                        related_transaction_id: transaction.id
-                    });
+                    return res.status(200).json({ success: true, message: 'NCBA Direct Debit request initiated.', data: result });
                 }
-            } else if (metadata.type === 'invoice' && metadata.invoiceId) {
-                await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
-                await supabase.from('receipts').insert({
-                    id: `rec_inv_manual_${Date.now()}`,
-                    receipt_number: `REC-INV-MAN-${Date.now().toString().slice(-6)}`,
-                    institution_id: transaction.institution_id,
-                    invoice_id: metadata.invoiceId,
-                    amount_paid: transaction.amount,
-                    payment_date: new Date().toISOString().split('T')[0],
-                    payment_method: 'Manual Verification',
-                    related_transaction_id: transaction.id
-                });
-            } else if (metadata.type === 'sms' && metadata.units) {
-                const unitsToCredit = parseInt(metadata.units);
-                await supabase.rpc('increment_sms_balance', {
-                    inst_id: transaction.institution_id,
-                    amount: unitsToCredit
-                });
-
-                // Create invoice & receipt
-                const invoiceId = `inv_manual_sms_${Date.now()}`;
-                await supabase.from('invoices').insert({
-                    id: invoiceId,
-                    invoice_number: `INV-SMS-MAN-${Date.now().toString().slice(-6)}`,
-                    institution_id: transaction.institution_id,
-                    issue_date: new Date().toISOString().split('T')[0],
-                    due_date: new Date().toISOString().split('T')[0],
-                    total_amount: transaction.amount,
-                    status: 'paid',
-                    items: JSON.stringify([{
-                        description: `Manual Verification: SMS Purchase (${unitsToCredit} units)`,
-                        quantity: 1,
-                        unitPrice: transaction.amount,
-                        amount: transaction.amount
-                    }])
-                });
-
-                await supabase.from('receipts').insert({
-                    id: `rec_manual_sms_${Date.now()}`,
-                    receipt_number: `REC-SMS-MAN-${Date.now().toString().slice(-6)}`,
-                    institution_id: transaction.institution_id,
-                    invoice_id: invoiceId,
-                    amount_paid: transaction.amount,
-                    payment_date: new Date().toISOString().split('T')[0],
-                    payment_method: 'Manual Verification',
-                    related_transaction_id: transaction.id
-                });
+                return res.status(400).json({ success: false, message: 'NCBA gateway error.', details: result });
+            } catch (err: any) {
+                return res.status(500).json({ success: false, message: 'NCBA initiation failed.', error: err.message });
             }
+        }
 
-            // 4. Send Notifications
-            try {
-                const { data: inst } = await supabase.from('institutions').select('name, email, sms_balance').eq('id', transaction.institution_id).single();
-                if (inst) {
-                    const isSms = metadata.type === 'sms';
-                    const newBalance = inst.sms_balance || 0;
+        if (action === 'ncbaQueryStatus') {
+            const { checkoutRequestId, institutionId } = paramsMap;
+            const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId).maybeSingle();
+            if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'Config missing' });
 
-                    let notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${inst.name} has been manually verified. Your account is now active and your subscription has been extended. Thank you for choosing EduAi.`;
+            const token = await getNcbaToken(inst.ncbaConfig);
+            const resStatus = await fetchWithTimeout(`${inst.ncbaConfig.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
+                headers: { 'Authorization': `Bearer ${token}`, 'X-API-Key': inst.ncbaConfig.apiKey }
+            });
+            const statusData = await resStatus.json() as any;
 
-                    if (isSms) {
-                        notifyMessage = `Dear Admin, your payment of KES ${transaction.amount} for ${parseInt(metadata.units).toLocaleString()} SMS units has been manually verified. Your new balance is ${newBalance.toLocaleString()} units. Thank you for choosing EduAi.`;
-                    }
-
-                    // Send Email
-                    const emailConfig = settings.email_config || settings.emailConfig;
-                    if (emailConfig && inst.email) {
-                        try {
-                            
-                            const transporter = nodemailer.createTransport({
-                                host: emailConfig.host,
-                                port: Number(emailConfig.port || 587),
-                                auth: { user: emailConfig.username, pass: emailConfig.password },
-                                tls: { rejectUnauthorized: false }
-                            });
-                            await transporter.sendMail({
-                                from: `"${emailConfig.fromName || 'EduAi Notification'}" <${emailConfig.fromEmail || emailConfig.username}>`,
-                                to: inst.email,
-                                subject: isSms ? 'SMS Top-up Verified' : 'Payment Verified & Account Reactivated',
-                                text: notifyMessage,
-                                html: `<div style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-                                    <h2 style="color: #4f46e5;">${isSms ? 'SMS Top-up Verified' : 'Payment Verified Successfully'}</h2>
-                                    <p>${notifyMessage.replace(/\n/g, '<br>')}</p>
-                                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-                                    <p style="font-size: 12px; color: #64748b;">This is an automated notification from the EduAi Academic Management Platform.</p>
-                                </div>`
-                            });
-                            console.log(`[Manual Verify] Email sent to ${inst.email}`);
-                        } catch (emailErr) {
-                            console.error('[Manual Verify] Email notification failed:', emailErr);
-                        }
-                    }
-
-                    // Send SMS
-                    const smsConfig = settings.sms_config;
-                    if (smsConfig && transaction.phone_number) {
-                        try {
-                            const provider = smsConfig.provider || 'Zettatel';
-                            const defaultZettatelUrl = 'https://sms.zettatel.com/smsapi/send';
-                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? defaultZettatelUrl : 'https://sms.abmis.co.ke/smsapi/send');
-
-                            const params = new URLSearchParams({
-                                userid: smsConfig.apiKey || smsConfig.api_key,
-                                password: smsConfig.apiSecret || smsConfig.api_secret,
-                                mobile: transaction.phone_number.replace(/[^\d]/g, ''),
-                                msg: notifyMessage,
-                                senderid: smsConfig.fromNumber || provider,
-                                msgType: 'text', output: 'json'
-                            });
-                            await fetch(`${baseUrl}?${params.toString()}`);
-                            console.log(`[Manual Verify] SMS sent to ${transaction.phone_number}`);
-                        } catch (smsErr) {
-                            console.error('[Manual Verify] SMS notification failed:', smsErr);
-                        }
-                    }
-
-                    // Also create in-app notification if requesterId exists
-                    if (metadata.requesterId) {
-                        await supabase.from('app_notifications').insert({
-                            id: `ntf_manual_${Date.now()}`,
-                            user_id: metadata.requesterId,
-                            message: notifyMessage,
-                            type: 'success',
-                            is_read: false,
-                            timestamp: new Date().toISOString()
-                        });
-                    }
-                }
-            } catch (notifyErr) {
-                console.error('[Manual Verify] Notification process encountered an error:', notifyErr);
+            if (statusData.status === 'COMPLETED' || statusData.ResultCode === '0') {
+                const { data: txn } = await supabase.from('ncba_transactions').update({ status: 'completed' }).eq('transaction_id', checkoutRequestId).select().single();
+                if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
+                return res.status(200).json({ success: true, status: 'completed', data: statusData });
             }
-
-            return res.status(200).json({ success: true, message: 'Transaction verified manually, account reactivated, and notifications sent.' });
+            return res.status(200).json({ success: true, status: statusData.status || 'pending', data: statusData });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });

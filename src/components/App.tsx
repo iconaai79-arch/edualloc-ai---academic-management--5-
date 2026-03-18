@@ -498,7 +498,6 @@ export const App: React.FC = () => {
 
     const activeLetterheadConfig = useMemo(() => activeInstitution?.letterheadConfig || companyDetails.letterheadConfig, [activeInstitution, companyDetails]);
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
-    const activeLogoUrl = useMemo(() => activeInstitution?.logoUrl || companyDetails.logoUrl, [activeInstitution, companyDetails]);
 
     const loadData = useCallback(async (isFirstLoad = false) => {
         if (isFirstLoad) setAppInitializing(true);
@@ -1888,6 +1887,46 @@ export const App: React.FC = () => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
     }, [activeRole, isAdminCatchAll]);
 
+    const activeCounty = useMemo(() => {
+        if (!currentUser || !Array.isArray(counties)) return null;
+
+        // Match by current user's institutionId (if it's a county ID)
+        const directMatch = counties.find(c => c.id === currentUser.institutionId);
+        if (directMatch) return directMatch;
+
+        // Alternative check: find user's institution and check its countyId
+        const myInst = institutions.find(i => i.id === currentUser.institutionId);
+        if (myInst?.countyId) {
+            return counties.find(c => c.id === myInst.countyId) || null;
+        }
+
+        return null;
+    }, [counties, currentUser, institutions]);
+
+    const activeBranding = useMemo(() => {
+        const isCountyContext = activeRole === 'county_admin' || activeRole?.startsWith('county_');
+
+        if (isCountyContext && activeCounty) {
+            return {
+                primaryColor: activeCounty.primaryColor || '#4f46e5',
+                secondaryColor: activeCounty.secondaryColor || '#0f172a',
+                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
+                motto: activeCounty.motto,
+                website: activeCounty.website,
+                displayName: activeCounty.name
+            };
+        }
+
+        return {
+            primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
+            secondaryColor: '#0f172a',
+            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
+            motto: null,
+            website: null,
+            displayName: activeInstitution?.name
+        };
+    }, [activeRole, activeCounty, activeInstitution, companyDetails]);
+
     if (appInitializing) return (
         <SystemPulseLoader 
             message={loadError ? "System Handshake Compromised" : "Establishing secure cloud registry link..."} 
@@ -1951,24 +1990,34 @@ export const App: React.FC = () => {
             await apiService.saveUser(updated);
             setCurrentUser(updated);
             apiService.storeSession(updated);
-        }} onLogout={handleLogout} logoUrl={activeLogoUrl} />;
+        }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
     }
 
     return (
         <AppErrorBoundary>
+            {currentUser && (
+                <style dangerouslySetInnerHTML={{ __html: `
+                    :root {
+                        --brand-primary: ${activeBranding.primaryColor};
+                        --brand-secondary: ${activeBranding.secondaryColor};
+                    }
+                `}} />
+            )}
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
                 {currentUser ? (
                     <>
                         <Header
                             currentUser={currentUser}
-                            institutionName={activeInstitution?.name}
+                            institutionName={activeBranding.displayName}
                             onLogout={handleLogout}
                             onEditProfile={() => setIsProfileModalOpen(true)}
-                            logoUrl={activeInstitution?.logoUrl || companyDetails.logoUrl}
+                            logoUrl={activeBranding.logoUrl}
                             systemLogoUrl={companyDetails.logoUrl}
                             notifications={notifications}
                             onMarkAsRead={(id) => { if (id) handleMarkNotificationAsRead(id); }}
                             currentInstitution={activeInstitution}
+                            primaryColor={activeBranding.primaryColor}
+                            secondaryColor={activeBranding.secondaryColor}
                             isApiOnline={isApiOnline}
                             applicationTitle={companyDetails.applicationTitle}
                             activeRole={activeRole as Role}
@@ -2010,10 +2059,10 @@ export const App: React.FC = () => {
                                         }
                                     }}
                                     onAddAcademicYear={async (data) => { await apiService.saveModuleRecord('academic_years', { ...data, id: generateId('ay'), institutionId: currentUser!.institutionId, status: 'inactive' }); loadData(); }} onAddSemester={async (data) => { await apiService.saveModuleRecord('semesters', { ...data, id: generateId('sem'), institutionId: currentUser!.institutionId }); loadData(); }} onAddDepartment={handleAddDepartment} onUpdateDepartment={handleUpdateDepartment} onDeleteDepartment={handleDeleteDepartment} onImportDepartments={handleImportDepartments} onAddBuilding={handleAddBuilding} onUpdateBuilding={handleUpdateBuilding} onDeleteBuilding={handleDeleteBuilding} onAddRoom={handleAddRoom} onUpdateRoom={handleUpdateRoom} onDeleteRoom={handleDeleteRoom} onImportRooms={handleImportRooms} onAddAcademicLevel={handleAddAcademicLevel} onUpdateAcademicLevel={handleUpdateAcademicLevel} onDeleteAcademicLevel={handleDeleteAcademicLevel} onUpdateRequest={(id: string, data: any) => apiService.saveModuleRecord('allocation_requests', { id, ...data })} onWithdrawRequest={(id: string) => apiService.deleteModuleRecord('allocation_requests', id)}
-                                    logoUrl={activeLogoUrl}
+                                    logoUrl={activeBranding.logoUrl}
                                     leaveOutRequests={leaveOutRequests}
                                     finalTimetableUrl={null}
-                                    themeColor={companyDetails.themeColor || '#4f46e5'}
+                                    themeColor={activeBranding.primaryColor}
                                     invoices={invoices}
                                     extensionRequests={extensionRequests}
                                     voteHeads={voteHeads}
@@ -2131,7 +2180,7 @@ export const App: React.FC = () => {
                                     onStudentLessonCheckIn={onStudentLessonCheckIn}
                                     letterheadConfig={activeLetterheadConfig}
                                     footerImageUrl={activeFooterImageUrl}
-                                    logoUrl={activeLogoUrl}
+                                    logoUrl={activeBranding.logoUrl}
                                     buildings={buildings}
                                     onAddParent={async (sid: string, p: any) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => ({ success: true, message: 'Parent added.' }))}
                                     onDeleteParent={() => { }}
@@ -2283,7 +2332,7 @@ export const App: React.FC = () => {
                                     onDeleteBuilding={handleDeleteBuilding}
                                     academicLevels={academicLevels}
                                     letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeLogoUrl}
+                                    logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     emailConfig={companyDetails.emailConfig}
                                     onSaveEmailConfig={() => { }}
@@ -2291,7 +2340,7 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution}
                                     onUpdateInstitution={onUpdateInstitution}
                                     smsConfig={companyDetails.smsConfig}
-                                    themeColor={companyDetails.themeColor || '#4f46e5'}
+                                    themeColor={activeBranding.primaryColor}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                                     onSaveExamTimetableSettings={(config) => onUpdateInstitution(activeInstitution!.id, { examTimetableSettings: config })}
                                     onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries as TimetableEntry[])}
@@ -2475,7 +2524,7 @@ export const App: React.FC = () => {
                                     smsConfig={companyDetails.smsConfig}
                                     subjects={subjects}
                                     letterheadConfig={activeLetterheadConfig}
-                                    logoUrl={activeLogoUrl}
+                                    logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
                                     onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
                                     onAddParent={async (sid, p) => apiService.saveModuleRecord('users', { ...p, role: 'parent', id: `u_par_${Date.now()}`, institutionId: currentUser.institutionId, studentIds: [sid] }).then(() => { handleLogAction(`Added parent for student ${sid}`); return { success: true, message: 'Parent added.' }; })}
@@ -2570,9 +2619,9 @@ export const App: React.FC = () => {
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}
                                     examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
-                                    logoUrl={activeLogoUrl}
+                                    logoUrl={activeBranding.logoUrl}
                                     footerImageUrl={activeFooterImageUrl}
-                                    themeColor={companyDetails.themeColor || '#4f46e5'}
+                                    themeColor={activeBranding.primaryColor}
                                     companyDetails={companyDetails}
                                     activityLog={activityLog}
                                     transactions={transactions}

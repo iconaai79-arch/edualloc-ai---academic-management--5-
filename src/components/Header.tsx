@@ -22,6 +22,8 @@ interface HeaderProps {
     onExitPerspective?: () => void;
     onToggleHealthSystem?: () => void;
     isHealthSystemOpen?: boolean;
+    primaryColor?: string;
+    secondaryColor?: string;
 }
 
 const formatRoleName = (role?: Role, institution?: Institution | null): string => {
@@ -64,7 +66,12 @@ const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
     );
 };
 
-export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, applicationTitle, notifications, onMarkAsRead, currentInstitution, isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, onToggleHealthSystem, isHealthSystemOpen }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+    currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, 
+    applicationTitle, notifications, onMarkAsRead, currentInstitution, 
+    isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
+    onToggleHealthSystem, isHealthSystemOpen, primaryColor, secondaryColor 
+}) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -114,6 +121,7 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                 ? 'bg-white/95 dark:bg-slate-900/95 shadow-md backdrop-blur-md py-2'
                 : 'bg-white dark:bg-slate-900 py-3'
                 } border-b border-slate-200 dark:border-slate-800`}
+            style={{ borderTop: primaryColor ? `4px solid ${primaryColor}` : undefined }}
         >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between">
@@ -133,7 +141,10 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                         {institutionName && (
                             <div className="hidden lg:flex items-center gap-3 pl-6 border-l border-slate-200 dark:border-slate-700">
                                 {systemLogoUrl && (
-                                    <div className="flex-shrink-0 h-7 w-7 bg-indigo-50 dark:bg-slate-800 rounded shadow-sm overflow-hidden border border-indigo-100 dark:border-slate-700 p-0.5">
+                                    <div 
+                                        className="flex-shrink-0 h-7 w-7 bg-indigo-50 dark:bg-slate-800 rounded shadow-sm overflow-hidden border border-indigo-100 dark:border-slate-700 p-0.5"
+                                        style={{ borderColor: primaryColor ? `${primaryColor}20` : undefined, backgroundColor: primaryColor ? `${primaryColor}10` : undefined }}
+                                    >
                                         <img src={systemLogoUrl} alt="System Logo" className="h-full w-full object-contain" />
                                     </div>
                                 )}
@@ -167,12 +178,12 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                             </div>
                         )}
 
-                        {(() => {
+                        {/* Health System toggle is now hidden as it's an independent module */}
+                        {currentInstitution?.institutionType === 'HIS' && (() => {
                             const isPropertyManagement = activeRole === 'property_admin' || 
                                                         activeRole === 'landlord' || 
                                                         activeRole === 'tenant' || 
-                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management') ||
-                                                        currentInstitution?.institutionType === 'HIS';
+                                                        currentInstitution?.businessSubType?.toLowerCase().includes('property management');
                             
                             if (isPropertyManagement) return null;
 
@@ -225,7 +236,10 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, institutionName, on
                                                 >
                                                     {formatRoleName(r as Role, currentInstitution)}
                                                     {activeRole === r && (
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                                                        <div 
+                                                            className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" 
+                                                            style={{ backgroundColor: activeRole === r ? 'white' : primaryColor }}
+                                                        />
                                                     )}
                                                 </button>
                                             ))}

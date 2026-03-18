@@ -30,11 +30,16 @@ const TransactionStatusBadge: React.FC<{ status: TransactionStatus }> = ({ statu
 
 export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transactions, institutions, receipts, companyDetails, onGenerateReceipt, onVerifyTransaction, logoUrl, title = "M-Pesa Transaction Log" }) => {
     const [searchQuery, setSearchQuery] = useState('');
+    const [providerFilter, setProviderFilter] = useState<'all' | 'mpesa' | 'airtel' | 'intasend'>('all');
     const institutionMap = useMemo(() => new Map(institutions.map(inst => [inst.id, inst])), [institutions]);
 
     const sortedTransactions = useMemo(() => {
-        return [...transactions].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [transactions]);
+        let txns = [...transactions];
+        if (providerFilter !== 'all') {
+            txns = txns.filter(t => t.provider === providerFilter);
+        }
+        return txns.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [transactions, providerFilter]);
 
     const filteredTransactions = useMemo(() => {
         if (!searchQuery.trim()) {
@@ -43,12 +48,12 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
         const lowercasedQuery = searchQuery.toLowerCase();
         return sortedTransactions.filter(txn => {
             const institutionName = institutionMap.get(txn.institutionId)?.name.toLowerCase() || '';
+            const providerName = (txn.provider || 'mpesa').toLowerCase();
             return (
                 txn.transactionId.toLowerCase().includes(lowercasedQuery) ||
                 institutionName.includes(lowercasedQuery) ||
-                // Fix: change phone_number to phoneNumber
+                providerName.includes(lowercasedQuery) ||
                 txn.phoneNumber.includes(lowercasedQuery) ||
-                // Fix: change payer_name to payerName
                 txn.payerName.toLowerCase().includes(lowercasedQuery)
             );
         });
@@ -64,16 +69,30 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
         <section>
             <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold">{title}</h3>
-                <div className="w-full sm:w-72">
-                    <label htmlFor="transaction-search" className="sr-only">Search Transactions</label>
-                    <input
-                        type="text"
-                        id="transaction-search"
-                        placeholder="Search by ID, institution, phone..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="block w-full pl-3 pr-4 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                    />
+                <div className="flex flex-wrap gap-2">
+                    <div className="w-full sm:w-48">
+                        <select
+                            value={providerFilter}
+                            onChange={(e) => setProviderFilter(e.target.value as any)}
+                            className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                        >
+                            <option value="all">All Providers</option>
+                            <option value="mpesa">M-Pesa</option>
+                            <option value="airtel">Airtel Money</option>
+                            <option value="intasend">IntaSend</option>
+                        </select>
+                    </div>
+                    <div className="w-full sm:w-72">
+                        <label htmlFor="transaction-search" className="sr-only">Search Transactions</label>
+                        <input
+                            type="text"
+                            id="transaction-search"
+                            placeholder="Search by ID, institution, phone..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="block w-full pl-3 pr-4 py-2 text-base border-slate-300 focus:outline-none focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] sm:text-sm rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -89,6 +108,7 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                     <thead className="bg-slate-50 dark:bg-slate-700">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Transaction ID</th>
+                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Provider</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Institution</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Amount</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Payer Info</th>
@@ -116,6 +136,9 @@ export const TransactionsManager: React.FC<TransactionsManagerProps> = ({ transa
                                 return (
                                     <tr key={txn.id}>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500 dark:text-slate-400">{txn.transactionId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white uppercase">
+                                            {txn.provider || 'mpesa'}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{institution?.name || 'Unknown'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 font-semibold">KES {txn.amount.toLocaleString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">

@@ -169,7 +169,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
     const [activeTab, setActiveTab] = useState<SettingsTab>(isSuperAdmin ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
@@ -1137,7 +1137,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             {(() => {
                                 if (isRetailAgency) return ['profile', 'location', 'branding'];
                                 const subs = ['profile', 'academic_config', 'location', 'branding', 'grading'];
-                                if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); }
+                                if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); subs.push('gateways'); }
                                 return subs;
                             })().map((sub: string) => (
                                 <button key={sub} onClick={() => setGeneralSubTab(sub as any)} className={`py-2 px-4 border-b-2 font-black text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap capitalize ${generalSubTab === sub ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{sub.replace('_', ' ')}</button>
@@ -1309,6 +1309,83 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     onAddExtensionRequest={props.onAddExtensionRequest}
                                     smsConfig={props.companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' }}
                                 />
+                            </div>
+                        )}
+                        {generalSubTab === 'gateways' && (
+                            <div className="space-y-8 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-teal-50 dark:bg-teal-900/30 rounded-2xl text-teal-600">
+                                            <BuildingOfficeIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Connect your NCBA Direct Debit & Settlement Gateway</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
+                                            <input 
+                                                type="text" 
+                                                value={props.currentInstitution?.ncbaConfig?.clientId || ''} 
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, clientId: e.target.value } as any })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
+                                            <input 
+                                                type="password" 
+                                                value={props.currentInstitution?.ncbaConfig?.clientSecret || ''} 
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, clientSecret: e.target.value } as any })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Key</label>
+                                            <input 
+                                                type="text" 
+                                                value={props.currentInstitution?.ncbaConfig?.apiKey || ''} 
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, apiKey: e.target.value } as any })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Base URL</label>
+                                            <input 
+                                                type="text" 
+                                                value={props.currentInstitution?.ncbaConfig?.baseUrl || ''} 
+                                                placeholder="https://api.ncbagroup.com"
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, baseUrl: e.target.value } as any })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account Number</label>
+                                            <input 
+                                                type="text" 
+                                                value={props.currentInstitution?.ncbaConfig?.accountNumber || ''} 
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, accountNumber: e.target.value } as any })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
+                                            <select 
+                                                value={props.currentInstitution?.ncbaConfig?.environment || 'sandbox'} 
+                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, environment: e.target.value } as any })}
+                                                className="form-select"
+                                            >
+                                                <option value="sandbox">Sandbox / Testing</option>
+                                                <option value="production">Live Production</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end pt-4">
+                                        <button className="btn-primary h-12 px-10 shadow-lg shadow-teal-100 dark:shadow-none bg-teal-600 border-none">Secure NCBA Link</button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                         {generalSubTab === 'sms' && props.currentUser.role === 'admin' && (

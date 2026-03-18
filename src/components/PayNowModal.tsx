@@ -13,6 +13,9 @@ interface PayNowModalProps {
     monthlyPrice?: number;
     yearlyPrice?: number;
     mpesaConfig: MpesaConfig;
+    airtelMoneyConfig?: any;
+    intasendConfig?: any;
+    ncbaConfig?: any;
     institutionId?: string;
     institutionCode?: string;
     institutionName?: string;
@@ -22,12 +25,13 @@ interface PayNowModalProps {
 
 export const PayNowModal: React.FC<PayNowModalProps> = ({
     isOpen = true, onClose, onPay, onSubmit, onSuccess, monthlyPrice = 0, yearlyPrice = 0,
-    mpesaConfig, institutionId, institutionCode, institutionName,
+    mpesaConfig, airtelMoneyConfig, intasendConfig, ncbaConfig, institutionId, institutionCode, institutionName,
     forceAmount, forcedItems
 }) => {
     const [phoneNumber, setPhoneNumber] = useState('254');
     const [payerName, setPayerName] = useState('');
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly' | 'forced'>(forceAmount !== undefined ? 'forced' : 'monthly');
+    const [provider, setProvider] = useState<'mpesa' | 'airtel' | 'intasend' | 'ncba'>('mpesa');
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
@@ -57,19 +61,38 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 institutionCode: institutionCode || 'SYSTEM',
                 institutionName: institutionName || 'Eduai Automation Hub'
             };
-            const mpesaResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
 
-            if (mpesaResult.success && mpesaResult.data?.CheckoutRequestID) {
-                const checkoutRequestId = mpesaResult.data.CheckoutRequestID;
-                setStatusMessage('STK Push Sent! Enter your M-Pesa PIN on your phone.');
+            let initiateResult;
+            if (provider === 'mpesa') {
+                initiateResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
+            } else if (provider === 'airtel') {
+                initiateResult = await apiService.initiatePayment('airtel', amount, phoneNumber, metadata, airtelMoneyConfig);
+            } else if (provider === 'ncba') {
+                initiateResult = await apiService.initiatePayment('ncba', amount, phoneNumber, metadata, ncbaConfig);
+            } else {
+                initiateResult = await apiService.initiatePayment('intasend', amount, phoneNumber, metadata, intasendConfig);
+            }
 
+            if (initiateResult.success && (initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId || initiateResult.url)) {
+                if (initiateResult.url) {
+                    window.open(initiateResult.url, '_blank');
+                    setStatusMessage('Payment window opened. Please complete the payment and wait for confirmation.');
+                } else {
+                    setStatusMessage(`${provider.toUpperCase()} prompt sent! Enter your PIN on your phone.`);
+                }
+
+                const checkoutRequestId = initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId;
+                
                 // 2. Poll for Status Updates
                 let attempts = 0;
-                const maxAttempts = 40; // ~2 minutes of polling (3s intervals)
+                const maxAttempts = 60; // ~3 minutes of polling
 
                 const pollInterval = setInterval(async () => {
                     attempts++;
-                    const { status } = await apiService.checkMpesaStatus(checkoutRequestId, mpesaConfig);
+                    const { status } = await apiService.checkPaymentStatus(provider, checkoutRequestId, 
+                        provider === 'mpesa' ? mpesaConfig : 
+                        (provider === 'airtel' ? airtelMoneyConfig : 
+                        (provider === 'ncba' ? ncbaConfig : intasendConfig)));
 
                     if (status === 'completed') {
                         clearInterval(pollInterval);
@@ -92,7 +115,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                 }, 3000);
             } else {
                 setFinalStatus('failed');
-                setStatusMessage(mpesaResult.message || 'Failed to initiate STK push.');
+                setStatusMessage(initiateResult.message || `Failed to initiate ${provider.toUpperCase()} payment.`);
                 setIsLoading(false);
             }
         } catch (error: any) {
@@ -158,70 +181,112 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
         return (
             <form onSubmit={handleSubmit}>
                 <div className="p-6">
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Make a Payment</h3>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        Enter your details to initiate an M-Pesa STK push.
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Make a Payment</h3>
+                    <p className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                        Choose your preferred provider and enter details.
                     </p>
 
-                    <div className="mt-6 space-y-4">
+                    <div className="mt-6 space-y-6">
                         <div>
-                            <label htmlFor="payerName" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Your Name</label>
+                            <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Choose Payment Provider</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('mpesa')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'mpesa' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <MpesaIcon className="w-6 h-6" />
+                                    <span className="text-[10px] font-black uppercase">M-Pesa</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('ncba')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center text-white text-[10px] font-black shadow-lg">N</div>
+                                    <span className="text-[10px] font-black uppercase">NCBA Bank</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('airtel')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'airtel' ? 'border-red-600 bg-red-50/50 dark:bg-red-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white text-[10px] font-black shadow-lg">A</div>
+                                    <span className="text-[10px] font-black uppercase">Airtel</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setProvider('intasend')}
+                                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'intasend' ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-900/20' : 'border-slate-100 dark:border-slate-700'}`}
+                                >
+                                    <div className="w-8 h-8 bg-emerald-600 rounded flex items-center justify-center text-white text-[10px] font-black shadow-lg">IS</div>
+                                    <span className="text-[10px] font-black uppercase">IntaSend</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="payerName" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">Your Name</label>
                             <input
                                 type="text"
                                 id="payerName"
                                 value={payerName}
                                 onChange={(e) => setPayerName(e.target.value)}
-                                className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
                                 placeholder="e.g., Jane Doe"
                                 required
                             />
                         </div>
                         <div>
-                            <label htmlFor="phoneNumber" className="block text-sm font-medium text-slate-700 dark:text-slate-300">M-Pesa Phone Number</label>
+                            <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
                             <input
                                 type="tel"
                                 id="phoneNumber"
                                 value={phoneNumber}
                                 onChange={(e) => setPhoneNumber(e.target.value)}
-                                className="mt-1 shadow-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] block w-full sm:text-sm border-slate-300 rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
                                 placeholder="e.g., 254712345678"
                                 required
                                 pattern="^(254)\d{9}$"
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Select Plan</label>
-                            <div className="mt-2 grid grid-cols-2 gap-3">
-                                <label className={`relative block cursor-pointer rounded-lg border p-4 focus:outline-none ${selectedPlan === 'monthly' ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]' : 'border-slate-300 dark:border-slate-600'}`}>
-                                    <input type="radio" name="plan-choice" value="monthly" className="sr-only" checked={selectedPlan === 'monthly'} onChange={() => setSelectedPlan('monthly')} />
-                                    <span className="text-sm font-medium text-slate-900 dark:text-white">Monthly</span>
-                                    <span className="mt-1 flex items-center text-sm text-slate-500 dark:text-slate-400">KES {monthlyPrice.toLocaleString()}</span>
-                                </label>
-                                <label className={`relative block cursor-pointer rounded-lg border p-4 focus:outline-none ${selectedPlan === 'yearly' ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]' : 'border-slate-300 dark:border-slate-600'}`}>
-                                    <input type="radio" name="plan-choice" value="yearly" className="sr-only" checked={selectedPlan === 'yearly'} onChange={() => setSelectedPlan('yearly')} />
-                                    <span className="text-sm font-medium text-slate-900 dark:text-white">Yearly</span>
-                                    <span className="mt-1 flex items-center text-sm text-slate-500 dark:text-slate-400">KES {yearlyPrice.toLocaleString()}</span>
-                                </label>
+                        {selectedPlan !== 'forced' && (
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">Select Plan</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'monthly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                        <input type="radio" name="plan-choice" value="monthly" className="sr-only" checked={selectedPlan === 'monthly'} onChange={() => setSelectedPlan('monthly')} />
+                                        <span className="text-xs font-black uppercase block">Monthly</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {monthlyPrice.toLocaleString()}</span>
+                                    </label>
+                                    <label className={`relative block cursor-pointer rounded-2xl border-2 p-4 transition-all ${selectedPlan === 'yearly' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700'}`}>
+                                        <input type="radio" name="plan-choice" value="yearly" className="sr-only" checked={selectedPlan === 'yearly'} onChange={() => setSelectedPlan('yearly')} />
+                                        <span className="text-xs font-black uppercase block">Yearly</span>
+                                        <span className="mt-1 text-sm font-black text-indigo-600">KES {yearlyPrice.toLocaleString()}</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row-reverse gap-3">
                     <button
                         type="submit"
-                        className="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                        className="flex-1 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-4 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
-                        <MpesaIcon className="w-5 h-5 mr-2 -ml-1" />
-                        Pay KES {selectedPlan === 'monthly' ? monthlyPrice.toLocaleString() : yearlyPrice.toLocaleString()}
+                        {provider === 'mpesa' && <MpesaIcon className="w-5 h-5" />}
+                        {provider === 'airtel' && <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white text-[7px] font-black">A</div>}
+                        {provider === 'intasend' && <div className="w-5 h-5 bg-emerald-600 rounded flex items-center justify-center text-white text-[7px] font-black">IS</div>}
+                        PAY KES {(selectedPlan === 'monthly' ? monthlyPrice : selectedPlan === 'yearly' ? yearlyPrice : forceAmount || 0).toLocaleString()}
                     </button>
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="mt-3 w-full inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-800 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                        className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-500 font-black rounded-2xl border-2 border-slate-100 dark:border-slate-700 transition-all hover:bg-slate-50 active:scale-[0.98]"
                     >
-                        Cancel
+                        CANCEL
                     </button>
                 </div>
             </form>

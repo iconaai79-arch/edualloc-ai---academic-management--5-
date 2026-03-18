@@ -469,7 +469,11 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                     yearlyPrice={yearlyPrice + ((subscriptionConfig.libraryCostPerStudent || 0) * activeLibraryStudents * 12) + ((subscriptionConfig.boardingCostPerStudent || 0) * activeBoardingStudents * 12) + ((subscriptionConfig.transportCostPerStudent || 0) * activeTransportStudents * 12)}
                     onPay={handlePayNow}
                     institutionName={institution.name}
-                    companyDetails={companyDetails}
+                    institutionId={institution.id}
+                    mpesaConfig={institution.mpesaConfig || companyDetails.mpesaConfig!}
+                    airtelMoneyConfig={institution.airtelMoneyConfig || (companyDetails as any).airtelMoneyConfig}
+                    intasendConfig={institution.intasendConfig || (companyDetails as any).intasendConfig}
+                    ncbaConfig={institution.ncbaConfig || (companyDetails as any).ncbaConfig}
                 />
             )}
         </div>
