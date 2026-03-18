@@ -1939,6 +1939,31 @@ export const App: React.FC = () => {
         />
     );
     if (isSchemaInitializationRequired) return <SchemaInitializationView onComplete={() => loadData(true)} />;
+    
+    // Safety guard: ensure activeInstitution is loaded for institution-dependent roles
+    const isInstitutionRole = currentUser && !['super_admin', 'county_admin'].includes(activeRole || '') && !activeRole?.startsWith('county_');
+
+    if (isInstitutionRole && !activeInstitution && institutions.length > 0) {
+        // We have data but didn't find the institution. This might be a tenancy sync issue or a deleted institution.
+        return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+                <ShieldExclamationIcon className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
+                <h2 className="text-white text-xl font-black uppercase tracking-widest mb-2">Workspace Conflict</h2>
+                <p className="text-slate-400 text-sm max-w-md mb-8">
+                    Your account is associated with a workspace that cannot be found or accessed. 
+                    Please verify your credentials or contact system support.
+                </p>
+                <button onClick={handleLogout} className="bg-white text-slate-900 px-8 py-3 rounded-2xl font-black uppercase transition-all hover:scale-105 active:scale-95">
+                    Terminal Shutdown (Logout)
+                </button>
+            </div>
+        );
+    }
+    
+    if (isInstitutionRole && !activeInstitution) {
+        return <SystemPulseLoader message="Workspace Synchronizing..." status="Fetching Registry Identity from Cloud Hub" />;
+    }
+
 
     if (currentUser && activeRole !== 'super_admin' && !currentUser.isImpersonated) {
         const inst = institutions.find(i => i.id === currentUser.institutionId);

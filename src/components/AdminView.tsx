@@ -782,7 +782,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                 {activeTab === 'retail' && (
                     <RetailManager
-                        institutionId={props.currentInstitution!.id!}
+                        institutionId={props.currentInstitution?.id || ''}
                         businessSubType={props.currentInstitution?.businessSubType}
                         currentUser={props.currentUser}
                         retailStores={retailStores}
@@ -865,7 +865,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     <div className="animate-fade-in-up">
                         {isRetailAgency ? (
                             <RetailReportsDashboard
-                                institutionId={props.currentInstitution!.id!}
+                                institutionId={props.currentInstitution?.id || ''}
                                 users={props.users || []}
                             />
                         ) : (
