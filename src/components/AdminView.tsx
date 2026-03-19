@@ -315,6 +315,21 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [isPerspectiveModalOpen, setIsPerspectiveModalOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+    const [hasSetDefaultTab, setHasSetDefaultTab] = useState(false);
+
+    useEffect(() => {
+        if (!hasSetDefaultTab && props.currentUser?.role) {
+            const role = props.activeRole || props.currentUser.role;
+            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin') {
+                setActiveTab('coop');
+            } else if (role === 'agrovet_admin') {
+                setActiveTab('agrovet');
+            } else if (role === 'sacco_officer') {
+                setActiveTab('sacco');
+            }
+            setHasSetDefaultTab(true);
+        }
+    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab]);
 
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
