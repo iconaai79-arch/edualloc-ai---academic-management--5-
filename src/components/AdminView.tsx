@@ -307,7 +307,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     } = props;
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -324,8 +324,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     useEffect(() => {
         if (!hasSetDefaultTab && props.currentUser?.role) {
             const role = props.activeRole || props.currentUser.role;
-            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin') {
-                setActiveTab('coop');
+            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin' || (institutionType as any) === 'Cooperative') {
+                setActiveTab('farmers');
             } else if (role === 'agrovet_admin' || institutionType === 'Agrovet' || businessSubType === 'Agrovet') {
                 setActiveTab('agrovet');
             } else if (role === 'sacco_officer' || institutionType === 'SACCO' || businessSubType === 'SACCO') {
@@ -376,11 +376,28 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
+        if ((institutionType as any) === 'Cooperative') {
+            return [
+                { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
+                { id: 'farmers', label: 'Farmers', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'collections', label: 'Collections', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
+                { id: 'riders', label: 'Logistics', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+                { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
+                { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
+                { id: 'payouts', label: 'Payouts', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'finances', label: 'Finances', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'approvals', label: 'Approvals', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout'].includes(tab.id)) {
+            if (['timetable', 'courses', 'leaveout', 'users'].includes(tab.id)) {
+                if (tab.id === 'users' && ((institutionType as any) === 'Cooperative' || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
                 return isEdu;
             }
 
@@ -415,9 +432,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             }
 
             // Specialized modules
-            if (tab.id === 'coop') return institutionType === 'Cooperative';
-            if (tab.id === 'sacco') return institutionType === 'SACCO' || institutionType === 'Cooperative';
-            if (tab.id === 'agrovet') return institutionType === 'Agrovet' || institutionType === 'Cooperative';
+            if (tab.id === 'coop') return false; // Handled by specialized tabs for Coop
+            if (tab.id === 'sacco') return institutionType === 'SACCO';
+            if (tab.id === 'agrovet') return institutionType === 'Agrovet';
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
 
             return true;
@@ -857,30 +874,65 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'coop' && (
-                    <CooperativeManager
-                        farmers={coopFarmers}
-                        collections={coopCollections}
-                        riders={coopRiders}
-                        currentUser={props.currentUser}
-                        inventory={coopAgrovetInventory}
-                        sales={coopAgrovetSales}
-                        saccoAccounts={saccoAccounts}
-                        payouts={coopPayouts}
-                        expenses={coopExpenses}
-                        income={coopIncome}
-                        onAddFarmer={props.onAddFarmer || (async () => { })}
-                        onLogCollection={props.onLogCollection || (async () => { })}
-                        onAddRider={props.onAddRider || (async () => { })}
-                        onConfirmCollection={props.onConfirmCollection}
-                        onApproveCollection={props.onApproveCollection}
-                        onAddExpense={props.onAddCoopExpense}
-                        onAddIncome={props.onAddCoopIncome}
-                        onLogAction={props.onLogAction}
-                        onInitiatePayouts={props.onInitiatePayouts}
-                        onApprovePayouts={props.onApprovePayouts}
-                    />
-                )}
+                {(() => {
+                    const coopTabMap: Record<string, string> = {
+                        'farmers': 'farmers',
+                        'collections': 'collections',
+                        'riders': 'logistics',
+                        'agrovet': 'agrovet',
+                        'sacco': 'sacco',
+                        'payouts': 'payouts',
+                        'finances': 'finances',
+                        'approvals': 'approvals',
+                        'reports': 'reports',
+                        'coop': 'farmers'
+                    };
+
+                    const isCoopTab = (institutionType as any) === 'Cooperative' && activeTab in coopTabMap;
+                    
+                    if (isCoopTab || activeTab === 'coop') {
+                        return (
+                            <CooperativeManager
+                                farmers={coopFarmers}
+                                collections={coopCollections}
+                                riders={coopRiders}
+                                currentUser={props.currentUser}
+                                inventory={coopAgrovetInventory}
+                                sales={coopAgrovetSales}
+                                saccoAccounts={saccoAccounts}
+                                payouts={coopPayouts}
+                                expenses={coopExpenses}
+                                income={coopIncome}
+                                onAddFarmer={props.onAddFarmer || (async () => { })}
+                                onLogCollection={props.onLogCollection || (async () => { })}
+                                onAddRider={props.onAddRider || (async () => { })}
+                                onConfirmCollection={props.onConfirmCollection}
+                                onApproveCollection={props.onApproveCollection}
+                                onAddExpense={props.onAddCoopExpense}
+                                onAddIncome={props.onAddCoopIncome}
+                                onLogAction={props.onLogAction}
+                                onInitiatePayouts={props.onInitiatePayouts}
+                                onApprovePayouts={props.onApprovePayouts}
+                                activeTab={coopTabMap[activeTab] as any}
+                                onTabChange={(tab) => {
+                                    const reverseMap: Record<string, string> = {
+                                        'farmers': 'farmers',
+                                        'collections': 'collections',
+                                        'logistics': 'riders',
+                                        'agrovet': 'agrovet',
+                                        'sacco': 'sacco',
+                                        'payouts': 'payouts',
+                                        'finances': 'finances',
+                                        'approvals': 'approvals',
+                                        'reports': 'reports'
+                                    };
+                                    if (reverseMap[tab]) setActiveTab(reverseMap[tab] as any);
+                                }}
+                            />
+                        );
+                    }
+                    return null;
+                })()}
 
                 {activeTab === 'car_service' && (
                     <CarServiceView
@@ -891,7 +943,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'sacco' && (
+                {activeTab === 'sacco' && institutionType !== 'Cooperative' && (
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
                         <CreditCardIcon className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
                         <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">SACCO Portal</h2>
@@ -899,7 +951,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     </div>
                 )}
 
-                {activeTab === 'agrovet' && (
+                {activeTab === 'agrovet' && institutionType !== 'Cooperative' && (
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
                         <BeakerIcon className="w-16 h-16 text-green-600 mb-4 animate-pulse" />
                         <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Agrovet Module</h2>
@@ -973,7 +1025,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'reports' && (
+                {activeTab === 'reports' && (institutionType as any) !== 'Cooperative' && (
                     <div className="animate-fade-in-up">
                         {isRetailAgency ? (
                             <RetailReportsDashboard

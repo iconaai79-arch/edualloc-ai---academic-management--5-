@@ -53,6 +53,8 @@ interface CooperativeManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    activeTab?: 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports';
+    onTabChange?: (tab: string) => void;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -75,9 +77,18 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddIncome,
     onLogAction,
     onInitiatePayouts,
-    onApprovePayouts
+    onApprovePayouts,
+    activeTab: externalActiveTab,
+    onTabChange
 }) => {
-    const [activeSubTab, setActiveSubTab] = useState<'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('farmers');
+    const [localActiveSubTab, setLocalActiveSubTab] = useState<'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('farmers');
+    
+    const activeSubTab = externalActiveTab || localActiveSubTab;
+    const setActiveSubTab = (tab: any) => {
+        if (onTabChange) onTabChange(tab);
+        else setLocalActiveSubTab(tab);
+    };
+
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
     const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
     const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
