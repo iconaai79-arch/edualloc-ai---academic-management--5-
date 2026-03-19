@@ -317,19 +317,25 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
     const [hasSetDefaultTab, setHasSetDefaultTab] = useState(false);
 
+    const institutionType = props.currentInstitution?.institutionType;
+    const businessSubType = props.currentInstitution?.businessSubType;
+    const isBusiness = institutionType === 'Business';
+
     useEffect(() => {
         if (!hasSetDefaultTab && props.currentUser?.role) {
             const role = props.activeRole || props.currentUser.role;
             if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin') {
                 setActiveTab('coop');
-            } else if (role === 'agrovet_admin') {
+            } else if (role === 'agrovet_admin' || institutionType === 'Agrovet' || businessSubType === 'Agrovet') {
                 setActiveTab('agrovet');
-            } else if (role === 'sacco_officer') {
+            } else if (role === 'sacco_officer' || institutionType === 'SACCO' || businessSubType === 'SACCO') {
                 setActiveTab('sacco');
+            } else if (role === 'mechanic_admin' || (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic'))) {
+                setActiveTab('car_service');
             }
             setHasSetDefaultTab(true);
         }
-    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab]);
+    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution]);
 
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
@@ -370,10 +376,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        const institutionType = props.currentInstitution?.institutionType;
-        const businessSubType = props.currentInstitution?.businessSubType;
-        const isBusiness = institutionType === 'Business';
-
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
@@ -412,11 +414,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 return roleToUse === 'super_admin';
             }
 
+            // Specialized modules
+            if (tab.id === 'coop') return institutionType === 'Cooperative';
+            if (tab.id === 'sacco') return institutionType === 'SACCO' || institutionType === 'Cooperative';
+            if (tab.id === 'agrovet') return institutionType === 'Agrovet' || institutionType === 'Cooperative';
+            if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
+
             return true;
         });
 
         return filteredTabs;
-    }, [props.currentUser?.role, props.currentInstitution?.institutionType, props.currentInstitution?.businessSubType, isSchool]);
+    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;

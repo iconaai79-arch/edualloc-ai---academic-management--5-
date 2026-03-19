@@ -453,7 +453,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     >
                                                         <option value="">-- Select Business Type --</option>
                                                         <option value="Car Wash">Car Wash</option>
+                                                        <option value="Car Service">Car Service / Mechanic</option>
                                                         <option value="Agrovet">Agrovet</option>
+                                                        <option value="SACCO">SACCO / Credit Union</option>
                                                         <option value="Property Management">Property Management</option>
                                                         <option value="Salon/Kinyozi">Salon / Kinyozi</option>
                                                         <option value="Pharmacy">Pharmacy</option>
