@@ -282,7 +282,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         switch (activeModule) {
                             case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
-                            case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} />;
+                            case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'dental': return <DentalView />;
                             case 'eye': return <OphthalmologyView />;
                             case 'billing': return <HISBillingView />;

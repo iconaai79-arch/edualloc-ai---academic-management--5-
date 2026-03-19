@@ -17,9 +17,10 @@ interface LabDiagnosticsViewProps {
     institutionId?: string;
     activeRole?: string;
     userName?: string;
+    activePatientId?: string | null;
 }
 
-export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institutionId, activeRole, userName }) => {
+export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institutionId, activeRole, userName, activePatientId }) => {
     const isLabTech = activeRole === 'admin' || activeRole === 'staff'; // Or specialized role
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -169,15 +170,30 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
                 </div>
             </div>
 
-            <AddLabRequestModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} onAdd={async (data: any) => {
-                try {
-                    await apiService.saveModuleRecord('his_lab_requests', { ...data, institutionId, requestedBy: userName || 'DR. JANE', id: `lab_${Date.now()}` });
-                    setIsRequestModalOpen(false);
-                    fetchLabs();
-                } catch (error: any) {
-                    alert(`Submission failed: ${error.message || 'Unknown error'}`);
-                }
-            }} />
+            <AddLabRequestModal 
+                isOpen={isRequestModalOpen} 
+                onClose={() => setIsRequestModalOpen(false)} 
+                activePatientId={activePatientId}
+                onAdd={async (data: any) => {
+                    try {
+                        if (!activePatientId && !data.patientId) {
+                            alert("Please select a patient first in the Patient 360 view.");
+                            return;
+                        }
+                        await apiService.saveModuleRecord('his_lab_requests', { 
+                            ...data, 
+                            patientId: data.patientId || activePatientId,
+                            institutionId, 
+                            requestedBy: userName || 'DR. JANE', 
+                            id: `lab_${Date.now()}` 
+                        });
+                        setIsRequestModalOpen(false);
+                        fetchLabs();
+                    } catch (error: any) {
+                        alert(`Submission failed: ${error.message || 'Unknown error'}`);
+                    }
+                }} 
+            />
 
             <UpdateLabResultModal isOpen={isResultModalOpen} onClose={() => setIsResultModalOpen(false)} request={selectedRequest} onUpdate={async (data: any) => {
                 try {
@@ -207,8 +223,14 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
 };
 
 // Internal Modals for Speed (Wait! I'll break them out for clarity)
-const AddLabRequestModal = ({ isOpen, onClose, onAdd }: any) => {
-    const [formData, setFormData] = useState({ testType: 'Full Blood Count (FBC)', priority: 'Routine', clinicalNotes: '', patientId: 'p_12345' });
+const AddLabRequestModal = ({ isOpen, onClose, onAdd, activePatientId }: any) => {
+    const [formData, setFormData] = useState({ testType: 'Full Blood Count (FBC)', priority: 'Routine', clinicalNotes: '', patientId: activePatientId || '' });
+
+    useEffect(() => {
+        if (activePatientId) {
+            setFormData(prev => ({ ...prev, patientId: activePatientId }));
+        }
+    }, [activePatientId]);
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-8 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
