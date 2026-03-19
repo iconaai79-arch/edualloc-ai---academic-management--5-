@@ -534,7 +534,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             </div>
 
             <main className="animate-fade-in">
-                {activeTab === 'dashboard' && (
+                {activeTab === 'dashboard' && !isCoop && (
                     <div className="space-y-6">
                         {isEdu && stats.totalActionable > 0 && (
                             <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 p-6 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in-up">
@@ -889,6 +889,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                 {(() => {
                     const coopTabMap: Record<string, string> = {
+                        'dashboard': 'overview',
                         'farmers': 'farmers',
                         'collections': 'collections',
                         'riders': 'logistics',

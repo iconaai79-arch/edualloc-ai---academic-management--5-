@@ -53,7 +53,7 @@ interface CooperativeManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
-    activeTab?: 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports';
+    activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports';
     onTabChange?: (tab: string) => void;
 }
 
@@ -81,7 +81,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     activeTab: externalActiveTab,
     onTabChange
 }) => {
-    const [localActiveSubTab, setLocalActiveSubTab] = useState<'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('farmers');
+    const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('overview');
     
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
@@ -195,6 +195,184 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
             {/* Main Content Area */}
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[500px]">
+                {activeSubTab === 'overview' && (
+                    <div className="p-8 animate-fade-in">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                            <div>
+                                <h1 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white mb-2 uppercase">Cooperative Hub</h1>
+                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Unified Operations & Financial Control</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-right hidden sm:block">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Date</p>
+                                    <p className="text-xs font-black text-indigo-600">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                </div>
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                                    <ReportsIcon className="w-6 h-6 text-indigo-600" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top Stats Overview */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600">
+                                        <FarmerIcon className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Farmers</span>
+                                </div>
+                                <p className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">{farmers.length}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600">
+                                        <CollectionIcon className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Intake Records</span>
+                                </div>
+                                <p className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">{collections.length}</p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 group hover:border-indigo-500 transition-all">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600">
+                                        <LogisticsIcon className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Riders</span>
+                                </div>
+                                <p className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">{riders.length}</p>
+                            </div>
+                            <div className="bg-indigo-600 p-6 rounded-[2rem] shadow-xl shadow-indigo-500/10 group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-3 bg-white/10 rounded-2xl text-white">
+                                        <FinanceIcon className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Cash Position</span>
+                                </div>
+                                <p className="text-2xl font-black tracking-tighter text-white">
+                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Operational Shortcuts */}
+                            <div className="lg:col-span-2 space-y-8">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-3">
+                                        <PlusIcon className="w-5 h-5 text-indigo-500" />
+                                        Quick Operations
+                                    </h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <button 
+                                            onClick={() => setActiveSubTab('farmers')}
+                                            className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-transparent hover:border-indigo-500 transition-all group text-left"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600">
+                                                <FarmerIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-black text-xs uppercase tracking-tight block">Manage Farmers</span>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-0.5">Registry & Profiles</p>
+                                            </div>
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveSubTab('collections')}
+                                            className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-transparent hover:border-emerald-500 transition-all group text-left"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600">
+                                                <CollectionIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-black text-xs uppercase tracking-tight block">Intake Logistics</span>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-0.5">Daily Intake Logs</p>
+                                            </div>
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveSubTab('payouts')}
+                                            className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-transparent hover:border-amber-500 transition-all group text-left"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600">
+                                                <PayoutIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-black text-xs uppercase tracking-tight block">Payout Settlements</span>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-0.5">Farmer Payments</p>
+                                            </div>
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveSubTab('reports')}
+                                            className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-transparent hover:border-indigo-500 transition-all group text-left"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600">
+                                                <ReportsIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <span className="font-black text-xs uppercase tracking-tight block">Yield Analytics</span>
+                                                <p className="text-[10px] text-slate-500 uppercase mt-0.5">Operational Data</p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Recent Collections Snapshot */}
+                                <div className="bg-slate-50 dark:bg-slate-900/50 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800">
+                                    <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-3">
+                                        <CollectionIcon className="w-5 h-5 text-indigo-500" />
+                                        Recent Deliveries
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {collections.slice(0, 5).map(col => (
+                                            <div key={col.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center font-black text-slate-400 text-xs">
+                                                        {getFarmerName(col.farmerId)?.substring(0, 2)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getFarmerName(col.farmerId)}</p>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{col.collectionDate}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs font-black text-indigo-600">{col.quantity} {col.unit}</p>
+                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${col.approvalStatus === 'approved' || col.factoryConfirmed ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                                        {col.approvalStatus || (col.factoryConfirmed ? 'confirmed' : 'pending')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Activity Feed / Mini Ledger */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-10">
+                                    <FinanceIcon className="w-32 h-32" />
+                                </div>
+                                <h3 className="text-sm font-black uppercase tracking-widest mb-8 relative z-10">Latest Cashflow</h3>
+                                <div className="space-y-6 relative z-10">
+                                    {[...income.map(i => ({...i, type: 'income'})), ...expenses.map(e => ({...e, type: 'expense'}))]
+                                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                        .slice(0, 10)
+                                        .map((item, idx) => (
+                                            <div key={idx} className="flex items-start gap-4">
+                                                <div className={`mt-1 w-2 h-2 rounded-full ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-center mb-0.5">
+                                                        <p className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight">{(item as any).companyName || (item as any).description}</p>
+                                                        <p className={`text-[10px] font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            {item.type === 'income' ? '+' : '-'} {item.amount.toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.date}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 {activeSubTab === 'farmers' && (
                     <div className="p-8">
                         <div className="flex items-center justify-between mb-8">
