@@ -373,6 +373,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             </div>
                         </div>
                     </div>
+                )}
                 {activeSubTab === 'farmers' && (
                     <div className="p-8">
                         <div className="flex items-center justify-between mb-8">
