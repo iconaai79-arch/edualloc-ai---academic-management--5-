@@ -176,6 +176,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [showPaperPreview, setShowPaperPreview] = useState(false);
 
     const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+    const isEdu = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+    }, [props.currentInstitution]);
 
     // External tab navigation sync
     useEffect(() => {
@@ -616,7 +620,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
-            if (!isRetailAgency) {
+            if (!isRetailAgency && isEdu) {
                 tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
@@ -626,7 +630,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         }
 
         return tabs;
-    }, [props.currentUser.role, isSchool, isSuperAdmin]);
+    }, [props.currentUser.role, isSchool, isEdu, isSuperAdmin, isRetailAgency]);
 
     const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 

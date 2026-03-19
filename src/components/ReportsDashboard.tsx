@@ -246,6 +246,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
     } = props;
 
     const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+    const isEdu = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+    }, [currentInstitution]);
 
     const [subTab, setSubTab] = useState('visuals');
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
@@ -450,13 +454,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         { key: 'advisory', label: 'Room Advisory Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
         { key: 'audit', label: 'Audit Trail of Changes', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'conflicts', label: 'Conflict Report', icon: <ExclamationTriangleIcon className="w-5 h-5 mr-3" /> },
-        { key: 'attendance', label: isRetailAgency ? 'Staff Clock-In Reports' : 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
+        { key: 'attendance', label: (isRetailAgency || !isEdu) ? 'Staff Clock-In Reports' : 'Attendance Reports', icon: <ClipboardListIcon className="w-5 h-5 mr-3" /> },
         { key: 'assessments', label: 'Assessment Reports', icon: <AcademicCapIcon className="w-5 h-5 mr-3" /> },
         { key: 'exam_timetable', label: 'Exam Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'generated_timetable', label: 'Generated Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-3" /> },
         { key: 'patterns', label: 'Behavioral Analytics', icon: <TrendingUpIcon className="w-5 h-5 mr-3" /> },
     ].filter(tab => {
-        if (isRetailAgency) {
+        if (isRetailAgency || !isEdu) {
             const allowed = ['visuals', 'stats', 'audit', 'attendance', 'patterns'];
             return allowed.includes(tab.key);
         }

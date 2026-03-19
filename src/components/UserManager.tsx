@@ -868,6 +868,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     }, [activeTab]);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isEdu = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+    }, [currentInstitution]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
@@ -1050,7 +1054,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         <button onClick={() => { activeTab === 'staff' ? setIsImportModalOpen(true) : fileInputRef.current?.click() }} className="btn-secondary flex items-center gap-2">
                             <ArrowUpTrayIcon className="w-5 h-5" /> Import
                         </button>
-                        {activeTab === 'student' && canManageUserRecords && (
+                        {isEdu && activeTab === 'student' && canManageUserRecords && (
                             <button onClick={() => setIsPromoteModalOpen(true)} className="btn-secondary flex items-center gap-2 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300">
                                 <AcademicCapIcon className="w-5 h-5" /> Promote Students
                             </button>
@@ -1250,7 +1254,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </span>
                         </button>
                     )}
-                    {!isRetailAgency && (!showOnly || showOnly === 'student') && (
+                    {!isRetailAgency && isEdu && (!showOnly || showOnly === 'student') && (
                         <button
                             onClick={() => setActiveTab('student')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
@@ -1351,7 +1355,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                     Parents
                                                 </button>
                                             )}
-                                            {(u.role === 'teacher' || u.role === 'lecturer' || u.role === 'head_teacher' || u.role === 'dos') && (
+                                            {isEdu && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'head_teacher' || u.role === 'dos') && (
                                                 <button
                                                     onClick={() => setManagingLessonsFor(u)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-indigo-900/30 dark:text-emerald-300 rounded-md text-xs font-bold transition-all"

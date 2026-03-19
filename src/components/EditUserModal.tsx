@@ -25,6 +25,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
 
   const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+  const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(currentInstitution?.institutionType || '');
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
 
   useEffect(() => {
@@ -156,10 +157,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                   <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : 'Staff / Student ID'}</label>
                   <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} required />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : 'Expertise / Skills (comma separated)'}</label>
-                  <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} required={user.role !== 'student'} />
-                </div>
+                {(isEdu || isRetailAgency) && (
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : 'Expertise / Skills (comma separated)'}</label>
+                    <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} required={user.role !== 'student'} />
+                  </div>
+                )}
                 {roles.includes('driver') && (
                   <div>
                     <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Driver Type</label>
@@ -194,7 +197,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">
