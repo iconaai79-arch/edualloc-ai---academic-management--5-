@@ -10,7 +10,8 @@ import type {
     VoteHead, FeeStructure, FinancialPeriod, ExamTimetableEntry, BusinessDocument,
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
-    Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification
+    Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
+    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -1421,5 +1422,124 @@ export const apiService = {
             console.error("Clear Institutional Data Exception:", e);
             throw e;
         }
+    },
+    async fetchSecurityAlerts(institutionId: string): Promise<SecurityAlert[]> {
+        return this.fetchModuleRecords('security_alerts', institutionId);
+    },
+    async fetchCoopFarmers(institutionId?: string): Promise<CoopFarmer[]> {
+        return this.fetchModuleRecords('coop_farmers', institutionId);
+    },
+    async saveCoopFarmer(data: Partial<CoopFarmer>): Promise<void> {
+        await this.saveModuleRecord('coop_farmers', data);
+    },
+    async fetchCoopCollections(institutionId?: string): Promise<CoopCollection[]> {
+        return this.fetchModuleRecords('coop_collections', institutionId);
+    },
+    async saveCoopCollection(data: Partial<CoopCollection>): Promise<void> {
+        await this.saveModuleRecord('coop_collections', data);
+    },
+    async fetchCoopRiders(institutionId?: string): Promise<CoopRider[]> {
+        return this.fetchModuleRecords('coop_riders', institutionId);
+    },
+    async saveCoopRider(data: Partial<CoopRider>): Promise<void> {
+        await this.saveModuleRecord('coop_riders', data);
+    },
+    async fetchCoopAgrovetInventory(institutionId?: string): Promise<CoopAgrovetInventory[]> {
+        return this.fetchModuleRecords('coop_agrovet_inventory', institutionId);
+    },
+    async fetchCoopAgrovetSales(institutionId?: string): Promise<CoopAgrovetSales[]> {
+        return this.fetchModuleRecords('coop_agrovet_sales', institutionId);
+    },
+    async saveCoopAgrovetSale(data: Partial<CoopAgrovetSales>): Promise<void> {
+        await this.saveModuleRecord('coop_agrovet_sales', data);
+    },
+    async fetchSaccoAccounts(institutionId?: string): Promise<SaccoAccount[]> {
+        return this.fetchModuleRecords('sacco_accounts', institutionId);
+    },
+    async fetchSaccoTransactions(institutionId?: string): Promise<SaccoTransaction[]> {
+        return this.fetchModuleRecords('sacco_transactions', institutionId);
+    },
+    async fetchCoopMonthlyPayouts(institutionId?: string): Promise<CoopMonthlyPayout[]> {
+        return this.fetchModuleRecords('coop_monthly_payouts', institutionId);
+    },
+    async fetchCoopExpenses(institutionId?: string): Promise<CoopExpense[]> {
+        return this.fetchModuleRecords('coop_expenses', institutionId);
+    },
+    async saveCoopExpense(data: Partial<CoopExpense>): Promise<void> {
+        await this.saveModuleRecord('coop_expenses', data);
+    },
+    async fetchCoopIncome(institutionId?: string): Promise<CoopIncome[]> {
+        return this.fetchModuleRecords('coop_income', institutionId);
+    },
+    async saveCoopIncome(data: Partial<CoopIncome>): Promise<void> {
+        await this.saveModuleRecord('coop_income', data);
+    },
+    async confirmCoopCollection(id: string, finalQuantity: number, confirmedBy: string): Promise<void> {
+        const collections = await this.fetchCoopCollections();
+        const collection = collections.find(c => c.id === id);
+        if (!collection) throw new Error("Collection not found");
+
+        const hasDiscrepancy = finalQuantity !== collection.quantity;
+        const update: Partial<CoopCollection> = {
+            id,
+            finalQuantity,
+            factoryConfirmed: true,
+            confirmedBy,
+            confirmedAt: new Date().toISOString(),
+            requiresApproval: hasDiscrepancy,
+            approvalStatus: hasDiscrepancy ? 'pending' : 'approved',
+            smsStatus: 'pending'
+        };
+
+        await this.saveModuleRecord('coop_collections', update);
+        
+        // If no discrepancy, we can trigger SMS immediately (or let the caller do it)
+        if (!hasDiscrepancy) {
+            // SMS logic would go here or in App/Component
+        }
+    },
+    async approveCoopCollection(id: string, approvedBy: string, status: 'approved' | 'rejected'): Promise<void> {
+        const update: Partial<CoopCollection> = {
+            id,
+            approvalStatus: status,
+            approvedBy,
+            approvedAt: new Date().toISOString(),
+            smsStatus: status === 'approved' ? 'pending' : 'failed'
+        };
+        await this.saveModuleRecord('coop_collections', update);
+    },
+    async updatePayoutStatus(id: string, status: 'initiated' | 'approved' | 'paid' | 'rejected', userId: string): Promise<void> {
+        const update: any = {
+            id,
+            status,
+            updatedAt: new Date().toISOString()
+        };
+        if (status === 'initiated') {
+            update.initiatedBy = userId;
+            update.initiatedAt = new Date().toISOString();
+        } else if (status === 'approved') {
+            update.approvedBy = userId;
+            update.approvedAt = new Date().toISOString();
+        } else if (status === 'paid') {
+            update.paidAt = new Date().toISOString();
+        }
+        await this.saveModuleRecord('coop_monthly_payouts', update);
+    },
+    async disburseBulkMpesa(ids: string[], userId: string): Promise<any> {
+        // Simulate M-Pesa B2C API Call
+        console.log(`[MPESA SIMULATION] Processing bulk disbursement for ${ids.length} farmers...`);
+        
+        // Wait for 1.5 seconds to simulate API latency
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Update all payouts to 'paid' status
+        await Promise.all(ids.map(id => this.updatePayoutStatus(id, 'paid', userId)));
+
+        return {
+            success: true,
+            transactionId: `MP_${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+            count: ids.length,
+            timestamp: new Date().toISOString()
+        };
     }
 };

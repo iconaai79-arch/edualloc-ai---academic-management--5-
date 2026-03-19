@@ -903,6 +903,10 @@ Please change it after login.`;
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
         { role: 'carwash_admin', label: 'Car Wash Module', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-400' },
         { role: 'his_admin', label: 'Health System', icon: <SparklesIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
+        { role: 'cooperative_manager', label: 'Cooperative Module', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'coop_chairman', label: 'Coop Chairman (Approvals)', icon: <ApprovalIcon className="w-5 h-5 text-indigo-600" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'farmer', label: 'Farmer Portal', icon: <FarmerIcon className="w-5 h-5 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-600' },
+        { role: 'rider', label: 'Rider Portal', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
         const instType = selectedTenantForPerspective?.institutionType;
@@ -914,8 +918,13 @@ Please change it after login.`;
         }
 
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin'].includes(opt.role);
+            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider'].includes(opt.role);
         }
+
+        if (instType === 'Cooperative') {
+            return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'agrovet_admin', 'marketplace'].includes(opt.role);
+        }
+
         return true;
     });
 

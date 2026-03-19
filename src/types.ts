@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider';
 
 
 export interface Unavailability {
@@ -35,6 +35,7 @@ export interface User {
     countyId?: string;
     isImpersonated?: boolean;
     vehicleId?: string;
+    farmerId?: string;
     driverType?: 'staff' | 'private';
     smsBalance?: number;
     subscriptionStatus?: 'active' | 'expired' | 'none';
@@ -104,7 +105,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -1876,7 +1877,7 @@ export interface CarWashSettings {
 // ============================================================================
 
 export type AgrovetSaleStatus = 'pending' | 'completed' | 'cancelled';
-export type AgrovetPaymentMethod = 'cash' | 'mpesa' | 'credit';
+export type AgrovetPaymentMethod = 'cash' | 'mpesa' | 'credit' | 'credit_deduction';
 export type AgrovetUnitType = 'kg' | 'packet' | 'litres' | 'grams' | 'bottle' | 'bag' | 'dozen';
 
 export interface AgrovetProduct {
@@ -2664,4 +2665,140 @@ export interface RepairOrder {
     createdAt: string;
     updatedAt: string;
     completedAt?: string;
+}
+
+// --- Agricultural Modules Models ---
+
+export interface CoopFarmer {
+    id: string;
+    institutionId: string;
+    name: string;
+    phone: string;
+    email?: string;
+    accountNumber: string;
+    kraPin?: string;
+    nationalId?: string;
+    location?: string;
+    status: 'active' | 'inactive';
+    joinedAt: string;
+}
+
+export interface CoopRider {
+    id: string;
+    institutionId: string;
+    name: string;
+    phone: string;
+    nationalId: string;
+    licenseNumber: string;
+    vehiclePlate: string;
+    status: 'active' | 'inactive';
+}
+
+export interface CoopCollection {
+    id: string;
+    institutionId: string;
+    farmerId: string;
+    riderId?: string;
+    collectionDate: string;
+    productType: 'Milk' | 'Tea' | 'Coffee' | 'Other';
+    quantity: number;
+    unit: string;
+    qualityGrade?: string;
+    recordedBy: string;
+    notified: boolean;
+    factoryConfirmed: boolean;
+    confirmedBy?: string;
+    confirmedAt?: string;
+    finalQuantity?: number;
+    requiresApproval?: boolean;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    approvedBy?: string;
+    approvedAt?: string;
+    smsStatus?: 'pending' | 'sent' | 'failed';
+    createdAt: string;
+}
+
+export interface CoopAgrovetInventory {
+    id: string;
+    institutionId: string;
+    productName: string;
+    category: string;
+    quantity: number;
+    unitPrice: number;
+    reorderLevel: number;
+    supplier?: string;
+}
+
+export interface CoopAgrovetSales {
+    id: string;
+    institutionId: string;
+    farmerId: string;
+    productId: string;
+    quantity: number;
+    amount: number;
+    paymentStatus: 'paid' | 'credit' | 'deducted';
+    saleDate: string;
+}
+
+export interface SaccoAccount {
+    id: string;
+    institutionId: string;
+    farmerId: string;
+    accountType: 'Savings' | 'Shares' | 'Loan';
+    balance: number;
+    status: 'active' | 'suspended';
+}
+
+export interface SaccoTransaction {
+    id: string;
+    institutionId: string;
+    accountId: string;
+    amount: number;
+    transactionType: 'deposit' | 'withdrawal' | 'loan_repayment' | 'dividend';
+    transactionDate: string;
+    reference?: string;
+}
+
+export interface CoopMonthlyPayout {
+    id: string;
+    institutionId: string;
+    farmerId: string;
+    monthYear: string; // YYYY-MM
+    grossAmount: number;
+    deductionsAgrovet: number;
+    deductionsSacco: number;
+    deductionsTransport: number;
+    netAmount: number;
+    status: 'pending' | 'initiated' | 'approved' | 'paid' | 'rejected';
+    processedAt?: string;
+    initiatedBy?: string;
+    initiatedAt?: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    batchId?: string;
+    rejectionReason?: string;
+    paidAt?: string;
+}
+
+export interface CoopExpense {
+    id: string;
+    institutionId: string;
+    description: string;
+    category: string;
+    amount: number;
+    date: string;
+    recordedBy: string;
+    farmerId?: string;
+}
+
+export interface CoopIncome {
+    id: string;
+    institutionId: string;
+    companyName: string;
+    productType: string;
+    quantity: number;
+    unit: string;
+    amount: number;
+    date: string;
+    recordedBy: string;
 }

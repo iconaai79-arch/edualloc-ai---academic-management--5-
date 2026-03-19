@@ -12,7 +12,8 @@ import type {
     ActivityLog, VoteHead, FeeStructure, FinancialPeriod,
     InvoiceItem, TransactionStatus, FeedbackSubmission, LessonRating, Invoice, Receipt, Unavailability,
     BiometricConfig, TimeOffRequestStatus, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, Role,
-    Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier
+    Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
+    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome
 } from '../types';
 import { UserManager } from './UserManager';
 import { TimetableGenerator } from './TimetableGenerator';
@@ -26,6 +27,8 @@ import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { SubscriptionManager } from './SubscriptionManager';
 import { RetailManager } from './retail/RetailManager';
 import { ProcurementManager } from './ProcurementManager';
+import { CooperativeManager } from './coop/CooperativeManager';
+import { CarServiceView } from './carservice/CarServiceView';
 
 import {
     ClipboardListIcon,
@@ -153,7 +156,6 @@ export interface AdminViewProps {
     onAddTask?: (data: any) => void;
     onUpdateTask?: (id: string, complete: boolean) => void;
     onDeleteTask?: (id: string) => void;
-    onLogAction?: (action: string) => Promise<void>;
     onGenerateDemoData?: () => void;
     onClearDemoData?: () => void;
     isGeneratingDemoData?: boolean;
@@ -197,6 +199,28 @@ export interface AdminViewProps {
     timeOffRequests: TimeOffRequest[];
     onAddTimeOffRequest?: (userId: string, data: any) => Promise<void>;
     onUpdateTimeOffRequestStatus?: (id: string, status: TimeOffRequestStatus) => void;
+
+    // Agricultural / Coop Props
+    coopFarmers: CoopFarmer[];
+    coopCollections: CoopCollection[];
+    coopRiders: CoopRider[];
+    coopAgrovetInventory: CoopAgrovetInventory[];
+    coopAgrovetSales: CoopAgrovetSales[];
+    saccoAccounts: SaccoAccount[];
+    saccoTransactions: SaccoTransaction[];
+    coopPayouts: CoopMonthlyPayout[];
+    coopExpenses: CoopExpense[];
+    coopIncome: CoopIncome[];
+
+    onAddFarmer: (data: any) => Promise<void>;
+    onLogCollection: (data: any) => Promise<void>;
+    onAddRider: (data: any) => Promise<void>;
+    onConfirmCollection: (id: string, qty: number) => Promise<void>;
+    onApproveCollection: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
+    onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
+    onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
     studentAbsenceRequests: StudentAbsenceRequest[];
@@ -265,6 +289,7 @@ export interface AdminViewProps {
     onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
     onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
     onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
+    onLogAction?: (action: string) => Promise<void>;
     retailStores?: RetailStore[];
     inventory?: RetailInventoryItem[];
     suppliers?: Supplier[];
@@ -274,8 +299,15 @@ export interface AdminViewProps {
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const { activeAcademicYear, activeSemester, requests = [] } = props;
     const { subjects, users, rooms, courses, currentInstitution, companyDetails, courseSizes, retailStores = [], inventory = [], suppliers = [], retailExpenses = [] } = props;
+    const { 
+        coopFarmers = [], coopCollections = [], coopRiders = [], 
+        coopAgrovetInventory = [], coopAgrovetSales = [], 
+        saccoAccounts = [], saccoTransactions = [], coopPayouts = [],
+        coopExpenses = [], coopIncome = []
+    } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module'>('dashboard');
+
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -312,10 +344,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
             { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
+            { id: 'coop', label: 'Cooperative', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
+            { id: 'car_service', label: 'Car Service', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
             { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             { id: 'transport', label: 'Transport', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+            { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
+            { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -401,6 +437,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'mechanic_admin', label: 'Car Service Center', icon: <Cog8ToothIcon className="w-6 h-6" />, color: 'bg-zinc-50 text-zinc-600' },
         { role: 'retail_agent', label: 'Agent Module', icon: <UserPlusIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
         { role: 'driver', label: 'Driver Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-slate-50 text-slate-600' },
+        { role: 'coop_admin', label: 'Cooperative Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
+        { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' }
     ].filter(opt => {
         if (isRetailAgency) {
@@ -427,7 +466,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         }}
                         className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
                             ? 'border-indigo-600 text-indigo-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-700'
+                            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                             }`}
                     >
                         {tab.icon}
@@ -793,6 +832,56 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onAddRequisition={props.onAddRequisition}
                         onUpdateRequisition={props.onUpdateRequisition}
                     />
+                )}
+
+                {activeTab === 'coop' && (
+                    <CooperativeManager
+                        farmers={coopFarmers}
+                        collections={coopCollections}
+                        riders={coopRiders}
+                        currentUser={props.currentUser}
+                        inventory={coopAgrovetInventory}
+                        sales={coopAgrovetSales}
+                        saccoAccounts={saccoAccounts}
+                        payouts={coopPayouts}
+                        expenses={coopExpenses}
+                        income={coopIncome}
+                        onAddFarmer={props.onAddFarmer || (async () => { })}
+                        onLogCollection={props.onLogCollection || (async () => { })}
+                        onAddRider={props.onAddRider || (async () => { })}
+                        onConfirmCollection={props.onConfirmCollection}
+                        onApproveCollection={props.onApproveCollection}
+                        onAddExpense={props.onAddCoopExpense}
+                        onAddIncome={props.onAddCoopIncome}
+                        onLogAction={props.onLogAction}
+                        onInitiatePayouts={props.onInitiatePayouts}
+                        onApprovePayouts={props.onApprovePayouts}
+                    />
+                )}
+
+                {activeTab === 'car_service' && (
+                    <CarServiceView
+                        currentUser={props.currentUser}
+                        currentInstitution={props.currentInstitution!}
+                        users={props.users || []}
+                        onLogAction={props.onLogAction || (async () => { })}
+                    />
+                )}
+
+                {activeTab === 'sacco' && (
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
+                        <CreditCardIcon className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
+                        <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">SACCO Portal</h2>
+                        <p className="text-slate-500 max-w-md">Manage farmer savings, process loan applications, and track repayments via automated milk deductions.</p>
+                    </div>
+                )}
+
+                {activeTab === 'agrovet' && (
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
+                        <BeakerIcon className="w-16 h-16 text-green-600 mb-4 animate-pulse" />
+                        <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Agrovet Module</h2>
+                        <p className="text-slate-500 max-w-md">Sell inputs on credit and manage inventory. Credit sales will be automatically deducted from monthly farmer payouts.</p>
+                    </div>
                 )}
 
                 {activeTab === 'settings' && (

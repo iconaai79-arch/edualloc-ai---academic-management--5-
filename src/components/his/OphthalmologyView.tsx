@@ -19,9 +19,10 @@ interface RefractionData {
 
 interface OphthalmologyViewProps {
     onAddVisit?: () => void;
+    onPrintRx?: (od: RefractionData, os: RefractionData) => void;
 }
 
-export const OphthalmologyView: React.FC<OphthalmologyViewProps> = ({ onAddVisit }) => {
+export const OphthalmologyView: React.FC<OphthalmologyViewProps> = ({ onAddVisit, onPrintRx }) => {
     const [od, setOd] = useState<RefractionData>({ sphere: '-2.25', cylinder: '-0.75', axis: '180', add: '+1.50', va: '6/6' });
     const [os, setOs] = useState<RefractionData>({ sphere: '-2.50', cylinder: '-0.50', axis: '175', add: '+1.50', va: '6/9' });
 
@@ -41,7 +42,11 @@ export const OphthalmologyView: React.FC<OphthalmologyViewProps> = ({ onAddVisit
     };
 
     const handlePrintRx = () => {
-        alert("Generating prescription PDF...");
+        if (onPrintRx) {
+            onPrintRx(od, os);
+        } else {
+            alert("Prescription printing service is initializing...");
+        }
     };
 
     const handleInitializeImaging = () => {

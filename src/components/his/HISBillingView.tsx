@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../../services/apiService';
 import { 
     CreditCardIcon, 
     PlusIcon, 
@@ -29,7 +30,25 @@ const MOCK_CLAIMS: Claim[] = [
     { id: 'cl_4', patient: 'Sarah Atieno', provider: 'UAP Old Mutual', amount: 95400, status: 'Queried', date: '2025-03-08' },
 ];
 
-export const HISBillingView: React.FC = () => {
+export const HISBillingView: React.FC<{ institutionId?: string }> = ({ institutionId }) => {
+    const [billingItems, setBillingItems] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadBilling = async () => {
+            if (!institutionId) return;
+            try {
+                const items = await apiService.fetchModuleRecords('his_billing_items', institutionId, undefined, { order: 'created_at.desc' });
+                const patients = await apiService.fetchModuleRecords('his_patients', institutionId);
+                const enhanced = items.map((i: any) => ({
+                    ...i,
+                    patientName: patients.find((p: any) => p.id === i.patientId)?.fullName || 'Unknown'
+                }));
+                setBillingItems(enhanced);
+            } catch (e) { console.error(e); } finally { setIsLoading(false); }
+        };
+        loadBilling();
+    }, [institutionId]);
     return (
         <div className="animate-fade-in-up space-y-8">
             <div className="flex justify-between items-end">
@@ -121,24 +140,40 @@ export const HISBillingView: React.FC = () => {
                 {/* Instant Invoicing / M-Pesa Integration Point */}
                 <div className="space-y-8">
                     <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent">
-                        <h3 className="text-xl font-black uppercase tracking-tighter mb-8 italic">Instant <span className="text-indigo-400">Checkout</span></h3>
+                        <h3 className="text-xl font-black uppercase tracking-tighter mb-8 italic italic">Patient <span className="text-indigo-400">Checkout</span></h3>
                         
-                        <div className="mb-8 p-6 bg-black/40 rounded-2xl border border-white/5">
-                            <div className="flex justify-between items-center mb-4">
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Selected Item</p>
-                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Active Stay</span>
-                            </div>
-                            <h4 className="text-lg font-black uppercase italic">Room 304 - ICU Admission</h4>
-                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Ref: INV-882109</p>
-                            
-                            <div className="mt-6 flex justify-between items-end">
-                                <div>
-                                    <p className="text-xs text-slate-400 uppercase">Subtotal</p>
-                                    <p className="text-2xl font-black">KES 14,200</p>
+                        <div className="space-y-4 mb-10 max-h-[400px] overflow-y-auto pr-2">
+                            {billingItems.filter(i => i.status === 'pending').map((item, idx) => (
+                                <div key={idx} className="p-6 bg-black/40 rounded-2xl border border-white/5 group hover:border-indigo-500/30 transition-all">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{item.sourceType}</p>
+                                        <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-md">Pending</span>
+                                    </div>
+                                    <h4 className="text-sm font-black uppercase italic tracking-tighter text-white">{item.itemName}</h4>
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Patient: {item.patientName}</p>
+                                    
+                                    <div className="mt-4 flex justify-between items-end border-t border-white/5 pt-4">
+                                        <div>
+                                            <p className="text-[8px] text-slate-500 uppercase">Unit Price: {item.unitPrice}</p>
+                                            <p className="text-lg font-black text-white">KES {item.totalAmount.toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-bold text-slate-600 uppercase">QTY</p>
+                                            <p className="text-sm font-black text-slate-400">x{item.quantity}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Est. SHA Cover</p>
-                                    <p className="text-sm font-black text-rose-400">- KES 10,500</p>
+                            ))}
+                            {billingItems.filter(i => i.status === 'pending').length === 0 && (
+                                <div className="p-10 text-center opacity-30 italic font-black uppercase tracking-widest text-[9px]">No pending items for checkout</div>
+                            )}
+                        </div>
+
+                        <div className="mb-8 p-6 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                             <div className="flex justify-between items-end">
+                                <div>
+                                    <p className="text-xs text-indigo-300 uppercase font-black italic">Total Payable</p>
+                                    <p className="text-3xl font-black text-white italic">KES {billingItems.filter(i => i.status === 'pending').reduce((s, i) => s + i.totalAmount, 0).toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>

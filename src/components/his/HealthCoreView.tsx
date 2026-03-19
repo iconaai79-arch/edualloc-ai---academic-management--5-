@@ -33,11 +33,14 @@ import { RegisterPatientModal } from './RegisterPatientModal';
 import { UpdateVitalsModal } from './UpdateVitalsModal';
 import { AddWardModal } from './AddWardModal';
 import { AddVisitModal } from './AddVisitModal';
+import { AddPrescriptionModal } from './AddPrescriptionModal';
 import { LabDiagnosticsView } from './LabDiagnosticsView';
+import { PharmacyView } from './PharmacyView';
 import { generateInstitutionalDemoData } from '../../utils/demoData';
 import { apiService } from '../../services/apiService';
+import { generateOphthalPrescriptionPdf } from '../../services/pdfService';
 
-type HISModule = 'general' | 'inpatient' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
+type HISModule = 'general' | 'inpatient' | 'pharmacy' | 'dental' | 'eye' | 'billing' | 'broadcaster' | 'appointments' | 'config' | 'reports' | 'attendance' | 'diagnostics';
 
 interface HealthCoreProps {
     activeRole?: Role;
@@ -53,11 +56,46 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
     const [activePatientId, setActivePatientId] = useState<string | null>(null);
     const [activePatientVitals, setActivePatientVitals] = useState<any[]>([]);
     const [activePatientEvents, setActivePatientEvents] = useState<any[]>([]);
+    const [institutionData, setInstitutionData] = useState<any>(null);
 
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [isUpdateVitalsOpen, setIsUpdateVitalsOpen] = useState(false);
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
     const [isAddVisitOpen, setIsAddVisitOpen] = useState(false);
+    const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+
+    const handlePrintOphthalRx = async (od: any, os: any) => {
+        if (!activePatient) {
+            alert("Please select a patient first to generate a prescription.");
+            return;
+        }
+        try {
+            const dataUri = await generateOphthalPrescriptionPdf(
+                od, 
+                os, 
+                activePatient.fullName, 
+                institutionData || { name: 'Health Service' },
+                institutionData?.logoUrl || null
+            );
+            setPdfPreviewUrl(dataUri);
+        } catch (error) {
+            console.error(error);
+            alert("Failed to generate prescription PDF.");
+        }
+    };
+
+    React.useEffect(() => {
+        const loadInst = async () => {
+            if (institutionId) {
+                const results = await apiService.fetchModuleRecords('institutions', institutionId);
+                if (results && results.length > 0) {
+                    setInstitutionData(results[0]);
+                }
+            }
+        };
+        loadInst();
+    }, [institutionId]);
 
     const demoData = React.useMemo(() => {
         return institutionId ? generateInstitutionalDemoData(institutionId, 'admin') : null;
@@ -257,6 +295,7 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                         {[
                             { id: 'general', label: 'Patient 360', icon: HeartIcon },
                             { id: 'inpatient', label: 'Admissions', icon: BuildingOfficeIcon },
+                            { id: 'pharmacy', label: 'Pharmacy Hub', icon: BeakerIcon },
                             { id: 'diagnostics', label: 'Diagnostics', icon: BeakerIcon },
                             { id: 'dental', label: 'Dental Core', icon: ScissorsIcon },
                             { id: 'eye', label: 'Ocular Hub', icon: EyeIcon },
@@ -280,18 +319,19 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px] rounded-full -mr-64 -mt-64"></div>
                     {(() => {
                         switch (activeModule) {
-                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
+                            case 'general': return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} />;
                             case 'inpatient': return <InpatientView institutionId={institutionId} onAddWard={() => setIsAddWardOpen(true)} refreshTrigger={wardsRefreshTrigger} />;
+                            case 'pharmacy': return <PharmacyView institutionId={institutionId} />;
                             case 'diagnostics': return <LabDiagnosticsView institutionId={institutionId} activeRole={activeRole} userName={userName} activePatientId={activePatientId} />;
                             case 'dental': return <DentalView onAddVisit={() => setIsAddVisitOpen(true)} />;
-                            case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} />;
-                            case 'billing': return <HISBillingView />;
+                            case 'eye': return <OphthalmologyView onAddVisit={() => setIsAddVisitOpen(true)} onPrintRx={handlePrintOphthalRx} />;
+                            case 'billing': return <HISBillingView institutionId={institutionId} />;
                             case 'broadcaster': return <HISBroadcasterView />;
                             case 'appointments': return <AppointmentsView activeRole={activeRole} userName={userName} institutionId={institutionId} demoAppointments={demoData?.hisAppointments} />;
                             case 'config': return <HISConfigView demoStaff={demoData?.hisStaff} />;
                             case 'reports': return <HISReportsView activeRole={activeRole} />;
                             case 'attendance': return <StaffAttendanceView userName={userName} institutionId={institutionId} demoAttendance={demoData?.hisAttendance} />;
-                            default: return <GeneralMedicineView activePatient={patientData} vitals={demoData?.hisVitals} events={demoData?.hisEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} />;
+                            default: return <GeneralMedicineView activePatient={activePatient} vitals={activePatientVitals} events={activePatientEvents} onOpenVitals={() => setIsUpdateVitalsOpen(true)} onOpenRegister={() => setIsRegisterModalOpen(true)} onAddVisit={() => setIsAddVisitOpen(true)} onAddPrescription={() => setIsPrescriptionModalOpen(true)} />;
                         }
                     })()}
                 </div>
@@ -301,11 +341,47 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
             <UpdateVitalsModal isOpen={isUpdateVitalsOpen} onClose={() => setIsUpdateVitalsOpen(false)} patientId={activePatientId || ''} patientName={activePatient?.fullName} onUpdate={handleUpdateVitals} />
             <AddWardModal isOpen={isAddWardOpen} onClose={() => setIsAddWardOpen(false)} onAdd={handleAddWard} />
             <AddVisitModal isOpen={isAddVisitOpen} onClose={() => setIsAddVisitOpen(false)} patientName={activePatient?.fullName} onAdd={handleAddVisit} />
+            <AddPrescriptionModal 
+                isOpen={isPrescriptionModalOpen} 
+                onClose={() => setIsPrescriptionModalOpen(false)} 
+                patientId={activePatientId || ''} 
+                patientName={activePatient?.fullName} 
+                institutionId={institutionId || ''} 
+                doctorName={userName}
+            />
+
+            {pdfPreviewUrl && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-5xl h-[90vh] rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden flex flex-col animate-zoom-in">
+                        <div className="p-8 border-b border-white/5 flex justify-between items-center bg-indigo-600">
+                            <div>
+                                <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Clinical <span className="text-indigo-200">Document Hub</span></h2>
+                                <p className="text-[9px] font-black text-indigo-100 uppercase tracking-widest mt-1 opacity-80">Refraction Prescription Preview</p>
+                            </div>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = pdfPreviewUrl;
+                                        link.download = `Rx-${activePatient?.fullName || 'Clinical'}.pdf`;
+                                        link.click();
+                                    }}
+                                    className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all"
+                                >Download PDF</button>
+                                <button onClick={() => setPdfPreviewUrl(null)} className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white transition-all"><XIcon className="w-5 h-5" /></button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <iframe src={pdfPreviewUrl} className="w-full h-full border-none" title="PDF Preview" />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void }) => (
+const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void }) => (
     <div className="animate-fade-in-up">
         <div className="flex justify-between items-end mb-10">
             <div>
@@ -341,12 +417,20 @@ const GeneralMedicineView = ({ activePatient, vitals, events, onOpenVitals, onOp
                     <div className="glass-morphism p-10 rounded-[3rem] border border-white/5 min-h-[500px] relative overflow-hidden bg-white/5">
                         <div className="flex justify-between items-center mb-8">
                             <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-[10px] italic">Clinical Timeline</p>
-                            <button 
-                                onClick={onAddVisit}
-                                className="bg-emerald-500/10 text-emerald-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
-                            >
-                                <PlusIcon className="w-3 h-3" /> Add Visit
-                            </button>
+                            <div className="flex gap-4">
+                                <button 
+                                    onClick={onAddPrescription}
+                                    className="bg-indigo-500/10 text-indigo-400 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-indigo-400/20 hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-2"
+                                >
+                                    <DocumentTextIcon className="w-3 h-3" /> New Prescription
+                                </button>
+                                <button 
+                                    onClick={onAddVisit}
+                                    className="bg-emerald-500/10 text-emerald-500 p-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                                >
+                                    <PlusIcon className="w-3 h-3" /> Add Visit
+                                </button>
+                            </div>
                         </div>
                         <div className="space-y-12">
                             {(events || [

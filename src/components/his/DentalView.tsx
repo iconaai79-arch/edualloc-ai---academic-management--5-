@@ -18,6 +18,7 @@ interface DentalViewProps {
 }
 
 export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [selectedTooth, setSelectedTooth] = useState<Tooth | null>(null);
     const [teeth, setTeeth] = useState<Tooth[]>(
         Array.from({ length: 32 }, (_, i) => ({ 
@@ -44,7 +45,7 @@ export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
     };
 
     const handleUploadXray = () => {
-        alert("Initializing digital X-ray capture unit...");
+        fileInputRef.current?.click();
     };
 
     const setToothStatus = (status: Tooth['status']) => {
@@ -69,6 +70,18 @@ export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
 
     return (
         <div className="animate-fade-in-up space-y-8">
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        alert(`X-Ray file "${file.name}" ready for upload to Tooth ${selectedTooth?.id || 'General'}. Clinical mapping initialized.`);
+                    }
+                }}
+            />
             <div className="flex justify-between items-end">
                 <div>
                     <h2 className="text-4xl font-black uppercase tracking-tighter">Digital <span className="text-teal-400">Odontogram</span></h2>
@@ -181,7 +194,10 @@ export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
                                 >
                                     Log Procedure
                                 </button>
-                                <button className="w-full border border-white/10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all">
+                                <button 
+                                    onClick={handleUploadXray}
+                                    className="w-full border border-white/10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
+                                >
                                     Upload X-Ray
                                 </button>
                             </div>

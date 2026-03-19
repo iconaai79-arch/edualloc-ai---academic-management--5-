@@ -438,6 +438,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="ECD">ECD Center</option>
                                                 <option value="International">International School</option>
                                                 <option value="HIS">Health Information System (HIS)</option>
+                                                <option value="Cooperative">Cooperative / Agriculture</option>
                                                 <option value="Business">Business</option>
                                                 <option value="Reseller">Reseller</option>
                                             </select>
@@ -600,7 +601,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         </div>
                         <div>
                             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">System Support</p>
-                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.phone || companyDetails?.phoneNumber || '+254 700 123 456'}</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{companyDetails?.phone || '+254 700 123 456'}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3 group">

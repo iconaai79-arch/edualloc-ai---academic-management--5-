@@ -30,6 +30,7 @@ import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
+import { FarmerPortal } from './coop/FarmerPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
 
@@ -55,7 +56,7 @@ import type {
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -403,6 +404,18 @@ export const App: React.FC = () => {
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [jobs, setJobs] = useState<CarWashJob[]>([]);
 
+    // Agricultural & Cooperative State
+    const [coopFarmers, setCoopFarmers] = useState<CoopFarmer[]>([]);
+    const [coopCollections, setCoopCollections] = useState<CoopCollection[]>([]);
+    const [coopRiders, setCoopRiders] = useState<CoopRider[]>([]);
+    const [coopAgrovetInventory, setCoopAgrovetInventory] = useState<CoopAgrovetInventory[]>([]);
+    const [coopAgrovetSales, setCoopAgrovetSales] = useState<CoopAgrovetSales[]>([]);
+    const [saccoAccounts, setSaccoAccounts] = useState<SaccoAccount[]>([]);
+    const [saccoTransactions, setSaccoTransactions] = useState<SaccoTransaction[]>([]);
+    const [coopPayouts, setCoopPayouts] = useState<CoopMonthlyPayout[]>([]);
+    const [coopExpenses, setCoopExpenses] = useState<CoopExpense[]>([]);
+    const [coopIncome, setCoopIncome] = useState<CoopIncome[]>([]);
+
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
@@ -606,11 +619,10 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [];
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
             
             if (currentUser) {
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs] = await Promise.all([
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = await Promise.all([
                     apiService.fetchInvoices(instId).catch(() => []),
                     apiService.fetchExtensionRequests(instId).catch(() => []),
                     apiService.fetchVoteHeads(instId).catch(() => []),
@@ -644,7 +656,7 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
                     apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
                     apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
-                    apiService.fetchModuleRecords<SecurityAlert>('security_alerts', instId).catch(() => []),
+                    apiService.fetchSecurityAlerts(instId).catch(() => []),
                     apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
                     apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
                     apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
@@ -662,6 +674,14 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', instId).catch(() => []),
                     apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopRider>('coop_riders', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', instId).catch(() => []),
+                    apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', instId).catch(() => []),
+                    apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', instId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', instId).catch(() => []),
                 ]);
             }
 
@@ -716,6 +736,17 @@ export const App: React.FC = () => {
             setCafeOrders(cOrders || []);
             setRetailSales(rSales || []);
             setJobs(cwJobs || []);
+
+            setCoopFarmers(cFarmers || []);
+            setCoopCollections(cColls || []);
+            setCoopRiders(cRiders || []);
+            setCoopAgrovetInventory(cAgroInv || []);
+            setCoopAgrovetSales(cAgroSales || []);
+            setSaccoAccounts(cSaccoAcc || []);
+            setSaccoTransactions(cSaccoTx || []);
+            setCoopPayouts(cPayouts || []);
+            setCoopExpenses(cExps || []);
+            setCoopIncome(cInc || []);
 
             setIsGeneratingDemoData(false);
             setLoadStatus("");
@@ -2591,6 +2622,15 @@ export const App: React.FC = () => {
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onLogAction={handleLogAction}
                                 />
+                            ) : activeRole === 'farmer' ? (
+                                <FarmerPortal
+                                    currentUser={currentUser}
+                                    collections={coopCollections}
+                                    saccoAccounts={saccoAccounts}
+                                    payouts={coopPayouts}
+                                    agrovetSales={coopAgrovetSales}
+                                    onLogout={handleLogout}
+                                />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (
                                 (activeRole === 'carwash_customer' || (activeInstitution?.businessSubType?.toLowerCase().includes('car wash') || activeInstitution?.businessSubType?.toLowerCase().includes('carwash'))) ? (
                                     <CarWashCustomerPortal
@@ -2850,6 +2890,53 @@ export const App: React.FC = () => {
                                     onToggleInstitutionStatus={() => { }}
                                     onLoginAsAdmin={() => { }}
                                     onGenerateReceipt={() => { }}
+                                    coopFarmers={coopFarmers}
+                                    coopCollections={coopCollections}
+                                    coopRiders={coopRiders}
+                                    coopAgrovetInventory={coopAgrovetInventory}
+                                    coopAgrovetSales={coopAgrovetSales}
+                                    saccoAccounts={saccoAccounts}
+                                    saccoTransactions={saccoTransactions}
+                                    coopPayouts={coopPayouts}
+                                    coopExpenses={coopExpenses}
+                                    coopIncome={coopIncome}
+                                    onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onLogCollection={async (data) => { await apiService.saveModuleRecord('coop_collections', { ...data, id: `c_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onAddRider={async (data) => { await apiService.saveModuleRecord('coop_riders', { ...data, id: `r_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onConfirmCollection={async (id, qty) => { 
+                                        await apiService.confirmCoopCollection(id, qty, currentUser.id); 
+                                        const col = coopCollections.find(c => c.id === id);
+                                        const farmer = coopFarmers.find(f => f.id === col?.farmerId);
+                                        if (col && farmer && qty === col.quantity) {
+                                            await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery on ${col.collectionDate} has been confirmed at Factory. Final Qty: ${qty} ${col.unit}. Thank you!`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
+                                        }
+                                        loadData(); 
+                                    }}
+                                    onApproveCollection={async (id, status) => { 
+                                        await apiService.approveCoopCollection(id, currentUser.id, status); 
+                                        if (status === 'approved') {
+                                            const col = coopCollections.find(c => c.id === id);
+                                            const farmer = coopFarmers.find(f => f.id === col?.farmerId);
+                                            if (col && farmer) {
+                                                await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery discrepancy for ${col.collectionDate} has been RESOLVED and APPROVED by the board. Final Qty: ${col.finalQuantity} ${col.unit}.`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
+                                            }
+                                        }
+                                        loadData(); 
+                                    }}
+                                    onAddCoopExpense={async (data) => { await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId, recordedBy: currentUser.id }); loadData(); }}
+                                    onAddCoopIncome={async (data) => { await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: currentUser.institutionId, recordedBy: currentUser.id }); loadData(); }}
+                                    onInitiatePayouts={async (ids) => {
+                                        await Promise.all(ids.map(id => apiService.updatePayoutStatus(id, 'initiated', currentUser.id)));
+                                        loadData();
+                                        handleLogAction(`Initiated bulk payout for ${ids.length} farmers`);
+                                    }}
+                                    onApprovePayouts={async (ids) => {
+                                        // Simulate M-Pesa Bulk Disbursement
+                                        const results = await apiService.disburseBulkMpesa(ids, currentUser.id);
+                                        loadData();
+                                        handleLogAction(`Approved and Disbursed bulk M-Pesa payout for ${ids.length} farmers`);
+                                        alert(`${ids.length} Payouts processed successfully via M-PESA B2C API.`);
+                                    }}
                                 />
                             ) : (
                                 <LecturerView

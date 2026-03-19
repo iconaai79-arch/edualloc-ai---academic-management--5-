@@ -3908,3 +3908,99 @@ export const generatePMReceiptPdfDataUri = async (
 
     return doc.output('datauristring');
 };
+export const generateOphthalPrescriptionPdf = async (
+    od: any,
+    os: any,
+    patientName: string,
+    institution: any,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = margin;
+
+    // 1. Header & Logo
+    if (logoImg) {
+        const logoWidth = 25;
+        const logoHeight = (logoImg.height * logoWidth) / logoImg.width;
+        doc.addImage(logoImg, 'PNG', margin, yPos, logoWidth, logoHeight);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(institution.name || 'Clinical Unit', pageWidth - margin, yPos + 5, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Email: ${institution.email || 'N/A'}`, pageWidth - margin, yPos + 11, { align: 'right' });
+    doc.text(`Phone: ${institution.phoneNumber || 'N/A'}`, pageWidth - margin, yPos + 15, { align: 'right' });
+
+    yPos += 35;
+    doc.setDrawColor(200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    
+    // 2. Title & Date
+    yPos += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(0);
+    doc.text("OPTICAL PRESCRIPTION", margin, yPos);
+    
+    doc.setFontSize(9);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    // 3. Patient Info
+    yPos += 15;
+    doc.setFontSize(10);
+    doc.text("PATIENT NAME:", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(patientName.toUpperCase(), margin + 30, yPos);
+
+    // 4. Refraction Matrix
+    yPos += 15;
+    const head = [['EYE', 'SPHERE (SPH)', 'CYLINDER (CYL)', 'AXIS', 'ADD', 'V/A']];
+    const body = [
+        ['Right (OD)', od.sphere || 'Plano', od.cylinder || '-', od.axis || '-', od.add || '-', od.va || '6/6'],
+        ['Left (OS)', os.sphere || 'Plano', os.cylinder || '-', os.axis || '-', os.add || '-', os.va || '6/6']
+    ];
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: yPos,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, halign: 'center' },
+        styles: { halign: 'center', fontSize: 10, cellPadding: 8 },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 20;
+
+    // 5. Notes & Signature
+    doc.setFont('helvetica', 'bold');
+    doc.text("RECOMMENDATIONS:", margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    const notes = [
+        "• Anti-Reflective Coating (ARC) recommended for night driving.",
+        "• Blue-Cut Filter recommended for prolonged computer use.",
+        "• Photochromic lenses suggested for outdoor UV protection.",
+        "• Re-examination recommended in 12 months."
+    ];
+    notes.forEach((note, i) => {
+        doc.text(note, margin, yPos + 10 + (i * 7));
+    });
+
+    yPos += 60;
+    doc.line(pageWidth - margin - 60, yPos, pageWidth - margin, yPos);
+    doc.setFontSize(8);
+    doc.text("Attending Optometrist / Ophthalmologist", pageWidth - margin, yPos + 5, { align: 'right' });
+    doc.text("Official Medical Registry Stamp", pageWidth - margin, yPos + 10, { align: 'right' });
+
+    return doc.output('datauristring');
+};

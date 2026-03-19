@@ -16,6 +16,8 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
     if (subType.includes('property')) return 'property_admin';
     if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop')) return 'retail_agent';
 
+    if (subType.includes('coop') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee')) return 'cooperative_manager';
+
     if (type === 'HIS') return 'his_admin';
 
     // Default for Schools
@@ -62,6 +64,10 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // Fallback/Generic
+    if (subType.includes('coop') || subType.includes('dairy')) {
+        return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer'];
+    }
+
     return ['admin', 'staff', 'customer'] as any[];
 };
 
@@ -100,6 +106,15 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         switch (role) {
             case 'his_admin': return 'Hospital Administrator';
             case 'academics_officer': return 'Medical Record Officer';
+        }
+    }
+
+    if (subType.includes('coop') || subType.includes('dairy')) {
+        switch (role) {
+            case 'cooperative_manager': return 'Cooperative Manager';
+            case 'coop_chairman': return 'Cooperative Chairman';
+            case 'farmer': return 'Member Farmer';
+            case 'rider': return 'Delivery Rider';
         }
     }
 
