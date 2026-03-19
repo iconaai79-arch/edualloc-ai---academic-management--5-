@@ -320,11 +320,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const institutionType = props.currentInstitution?.institutionType;
     const businessSubType = props.currentInstitution?.businessSubType;
     const isBusiness = institutionType === 'Business';
+    const isCoop = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
+        const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
+        return (type as any) === 'Cooperative' || subType.includes('coop') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee');
+    }, [props.currentInstitution]);
 
     useEffect(() => {
         if (!hasSetDefaultTab && props.currentUser?.role) {
             const role = props.activeRole || props.currentUser.role;
-            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin' || (institutionType as any) === 'Cooperative') {
+            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin' || isCoop) {
                 setActiveTab('farmers');
             } else if (role === 'agrovet_admin' || institutionType === 'Agrovet' || businessSubType === 'Agrovet') {
                 setActiveTab('agrovet');
@@ -376,7 +381,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
-        if ((institutionType as any) === 'Cooperative') {
+        if (isCoop) {
             return [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
                 { id: 'farmers', label: 'Farmers', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
@@ -397,7 +402,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'users'].includes(tab.id)) {
-                if (tab.id === 'users' && ((institutionType as any) === 'Cooperative' || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
+                if (tab.id === 'users' && (isCoop || institutionType === 'SACCO' || institutionType === 'Agrovet')) return true;
                 return isEdu;
             }
 
@@ -433,8 +438,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Specialized modules
             if (tab.id === 'coop') return false; // Handled by specialized tabs for Coop
-            if (tab.id === 'sacco') return institutionType === 'SACCO';
-            if (tab.id === 'agrovet') return institutionType === 'Agrovet';
+            if (tab.id === 'sacco') return institutionType === 'SACCO' || businessSubType === 'SACCO';
+            if (tab.id === 'agrovet') return institutionType === 'Agrovet' || businessSubType === 'Agrovet';
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
 
             return true;
@@ -888,7 +893,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         'coop': 'farmers'
                     };
 
-                    const isCoopTab = (institutionType as any) === 'Cooperative' && activeTab in coopTabMap;
+                    const isCoopTab = isCoop && activeTab in coopTabMap;
                     
                     if (isCoopTab || activeTab === 'coop') {
                         return (
@@ -943,7 +948,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'sacco' && institutionType !== 'Cooperative' && (
+                {activeTab === 'sacco' && !isCoop && (
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
                         <CreditCardIcon className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
                         <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">SACCO Portal</h2>
@@ -951,7 +956,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     </div>
                 )}
 
-                {activeTab === 'agrovet' && institutionType !== 'Cooperative' && (
+                {activeTab === 'agrovet' && !isCoop && (
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center">
                         <BeakerIcon className="w-16 h-16 text-green-600 mb-4 animate-pulse" />
                         <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Agrovet Module</h2>
