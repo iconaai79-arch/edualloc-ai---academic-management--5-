@@ -1038,7 +1038,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     />
                 )}
 
-                {activeTab === 'reports' && (institutionType as any) !== 'Cooperative' && (
+                {activeTab === 'reports' && !isCoop && (
                     <div className="animate-fade-in-up">
                         {isRetailAgency ? (
                             <RetailReportsDashboard
