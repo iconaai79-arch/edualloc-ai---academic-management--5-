@@ -199,23 +199,6 @@ export const HealthCoreView: React.FC<HealthCoreProps> = ({ activeRole, userName
         }
     };
 
-    const [wardsRefreshTrigger, setWardsRefreshTrigger] = useState(0);
-
-    const handleAddVisit = async (visitData: any) => {
-        if (!institutionId || !activePatientId) return;
-        try {
-            await apiService.saveModuleRecord('his_clinical_events', { 
-                ...visitData, 
-                institutionId, 
-                patientId: activePatientId, 
-                id: `evt_${Date.now()}` 
-            });
-            alert("Clinical Record Saved Successfully");
-        } catch (error) {
-            console.error(error);
-            alert("Record Save Failed");
-        }
-    };
 
     const patientData = activePatient || (patients.length > 0 ? patients[0] : null);
 
