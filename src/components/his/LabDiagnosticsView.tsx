@@ -170,29 +170,37 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
             </div>
 
             <AddLabRequestModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} onAdd={async (data: any) => {
-                await apiService.saveModuleRecord('his_lab_requests', { ...data, institutionId, requestedBy: userName || 'DR. JANE', id: `lab_${Date.now()}` });
-                setIsRequestModalOpen(false);
-                fetchLabs();
+                try {
+                    await apiService.saveModuleRecord('his_lab_requests', { ...data, institutionId, requestedBy: userName || 'DR. JANE', id: `lab_${Date.now()}` });
+                    setIsRequestModalOpen(false);
+                    fetchLabs();
+                } catch (error: any) {
+                    alert(`Submission failed: ${error.message || 'Unknown error'}`);
+                }
             }} />
 
             <UpdateLabResultModal isOpen={isResultModalOpen} onClose={() => setIsResultModalOpen(false)} request={selectedRequest} onUpdate={async (data: any) => {
-                const completeData = { ...selectedRequest, ...data, status: 'Completed', technicianId: userName || 'TECH_SYS', completedAt: new Date().toISOString() };
-                await apiService.saveModuleRecord('his_lab_requests', completeData);
-                
-                // Transmit back to Doctor's clinical timeline
-                await apiService.saveModuleRecord('his_clinical_events', {
-                    id: `evt_lab_${Date.now()}`,
-                    patientId: selectedRequest.patientId,
-                    institutionId: institutionId,
-                    date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
-                    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-                    event: `Lab Result: ${selectedRequest.testType} - Result: ${data.results.substring(0, 30)}...`,
-                    dept: 'Laboratory',
-                    provider: userName || 'Lab Technician'
-                });
+                try {
+                    const completeData = { ...selectedRequest, ...data, status: 'Completed', technicianId: userName || 'TECH_SYS', completedAt: new Date().toISOString() };
+                    await apiService.saveModuleRecord('his_lab_requests', completeData);
+                    
+                    // Transmit back to Doctor's clinical timeline
+                    await apiService.saveModuleRecord('his_clinical_events', {
+                        id: `evt_lab_${Date.now()}`,
+                        patientId: selectedRequest.patientId,
+                        institutionId: institutionId,
+                        date: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+                        time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+                        event: `Lab Result: ${selectedRequest.testType} - Result: ${data.results.substring(0, 30)}...`,
+                        dept: 'Laboratory',
+                        provider: userName || 'Lab Technician'
+                    });
 
-                setIsResultModalOpen(false);
-                fetchLabs();
+                    setIsResultModalOpen(false);
+                    fetchLabs();
+                } catch (error: any) {
+                    alert(`Broadcast failed: ${error.message || 'Unknown error'}`);
+                }
             }} />
         </div>
     );
