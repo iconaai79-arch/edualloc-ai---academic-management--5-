@@ -323,8 +323,16 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const isCoop = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
-        return (type as any) === 'Cooperative' || subType.includes('coop') || subType.includes('dairy') || subType.includes('tea') || subType.includes('coffee');
-    }, [props.currentInstitution]);
+        const name = props.currentInstitution?.name?.toLowerCase() || '';
+        const role = props.activeRole || props.currentUser?.role;
+        
+        const isCoopRole = role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin';
+        const isCoopType = (type as any) === 'Cooperative';
+        const hasCoopKeyword = ['coop', 'dairy', 'tea', 'coffee', 'milk', 'agri', 'farm', 'produce', 'sacco', 'agrovet'].some(k => subType.includes(k) || name.includes(k));
+        const isCoopTab = ['farmers', 'collections', 'riders', 'payouts', 'finances', 'approvals'].includes(activeTab);
+        
+        return isCoopType || hasCoopKeyword || isCoopRole || isCoopTab;
+    }, [props.currentInstitution, props.activeRole, props.currentUser?.role, activeTab]);
 
     useEffect(() => {
         if (!hasSetDefaultTab && props.currentUser?.role) {
