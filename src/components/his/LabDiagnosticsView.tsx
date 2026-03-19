@@ -171,6 +171,7 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
 
             <AddLabRequestModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} onAdd={async (data: any) => {
                 await apiService.saveModuleRecord('his_lab_requests', { ...data, institutionId, requestedBy: userName || 'DR. JANE', id: `lab_${Date.now()}` });
+                setIsRequestModalOpen(false);
                 fetchLabs();
             }} />
 
@@ -190,6 +191,7 @@ export const LabDiagnosticsView: React.FC<LabDiagnosticsViewProps> = ({ institut
                     provider: userName || 'Lab Technician'
                 });
 
+                setIsResultModalOpen(false);
                 fetchLabs();
             }} />
         </div>
