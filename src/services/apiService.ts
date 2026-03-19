@@ -325,6 +325,8 @@ export const apiService = {
                 // Specifically alert for common policy issues
                 if ((error as any).status === 403 || error.message.toLowerCase().includes('denied') || error.message.includes('row-level security')) {
                     alert(`Storage Error: Access Denied. Please ensure your '${bucket}' bucket has appropriate RLS policies for 'INSERT' and 'UPDATE' operations for the 'anon' role.`);
+                } else if (error.message === 'Failed to fetch') {
+                    alert(`Storage Error: Failed to fetch. This usually means your Supabase URL is unreachable or CORS is blocked. Please check your Supabase URL in your settings.`);
                 } else {
                     alert(`Storage Error: ${error.message}`);
                 }
