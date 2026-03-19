@@ -17,9 +17,36 @@ interface RefractionData {
     va: string;
 }
 
-export const OphthalmologyView: React.FC = () => {
+interface OphthalmologyViewProps {
+    onAddVisit?: () => void;
+}
+
+export const OphthalmologyView: React.FC<OphthalmologyViewProps> = ({ onAddVisit }) => {
     const [od, setOd] = useState<RefractionData>({ sphere: '-2.25', cylinder: '-0.75', axis: '180', add: '+1.50', va: '6/6' });
     const [os, setOs] = useState<RefractionData>({ sphere: '-2.50', cylinder: '-0.50', axis: '175', add: '+1.50', va: '6/9' });
+
+    const handleDataChange = (eye: 'od' | 'os', field: keyof RefractionData, value: string) => {
+        if (eye === 'od') {
+            setOd({ ...od, [field]: value });
+        } else {
+            setOs({ ...os, [field]: value });
+        }
+    };
+
+    const handleNewExam = () => {
+        setOd({ sphere: '', cylinder: '', axis: '', add: '', va: '6/6' });
+        setOs({ sphere: '', cylinder: '', axis: '', add: '', va: '6/6' });
+        onAddVisit?.(); // Open the clinical record modal
+        alert("Board cleared. Opening clinical record for the new exam.");
+    };
+
+    const handlePrintRx = () => {
+        alert("Generating prescription PDF...");
+    };
+
+    const handleInitializeImaging = () => {
+        alert("Connecting to Retinal Imaging Unit... Hardware ready.");
+    };
 
     return (
         <div className="animate-fade-in-up space-y-8">
@@ -29,10 +56,16 @@ export const OphthalmologyView: React.FC = () => {
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Precision visual acuity & prescription engine</p>
                 </div>
                 <div className="flex gap-4">
-                    <button className="glass-morphism px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all text-blue-400 border border-blue-400/30">
+                    <button 
+                        onClick={handlePrintRx}
+                        className="glass-morphism px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all text-blue-400 border border-blue-400/30"
+                    >
                         <DownloadIcon className="w-4 h-4" /> Print Rx
                     </button>
-                    <button className="bg-white text-slate-950 px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all">
+                    <button 
+                        onClick={handleNewExam}
+                        className="bg-white text-slate-950 px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                    >
                         <PlusIcon className="w-4 h-4" /> New Exam
                     </button>
                 </div>
@@ -67,6 +100,7 @@ export const OphthalmologyView: React.FC = () => {
                                                 <input 
                                                     type="text"
                                                     value={(row.data as any)[field]}
+                                                    onChange={(e) => handleDataChange(idx === 0 ? 'od' : 'os', field as keyof RefractionData, e.target.value)}
                                                     className="w-full bg-transparent text-center font-black text-xl outline-none focus:text-white transition-colors"
                                                 />
                                             </td>
@@ -136,7 +170,10 @@ export const OphthalmologyView: React.FC = () => {
                             ))}
                          </div>
 
-                         <button className="w-full mt-10 py-5 bg-blue-500/10 text-blue-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all">
+                         <button 
+                            onClick={handleInitializeImaging}
+                            className="w-full mt-10 py-5 bg-blue-500/10 text-blue-400 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all"
+                         >
                             Initialize Imaging Unit
                          </button>
                     </div>

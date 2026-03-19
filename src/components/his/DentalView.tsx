@@ -13,7 +13,11 @@ interface Tooth {
     history: string[];
 }
 
-export const DentalView: React.FC = () => {
+interface DentalViewProps {
+    onAddVisit?: () => void;
+}
+
+export const DentalView: React.FC<DentalViewProps> = ({ onAddVisit }) => {
     const [selectedTooth, setSelectedTooth] = useState<Tooth | null>(null);
     const [teeth, setTeeth] = useState<Tooth[]>(
         Array.from({ length: 32 }, (_, i) => ({ 
@@ -22,6 +26,35 @@ export const DentalView: React.FC = () => {
             history: [] 
         }))
     );
+
+    const handleNewExam = () => {
+        setTeeth(Array.from({ length: 32 }, (_, i) => ({ 
+            id: i + 1, 
+            status: 'Healthy',
+            history: [] 
+        })));
+        setSelectedTooth(null);
+        onAddVisit?.(); // Open the clinical record modal
+        alert("Odontogram reset. Opening clinical record for the new exam.");
+    };
+
+    const handleLogProcedure = () => {
+        if (!selectedTooth) return;
+        alert(`Procedure logged for Tooth ${selectedTooth.id}: ${selectedTooth.status}`);
+    };
+
+    const handleUploadXray = () => {
+        alert("Initializing digital X-ray capture unit...");
+    };
+
+    const setToothStatus = (status: Tooth['status']) => {
+        if (!selectedTooth) return;
+        const newTeeth = teeth.map(t => 
+            t.id === selectedTooth.id ? { ...t, status } : t
+        );
+        setTeeth(newTeeth);
+        setSelectedTooth(prev => prev ? { ...prev, status } : null);
+    };
 
     const getToothColor = (status: Tooth['status']) => {
         switch (status) {
@@ -42,7 +75,10 @@ export const DentalView: React.FC = () => {
                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Precision Oral Mapping & Procedure Logging</p>
                 </div>
                 <div className="flex gap-4">
-                    <button className="glass-morphism px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all bg-white text-slate-950">
+                    <button 
+                        onClick={handleNewExam}
+                        className="glass-morphism px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all bg-white text-slate-950"
+                    >
                         <PlusIcon className="w-4 h-4" /> New Exam
                     </button>
                 </div>
@@ -119,8 +155,30 @@ export const DentalView: React.FC = () => {
                                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Diagnosis</p>
                                     <p className="text-xs font-bold">{selectedTooth.status === 'Healthy' ? 'No pathologies detected.' : `Class ${selectedTooth.id % 4 + 1} ${selectedTooth.status.toLowerCase()} noted.`}</p>
                                 </div>
+
+                                <div className="space-y-2">
+                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Set New Status</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(['Healthy', 'Decayed', 'Filled', 'Missing', 'Crowned'] as Tooth['status'][]).map(status => (
+                                            <button 
+                                                key={status}
+                                                onClick={() => setToothStatus(status)}
+                                                className={`px-3 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest border transition-all ${
+                                                    selectedTooth.status === status 
+                                                    ? `${getToothColor(status)} bg-white/10 border-current shadow-lg` 
+                                                    : 'border-white/5 text-slate-500 hover:border-white/20'
+                                                }`}
+                                            >
+                                                {status}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 
-                                <button className="w-full bg-white text-slate-950 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-105 active:scale-95 transition-all">
+                                <button 
+                                    onClick={handleLogProcedure}
+                                    className="w-full bg-white text-slate-950 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl hover:scale-105 active:scale-95 transition-all"
+                                >
                                     Log Procedure
                                 </button>
                                 <button className="w-full border border-white/10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all">
