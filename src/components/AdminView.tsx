@@ -400,6 +400,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 { id: 'payouts', label: 'Payouts', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'finances', label: 'Finances', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'approvals', label: 'Approvals', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Communication', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
