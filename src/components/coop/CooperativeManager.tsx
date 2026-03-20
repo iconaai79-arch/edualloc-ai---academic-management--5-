@@ -30,6 +30,7 @@ import {
     CoopCollection, 
     CoopRider, 
     User,
+    Institution,
     CoopAgrovetInventory,
     CoopAgrovetSales,
     SaccoAccount,
@@ -71,6 +72,7 @@ interface CooperativeManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    currentInstitution?: Institution | null;
     activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports';
     onTabChange?: (tab: string) => void;
 }
@@ -96,6 +98,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onLogAction,
     onInitiatePayouts,
     onApprovePayouts,
+    currentInstitution,
     activeTab: externalActiveTab,
     onTabChange
 }) => {
@@ -114,6 +117,60 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
+
+    const handleSettlementPreview = async () => {
+        try {
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[filterMonth];
+            
+            const settlementData = farmers.map(farmer => {
+                const farmerCollections = collections.filter(c => 
+                    c.farmerId === farmer.id && 
+                    c.factoryConfirmed && 
+                    new Date(c.collectionDate).getMonth() === filterMonth &&
+                    new Date(c.collectionDate).getFullYear() === filterYear
+                );
+                const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
+                const gross = totalQty * payoutRate;
+                
+                const advances = expenses.filter(ex => 
+                    ex.farmerId === farmer.id && 
+                    ex.category.toLowerCase().includes('advance') &&
+                    new Date(ex.date).getMonth() === filterMonth &&
+                    new Date(ex.date).getFullYear() === filterYear
+                ).reduce((s, ex) => s + ex.amount, 0);
+
+                const deductions = sales.filter(s => 
+                    s.farmerId === farmer.id && 
+                    new Date(s.saleDate).getMonth() === filterMonth &&
+                    new Date(s.saleDate).getFullYear() === filterYear
+                ).reduce((acc, sa) => acc + sa.amount, 0);
+
+                const net = gross - advances - deductions;
+                return { name: farmer.name, phone: farmer.phone, totalQty, gross, advances, deductions, net };
+            }).filter(item => item.totalQty > 0 || item.advances > 0 || item.deductions > 0);
+
+            const totalNet = settlementData.reduce((sum, item) => sum + item.net, 0);
+
+            const dataUri = await pdfService.generateCoopSettlementSchedulePdf(
+                settlementData, 
+                monthName, 
+                filterYear, 
+                totalNet, 
+                currentInstitution || {} as any, 
+                undefined, 
+                null
+            );
+            
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = `Settlement_Schedule_${monthName}_${filterYear}.pdf`;
+            link.click();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate settlement PDF");
+        }
+    };
 
     const filteredFarmers = useMemo(() => {
         return farmers.filter(f => 
@@ -1274,6 +1331,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 ))}
                                             </select>
                                         </div>
+                                        <button 
+                                            onClick={handleSettlementPreview}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                                        >
+                                            <ExportIcon className="w-4 h-4" />
+                                            Preview PDF
+                                        </button>
                                         <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-3">
                                             <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Rate (KES/Unit):</label>
                                             <input 

@@ -4146,3 +4146,55 @@ export const generateRiderStatementPdf = async (
 
     return doc.output('datauristring');
 };
+
+export const generateCoopSettlementSchedulePdf = async (
+    data: any[],
+    monthName: string,
+    year: number,
+    totalNet: number,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF('l', 'mm', 'a4'); // Landscape
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, `SETTLEMENT SCHEDULE: ${monthName.toUpperCase()} ${year}`, {} as any, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const head = [['FARMER NAME', 'PHONE', 'TOTAL QTY', 'GROSS PAYOUT', 'ADVANCES', 'DEDUCTIONS', 'NET PAYOUT']];
+    const body = data.map(item => [
+        item.name,
+        item.phone,
+        item.totalQty.toLocaleString(),
+        item.gross.toLocaleString(),
+        item.advances.toLocaleString(),
+        item.deductions.toLocaleString(),
+        item.net.toLocaleString()
+    ]);
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: { 
+            2: { halign: 'center' }, 
+            3: { halign: 'right' }, 
+            4: { halign: 'right' }, 
+            5: { halign: 'right' },
+            6: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || tableStartY + 20;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL NET SETTLEMENT: KES ${totalNet.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
+
+    return doc.output('datauristring');
+};

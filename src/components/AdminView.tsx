@@ -911,6 +911,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 collections={coopCollections}
                                 riders={coopRiders}
                                 currentUser={props.currentUser}
+                                currentInstitution={props.currentInstitution}
                                 inventory={coopAgrovetInventory}
                                 sales={coopAgrovetSales}
                                 saccoAccounts={saccoAccounts}
