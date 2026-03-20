@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
@@ -4001,6 +4001,148 @@ export const generateOphthalPrescriptionPdf = async (
     doc.setFontSize(8);
     doc.text("Attending Optometrist / Ophthalmologist", pageWidth - margin, yPos + 5, { align: 'right' });
     doc.text("Official Medical Registry Stamp", pageWidth - margin, yPos + 10, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateFarmerStatementPdf = async (
+    farmer: CoopFarmer,
+    transactions: any[],
+    openingBal: number,
+    totals: { credit: number; debit: number; balance: number },
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'FARMER STATEMENT', {} as any, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Farmer Info
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('FARMER DETAILS:', margin, tableStartY - 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${farmer.name}`, margin, tableStartY - 10);
+    doc.text(`A/C No: ${farmer.accountNumber}`, margin, tableStartY - 5);
+    doc.text(`Phone: ${farmer.phone}`, margin, tableStartY);
+
+    // Period Meta
+    doc.setFont('helvetica', 'bold');
+    doc.text('STATEMENT PERIOD:', pageWidth - margin - 60, tableStartY - 15);
+    doc.text('OPENING BAL:', pageWidth - margin - 60, tableStartY - 10);
+    doc.text('CLOSING BAL:', pageWidth - margin - 60, tableStartY - 5);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${startDate} to ${endDate}`, pageWidth - margin, tableStartY - 15, { align: 'right' });
+    doc.text(`KES ${openingBal.toLocaleString()}`, pageWidth - margin, tableStartY - 10, { align: 'right' });
+    doc.text(`KES ${totals.balance.toLocaleString()}`, pageWidth - margin, tableStartY - 5, { align: 'right' });
+
+    const head = [['DATE', 'DESCRIPTION', 'REF', 'DEBIT', 'CREDIT', 'BALANCE']];
+    const body = [
+        [startDate, 'Opening Balance B/F', '-', '-', '-', openingBal.toLocaleString()],
+        ...transactions.map(t => [
+            new Date(t.date).toLocaleDateString(),
+            t.description,
+            t.ref || '-',
+            t.type === 'debit' ? t.amount.toLocaleString() : '-',
+            t.type === 'credit' ? t.amount.toLocaleString() : '-',
+            t.balance.toLocaleString()
+        ])
+    ];
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SUMMARY TOTALS:', margin, finalY + 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total Credits: KES ${totals.credit.toLocaleString()}`, margin, finalY + 22);
+    doc.text(`Total Debits: KES ${totals.debit.toLocaleString()}`, margin, finalY + 27);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(`NET PAYABLE: KES ${totals.balance.toLocaleString()}`, pageWidth - margin, finalY + 20, { align: 'right' });
+
+    return doc.output('datauristring');
+};
+
+export const generateRiderStatementPdf = async (
+    rider: CoopRider,
+    transactions: any[],
+    openingBal: number,
+    totals: { credit: number; debit: number; balance: number },
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    logoUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl);
+    const tableStartY = createPdfWithLetterhead(doc, 'RIDER COMMISSION STATEMENT', {} as any, institution, logoImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Rider Info
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('RIDER DETAILS:', margin, tableStartY - 15);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${rider.name}`, margin, tableStartY - 10);
+    doc.text(`Plate: ${rider.vehiclePlate}`, margin, tableStartY - 5);
+    doc.text(`Phone: ${rider.phone}`, margin, tableStartY);
+
+    // Period Meta
+    doc.setFont('helvetica', 'bold');
+    doc.text('STATEMENT PERIOD:', pageWidth - margin - 60, tableStartY - 15);
+    doc.text('TOTAL EARNED:', pageWidth - margin - 60, tableStartY - 10);
+    doc.text('OUTSTANDING:', pageWidth - margin - 60, tableStartY - 5);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${startDate} to ${endDate}`, pageWidth - margin, tableStartY - 15, { align: 'right' });
+    doc.text(`KES ${totals.credit.toLocaleString()}`, pageWidth - margin, tableStartY - 10, { align: 'right' });
+    doc.text(`KES ${totals.balance.toLocaleString()}`, pageWidth - margin, tableStartY - 5, { align: 'right' });
+
+    const head = [['DATE', 'DESCRIPTION', 'TRIP REF', 'EARNINGS', 'PAYMENTS', 'BALANCE']];
+    const body = [
+        [startDate, 'Opening Balance B/F', '-', '-', '-', openingBal.toLocaleString()],
+        ...transactions.map(t => [
+            new Date(t.date).toLocaleDateString(),
+            t.description,
+            t.ref || '-',
+            t.type === 'credit' ? t.amount.toLocaleString() : '-',
+            t.type === 'debit' ? t.amount.toLocaleString() : '-',
+            t.balance.toLocaleString()
+        ])
+    ];
+
+    doc.autoTable({
+        head: head,
+        body: body,
+        startY: tableStartY + 10,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } }
+    });
 
     return doc.output('datauristring');
 };
