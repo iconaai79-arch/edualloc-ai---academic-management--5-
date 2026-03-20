@@ -17,7 +17,7 @@ interface CommunicationsManagerProps {
     mpesaConfig?: MpesaConfig;
     smsConfig?: SmsConfig;
     onRefreshData?: () => void;
-    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet';
+    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative';
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -199,6 +199,14 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return users.filter(u => String(u.role) === 'tenant');
             case 'all_landlords':
                 return users.filter(u => String(u.role) === 'landlord');
+            case 'all_farmers':
+                return baseUsers.filter(u => u.role === 'farmer');
+            case 'all_riders':
+                return baseUsers.filter(u => u.role === 'rider');
+            case 'all_coop_staff':
+                return baseUsers.filter(u => ['coop_admin', 'coop_chairman', 'cooperative_manager', 'sacco_officer'].includes(u.role));
+            case 'all_coop_members':
+                return baseUsers;
             default:
                 return [];
         }
@@ -508,6 +516,14 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         <option value="all_staff">All Staff</option>
                                         <option value="all_tenants">All Tenants</option>
                                         <option value="all_landlords">All Landlords</option>
+                                    </>
+                                ) : moduleContext === 'cooperative' ? (
+                                    <>
+                                        <option value="individual">Individual Member</option>
+                                        <option value="all_farmers">All Farmers</option>
+                                        <option value="all_riders">All Riders (Logistics)</option>
+                                        <option value="all_coop_staff">Cooperative Staff / Admins</option>
+                                        <option value="all_coop_members">All Cooperative Members</option>
                                     </>
                                 ) : (
                                     <>

@@ -857,6 +857,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         mpesaConfig={props.companyDetails.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
+                        moduleContext={isCoop ? 'cooperative' : (isRetailAgency ? 'agrovet' : 'school')}
                     />
                 )}
 
