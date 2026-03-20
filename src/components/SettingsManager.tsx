@@ -167,13 +167,6 @@ type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'sub
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
-    const [activeTab, setActiveTab] = useState<SettingsTab>(isSuperAdmin ? 'global_config' : 'general');
-    const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways'>('profile');
-    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
-    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
-    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
-    const [showPaperPreview, setShowPaperPreview] = useState(false);
 
     const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
     const isEdu = useMemo(() => {
@@ -186,6 +179,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || subType.includes('cooperative') || subType.includes('sacco') || subType.includes('agrovet');
     }, [props.currentInstitution]);
+
+    const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
+    const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways'>('profile');
+    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
+    const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
+    const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
+    const [showPaperPreview, setShowPaperPreview] = useState(false);
+
 
     // External tab navigation sync
     useEffect(() => {
@@ -622,7 +624,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const mainTabs = useMemo(() => {
         const tabs = [];
 
-        if (isSuperAdmin) {
+        if (isSuperAdmin && !isCoop) {
             tabs.push({ id: 'global_config', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
         } else {
             tabs.push({ id: 'general', label: 'General', icon: <InformationCircleIcon className="w-5 h-5 mr-2" /> });
