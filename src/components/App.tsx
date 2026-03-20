@@ -31,6 +31,7 @@ import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
 import { FarmerPortal } from './coop/FarmerPortal';
+import { RiderPortal } from './coop/RiderPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
 
@@ -2629,6 +2630,15 @@ export const App: React.FC = () => {
                                     saccoAccounts={saccoAccounts}
                                     payouts={coopPayouts}
                                     agrovetSales={coopAgrovetSales}
+                                    onLogout={handleLogout}
+                                />
+                            ) : activeRole === 'rider' ? (
+                                <RiderPortal
+                                    currentUser={currentUser}
+                                    rider={coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)}
+                                    collections={coopCollections}
+                                    saccoAccounts={saccoAccounts}
+                                    payouts={coopPayouts}
                                     onLogout={handleLogout}
                                 />
                             ) : (activeRole === 'customer' || activeRole === 'carwash_customer') ? (

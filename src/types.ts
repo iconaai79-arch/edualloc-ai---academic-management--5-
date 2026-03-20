@@ -36,6 +36,7 @@ export interface User {
     isImpersonated?: boolean;
     vehicleId?: string;
     farmerId?: string;
+    riderId?: string;
     driverType?: 'staff' | 'private';
     smsBalance?: number;
     subscriptionStatus?: 'active' | 'expired' | 'none';

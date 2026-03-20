@@ -181,6 +181,12 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
     }, [props.currentInstitution]);
 
+    const isCoop = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
+        const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Cooperative' || subType.includes('cooperative') || subType.includes('sacco') || subType.includes('agrovet');
+    }, [props.currentInstitution]);
+
     // External tab navigation sync
     useEffect(() => {
         if (props.initialTab) {
@@ -1263,6 +1269,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto no-scrollbar">
                             {(() => {
                                 if (isRetailAgency) return ['profile', 'location', 'branding'];
+                                if (isCoop || !isEdu) {
+                                    const filtered = ['profile', 'location', 'branding'];
+                                    if (props.currentUser.role === 'admin' || isCoop) {
+                                        filtered.push('billing');
+                                        filtered.push('sms');
+                                        filtered.push('gateways');
+                                    }
+                                    return filtered;
+                                }
                                 const subs = ['profile', 'academic_config', 'location', 'branding', 'grading'];
                                 if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); subs.push('gateways'); }
                                 return subs;
@@ -1306,33 +1321,37 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <ShieldIcon className="w-5 h-5 text-indigo-500" /> Administrative Constraints & Security
                                 </h4>
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                        <input
-                                            type="checkbox"
-                                            id="use-alloc-reqs"
-                                            checked={instProfile.useAllocationRequests}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, useAllocationRequests: e.target.checked })}
-                                            className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div>
-                                            <label htmlFor="use-alloc-reqs" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enable Collaborative Allocation Requests</label>
-                                            <p className="text-xs text-slate-400">Allows {isSchool ? 'teachers' : 'lecturers'} to submit unit preferences before generation.</p>
+                                    {isEdu && (
+                                        <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                id="use-alloc-reqs"
+                                                checked={instProfile.useAllocationRequests}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, useAllocationRequests: e.target.checked })}
+                                                className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <div>
+                                                <label htmlFor="use-alloc-reqs" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enable Collaborative Allocation Requests</label>
+                                                <p className="text-xs text-slate-400">Allows {isSchool ? 'teachers' : 'lecturers'} to submit unit preferences before generation.</p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                        <input
-                                            type="checkbox"
-                                            id="enable-parent-notifications"
-                                            checked={instProfile.parentAbsenceNotificationsEnabled}
-                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, parentAbsenceNotificationsEnabled: e.target.checked })}
-                                            className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <div>
-                                            <label htmlFor="enable-parent-notifications" className="text-sm font-bold text-slate-700 dark:text-slate-300">Parent Absence Notifications</label>
-                                            <p className="text-xs text-slate-400">Automatically notify parents via SMS/Email when a student is marked as absent.</p>
+                                    {isSchool && (
+                                        <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                id="enable-parent-notifications"
+                                                checked={instProfile.parentAbsenceNotificationsEnabled}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, parentAbsenceNotificationsEnabled: e.target.checked })}
+                                                className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <div>
+                                                <label htmlFor="enable-parent-notifications" className="text-sm font-bold text-slate-700 dark:text-slate-300">Parent Absence Notifications</label>
+                                                <p className="text-xs text-slate-400">Automatically notify parents via SMS/Email when a student is marked as absent.</p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {isSuperAdmin && (
                                         <div className="flex items-center gap-4 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700">
