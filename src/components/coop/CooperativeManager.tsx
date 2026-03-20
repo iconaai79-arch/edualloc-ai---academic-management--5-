@@ -95,6 +95,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger'>('overview');
 
     const filteredFarmers = useMemo(() => {
         return farmers.filter(f => 
@@ -872,243 +873,285 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
                 {activeSubTab === 'reports' && (
                     <div className="p-8">
-                        <div className="flex items-center justify-between mb-12">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
                             <div>
                                 <h2 className="text-xl font-black tracking-tighter uppercase">Operational Intelligence</h2>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Advanced Financial Reporting & Yield Analytics</p>
                             </div>
+                            <div className="flex bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-2xl w-fit">
+                                <button 
+                                    onClick={() => setReportSubTab('overview')}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        reportSubTab === 'overview' 
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' 
+                                        : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Operational Overview
+                                </button>
+                                <button 
+                                    onClick={() => setReportSubTab('payouts')}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        reportSubTab === 'payouts' 
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' 
+                                        : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Settlement Schedule
+                                </button>
+                                <button 
+                                    onClick={() => setReportSubTab('ledger')}
+                                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        reportSubTab === 'ledger' 
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' 
+                                        : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Financial Ledger
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Top Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                            <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-500/20">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Net Cash Position</p>
-                                <h4 className="text-3xl font-black tracking-tighter">
-                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
-                                </h4>
-                                <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 w-fit px-3 py-1.5 rounded-full">
-                                    Cashbook Balance
+                        {reportSubTab === 'overview' && (
+                            <>
+                                {/* Top Summary Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12 animate-fade-in">
+                                    <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-500/20">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Net Cash Position</p>
+                                        <h4 className="text-3xl font-black tracking-tighter">
+                                            KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                        </h4>
+                                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 w-fit px-3 py-1.5 rounded-full">
+                                            Cashbook Balance
+                                        </div>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Receivables</p>
+                                        <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                            KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}
+                                        </h4>
+                                        <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-2">+ Gross Income</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Payables</p>
+                                        <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                            KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                                        </h4>
+                                        <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2">- Operating Expenses</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Receivables</p>
-                                <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}
-                                </h4>
-                                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-2">+ Gross Income</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Payables</p>
-                                <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
-                                </h4>
-                                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2">- Operating Expenses</p>
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-                            {/* Yield Analytics */}
-                            <div className="bg-slate-50 dark:bg-slate-900/50 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800">
-                                <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-3">
-                                    <FarmerIcon className="w-5 h-5 text-indigo-500" />
-                                    Yield Production Analytics
-                                </h3>
-                                <div className="space-y-6">
-                                    {['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(prod => {
-                                        const prodTotal = collections.filter(c => c.productType === prod && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0);
-                                        const maxProd = Math.max(...['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(p => collections.filter(c => c.productType === p && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0)), 1);
-                                        const percentage = (prodTotal / maxProd) * 100;
-                                        
-                                        return (
-                                            <div key={prod}>
-                                                <div className="flex justify-between items-end mb-2">
-                                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{prod}</p>
-                                                    <p className="text-sm font-black tracking-tight">{prodTotal.toLocaleString()} Units</p>
-                                                </div>
-                                                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className="h-full bg-indigo-500 rounded-full transition-all duration-1000" 
-                                                        style={{ width: `${percentage}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Trial Balance / Modern Report */}
-                            <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-3 text-slate-900 dark:text-white">
-                                    <PayoutIcon className="w-5 h-5 text-indigo-500" />
-                                    Snapshot: Trial Balance
-                                </h3>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Income (Credit)</p>
-                                        <p className="text-sm font-black text-emerald-600">KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Expenses (Debit)</p>
-                                        <p className="text-sm font-black text-rose-600">KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">SACCO Assets</p>
-                                        <p className="text-sm font-black text-indigo-600">KES {saccoAccounts.reduce((s, a) => s + a.balance, 0).toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Agrovet Inventory Value</p>
-                                        <p className="text-sm font-black text-slate-600 dark:text-slate-400">KES {(inventory.reduce((s, i) => s + (i.quantity * i.unitPrice), 0)).toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-8">
-                                        <div className="bg-slate-900 dark:bg-indigo-600 px-6 py-4 rounded-2xl w-full flex justify-between items-center shadow-xl shadow-indigo-500/10">
-                                            <p className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Retained Earnings</p>
-                                            <p className="text-xl font-black text-white tracking-widest">
-                                                KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
-                                            </p>
+                                <div className="grid grid-cols-1 gap-12">
+                                    {/* Yield Analytics */}
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                        <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-3">
+                                            <FarmerIcon className="w-5 h-5 text-indigo-500" />
+                                            Yield Production Analytics
+                                        </h3>
+                                        <div className="space-y-6">
+                                            {['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(prod => {
+                                                const prodTotal = collections.filter(c => c.productType === prod && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0);
+                                                const maxProd = Math.max(...['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(p => collections.filter(c => c.productType === p && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0)), 1);
+                                                const percentage = (prodTotal / maxProd) * 100;
+                                                
+                                                return (
+                                                    <div key={prod}>
+                                                        <div className="flex justify-between items-end mb-2">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{prod}</p>
+                                                            <p className="text-sm font-black tracking-tight">{prodTotal.toLocaleString()} Units</p>
+                                                        </div>
+                                                        <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full bg-indigo-500 rounded-full transition-all duration-1000" 
+                                                                style={{ width: `${percentage}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        {/* Payment Schedule Section */}
-                        <div id="payment-schedule" className="mt-12 bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
-                                <div>
-                                    <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white mb-1">Payment Schedule Report</h3>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monthly Settlement Summary</p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-4">
-                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-2">
-                                        <select 
-                                            value={filterMonth} 
-                                            onChange={e => setFilterMonth(Number(e.target.value))}
-                                            className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
-                                        >
-                                            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                                                <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
-                                            ))}
-                                        </select>
-                                        <select 
-                                            value={filterYear} 
-                                            onChange={e => setFilterYear(Number(e.target.value))}
-                                            className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
-                                        >
-                                            {[2024, 2025, 2026].map(y => (
-                                                <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
-                                            ))}
-                                        </select>
+                            </>
+                        )}
+
+                        {reportSubTab === 'payouts' && (
+                            <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in shadow-xl shadow-indigo-500/5">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white mb-1">Payment Schedule Report</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monthly Settlement Summary</p>
                                     </div>
-                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-3">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Rate (KES/Unit):</label>
-                                        <input 
-                                            type="number" 
-                                            value={payoutRate} 
-                                            onChange={e => setPayoutRate(Number(e.target.value))}
-                                            className="w-20 bg-white dark:bg-slate-800 rounded-xl px-3 py-1.5 text-xs font-black outline-none border border-slate-100 dark:border-slate-700 dark:text-white" 
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                                            <th className="pb-4">Farmer Name</th>
-                                            <th className="pb-4">Total Qty</th>
-                                            <th className="pb-4">Gross Payout</th>
-                                            <th className="pb-4">Advances</th>
-                                            <th className="pb-4">Deductions</th>
-                                            <th className="pb-4 text-right">Net Payout</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                        {farmers.map(farmer => {
-                                            const farmerCollections = collections.filter(c => 
-                                                c.farmerId === farmer.id && 
-                                                c.factoryConfirmed && 
-                                                new Date(c.collectionDate).getMonth() === filterMonth &&
-                                                new Date(c.collectionDate).getFullYear() === filterYear
-                                            );
-                                            const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
-                                            const gross = totalQty * payoutRate;
-                                            
-                                            const advances = expenses.filter(ex => 
-                                                ex.farmerId === farmer.id && 
-                                                ex.category.toLowerCase().includes('advance') &&
-                                                new Date(ex.date).getMonth() === filterMonth &&
-                                                new Date(ex.date).getFullYear() === filterYear
-                                            ).reduce((s, ex) => s + ex.amount, 0);
-
-                                            const deductions = sales.filter(s => 
-                                                s.farmerId === farmer.id && 
-                                                new Date(s.saleDate).getMonth() === filterMonth &&
-                                                new Date(s.saleDate).getFullYear() === filterYear
-                                            ).reduce((acc, sa) => acc + sa.amount, 0);
-
-                                            const net = gross - advances - deductions;
-
-                                            if (totalQty === 0 && advances === 0 && deductions === 0) return null;
-
-                                            return (
-                                                <tr key={farmer.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                                    <td className="py-5">
-                                                        <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight">{farmer.name}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{farmer.phone}</p>
-                                                    </td>
-                                                    <td className="py-5">
-                                                        <span className="text-sm font-bold dark:text-slate-300">{totalQty.toLocaleString()}</span>
-                                                    </td>
-                                                    <td className="py-5 font-bold dark:text-slate-200">KES {gross.toLocaleString()}</td>
-                                                    <td className="py-5 text-rose-500 font-bold">- KES {advances.toLocaleString()}</td>
-                                                    <td className="py-5 text-rose-500 font-bold">- KES {deductions.toLocaleString()}</td>
-                                                    <td className="py-5 text-right">
-                                                        <span className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest">
-                                                            KES {net.toLocaleString()}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                                {farmers.filter(farmer => {
-                                    const c = collections.some(col => col.farmerId === farmer.id && col.factoryConfirmed && new Date(col.collectionDate).getMonth() === filterMonth && new Date(col.collectionDate).getFullYear() === filterYear);
-                                    const e = expenses.some(ex => ex.farmerId === farmer.id && ex.category.toLowerCase().includes('advance') && new Date(ex.date).getMonth() === filterMonth && new Date(ex.date).getFullYear() === filterYear);
-                                    const s = sales.some(sa => sa.farmerId === farmer.id && new Date(sa.saleDate).getMonth() === filterMonth && new Date(sa.saleDate).getFullYear() === filterYear);
-                                    return c || e || s;
-                                }).length === 0 && (
-                                    <div className="py-12 text-center border-t border-slate-50 dark:border-slate-800">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No payout data for selected period</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Recent Activity Mini Ledger */}
-                        <div className="mt-12 bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <h3 className="text-sm font-black uppercase tracking-widest mb-8">Consolidated Cashbook (Latest Activities)</h3>
-                            <div className="space-y-3">
-                                {[...income.map(i => ({...i, type: 'income'})), ...expenses.map(e => ({...e, type: 'expense'}))]
-                                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                    .slice(0, 8)
-                                    .map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-1 h-8 rounded-full ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">{(item as any).companyName || (item as any).description}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.date}</p>
-                                                </div>
-                                            </div>
-                                            <p className={`text-sm font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                {item.type === 'income' ? '+' : '-'} KES {item.amount.toLocaleString()}
-                                            </p>
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-2">
+                                            <select 
+                                                value={filterMonth} 
+                                                onChange={e => setFilterMonth(Number(e.target.value))}
+                                                className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
+                                            >
+                                                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                                                    <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
+                                                ))}
+                                            </select>
+                                            <select 
+                                                value={filterYear} 
+                                                onChange={e => setFilterYear(Number(e.target.value))}
+                                                className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
+                                            >
+                                                {[2024, 2025, 2026].map(y => (
+                                                    <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
+                                                ))}
+                                            </select>
                                         </div>
-                                    ))}
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-3">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Rate (KES/Unit):</label>
+                                            <input 
+                                                type="number" 
+                                                value={payoutRate} 
+                                                onChange={e => setPayoutRate(Number(e.target.value))}
+                                                className="w-20 bg-white dark:bg-slate-800 rounded-xl px-3 py-1.5 text-xs font-black outline-none border border-slate-100 dark:border-slate-700 dark:text-white" 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                                <th className="pb-4">Farmer Name</th>
+                                                <th className="pb-4 text-center">Total Qty</th>
+                                                <th className="pb-4">Gross Payout</th>
+                                                <th className="pb-4">Advances</th>
+                                                <th className="pb-4">Deductions</th>
+                                                <th className="pb-4 text-right">Net Payout</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                            {farmers.map(farmer => {
+                                                const farmerCollections = collections.filter(c => 
+                                                    c.farmerId === farmer.id && 
+                                                    c.factoryConfirmed && 
+                                                    new Date(c.collectionDate).getMonth() === filterMonth &&
+                                                    new Date(c.collectionDate).getFullYear() === filterYear
+                                                );
+                                                const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
+                                                const gross = totalQty * payoutRate;
+                                                
+                                                const advances = expenses.filter(ex => 
+                                                    ex.farmerId === farmer.id && 
+                                                    ex.category.toLowerCase().includes('advance') &&
+                                                    new Date(ex.date).getMonth() === filterMonth &&
+                                                    new Date(ex.date).getFullYear() === filterYear
+                                                ).reduce((s, ex) => s + ex.amount, 0);
+
+                                                const deductions = sales.filter(s => 
+                                                    s.farmerId === farmer.id && 
+                                                    new Date(s.saleDate).getMonth() === filterMonth &&
+                                                    new Date(s.saleDate).getFullYear() === filterYear
+                                                ).reduce((acc, sa) => acc + sa.amount, 0);
+
+                                                const net = gross - advances - deductions;
+
+                                                if (totalQty === 0 && advances === 0 && deductions === 0) return null;
+
+                                                return (
+                                                    <tr key={farmer.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                                        <td className="py-5">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight">{farmer.name}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{farmer.phone}</p>
+                                                        </td>
+                                                        <td className="py-5 text-center">
+                                                            <span className="text-sm font-bold dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 px-2.5 py-1 rounded-lg">{totalQty.toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="py-5 font-bold dark:text-slate-200">KES {gross.toLocaleString()}</td>
+                                                        <td className="py-5 text-rose-500 font-bold">- KES {advances.toLocaleString()}</td>
+                                                        <td className="py-5 text-rose-500 font-bold">- KES {deductions.toLocaleString()}</td>
+                                                        <td className="py-5 text-right">
+                                                            <span className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black shadow-lg shadow-emerald-500/20 uppercase tracking-widest block w-fit ml-auto">
+                                                                KES {net.toLocaleString()}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {farmers.filter(farmer => {
+                                        const c = collections.some(col => col.farmerId === farmer.id && col.factoryConfirmed && new Date(col.collectionDate).getMonth() === filterMonth && new Date(col.collectionDate).getFullYear() === filterYear);
+                                        const e = expenses.some(ex => ex.farmerId === farmer.id && ex.category.toLowerCase().includes('advance') && new Date(ex.date).getMonth() === filterMonth && new Date(ex.date).getFullYear() === filterYear);
+                                        const s = sales.some(sa => sa.farmerId === farmer.id && new Date(sa.saleDate).getMonth() === filterMonth && new Date(sa.saleDate).getFullYear() === filterYear);
+                                        return c || e || s;
+                                    }).length === 0 && (
+                                        <div className="py-12 text-center border-t border-slate-50 dark:border-slate-800">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No payout data for selected period</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {reportSubTab === 'ledger' && (
+                            <div className="space-y-12 animate-fade-in">
+                                {/* Trial Balance / Modern Report */}
+                                <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm shadow-xl shadow-indigo-500/5">
+                                    <h3 className="text-sm font-black uppercase tracking-widest mb-8 flex items-center gap-3 text-slate-900 dark:text-white">
+                                        <PayoutIcon className="w-5 h-5 text-indigo-500" />
+                                        Snapshot: Trial Balance
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Income (Credit)</p>
+                                            <p className="text-sm font-black text-emerald-600">KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Expenses (Debit)</p>
+                                            <p className="text-sm font-black text-rose-600">KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">SACCO Assets</p>
+                                            <p className="text-sm font-black text-indigo-600">KES {saccoAccounts.reduce((s, a) => s + a.balance, 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-700/50">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Agrovet Inventory Value</p>
+                                            <p className="text-sm font-black text-slate-600 dark:text-slate-400">KES {(inventory.reduce((s, i) => s + (i.quantity * i.unitPrice), 0)).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-8">
+                                            <div className="bg-slate-900 dark:bg-indigo-600 px-6 py-4 rounded-2xl w-full flex justify-between items-center shadow-xl shadow-indigo-500/20">
+                                                <p className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Retained Earnings</p>
+                                                <p className="text-xl font-black text-white tracking-widest">
+                                                    KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Recent Activity Mini Ledger */}
+                                <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm shadow-xl shadow-indigo-500/5">
+                                    <h3 className="text-sm font-black uppercase tracking-widest mb-8">Consolidated Cashbook (Latest Activities)</h3>
+                                    <div className="space-y-3">
+                                        {[...income.map(i => ({...i, type: 'income'})), ...expenses.map(e => ({...e, type: 'expense'}))]
+                                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                            .slice(0, 8)
+                                            .map((item, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-1 h-8 rounded-full ${item.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">{(item as any).companyName || (item as any).description}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.date}</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className={`text-sm font-black ${item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                        {item.type === 'income' ? '+' : '-'} KES {item.amount.toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
