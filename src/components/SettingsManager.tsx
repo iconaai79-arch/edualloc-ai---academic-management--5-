@@ -140,6 +140,7 @@ interface SettingsManagerProps {
     receipts?: Receipt[];
     invoices?: Invoice[];
     extensionRequests?: ExtensionRequest[];
+    isCoop?: boolean;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -175,10 +176,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     }, [props.currentInstitution]);
 
     const isCoop = useMemo(() => {
+        if (typeof props.isCoop === 'boolean') return props.isCoop;
         const type = props.currentInstitution?.institutionType;
+        const name = props.currentInstitution?.name?.toLowerCase() || '';
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
-        return type === 'Cooperative' || subType.includes('cooperative') || subType.includes('sacco') || subType.includes('agrovet');
-    }, [props.currentInstitution]);
+        const isCoopRole = props.currentUser?.role?.includes('coop') || props.currentUser?.role?.includes('sacco');
+        return type === 'Cooperative' || name.includes('cooperative') || name.includes('sacco') || name.includes('agrovet') || subType.includes('cooperative') || subType.includes('sacco') || subType.includes('agrovet') || isCoopRole;
+    }, [props.currentInstitution, props.currentUser.role, props.isCoop]);
 
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');

@@ -998,6 +998,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onRefreshData={props.onRefreshData}
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         examTimetableSettings={props.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                        isCoop={isCoop}
                     />
                 )}
 
