@@ -25,6 +25,7 @@ import {
     Settings as CogIcon
 } from 'lucide-react';
 import { SettingsManager } from '../SettingsManager';
+import { CommunicationsManager } from '../CommunicationsManager';
 import * as pdfService from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
 import { 
@@ -75,7 +76,7 @@ interface CooperativeManagerProps {
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     currentInstitution?: Institution | null;
-    activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'settings';
+    activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings';
     onTabChange?: (tab: string) => void;
     onUpdateInstitution?: (id: string, data: any) => Promise<void> | void;
     onUpdateLogo?: (url: string | null) => void;
@@ -140,7 +141,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     subjects = [],
     courses = []
 }) => {
-    const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'settings'>('overview');
+    const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     
     const activeSubTab = externalActiveTab || localActiveSubTab;
@@ -166,6 +167,34 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
+    const [isAddingFarmer, setIsAddingFarmer] = useState(false);
+    const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
+        status: 'active',
+        joinedAt: new Date().toISOString().split('T')[0]
+    });
+
+    const handleSubmitFarmer = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newFarmer.name || !newFarmer.phone || !newFarmer.accountNumber) {
+            alert("Please fill in Name, Phone and Account Number");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddFarmer({
+                ...newFarmer,
+                id: `f_${Date.now()}`,
+                institutionId: currentInstitution?.id || ''
+            });
+            setIsAddingFarmer(false);
+            setNewFarmer({ status: 'active', joinedAt: new Date().toISOString().split('T')[0] });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save farmer record");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     const handleSettlementPreview = async () => {
         try {
@@ -260,6 +289,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             { id: 'agrovet', label: 'Agrovet', icon: <StoreIcon className="w-4 h-4" /> },
                             { id: 'sacco', label: 'SACCO', icon: <SaccoIcon className="w-4 h-4" /> },
                             { id: 'finances', label: 'Finances', icon: <FinanceIcon className="w-4 h-4" /> },
+                            { id: 'communication', label: 'Communication', icon: <EmailIcon className="w-4 h-4" /> },
                             { id: 'approvals', label: 'Approvals', icon: <ApprovalIcon className="w-4 h-4" /> },
                             { id: 'settings', label: 'Config', icon: <CogIcon className="w-4 h-4" /> },
                             { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> }
@@ -518,14 +548,124 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Farmer Registry</h2>
-                                    <button 
-                                        onClick={() => onAddFarmer({})}
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Onboard Farmer
-                                    </button>
+                                    {!isAddingFarmer && 
+                                        <button 
+                                            onClick={() => setIsAddingFarmer(true)}
+                                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Onboard Farmer
+                                        </button>
+                                    }
                                 </div>
+                                
+                                {isAddingFarmer && 
+                                    <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                    <FarmerIcon className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-black tracking-tighter uppercase mb-0.5">New Farmer Registration</h3>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Add a new member to the cooperative registry</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => setIsAddingFarmer(false)}
+                                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400"
+                                            >
+                                                <PlusIcon className="w-5 h-5 rotate-45" />
+                                            </button>
+                                        </div>
+
+                                        <form onSubmit={handleSubmitFarmer} className="space-y-8">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Full Name</label>
+                                                    <input 
+                                                        required
+                                                        type="text" 
+                                                        value={newFarmer.name || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, name: e.target.value})}
+                                                        placeholder="Enter farmer's full name"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                                                    <input 
+                                                        required
+                                                        type="tel" 
+                                                        value={newFarmer.phone || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, phone: e.target.value})}
+                                                        placeholder="07XXXXXXXX"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account / Member ID</label>
+                                                    <input 
+                                                        required
+                                                        type="text" 
+                                                        value={newFarmer.accountNumber || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, accountNumber: e.target.value})}
+                                                        placeholder="COOP-XXXX"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">National ID</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newFarmer.nationalId || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, nationalId: e.target.value})}
+                                                        placeholder="ID Number"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">KRA PIN (Optional)</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newFarmer.kraPin || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, kraPin: e.target.value})}
+                                                        placeholder="AXXXXXXXXX"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white uppercase"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Route / Location</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newFarmer.location || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, location: e.target.value})}
+                                                        placeholder="e.g. Route A, Zone B"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-end gap-4 pt-4">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setIsAddingFarmer(false)}
+                                                    className="px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    type="submit"
+                                                    disabled={isProcessing}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'Onboarding...' : 'Save Farmer Record'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                }
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                     {filteredFarmers.map(farmer => (
                                         <div key={farmer.id} className="group p-6 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-indigo-100 dark:hover:border-indigo-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all duration-300 cursor-pointer">
@@ -1517,6 +1657,82 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     </div>
                 );
             })()}
+
+            {activeSubTab === 'communication' && (
+                <div className="space-y-8 animate-fade-in px-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                            <h2 className="text-2xl font-black tracking-tighter uppercase">Broadcast & Communications</h2>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Send SMS and Email notifications to farmers, riders, and staff</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div className="lg:col-span-8">
+                            <CommunicationsManager 
+                                users={users}
+                                departments={departments}
+                                courses={courses}
+                                currentInstitution={currentInstitution}
+                                smsConfig={smsConfig}
+                                moduleContext="cooperative"
+                                onSendSms={async (recipient, message, config, units, instId) => {
+                                    // Implementation for sending SMS
+                                    try {
+                                        const result = await apiService.sendSms({
+                                            to: recipient,
+                                            message,
+                                            institutionId: instId || currentInstitution?.id || ''
+                                        });
+                                        return { success: true, message: 'Sent' };
+                                    } catch (err) {
+                                        return { success: false, message: 'Failed to send' };
+                                    }
+                                }}
+                                onRefreshData={() => {}}
+                                smsBalance={currentInstitution?.smsBalance || 0}
+                            />
+                        </div>
+                        <div className="lg:col-span-4 space-y-6">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600">
+                                        <SaccoIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-tight">Billing Preferences</h3>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Farmer SMS Billing Policy</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Monthly SMS Billing</p>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Bill farmers for notifications</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={currentInstitution?.farmerSmsBillingEnabled || false}
+                                                onChange={(e) => onUpdateInstitution?.(currentInstitution!.id, { farmerSmsBillingEnabled: e.target.checked })}
+                                                className="sr-only peer" 
+                                            />
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
+
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/30">
+                                        <p className="text-[9px] text-amber-600 dark:text-amber-500/80 leading-relaxed font-bold uppercase tracking-tight">
+                                            When enabled, farmers will be automatically billed for SMS notifications sent to them throughout the month.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {activeSubTab === 'settings' && (
                 <div className="p-8">
