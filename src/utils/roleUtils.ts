@@ -64,7 +64,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     }
 
     // Cooperative, SACCO, Agrovet
-    if (type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco')) {
+    const isCoop = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
+                   type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
+                   subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco');
+
+    if (isCoop) {
         return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'field_agent', 'supplier', 'lead', 'store', 'security', 'driver'];
     }
 
@@ -109,7 +113,11 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         }
     }
 
-    if (type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco')) {
+    const isCooperative = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
+                         type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
+                         subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco');
+
+    if (isCooperative) {
         switch (role) {
             case 'cooperative_manager': return 'Cooperative Manager';
             case 'coop_chairman': return 'Board Chairman';

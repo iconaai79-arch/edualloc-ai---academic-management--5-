@@ -869,17 +869,25 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     };
 
     useEffect(() => {
-        if (activeTab === 'staff') setRoles(['teacher']);
-        else if (activeTab === 'customer') setRoles(['customer']);
-        else setRoles(['student']);
-    }, [activeTab]);
+        if (activeTab === 'staff') {
+            const defaultRole = isCoop ? 'cooperative_manager' : (isRetailAgency ? 'retail_agent' : 'teacher');
+            setRoles([defaultRole as Role]);
+        } else if (activeTab === 'customer') {
+            setRoles(['customer']);
+        } else {
+            setRoles(['student']);
+        }
+    }, [activeTab, isCoop, isRetailAgency]);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const isCoop = useMemo(() => {
         const type = currentInstitution?.institutionType;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
-        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
+        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
+               type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
+               subType.includes('coop') || subType.includes('sacco');
     }, [currentInstitution]);
+
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
         return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
