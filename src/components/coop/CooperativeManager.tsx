@@ -85,6 +85,16 @@ interface CooperativeManagerProps {
     footerImageUrl?: string | null;
     companyDetails?: any;
     onUpdateCompanyDetails?: (details: any) => Promise<void>;
+    letterheadConfig?: any;
+    users?: User[];
+    onAddUser?: (userData: any) => Promise<void>;
+    onEditUser?: (userId: string, data: any) => Promise<void>;
+    onDeleteUser?: (userId: string) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
+    smsConfig?: any;
+    departments?: any[];
+    subjects?: any[];
+    courses?: any[];
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -118,7 +128,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     logoUrl,
     footerImageUrl,
     companyDetails,
-    onUpdateCompanyDetails
+    onUpdateCompanyDetails,
+    letterheadConfig,
+    users = [],
+    onAddUser,
+    onEditUser,
+    onDeleteUser,
+    onImportUsers,
+    smsConfig = { provider: 'at', apiKey: '', username: '', senderId: '' },
+    departments = [],
+    subjects = [],
+    courses = []
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -1515,14 +1535,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         footerImageUrl={footerImageUrl || null}
                         companyDetails={companyDetails}
                         onUpdateCompanyDetails={onUpdateCompanyDetails}
+                        letterheadConfig={letterheadConfig}
                         isCoop={true}
-                        // Default empty arrays for other required but non-essential props for branding
-                        departments={[]}
-                        subjects={[]}
+                        users={users}
+                        onAddUser={onAddUser}
+                        onEditUser={onEditUser}
+                        onDeleteUser={onDeleteUser}
+                        onImportUsers={onImportUsers}
+                        smsConfig={smsConfig}
+                        departments={departments}
+                        subjects={subjects}
+                        courses={courses}
+                        academicLevels={[]}
                         buildings={[]}
                         rooms={[]}
-                        courses={[]}
-                        academicLevels={[]}
+                        allocations={[]}
+                        academicYears={[]}
+                        semesters={[]}
+                        themeColor="#4f46e5"
+                        onRefreshData={() => {}}
                         timetableSettings={{ 
                             operatingDays: [], 
                             startTime: '08:00', 
@@ -1537,11 +1568,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             constraints: []
                         }}
                         examTimetableSettings={{ sessionsPerDay: [], rules: [] }}
-                        allocations={[]}
-                        academicYears={[]}
-                        semesters={[]}
-                        users={[]}
-                        themeColor="#4f46e5"
                     />
                 </div>
             )}

@@ -57,6 +57,8 @@ import { DepartmentManager } from './DepartmentManager';
 import { BuildingManager } from './BuildingManager';
 import { AcademicLevelManager } from './AcademicLevelManager';
 import { DatabaseSettings } from './DatabaseSettings';
+import { UserManager } from './UserManager';
+import { UserGroupIcon } from './icons/index';
 
 interface SettingsManagerProps {
     currentUser: User;
@@ -136,6 +138,11 @@ interface SettingsManagerProps {
     onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void>;
     onRefreshData?: () => void;
     users: User[];
+    onAddUser?: (userData: any) => Promise<void>;
+    onEditUser?: (userId: string, data: any) => Promise<void>;
+    onDeleteUser?: (userId: string) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
+    letterheadConfig?: LetterheadConfig;
     transactions?: MpesaTransaction[];
     receipts?: Receipt[];
     invoices?: Invoice[];
@@ -163,7 +170,7 @@ const TEACHER_RULE_TYPE_LABELS: Record<TeacherRuleType, string> = {
     no_lessons_after: 'No Lessons After'
 };
 
-type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'facilities';
+type SettingsTab = 'global_config' | 'general' | 'timetable' | 'calendar' | 'subjects' | 'courses' | 'facilities' | 'levels' | 'database' | 'custom_fields' | 'notifications' | 'financial' | 'staff';
 
 export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isSuperAdmin = props.currentUser.role === 'super_admin';
@@ -186,7 +193,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
@@ -638,6 +645,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'facilities', label: 'Facilities', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
+            }
+            if (isCoop) {
+                tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
         }
 
@@ -2272,6 +2282,21 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             }
 
             {
+                activeTab === 'staff' && (
+                    <UserManager
+                        {...props}
+                        user={props.currentUser}
+                        showOnly="staff"
+                        currentInstitution={props.currentInstitution}
+                        letterheadConfig={props.letterheadConfig || props.companyDetails?.letterheadConfig || {
+                            headerImageUrl: props.currentInstitution?.logoUrl || null,
+                            stampImageUrl: null
+                        }}
+                    />
+                )
+            }
+
+            {
                 activeTab === 'subjects' && (
                     <SubjectManager
                         {...props}
@@ -2285,6 +2310,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         onEditSubject={props.onEditSubject}
                         onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                         onSaveTimetableSettings={props.onSaveTimetableSettings!}
+                        letterheadConfig={props.letterheadConfig || props.companyDetails?.letterheadConfig || {
+                            headerImageUrl: props.currentInstitution?.logoUrl || null,
+                            stampImageUrl: null
+                        }}
+                        logoUrl={props.logoUrl || null}
+                        footerImageUrl={props.footerImageUrl || null}
+                        buildings={props.buildings || []}
+                        currentUser={props.currentUser}
                     />
                 )
             }

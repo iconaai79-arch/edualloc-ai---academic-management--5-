@@ -931,11 +931,21 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onUpdateInstitution={props.onUpdateInstitution}
                                 onUpdateLogo={props.onUpdateLogo}
                                 onUpdateFooterImage={props.onUpdateFooterImage}
-                                onSaveLetterheadConfig={props.onSaveLetterheadConfig}
-                                logoUrl={props.logoUrl}
+                                 onSaveLetterheadConfig={props.onSaveLetterheadConfig}
+                                 letterheadConfig={props.letterheadConfig}
+                                 logoUrl={props.logoUrl}
                                 footerImageUrl={props.footerImageUrl}
                                 companyDetails={props.companyDetails}
-                                onUpdateCompanyDetails={props.onUpdateCompanyDetails}
+                                 onUpdateCompanyDetails={props.onUpdateCompanyDetails}
+                                 users={props.users || []}
+                                 onAddUser={props.onAddUser}
+                                 onEditUser={props.onEditUser}
+                                 onDeleteUser={props.onDeleteUser}
+                                 onImportUsers={props.onImportUsers}
+                                 smsConfig={props.smsConfig}
+                                 departments={props.departments || []}
+                                 subjects={props.subjects || []}
+                                 courses={props.courses || []}
                                 activeTab={coopTabMap[activeTab] as any}
                                 onTabChange={(tab) => {
                                     const reverseMap: Record<string, string> = {
