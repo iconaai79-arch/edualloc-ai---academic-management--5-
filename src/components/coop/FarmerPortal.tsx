@@ -5,7 +5,8 @@ import {
     CoopCollection, 
     SaccoAccount, 
     CoopMonthlyPayout, 
-    CoopAgrovetSales 
+    CoopAgrovetSales,
+    AppNotification
 } from '../../types';
 import { 
     LayoutDashboard, 
@@ -20,7 +21,8 @@ import {
     Droplets,
     ChevronRight,
     ArrowUpRight,
-    CreditCard
+    CreditCard,
+    MessageSquare
 } from 'lucide-react';
 
 interface FarmerPortalProps {
@@ -29,6 +31,7 @@ interface FarmerPortalProps {
     saccoAccounts: SaccoAccount[];
     payouts: CoopMonthlyPayout[];
     agrovetSales: CoopAgrovetSales[];
+    notifications?: AppNotification[];
     onLogout: () => void;
 }
 
@@ -38,9 +41,10 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     saccoAccounts = [],
     payouts = [],
     agrovetSales = [],
+    notifications = [],
     onLogout
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements' | 'notifications'>('dashboard');
 
     const stats = useMemo(() => {
         const totalQty = collections.reduce((sum, c) => sum + Number(c.quantity), 0);
@@ -75,7 +79,8 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                         { id: 'collections', label: 'Collections', icon: <ClipboardList className="w-4 h-4" /> },
                         { id: 'sacco', label: 'SACCO Wallet', icon: <Wallet className="w-4 h-4" /> },
                         { id: 'agrovet', label: 'Store Credit', icon: <ShoppingBag className="w-4 h-4" /> },
-                        { id: 'statements', label: 'Statements', icon: <FileText className="w-4 h-4" /> }
+                        { id: 'statements', label: 'Statements', icon: <FileText className="w-4 h-4" /> },
+                        { id: 'notifications', label: 'Notifications', icon: <MessageSquare className="w-4 h-4" /> }
                     ].map(item => (
                         <button
                             key={item.id}
@@ -306,6 +311,48 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                      </div>
                                  </div>
                              ))}
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'notifications' && (
+                    <div className="animate-fade-in space-y-8">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Notifications & Announcements</h2>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {notifications.length > 0 ? (
+                                notifications.map(n => (
+                                    <div key={n.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:border-indigo-500 transition-all group">
+                                        <div className="flex items-start gap-5">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                                                n.type === 'alert' ? 'bg-red-50 text-red-600' :
+                                                n.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                                                'bg-indigo-50 text-indigo-600'
+                                            }`}>
+                                                <Bell className="w-6 h-6" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{n.title}</h4>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        {new Date(n.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{n.message}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-16 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
+                                        <Bell className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">No Notifications</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">You're all caught up with the cooperative!</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

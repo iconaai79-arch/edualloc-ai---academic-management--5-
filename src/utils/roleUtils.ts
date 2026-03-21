@@ -94,26 +94,6 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         }
     }
 
-    // School context
-    const isSchool = type === 'Primary' || type === 'Secondary';
-    if (isSchool) {
-        switch (role) {
-            case 'head_teacher': case 'admin': return 'Head Teacher';
-            case 'deputy': return 'Deputy Principal';
-            case 'dos': case 'academics_officer': return 'DOS / Academics';
-            case 'teacher': case 'lecturer': return 'Teacher';
-            case 'boarding_master': return 'Boarding Manager';
-        }
-    }
-
-    const isHIS = type === 'HIS';
-    if (isHIS) {
-        switch (role) {
-            case 'his_admin': return 'Hospital Administrator';
-            case 'academics_officer': return 'Medical Record Officer';
-        }
-    }
-
     const isCooperative = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
                          type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
                          subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco');
@@ -129,6 +109,26 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'supplier': return 'Input Supplier';
             case 'lead': return 'Prospective Member';
             case 'admin': return 'System Administrator';
+        }
+    }
+
+    const isHIS = type === 'HIS';
+    if (isHIS) {
+        switch (role) {
+            case 'his_admin': return 'Hospital Administrator';
+            case 'academics_officer': return 'Medical Record Officer';
+        }
+    }
+
+    // School context
+    const isSchool = type === 'Primary' || type === 'Secondary';
+    if (isSchool) {
+        switch (role) {
+            case 'head_teacher': case 'admin': return 'Head Teacher';
+            case 'deputy': return 'Deputy Principal';
+            case 'dos': case 'academics_officer': return 'DOS / Academics';
+            case 'teacher': case 'lecturer': return 'Teacher';
+            case 'boarding_master': return 'Boarding Manager';
         }
     }
 

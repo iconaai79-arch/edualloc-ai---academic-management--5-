@@ -2630,6 +2630,7 @@ export const App: React.FC = () => {
                                     saccoAccounts={saccoAccounts}
                                     payouts={coopPayouts}
                                     agrovetSales={coopAgrovetSales}
+                                    notifications={notifications.filter(n => n.userId === currentUser.id || n.institutionId === currentUser.institutionId)}
                                     onLogout={handleLogout}
                                 />
                             ) : activeRole === 'rider' ? (
