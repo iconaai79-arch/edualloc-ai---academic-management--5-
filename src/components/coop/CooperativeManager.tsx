@@ -265,8 +265,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             { id: 'sacco', label: 'SACCO', icon: <SaccoIcon className="w-4 h-4" /> },
                             { id: 'finances', label: 'Finances', icon: <FinanceIcon className="w-4 h-4" /> },
                             { id: 'approvals', label: 'Approvals', icon: <ApprovalIcon className="w-4 h-4" /> },
-                            { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> },
-                            { id: 'settings', label: 'Config', icon: <CogIcon className="w-4 h-4" /> }
+                            { id: 'settings', label: 'Config', icon: <CogIcon className="w-4 h-4" /> },
+                            { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -1530,8 +1530,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         rooms={[]}
                         courses={[]}
                         academicLevels={[]}
-                        timetableSettings={{ operatingDays: [], startTime: '', endTime: '', periods: [], breaks: [], cellSpanMinutes: 60 }}
-                        examTimetableSettings={{ sessionsPerDay: [] }}
+                        timetableSettings={{ 
+                            operatingDays: [], 
+                            startTime: '08:00', 
+                            endTime: '17:00', 
+                            periods: [], 
+                            breaks: [], 
+                            cellSpanMinutes: 60,
+                            periodLengthMinutes: 60,
+                            maxPeriodsPerDay: 8,
+                            minWeeklyPeriods: 0,
+                            maxWeeklyPeriods: 40,
+                            constraints: []
+                        }}
+                        examTimetableSettings={{ sessionsPerDay: [], rules: [] }}
                         allocations={[]}
                         academicYears={[]}
                         semesters={[]}
