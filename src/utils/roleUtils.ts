@@ -33,13 +33,23 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     const type = institution.institutionType;
     const subType = institution.businessSubType?.toLowerCase() || '';
 
+    // Cooperative, SACCO, Agrovet
+    const isCoop = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
+                   type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
+                   subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco') ||
+                   subType.includes('agrovet');
+
+    if (isCoop) {
+        return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'field_agent', 'supplier', 'lead', 'store', 'security', 'driver'];
+    }
+
     // Car Wash / Car Service
     if (subType.includes('car wash') || subType.includes('car service') || subType.includes('mechanic')) {
         return ['carwash_admin', 'carwash_attendant', 'carwash_customer', 'customer', 'lead'];
     }
 
     // Retail
-    if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop') || subType.includes('agrovet')) {
+    if (subType.includes('retail') || subType.includes('hardware') || subType.includes('pharmacy') || subType.includes('shop')) {
         return ['retail_agent', 'field_agent', 'customer', 'supplier', 'lead', 'store'];
     }
 
@@ -61,15 +71,6 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     // HIS / Health Information System
     if (type === 'HIS') {
         return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store'];
-    }
-
-    // Cooperative, SACCO, Agrovet
-    const isCoop = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
-                   type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
-                   subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco');
-
-    if (isCoop) {
-        return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'field_agent', 'supplier', 'lead', 'store', 'security', 'driver'];
     }
 
     return ['admin', 'staff', 'customer'] as any[];
