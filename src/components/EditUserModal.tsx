@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Role, Department, UserUpdateData, Institution } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
@@ -27,6 +27,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const isRetailAgency = RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
   const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(currentInstitution?.institutionType || '');
   const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+  const isCoop = useMemo(() => {
+    const type = currentInstitution?.institutionType;
+    const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+    return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
+  }, [currentInstitution]);
 
   useEffect(() => {
     if (user) {
@@ -116,7 +121,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
               onClick={() => setActiveTab(tab)}
               className={`pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              {tab === 'basic' ? 'Basic Info' : tab === 'pro' ? (isRetailAgency ? 'Experience' : 'Professional') : 'Access Control'}
+              {tab === 'basic' ? 'Basic Info' : tab === 'pro' ? (isRetailAgency ? 'Experience' : (isCoop ? 'Experience / Stats' : 'Professional')) : 'Access Control'}
               {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-t-full shadow-[0_-2px_8_px_rgba(79,70,229,0.4)]" />}
             </button>
           ))}
@@ -154,12 +159,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
             {activeTab === 'pro' && (
               <div className="space-y-6 animate-fade-in-up">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : 'Staff / Student ID'}</label>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : (isCoop ? 'ID / Member Number' : 'Staff / Student ID')}</label>
                   <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} required />
                 </div>
-                {(isEdu || isRetailAgency) && (
+                {(isEdu || isRetailAgency || isCoop) && (
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : 'Expertise / Skills (comma separated)'}</label>
+                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'Skills / Experience' : (isCoop ? 'Farmer Stats / Expertise' : 'Expertise / Skills (comma separated)')}</label>
                     <textarea value={expertise} onChange={(e) => setExpertise(e.target.value)} rows={3} className="form-input resize-none" placeholder={isRetailAgency ? "e.g. Sales, Customer Service, Field Operations" : "e.g. Mathematics, Pedagogy, Sports Coaching"} required={user.role !== 'student'} />
                   </div>
                 )}
@@ -197,7 +202,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                     </div>
                   </div>
 
-                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && (
+                  {roles.some(r => rolesWithDepartment.includes(r)) && !isRetailAgency && isEdu && !isCoop && (
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Assigned Department</label>
                       <select value={assignedDepartmentId} onChange={(e) => setAssignedDepartmentId(e.target.value)} required disabled={!!fixedDepartmentId} className="form-select disabled:opacity-60">

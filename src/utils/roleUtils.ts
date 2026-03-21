@@ -63,9 +63,9 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
         return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store'];
     }
 
-    // Fallback/Generic
-    if (subType.includes('coop') || subType.includes('dairy')) {
-        return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer'];
+    // Cooperative, SACCO, Agrovet
+    if (type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco')) {
+        return ['cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'field_agent', 'supplier', 'lead', 'store', 'security', 'driver'];
     }
 
     return ['admin', 'staff', 'customer'] as any[];
@@ -109,12 +109,17 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
         }
     }
 
-    if (subType.includes('coop') || subType.includes('dairy')) {
+    if (type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('dairy') || subType.includes('sacco')) {
         switch (role) {
             case 'cooperative_manager': return 'Cooperative Manager';
-            case 'coop_chairman': return 'Cooperative Chairman';
-            case 'farmer': return 'Member Farmer';
-            case 'rider': return 'Delivery Rider';
+            case 'coop_chairman': return 'Board Chairman';
+            case 'sacco_officer': return 'SACCO Officer';
+            case 'farmer': return 'Member / Farmer';
+            case 'rider': return 'Delivery / Logistics Rider';
+            case 'field_agent': return 'Extension Officer';
+            case 'supplier': return 'Input Supplier';
+            case 'lead': return 'Prospective Member';
+            case 'admin': return 'System Administrator';
         }
     }
 

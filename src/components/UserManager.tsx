@@ -373,6 +373,8 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         return await onAddTransaction({
             ...paymentData,
             institutionId: currentInstitution.id,
+            provider: 'mpesa',
+            paymentMethod: 'paybill'
         }, items);
     };
 
@@ -868,6 +870,11 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     }, [activeTab]);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isCoop = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
+    }, [currentInstitution]);
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
         return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
@@ -1033,6 +1040,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         return await onAddTransaction({
             ...paymentData,
             institutionId: currentInstitution.id,
+            provider: 'mpesa',
+            paymentMethod: 'paybill'
         }, items);
     };
 
@@ -1116,7 +1125,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             {isAdding && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
-                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? 'Staff Member' : (activeTab === 'customer' ? 'Customer/Lead' : 'Student')}</h4>
+                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? (isCoop ? 'Staff Member' : 'Staff Member') : (activeTab === 'customer' ? 'Customer/Lead' : (isCoop ? 'Member/Farmer' : 'Student'))}</h4>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
@@ -1134,9 +1143,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">
-                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID')}
+                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID'))}
                                 </label>
-                                <input type="text" value={staffId} onChange={e => setStaffId(e.target.value)} className="form-input w-full" />
+                                <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input w-full font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : (isCoop ? "e.g. MBR-001" : "EMP-001")} required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Gender</label>
@@ -1250,18 +1259,18 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         >
                             <span className="flex items-center gap-2">
                                 <UserGroupIcon className="w-4 h-4" />
-                                {isRetailAgency ? 'Staff/Agents' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff')}
+                                {isRetailAgency ? 'Staff/Agents' : (isCoop ? 'Cooperative Staff' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff'))}
                             </span>
                         </button>
                     )}
-                    {!isRetailAgency && isEdu && (!showOnly || showOnly === 'student') && (
+                    {((!isRetailAgency && isEdu) || isCoop) && (!showOnly || showOnly === 'student') && (
                         <button
                             onClick={() => setActiveTab('student')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <span className="flex items-center gap-2">
                                 <AcademicCapIcon className="w-4 h-4" />
-                                {isSchool ? 'Students' : 'Learners'}
+                                {isCoop ? 'Members / Farmers' : (isSchool ? 'Students' : 'Learners')}
                             </span>
                         </button>
                     )}
@@ -1286,7 +1295,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : 'Search faculty...') : 'Search students...'}
+                            placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : (isCoop ? 'Search cooperative staff...' : 'Search faculty...')) : (isCoop ? 'Search members...' : 'Search students...')}
                             className="form-input w-full pl-10"
                         />
                         <div className="absolute left-3 top-3 text-slate-400">
