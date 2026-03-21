@@ -103,11 +103,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onTabChange
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('overview');
+    const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'logistics' | 'payouts'>('registry');
     
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
         if (onTabChange) onTabChange(tab);
         else setLocalActiveSubTab(tab);
+        if (tab !== 'farmers') setFarmerSubTab('registry');
     };
 
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
@@ -233,10 +235,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         {[
                             { id: 'farmers', label: 'Farmers', icon: <FarmerIcon className="w-4 h-4" /> },
                             { id: 'collections', label: 'Collections', icon: <CollectionIcon className="w-4 h-4" /> },
-                            { id: 'logistics', label: 'Logistics', icon: <LogisticsIcon className="w-4 h-4" /> },
                             { id: 'agrovet', label: 'Agrovet', icon: <StoreIcon className="w-4 h-4" /> },
                             { id: 'sacco', label: 'SACCO', icon: <SaccoIcon className="w-4 h-4" /> },
-                            { id: 'payouts', label: 'Payouts', icon: <PayoutIcon className="w-4 h-4" /> },
                             { id: 'finances', label: 'Finances', icon: <FinanceIcon className="w-4 h-4" /> },
                             { id: 'approvals', label: 'Approvals', icon: <ApprovalIcon className="w-4 h-4" /> },
                             { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> }
@@ -450,45 +450,231 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         </div>
                     </div>
                 )}
-                {activeSubTab === 'farmers' && (
+                {(activeSubTab === 'farmers' || activeSubTab === 'payouts' || activeSubTab === 'logistics') && (
                     <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Farmer Registry</h2>
-                            <button 
-                                onClick={() => onAddFarmer({})}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Onboard Farmer
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {filteredFarmers.map(farmer => (
-                                <div key={farmer.id} className="group p-6 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-indigo-100 dark:hover:border-indigo-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all duration-300 cursor-pointer">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 uppercase tracking-tighter">
-                                            {farmer.name.substring(0, 2)}
-                                        </div>
-                                        <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full ${
-                                            farmer.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
-                                        }`}>
-                                            {farmer.status}
-                                        </span>
-                                    </div>
-                                    <h4 className="font-black text-slate-900 dark:text-white text-lg tracking-tighter mb-1 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                                        {farmer.name}
-                                    </h4>
-                                    <p className="text-xs text-slate-500 mb-4 font-medium">{farmer.phone}</p>
-                                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
-                                            <p className="text-xs font-bold">{farmer.location || 'Main'}</p>
-                                        </div>
-                                        <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 translate-x-0 group-hover:translate-x-1 transition-all" />
-                                    </div>
-                                </div>
+                        <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit mb-8 border border-slate-200 dark:border-slate-800">
+                            {[
+                                { id: 'registry', label: 'Farmer Registry', icon: <UsersIcon className="w-3.5 h-3.5" /> },
+                                { id: 'logistics', label: 'Logistics & Riders', icon: <LogisticsIcon className="w-3.5 h-3.5" /> },
+                                { id: 'payouts', label: 'Payouts Processing', icon: <PayoutIcon className="w-3.5 h-3.5" /> }
+                            ].map(sub => (
+                                <button
+                                    key={sub.id}
+                                    onClick={() => setFarmerSubTab(sub.id as any)}
+                                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                        farmerSubTab === sub.id 
+                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm border border-slate-200 dark:border-slate-700' 
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                    }`}
+                                >
+                                    {sub.icon}
+                                    {sub.label}
+                                </button>
                             ))}
                         </div>
+
+                        {farmerSubTab === 'registry' && (
+                            <div className="animate-fade-in">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">Farmer Registry</h2>
+                                    <button 
+                                        onClick={() => onAddFarmer({})}
+                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Onboard Farmer
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {filteredFarmers.map(farmer => (
+                                        <div key={farmer.id} className="group p-6 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-indigo-100 dark:hover:border-indigo-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all duration-300 cursor-pointer">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 uppercase tracking-tighter">
+                                                    {farmer.name.substring(0, 2)}
+                                                </div>
+                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full ${
+                                                    farmer.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
+                                                }`}>
+                                                    {farmer.status}
+                                                </span>
+                                            </div>
+                                            <h4 className="font-black text-slate-900 dark:text-white text-lg tracking-tighter mb-1 line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                                                {farmer.name}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 mb-4 font-medium">{farmer.phone}</p>
+                                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                                                    <p className="text-xs font-bold">{farmer.location || 'Main'}</p>
+                                                </div>
+                                                <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 translate-x-0 group-hover:translate-x-1 transition-all" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {farmerSubTab === 'logistics' && (
+                            <div className="animate-fade-in">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">Logistics & Riders</h2>
+                                    <button 
+                                        onClick={() => onAddRider({})}
+                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Register Rider
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {riders.map(rider => (
+                                        <div key={rider.id} className="p-6 rounded-3xl border border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                                            <div className="flex items-center gap-4 mb-6">
+                                                <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center">
+                                                    <LogisticsIcon className="w-6 h-6 text-white" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-slate-900 dark:text-white tracking-tighter">{rider.name}</h4>
+                                                    <p className="text-xs text-indigo-500 font-bold tracking-widest uppercase">{rider.vehiclePlate || 'NO PLATE'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                                    <p className="text-xs font-black uppercase text-emerald-500">{rider.status}</p>
+                                                </div>
+                                                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Number</p>
+                                                    <p className="text-xs font-black">{rider.nationalId}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {farmerSubTab === 'payouts' && (
+                            <div className="animate-fade-in">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h2 className="text-xl font-black tracking-tighter uppercase">Monthly Payout Processing</h2>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                            {selectedPayouts.length} Payouts selected for processing
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        {(currentUser.role === 'cooperative_manager' || currentUser.role === 'admin') && (
+                                            <button 
+                                                disabled={selectedPayouts.length === 0 || isProcessing}
+                                                onClick={async () => {
+                                                    if (window.confirm(`Initiate monthly dues for ${selectedPayouts.length} farmers?`)) {
+                                                        setIsProcessing(true);
+                                                        await onInitiatePayouts?.(selectedPayouts);
+                                                        setSelectedPayouts([]);
+                                                        setIsProcessing(false);
+                                                        onLogAction?.(`Initiated bulk payout for ${selectedPayouts.length} farmers`);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 bg-indigo-600 disabled:bg-slate-300 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                            >
+                                                <PayoutIcon className="w-4 h-4" />
+                                                Initiate Bulk Dues
+                                            </button>
+                                        )}
+                                        {(currentUser.role === 'coop_chairman' || currentUser.role === 'super_admin') && (
+                                            <button 
+                                                disabled={selectedPayouts.length === 0 || isProcessing}
+                                                onClick={async () => {
+                                                    if (window.confirm(`Approve and Disburse funds via M-PESA for ${selectedPayouts.length} farmers?`)) {
+                                                        setIsProcessing(true);
+                                                        await onApprovePayouts?.(selectedPayouts);
+                                                        setSelectedPayouts([]);
+                                                        setIsProcessing(false);
+                                                        onLogAction?.(`Approved and Disbursed bulk M-Pesa payout to ${selectedPayouts.length} farmers`);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                            >
+                                                <SuccessIcon className="w-4 h-4" />
+                                                Approve & Play (M-PESA)
+                                            </button>
+                                        )}
+                                        <button className="flex items-center gap-2 border-2 border-slate-100 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50">
+                                            <PlusIcon className="w-4 h-4" />
+                                            Generate Drafts
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-separate border-spacing-y-4">
+                                        <thead>
+                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                <th className="px-6 pb-2">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedPayouts.length > 0 && selectedPayouts.length === payouts.length}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedPayouts(payouts.map(p => p.id));
+                                                            else setSelectedPayouts([]);
+                                                        }}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                </th>
+                                                <th className="px-6 pb-2">Farmer</th>
+                                                <th className="px-6 pb-2 text-right">Gross</th>
+                                                <th className="px-6 pb-2 text-right text-rose-500">Deductions</th>
+                                                <th className="px-6 pb-2 text-right text-emerald-600 font-black">Net Amount</th>
+                                                <th className="px-6 pb-2">Status</th>
+                                                <th className="px-6 pb-2">Workflow</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {payouts.map(p => (
+                                                <tr key={p.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
+                                                    <td className="px-6 py-5 rounded-l-3xl">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedPayouts.includes(p.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedPayouts(prev => [...prev, p.id]);
+                                                                else setSelectedPayouts(prev => prev.filter(id => id !== p.id));
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(p.farmerId)}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.monthYear}</p>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossAmount.toLocaleString()}</td>
+                                                    <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.deductionsAgrovet + p.deductionsSacco + p.deductionsTransport).toLocaleString()}</td>
+                                                    <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netAmount.toLocaleString()}</td>
+                                                    <td className="px-6 py-5">
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
+                                                            p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
+                                                            p.status === 'approved' ? 'bg-indigo-50 text-indigo-600' :
+                                                            p.status === 'initiated' ? 'bg-amber-50 text-amber-600' :
+                                                            'bg-slate-100 text-slate-500'
+                                                        }`}>
+                                                            {p.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 rounded-r-3xl">
+                                                        <div className="flex flex-col gap-1">
+                                                            {p.initiatedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Initiated: {new Date(p.initiatedAt).toLocaleDateString()}</p>}
+                                                            {p.approvedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter text-emerald-600">Approved: {new Date(p.approvedAt).toLocaleDateString()}</p>}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -785,206 +971,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     </div>
                 )}
 
-                {activeSubTab === 'payouts' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h2 className="text-xl font-black tracking-tighter uppercase">Monthly Payout Processing</h2>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                    {selectedPayouts.length} Payouts selected for processing
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                {(currentUser.role === 'cooperative_manager' || currentUser.role === 'admin') && (
-                                    <button 
-                                        disabled={selectedPayouts.length === 0 || isProcessing}
-                                        onClick={async () => {
-                                            if (window.confirm(`Initiate monthly dues for ${selectedPayouts.length} farmers?`)) {
-                                                setIsProcessing(true);
-                                                await onInitiatePayouts?.(selectedPayouts);
-                                                setSelectedPayouts([]);
-                                                setIsProcessing(false);
-                                                onLogAction?.(`Initiated bulk payout for ${selectedPayouts.length} farmers`);
-                                            }
-                                        }}
-                                        className="flex items-center gap-2 bg-indigo-600 disabled:bg-slate-300 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                                    >
-                                        <PayoutIcon className="w-4 h-4" />
-                                        Initiate Bulk Dues
-                                    </button>
-                                )}
-                                {(currentUser.role === 'coop_chairman' || currentUser.role === 'super_admin') && (
-                                    <button 
-                                        disabled={selectedPayouts.length === 0 || isProcessing}
-                                        onClick={async () => {
-                                            if (window.confirm(`Approve and Disburse funds via M-PESA for ${selectedPayouts.length} farmers?`)) {
-                                                setIsProcessing(true);
-                                                await onApprovePayouts?.(selectedPayouts);
-                                                setSelectedPayouts([]);
-                                                setIsProcessing(false);
-                                                onLogAction?.(`Approved and Disbursed bulk M-Pesa payout to ${selectedPayouts.length} farmers`);
-                                            }
-                                        }}
-                                        className="flex items-center gap-2 bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                                    >
-                                        <SuccessIcon className="w-4 h-4" />
-                                        Approve & Play (M-PESA)
-                                    </button>
-                                )}
-                                <button className="flex items-center gap-2 border-2 border-slate-100 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50">
-                                    <PlusIcon className="w-4 h-4" />
-                                    Generate Drafts
-                                </button>
-                            </div>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-separate border-spacing-y-4">
-                                <thead>
-                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                        <th className="px-6 pb-2">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedPayouts.length > 0 && selectedPayouts.length === payouts.length}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setSelectedPayouts(payouts.map(p => p.id));
-                                                    else setSelectedPayouts([]);
-                                                }}
-                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                        </th>
-                                        <th className="px-6 pb-2">Farmer</th>
-                                        <th className="px-6 pb-2 text-right">Gross</th>
-                                        <th className="px-6 pb-2 text-right text-rose-500">Deductions</th>
-                                        <th className="px-6 pb-2 text-right text-emerald-600 font-black">Net Amount</th>
-                                        <th className="px-6 pb-2">Status</th>
-                                        <th className="px-6 pb-2">Workflow</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {payouts.map(p => (
-                                        <tr key={p.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
-                                            <td className="px-6 py-5 rounded-l-3xl">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedPayouts.includes(p.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) setSelectedPayouts(prev => [...prev, p.id]);
-                                                        else setSelectedPayouts(prev => prev.filter(id => id !== p.id));
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(p.farmerId)}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.monthYear}</p>
-                                            </td>
-                                            <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossAmount.toLocaleString()}</td>
-                                            <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.deductionsAgrovet + p.deductionsSacco + p.deductionsTransport).toLocaleString()}</td>
-                                            <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netAmount.toLocaleString()}</td>
-                                            <td className="px-6 py-5">
-                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-                                                    p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
-                                                    p.status === 'approved' ? 'bg-indigo-50 text-indigo-600' :
-                                                    p.status === 'initiated' ? 'bg-amber-50 text-amber-600' :
-                                                    'bg-slate-100 text-slate-500'
-                                                }`}>
-                                                    {p.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5 rounded-r-3xl">
-                                                <div className="flex flex-col gap-1">
-                                                    {p.initiatedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Initiated: {new Date(p.initiatedAt).toLocaleDateString()}</p>}
-                                                    {p.approvedAt && <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter text-emerald-600">Approved: {new Date(p.approvedAt).toLocaleDateString()}</p>}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {activeSubTab === 'logistics' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Logistics & Riders</h2>
-                            <button 
-                                onClick={() => onAddRider({})}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Register Rider
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {riders.map(rider => (
-                                <div key={rider.id} className="p-6 rounded-3xl border border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center">
-                                            <LogisticsIcon className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-slate-900 dark:text-white tracking-tighter">{rider.name}</h4>
-                                            <p className="text-xs text-indigo-500 font-bold tracking-widest uppercase">{rider.vehiclePlate || 'NO PLATE'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                            <p className="text-xs font-black uppercase text-emerald-500">{rider.status}</p>
-                                        </div>
-                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Number</p>
-                                            <p className="text-xs font-black">{rider.nationalId}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {activeSubTab === 'logistics' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Logistics & Riders</h2>
-                            <button 
-                                onClick={() => onAddRider({})}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Register Rider
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {riders.map(rider => (
-                                <div key={rider.id} className="p-6 rounded-3xl border border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center">
-                                            <LogisticsIcon className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-slate-900 dark:text-white tracking-tighter">{rider.name}</h4>
-                                            <p className="text-xs text-indigo-500 font-bold tracking-widest uppercase">{rider.vehiclePlate || 'NO PLATE'}</p>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                            <p className="text-xs font-black uppercase text-emerald-500">{rider.status}</p>
-                                        </div>
-                                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ID Number</p>
-                                            <p className="text-xs font-black">{rider.nationalId}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 {activeSubTab === 'reports' && (() => {
                     const StatementsManager = () => {
