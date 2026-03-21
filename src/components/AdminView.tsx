@@ -983,7 +983,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     </div>
                 )}
 
-                {activeTab === 'settings' && (
+                {activeTab === 'settings' && !isCoop && (
                     <SettingsManager
                         {...props}
                         allocations={(props.requests || []).filter(r => r && r.status === 'approved')}
