@@ -34,6 +34,7 @@ import { FarmerPortal } from './coop/FarmerPortal';
 import { RiderPortal } from './coop/RiderPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
+import { MarketingLandingPage } from './public/MarketingLandingPage';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -57,7 +58,7 @@ import type {
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome
 } from '../types';
 import { ClockIcon, XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, ExclamationTriangleIcon, SparklesIcon, CheckCircleIcon, CommandLineIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
 
@@ -429,6 +430,17 @@ export const App: React.FC = () => {
             return params.get('view') === 'marketplace' || window.location.hostname === 'marketplace.eduai.co.ke' || window.location.hostname.includes('marketplace');
         } catch (e) {
             return false;
+        }
+    });
+    const [showMarketing, setShowMarketing] = useState(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals
+            const isMarketingSubdomain = window.location.hostname === 'showcase.eduai.co.ke' || window.location.hostname.includes('showcase') || window.location.hostname.includes('marketing');
+            if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
+            return !currentUser && !showMarketplace && !showGuestPortal && !showGuestFeedback;
+        } catch (e) {
+            return !currentUser;
         }
     });
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -2684,6 +2696,32 @@ export const App: React.FC = () => {
                                     companyDetails={companyDetails}
                                     users={users.filter(u => u.institutionId === currentUser.institutionId)}
                                     onDataChange={loadData}
+                                    onAddUser={async (userData) => {
+                                        try {
+                                            const targetInstitutionId = currentUser?.institutionId;
+                                            if (!targetInstitutionId) throw new Error("Institution context missing.");
+                                            await apiService.registerUser({
+                                                ...userData,
+                                                id: generateUserId(),
+                                                institutionId: targetInstitutionId
+                                            }, activeInstitution?.name);
+                                            loadData();
+                                        } catch (err: any) {
+                                            console.error("User registration failed:", err);
+                                            throw err;
+                                        }
+                                    }}
+                                    onEditUser={onEditUser}
+                                    onDeleteUser={onDeleteUser}
+                                    onImportUsers={onImportUsers}
+                                    onLogAction={handleLogAction}
+                                    smsConfig={activeInstitution?.smsConfig || companyDetails.smsConfig}
+                                    departments={departments}
+                                    subjects={subjects}
+                                    courses={courses}
+                                    letterheadConfig={activeLetterheadConfig}
+                                    logoUrl={activeBranding.logoUrl}
+                                    footerImageUrl={activeFooterImageUrl}
                                 />
                             ) : isAdminCatchAll ? (
                                 <AdminView
@@ -3054,9 +3092,12 @@ export const App: React.FC = () => {
                     </>
                 ) : showMarketplace ? (
                     <PropertyMarketplaceView />
+                ) : showMarketing ? (
+                    <MarketingLandingPage onGetStarted={() => setShowMarketing(false)} />
                 ) : (
                     <>
                         <LoginView
+                            onOpenShowcase={() => setShowMarketing(true)}
                             onLogin={async (e: string, p: string) => {
                                 // Error Check: If both users and institutions are empty, there's likely an API/Database failure
                                 if ((!users || users.length === 0) && (!institutions || institutions.length === 0)) {

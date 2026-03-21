@@ -1,0 +1,209 @@
+/* Modern Marketing Landing Page Styles */
+
+:root {
+  --marketing-primary: #4f46e5;
+  --marketing-secondary: #10b981;
+  --marketing-dark: #0f172a;
+  --marketing-glass: rgba(255, 255, 255, 0.03);
+  --marketing-glass-border: rgba(255, 255, 255, 0.1);
+}
+
+.marketing-container {
+  background-color: var(--marketing-dark);
+  color: #fff;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Dynamic Mesh Background */
+.marketing-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(79, 70, 229, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+.marketing-content {
+  position: relative;
+  z-index: 10;
+}
+
+/* Sections */
+.marketing-section {
+  padding: 100px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Hero Section */
+.hero-section {
+  text-align: center;
+  padding-top: 150px;
+  padding-bottom: 100px;
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: #94a3b8;
+  max-width: 700px;
+  margin: 0 auto 40px;
+  line-height: 1.6;
+}
+
+/* Buttons */
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 32px;
+  border-radius: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: none;
+}
+
+.cta-primary {
+  background: var(--marketing-primary);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+}
+
+.cta-primary:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 40px rgba(79, 70, 229, 0.4);
+}
+
+.cta-secondary {
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+}
+
+.cta-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-2px);
+}
+
+/* Showcase Grid */
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  margin-top: 60px;
+}
+
+.module-card {
+  background: var(--marketing-glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--marketing-glass-border);
+  padding: 40px;
+  border-radius: 40px;
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+}
+
+.module-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(79, 70, 229, 0.3);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+}
+
+.module-card:hover::before {
+  opacity: 1;
+}
+
+.module-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(79, 70, 229, 0.1);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  color: var(--marketing-primary);
+}
+
+.module-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.module-desc {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.module-advantages {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.advantage-tag {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--marketing-secondary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.8s forwards;
+}
+
+@media (max-width: 768px) {
+  .hero-title { font-size: 3rem; }
+  .marketing-section { padding: 60px 20px; }
+}

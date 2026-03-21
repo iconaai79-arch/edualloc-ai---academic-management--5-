@@ -812,6 +812,7 @@ interface UserManagerProps {
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     companyDetails?: CompanyDetails;
     isRetailAgency?: boolean;
+    isAdding?: boolean;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -820,12 +821,17 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         courses = [], subjects = [], onDirectAssign, onWithdrawRequest, onDeleteUser,
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
-        onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp
+        onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
+        isAdding: isAddingProp = false
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
     const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer'>(showOnly || 'staff');
-    const [isAdding, setIsAdding] = useState(false);
+    const [isAdding, setIsAdding] = useState(isAddingProp);
+
+    useEffect(() => {
+        setIsAdding(isAddingProp);
+    }, [isAddingProp]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -895,9 +901,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
-        const baseAdminRoles = ['admin', 'head_teacher', 'dos', 'deputy'];
-        return baseAdminRoles.includes(currentUser.role);
-    }, [currentUser?.role]);
+        const r = currentUser.role;
+        const baseAdminRoles = [
+            'admin', 'super_admin', 'head_teacher', 'dos', 'deputy', 'hod', 'academics_officer', 'registrar',
+            'property_admin', 'cooperative_manager', 'agrovet_admin', 'his_admin', 'carwash_admin', 
+            'transport_admin', 'mechanic_admin'
+        ];
+        return baseAdminRoles.includes(r) || (currentUser.roles && (currentUser.roles.includes('admin') || currentUser.roles.includes('super_admin')));
+    }, [currentUser]);
 
     const isSuperAdmin = useMemo(() => currentUser?.role === 'super_admin', [currentUser?.role]);
 

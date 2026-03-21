@@ -170,10 +170,18 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
     const [isAddingFarmer, setIsAddingFarmer] = useState(false);
+    const [isLoggingCollection, setIsLoggingCollection] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
         joinedAt: new Date().toISOString().split('T')[0]
+    });
+    const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
+        collectionDate: new Date().toISOString().split('T')[0],
+        productType: 'Milk',
+        unit: 'KG',
+        factoryConfirmed: false,
+        notified: false
     });
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
@@ -194,6 +202,36 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         } catch (err) {
             console.error(err);
             alert("Failed to save farmer record");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSubmitCollection = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCollection.farmerId || !newCollection.quantity) {
+            alert("Please select a farmer and enter quantity");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onLogCollection({
+                ...newCollection,
+                id: `c_${Date.now()}`,
+                institutionId: currentInstitution?.id || ''
+            });
+            setIsLoggingCollection(false);
+            setNewCollection({
+                collectionDate: new Date().toISOString().split('T')[0],
+                productType: 'Milk',
+                unit: 'KG',
+                factoryConfirmed: false,
+                notified: false
+            });
+            if (onLogAction) await onLogAction(`Logged collection for farmer ${newCollection.farmerId}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save collection record");
         } finally {
             setIsProcessing(false);
         }
@@ -894,13 +932,98 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
                                     <button 
-                                        onClick={() => onLogCollection({})}
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                        onClick={() => setIsLoggingCollection(!isLoggingCollection)}
+                                        className={`flex items-center gap-2 ${isLoggingCollection ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95`}
                                     >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Log Collection
+                                        <PlusIcon className={`w-4 h-4 transition-transform ${isLoggingCollection ? 'rotate-45' : ''}`} />
+                                        {isLoggingCollection ? 'Cancel' : 'Log Collection'}
                                     </button>
                                 </div>
+
+                                {isLoggingCollection && (
+                                    <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                        <div className="flex items-center gap-4 mb-8">
+                                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                                                <CollectionIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black tracking-tighter uppercase mb-0.5">Log Daily Intake</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Record farmer produce collection</p>
+                                            </div>
+                                        </div>
+
+                                        <form onSubmit={handleSubmitCollection} className="space-y-8">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer</label>
+                                                    <select 
+                                                        required
+                                                        value={newCollection.farmerId || ''}
+                                                        onChange={e => setNewCollection({...newCollection, farmerId: e.target.value})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="">Select Farmer</option>
+                                                        {farmers.map(f => (
+                                                            <option key={f.id} value={f.id}>{f.name} ({f.accountNumber})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Product Type</label>
+                                                    <select 
+                                                        required
+                                                        value={newCollection.productType || 'Milk'}
+                                                        onChange={e => setNewCollection({...newCollection, productType: e.target.value as any})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="Milk">Milk</option>
+                                                        <option value="Tea">Tea</option>
+                                                        <option value="Coffee">Coffee</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity ({newCollection.unit || 'KG'})</label>
+                                                    <input 
+                                                        required
+                                                        type="number" 
+                                                        step="0.01"
+                                                        value={newCollection.quantity || ''}
+                                                        onChange={e => setNewCollection({...newCollection, quantity: Number(e.target.value)})}
+                                                        placeholder="0.00"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Collection Date</label>
+                                                    <input 
+                                                        required
+                                                        type="date" 
+                                                        value={newCollection.collectionDate || ''}
+                                                        onChange={e => setNewCollection({...newCollection, collectionDate: e.target.value})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end gap-4">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setIsLoggingCollection(false)}
+                                                    className="px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-100 transition-all"
+                                                >
+                                                    Discard
+                                                </button>
+                                                <button 
+                                                    type="submit"
+                                                    disabled={isProcessing}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-3"
+                                                >
+                                                    {isProcessing ? 'Processing...' : 'Save Intake Record'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-separate border-spacing-y-4">
                                         <thead>

@@ -22,6 +22,7 @@ interface LoginViewProps {
     onOpenGuestPortal: () => void;
     onOpenGuestFeedback: () => void;
     onOpenMarketplace: () => void;
+    onOpenShowcase?: () => void;
     themeColor: string;
     onParentRequestOtp: (phone: string) => { success: boolean; message: string };
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
@@ -32,7 +33,7 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
-    onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, companyDetails, onForgotPassword, onResetPassword,
+    onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
     onVerifyOtp, onResendOtp
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
@@ -260,16 +261,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                     {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
                                 </button>
                             </form>
-                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-3 gap-2">
-                                <button type="button" onClick={onOpenGuestPortal} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-4 gap-2">
+                                <button type="button" onClick={onOpenGuestPortal} title="Guest Portal" className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
                                     <CalendarDaysIcon className="w-5 h-5 text-blue-600 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-bold uppercase text-slate-500">Visit</span>
                                 </button>
-                                <button type="button" onClick={onOpenMarketplace} className="flex flex-col items-center justify-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-100 dark:border-orange-900/30 transition-all hover:bg-white hover:shadow-md group">
+                                <button type="button" onClick={onOpenMarketplace} title="Marketplace" className="flex flex-col items-center justify-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border border-orange-100 dark:border-orange-900/30 transition-all hover:bg-white hover:shadow-md group">
                                     <ShoppingCartIcon className="w-5 h-5 text-orange-600 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-bold uppercase text-slate-500">Market</span>
                                 </button>
-                                <button type="button" onClick={onOpenGuestFeedback} className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
+                                <button type="button" onClick={onOpenShowcase} title="Showcase" className="flex flex-col items-center justify-center gap-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 transition-all hover:bg-white hover:shadow-md group">
+                                    <SparklesIcon className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-bold uppercase text-slate-500">Showcase</span>
+                                </button>
+                                <button type="button" onClick={onOpenGuestFeedback} title="Feedback" className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-600 transition-all hover:bg-white hover:shadow-md group">
                                     <StarIcon className="w-5 h-5 text-yellow-500 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-bold uppercase text-slate-500">Feedback</span>
                                 </button>

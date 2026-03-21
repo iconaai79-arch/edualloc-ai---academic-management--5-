@@ -3,7 +3,7 @@ import {
     User, Institution, PMProperty, PMUnit, PMTenant, PMLease, PMPayment, PMTicket,
     PMPropertyType, PMUnitStatus, PMLeaseStatus, PMPaymentMethod, PMPaymentType,
     PMPriority, PMTicketStatus, PMLandlord, PMDisbursement, PMInquiry, PMInquiryStatus,
-    CompanyDetails, PMInvoice, PMInvoiceStatus
+    CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData
 } from '../types';
 import { apiService } from '../services/apiService';
 import {
@@ -40,9 +40,25 @@ interface PropertyManagementViewProps {
     companyDetails: CompanyDetails;
     users: User[];
     onDataChange: () => void;
+    onAddUser: (userData: any) => Promise<void>;
+    onEditUser: (userId: string, data: UserUpdateData) => Promise<void>;
+    onDeleteUser: (id: string) => Promise<void>;
+    onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
+    onLogAction: (action: string) => Promise<void>;
+    smsConfig: SmsConfig;
+    departments: Department[];
+    subjects: Subject[];
+    courses: Course[];
+    letterheadConfig: LetterheadConfig;
+    logoUrl: string | null;
+    footerImageUrl: string | null;
 }
 
-export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ currentUser, currentInstitution, companyDetails, users, onDataChange }) => {
+export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
+    currentUser, currentInstitution, companyDetails, users, onDataChange,
+    onAddUser, onEditUser, onDeleteUser, onImportUsers, onLogAction,
+    smsConfig, departments, subjects, courses, letterheadConfig, logoUrl, footerImageUrl
+}) => {
     const institutionId = currentInstitution.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices'>('properties');
@@ -78,6 +94,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
     const [selectedLeaseForPreview, setSelectedLeaseForPreview] = useState<PMLease | null>(null);
     const [editingProperty, setEditingProperty] = useState<PMProperty | null>(null);
     const [editingUnit, setEditingUnit] = useState<PMUnit | null>(null);
+    const [isAddingStaff, setIsAddingStaff] = useState(false);
 
     const [search, setSearch] = useState('');
     const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -1015,7 +1032,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                 }
             }
 
-            const newPayment: PMPayment = {
+            const p: PMPayment = {
                 id: `pay_${Date.now()} `,
                 leaseId: data.leaseId || '',
                 amount,
@@ -2283,6 +2300,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                                 <ShoppingCartIcon className="w-5 h-5" /> <span className="hidden md:inline">New</span> Ad Listing
                             </button>
                         )}
+                        {activeTab === 'staff' && (
+                            <button onClick={() => setIsAddingStaff(!isAddingStaff)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                <PlusIcon className="w-5 h-5" /> {isAddingStaff ? 'Hide Form' : 'Add Staff Member'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -2364,6 +2386,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({ 
                         currentUser={currentUser} 
                         users={users} 
                         showOnly="staff"
+                        onAddUser={onAddUser}
+                        onEditUser={onEditUser}
+                        onDeleteUser={onDeleteUser}
+                        onImportUsers={onImportUsers}
+                        onImportStudents={async () => {}}
+                        onLogAction={onLogAction}
+                        smsConfig={smsConfig}
+                        departments={departments}
+                        subjects={subjects}
+                        courses={courses}
+                        allocations={[]}
+                        onWithdrawRequest={() => {}}
+                        letterheadConfig={letterheadConfig}
+                        logoUrl={logoUrl}
+                        footerImageUrl={footerImageUrl}
+                        isAdding={isAddingStaff}
                     />
                 </div>
             )}
