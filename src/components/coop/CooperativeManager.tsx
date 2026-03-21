@@ -229,31 +229,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
-            {/* Header Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                    <div className="absolute -right-4 -top-4 bg-indigo-50 dark:bg-indigo-900/20 w-16 h-16 rounded-full" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Today's Intake</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                        {stats.todayQty.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
-                    </h3>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                    <div className="absolute -right-4 -top-4 bg-emerald-50 dark:bg-emerald-900/20 w-16 h-16 rounded-full" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Farmers</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.totalFarmers}</h3>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                    <div className="absolute -right-4 -top-4 bg-amber-50 dark:bg-amber-900/20 w-16 h-16 rounded-full" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Payouts</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalPayouts.toLocaleString()}</h3>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                    <div className="absolute -right-4 -top-4 bg-blue-50 dark:bg-blue-900/20 w-16 h-16 rounded-full" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Assets</p>
-                    <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalSaccoAssets.toLocaleString()}</h3>
-                </div>
-            </div>
+            {/* Navigation & Search will be shown always, but stats move to Overview */}
 
             {/* Navigation & Search */}
             <div className={`flex flex-col lg:flex-row ${onTabChange ? 'lg:justify-end' : 'lg:items-center justify-between'} gap-6`}>
@@ -305,14 +281,31 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <h1 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white mb-2 uppercase">Cooperative Hub</h1>
                                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Unified Operations & Financial Control</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <div className="text-right hidden sm:block">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Date</p>
-                                    <p className="text-xs font-black text-indigo-600">{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                </div>
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
-                                    <ReportsIcon className="w-6 h-6 text-indigo-600" />
-                                </div>
+                        </div>
+
+                        {/* Integrated Header Stats (Overview Only) */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
+                                <div className="absolute -right-4 -top-4 bg-indigo-50 dark:bg-indigo-900/20 w-16 h-16 rounded-full" />
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Today's Intake</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                    {stats.todayQty.toLocaleString()} <span className="text-xs text-slate-400 font-bold ml-1">Units</span>
+                                </h3>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
+                                <div className="absolute -right-4 -top-4 bg-emerald-50 dark:bg-emerald-900/20 w-16 h-16 rounded-full" />
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Farmers</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">{stats.totalFarmers}</h3>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
+                                <div className="absolute -right-4 -top-4 bg-amber-50 dark:bg-amber-900/20 w-16 h-16 rounded-full" />
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Monthly Payouts</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalPayouts.toLocaleString()}</h3>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden relative">
+                                <div className="absolute -right-4 -top-4 bg-blue-50 dark:bg-blue-900/20 w-16 h-16 rounded-full" />
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SACCO Assets</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">KES {stats.totalSaccoAssets.toLocaleString()}</h3>
                             </div>
                         </div>
 
