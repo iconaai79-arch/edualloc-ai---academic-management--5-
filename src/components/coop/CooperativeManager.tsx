@@ -22,10 +22,12 @@ import {
     Send as SmsIcon,
     Eye as EyeIcon,
     ArrowUpRight as ExportIcon,
-    Settings as CogIcon
+    Settings as CogIcon,
+    UploadCloud
 } from 'lucide-react';
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
+import { SmartFarmerImporterModal } from './SmartFarmerImporterModal';
 import * as pdfService from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
 import { 
@@ -168,6 +170,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
     const [isAddingFarmer, setIsAddingFarmer] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
         joinedAt: new Date().toISOString().split('T')[0]
@@ -549,13 +552,22 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Farmer Registry</h2>
                                     {!isAddingFarmer && 
-                                        <button 
-                                            onClick={() => setIsAddingFarmer(true)}
-                                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
-                                        >
-                                            <PlusIcon className="w-4 h-4" />
-                                            Onboard Farmer
-                                        </button>
+                                        <div className="flex gap-4">
+                                            <button 
+                                                onClick={() => setShowImportModal(true)}
+                                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-emerald-500/20 active:scale-95"
+                                            >
+                                                <UploadCloud className="w-4 h-4" />
+                                                Import Farmers
+                                            </button>
+                                            <button 
+                                                onClick={() => setIsAddingFarmer(true)}
+                                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-95"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                                Onboard Farmer
+                                            </button>
+                                        </div>
                                     }
                                 </div>
                                 
@@ -1786,6 +1798,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         examTimetableSettings={{ sessionsPerDay: [], rules: [] }}
                     />
                 </div>
+            )}
+
+            {showImportModal && currentInstitution && currentUser && (
+                <SmartFarmerImporterModal
+                    onClose={() => setShowImportModal(false)}
+                    onImport={async (farmersToImport) => {
+                        for (const f of farmersToImport) {
+                            await onAddFarmer(f);
+                        }
+                    }}
+                    existingFarmers={farmers}
+                    currentInstitution={currentInstitution}
+                    currentUser={currentUser}
+                />
             )}
             </div>
         </div>

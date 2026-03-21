@@ -7,11 +7,21 @@ CREATE TABLE IF NOT EXISTS coop_farmers (
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
+    email TEXT,
     account_number TEXT,
+    kra_pin TEXT,
+    national_id TEXT,
     location TEXT,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'inactive')),
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure existing tables are updated if they were already created
+ALTER TABLE coop_farmers ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE coop_farmers ADD COLUMN IF NOT EXISTS kra_pin TEXT;
+ALTER TABLE coop_farmers ADD COLUMN IF NOT EXISTS national_id TEXT;
+ALTER TABLE coop_farmers ADD COLUMN IF NOT EXISTS joined_at TIMESTAMPTZ DEFAULT NOW();
 
 -- Link users to farmers for the portal
 ALTER TABLE users ADD COLUMN IF NOT EXISTS farmer_id TEXT REFERENCES coop_farmers(id) ON DELETE SET NULL;
@@ -123,28 +133,44 @@ ALTER TABLE sacco_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coop_monthly_payouts ENABLE ROW LEVEL SECURITY;
 
 -- 9. Policies (Multi-tenant isolation)
-CREATE POLICY "Staff can view their institution coop farmers" ON coop_farmers FOR SELECT USING (institution_id = get_curr_user_inst_id());
-CREATE POLICY "Staff can manage their institution coop farmers" ON coop_farmers FOR ALL USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can view their institution farmers v2" ON coop_farmers;
+CREATE POLICY "Staff can view their institution farmers v2" ON coop_farmers FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution farmers v2" ON coop_farmers;
+CREATE POLICY "Staff can manage their institution farmers v2" ON coop_farmers FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution coop riders" ON coop_riders;
 CREATE POLICY "Staff can view their institution coop riders" ON coop_riders FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution coop riders" ON coop_riders;
 CREATE POLICY "Staff can manage their institution coop riders" ON coop_riders FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution coop collections" ON coop_collections;
 CREATE POLICY "Staff can view their institution coop collections" ON coop_collections FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution coop collections" ON coop_collections;
 CREATE POLICY "Staff can manage their institution coop collections" ON coop_collections FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution coop agrovet inventory" ON coop_agrovet_inventory;
 CREATE POLICY "Staff can view their institution coop agrovet inventory" ON coop_agrovet_inventory FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution coop agrovet inventory" ON coop_agrovet_inventory;
 CREATE POLICY "Staff can manage their institution coop agrovet inventory" ON coop_agrovet_inventory FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution coop agrovet sales" ON coop_agrovet_sales;
 CREATE POLICY "Staff can view their institution coop agrovet sales" ON coop_agrovet_sales FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution coop agrovet sales" ON coop_agrovet_sales;
 CREATE POLICY "Staff can manage their institution coop agrovet sales" ON coop_agrovet_sales FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution sacco accounts" ON sacco_accounts;
 CREATE POLICY "Staff can view their institution sacco accounts" ON sacco_accounts FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution sacco accounts" ON sacco_accounts;
 CREATE POLICY "Staff can manage their institution sacco accounts" ON sacco_accounts FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution sacco transactions" ON sacco_transactions;
 CREATE POLICY "Staff can view their institution sacco transactions" ON sacco_transactions FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution sacco transactions" ON sacco_transactions;
 CREATE POLICY "Staff can manage their institution sacco transactions" ON sacco_transactions FOR ALL USING (institution_id = get_curr_user_inst_id());
 
+DROP POLICY IF EXISTS "Staff can view their institution coop monthly payouts" ON coop_monthly_payouts;
 CREATE POLICY "Staff can view their institution coop monthly payouts" ON coop_monthly_payouts FOR SELECT USING (institution_id = get_curr_user_inst_id());
+DROP POLICY IF EXISTS "Staff can manage their institution coop monthly payouts" ON coop_monthly_payouts;
 CREATE POLICY "Staff can manage their institution coop monthly payouts" ON coop_monthly_payouts FOR ALL USING (institution_id = get_curr_user_inst_id());
 
 -- Helper for Farmer ID
@@ -166,8 +192,13 @@ END;
 $$;
 
 -- 10. Farmer Portal Specific Policies
+DROP POLICY IF EXISTS "Farmers can view their own collection records" ON coop_collections;
 CREATE POLICY "Farmers can view their own collection records" ON coop_collections FOR SELECT USING (farmer_id = get_curr_user_farmer_id());
+DROP POLICY IF EXISTS "Farmers can view their own agrovet credit sales" ON coop_agrovet_sales;
 CREATE POLICY "Farmers can view their own agrovet credit sales" ON coop_agrovet_sales FOR SELECT USING (farmer_id = get_curr_user_farmer_id());
+DROP POLICY IF EXISTS "Farmers can view their own sacco accounts" ON sacco_accounts;
 CREATE POLICY "Farmers can view their own sacco accounts" ON sacco_accounts FOR SELECT USING (farmer_id = get_curr_user_farmer_id());
+DROP POLICY IF EXISTS "Farmers can view their own monthly payouts" ON coop_monthly_payouts;
 CREATE POLICY "Farmers can view their own monthly payouts" ON coop_monthly_payouts FOR SELECT USING (farmer_id = get_curr_user_farmer_id());
+DROP POLICY IF EXISTS "Farmers can view their own profile" ON coop_farmers;
 CREATE POLICY "Farmers can view their own profile" ON coop_farmers FOR SELECT USING (id = get_curr_user_farmer_id());

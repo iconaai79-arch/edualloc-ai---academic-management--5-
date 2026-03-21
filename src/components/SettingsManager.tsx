@@ -271,11 +271,20 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [localInstSmsConfig, setLocalInstSmsConfig] = useState<SmsConfig>(
         props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }
     );
+    const [localInstNcbaConfig, setLocalInstNcbaConfig] = useState<NcbaConfig>(
+        props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
+    );
+    const [localInstMpesaConfig, setLocalInstMpesaConfig] = useState<MpesaConfig>(
+        props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
+    );
     const [isSavingInstSms, setIsSavingInstSms] = useState(false);
+    const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-    }, [props.currentInstitution, props.companyDetails?.smsConfig]);
+        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' });
+        setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
+    }, [props.currentInstitution, props.companyDetails?.smsConfig, props.companyDetails?.mpesaConfig]);
     // Update local state when profile changes
     useEffect(() => {
         if (selectedProfileId === 'default') {
@@ -1493,8 +1502,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
                                             <input 
                                                 type="text" 
-                                                value={props.currentInstitution?.ncbaConfig?.clientId || ''} 
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, clientId: e.target.value } as any })}
+                                                value={localInstNcbaConfig.clientId || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })}
                                                 className="form-input" 
                                             />
                                         </div>
@@ -1502,8 +1511,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
                                             <input 
                                                 type="password" 
-                                                value={props.currentInstitution?.ncbaConfig?.clientSecret || ''} 
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, clientSecret: e.target.value } as any })}
+                                                value={localInstNcbaConfig.clientSecret || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })}
                                                 className="form-input" 
                                             />
                                         </div>
@@ -1511,8 +1520,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Key</label>
                                             <input 
                                                 type="text" 
-                                                value={props.currentInstitution?.ncbaConfig?.apiKey || ''} 
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, apiKey: e.target.value } as any })}
+                                                value={localInstNcbaConfig.apiKey || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, apiKey: e.target.value })}
                                                 className="form-input" 
                                             />
                                         </div>
@@ -1520,9 +1529,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Base URL</label>
                                             <input 
                                                 type="text" 
-                                                value={props.currentInstitution?.ncbaConfig?.baseUrl || ''} 
+                                                value={localInstNcbaConfig.baseUrl || ''} 
                                                 placeholder="https://api.ncbagroup.com"
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, baseUrl: e.target.value } as any })}
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })}
                                                 className="form-input" 
                                             />
                                         </div>
@@ -1530,16 +1539,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Account Number</label>
                                             <input 
                                                 type="text" 
-                                                value={props.currentInstitution?.ncbaConfig?.accountNumber || ''} 
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, accountNumber: e.target.value } as any })}
+                                                value={localInstNcbaConfig.accountNumber || ''} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, accountNumber: e.target.value })}
                                                 className="form-input" 
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
                                             <select 
-                                                value={props.currentInstitution?.ncbaConfig?.environment || 'sandbox'} 
-                                                onChange={(e) => props.onUpdateInstitution?.(props.currentInstitution!.id, { ncbaConfig: { ...props.currentInstitution?.ncbaConfig, environment: e.target.value } as any })}
+                                                value={localInstNcbaConfig.environment || 'sandbox'} 
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, environment: e.target.value as any })}
                                                 className="form-select"
                                             >
                                                 <option value="sandbox">Sandbox / Testing</option>
@@ -1547,8 +1556,92 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </select>
                                         </div>
                                     </div>
+
+                                    <hr className="border-slate-100 dark:border-slate-700" />
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-green-50 dark:bg-green-900/30 rounded-2xl text-green-600">
+                                            <MpesaIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black uppercase tracking-tight">M-Pesa Daraja Integration</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring Lipa Na M-Pesa for this Institution</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Short Code (Paybill)</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstMpesaConfig.paybillNumber || ''} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, paybillNumber: e.target.value })}
+                                                className="form-input font-mono" 
+                                                placeholder="7-digit code"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Lipa Na M-Pesa Passkey</label>
+                                            <input 
+                                                type="password" 
+                                                value={localInstMpesaConfig.passkey || ''} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, passkey: e.target.value })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Key</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstMpesaConfig.consumerKey || ''} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerKey: e.target.value })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Consumer Secret</label>
+                                            <input 
+                                                type="password" 
+                                                value={localInstMpesaConfig.consumerSecret || ''} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, consumerSecret: e.target.value })}
+                                                className="form-input" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
+                                            <select 
+                                                value={localInstMpesaConfig.environment || 'sandbox'} 
+                                                onChange={(e) => setLocalInstMpesaConfig({ ...localInstMpesaConfig, environment: e.target.value as any })}
+                                                className="form-select"
+                                            >
+                                                <option value="sandbox">Sandbox (Test)</option>
+                                                <option value="production">Production (Live)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     <div className="flex justify-end pt-4">
-                                        <button className="btn-primary h-12 px-10 shadow-lg shadow-teal-100 dark:shadow-none bg-teal-600 border-none">Secure NCBA Link</button>
+                                        <button 
+                                            onClick={async () => {
+                                                if (!props.currentInstitution || !props.onUpdateInstitution) return;
+                                                setIsSavingInstGateways(true);
+                                                try {
+                                                    await props.onUpdateInstitution(props.currentInstitution.id, { 
+                                                        ncbaConfig: localInstNcbaConfig,
+                                                        mpesaConfig: localInstMpesaConfig
+                                                    });
+                                                    alert('Gateway configurations saved successfully.');
+                                                } catch (err) {
+                                                    alert('Failed to save gateway configurations.');
+                                                } finally {
+                                                    setIsSavingInstGateways(false);
+                                                }
+                                            }}
+                                            disabled={isSavingInstGateways}
+                                            className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none uppercase tracking-widest text-xs"
+                                        >
+                                            {isSavingInstGateways ? 'Persisting...' : 'Save Gateway Map'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
