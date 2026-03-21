@@ -68,7 +68,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
 
     const needsDepartment = roles.some(r => rolesWithDepartment.includes(r));
 
-    if (!isSchool && needsDepartment && !assignedDepartmentId) {
+    if (!isSchool && !isCoop && needsDepartment && !assignedDepartmentId) {
       alert("Please assign a department for one of the selected professional roles.");
       return;
     }
@@ -83,7 +83,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         expertise: expertiseArray,
         role: uniqueRoles[0], // Keep first as primary
         roles: uniqueRoles,
-        departmentId: needsDepartment ? assignedDepartmentId : undefined,
+        departmentId: (needsDepartment && !isCoop) ? assignedDepartmentId : undefined,
         gender,
         driverType: roles.includes('driver') ? driverType : undefined
       });

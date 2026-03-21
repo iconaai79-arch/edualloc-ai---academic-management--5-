@@ -907,7 +907,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             
                             const statusData = await statusRes.json() as any;
                             externalData = statusData;
-                            if (statusData.ResultCode === '0') finalStatus = 'completed';
+                            if (String(statusData.ResultCode) === '0') finalStatus = 'completed';
                             else if (statusData.errorCode === '500.002.1001') finalStatus = 'pending'; // In progress
                             else if (statusData.ResultCode) finalStatus = 'failed';
                         }
@@ -942,8 +942,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (resStatus.ok) {
                             const statusData = await resStatus.json() as any;
                             externalData = statusData;
-                            if (statusData.status === 'COMPLETED' || statusData.ResultCode === '0') finalStatus = 'completed';
-                            else if (statusData.status === 'FAILED' || statusData.ResultCode === '1') finalStatus = 'failed';
+                            if (statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') finalStatus = 'completed';
+                            else if (statusData.status === 'FAILED' || String(statusData.ResultCode) === '1') finalStatus = 'failed';
                         }
                     } catch (e) {
                         console.error('[NCBA Status] Error polling NCBA:', e);
@@ -1098,7 +1098,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         PartyA: recipient.replace(/[^\d]/g, ''),
                         PartyB: paybill,
                         PhoneNumber: recipient.replace(/[^\d]/g, ''),
-                        CallBackURL: `https://${req.headers.host}/api/mpesa-callback`,
+                        CallBackURL: `https://${req.headers['x-forwarded-host'] || req.headers.host}/api/mpesa-callback`,
                         AccountReference: (paramsMap.metadata?.institutionCode || "Sub/SMS").substring(0, 12),
                         TransactionDesc: `${paramsMap.metadata?.type === 'sms' ? 'SMS Units' : 'License'}: ${paramsMap.metadata?.institutionName || "Acct"}`.substring(0, 20)
                     })
@@ -1110,11 +1110,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const stkData = (await stkRes.json()) as any;
             if (stkRes.ok && stkData.ResponseCode === '0') {
+                const institutionId = paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM';
                 await supabase.from('mpesa_transactions').insert({
                     id: `txn_${Date.now()}`,
                     transaction_id: `STK_${stkData.CheckoutRequestID}`,
                     checkout_request_id: stkData.CheckoutRequestID,
-                    institution_id: paramsMap.metadata?.institutionId || user.user_metadata?.institutionId || 'SYSTEM',
+                    institution_id: institutionId,
                     amount: amount,
                     phone_number: recipient,
                     status: 'pending',

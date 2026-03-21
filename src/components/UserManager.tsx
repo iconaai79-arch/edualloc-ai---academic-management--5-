@@ -172,6 +172,11 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
     const existingUserEmails = useMemo(() => new Set((existingUsers || []).filter(u => u && u.email).map(u => String(u.email).toLowerCase())), [existingUsers]);
     const existingUserStaffIds = useMemo(() => new Set<string>((existingUsers || []).filter(u => u && u.staffId).map(u => String(u.staffId).toLowerCase())), [existingUsers]);
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
+    const isCoop = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
+    }, [currentInstitution]);
 
     const availableRolesForImport = useMemo(() => {
         const roles = getRolesForInstitution(currentInstitution);
@@ -389,7 +394,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="text-xl font-bold">{isRetailAgency ? 'Smart Staff/Agent Importer' : 'Smart Staff Importer'}</h3>
+                    <h3 className="text-xl font-bold">{isRetailAgency ? 'Smart Staff/Agent Importer' : (isCoop ? 'Smart Cooperative Staff Importer' : 'Smart Staff Importer')}</h3>
                     {step !== 'finalizing' && <button onClick={onClose}><XIcon className="w-6 h-6" /></button>}
                 </div>
                 <div className="p-6 flex-grow overflow-y-auto">
@@ -453,7 +458,7 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
                         <div className="space-y-4">
                             <p className="text-sm text-slate-500">Map columns from your file. Skip fields to auto-generate them.</p>
                             {ALL_USER_MAPPING_FIELDS
-                                .filter(f => !isRetailAgency || f !== 'departmentName')
+                                .filter(f => !(isRetailAgency || isCoop) || f !== 'departmentName')
                                 .map(field => (
                                     <div key={field} className="grid grid-cols-2 gap-4 items-center">
                                         <label className="text-right text-sm font-medium capitalize">
@@ -978,8 +983,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId;
-        } else {
+            userData.departmentId = (isCoop || isRetailAgency) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+        }
+ else {
             userData.courseId = courseId;
             userData.courseLevelId = courseLevelId;
         }
@@ -1188,7 +1194,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && (
+                                    {!isRetailAgency && !isCoop && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
