@@ -101,10 +101,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: recordData } = req.body || {};
             if (!recordData) return res.status(400).json({ success: false, error: 'No data' });
             
-            // Add tenancy if missing
+            // Add tenancy if missing (skip for root tables that don't have this column)
+            const skipTenancy = moduleName === 'institutions' || moduleName === 'counties';
             const recordWithTenancy = Array.isArray(recordData) 
-                ? recordData.map(r => ({ ...r, institution_id: r.institution_id || user?.institutionId }))
-                : { ...recordData, institution_id: recordData.institution_id || user?.institutionId };
+                ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || user?.institutionId }) }))
+                : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || user?.institutionId }) };
 
             const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
             if (error) return res.status(500).json({ success: false, error: error.message });

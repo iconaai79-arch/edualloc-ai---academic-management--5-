@@ -26,6 +26,7 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
     const [saving, setSaving] = useState(false);
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showSuccess, setShowSuccess] = useState(false);
 
     useEffect(() => {
         fetchSettings();
@@ -68,16 +69,18 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
         if (!settings) return;
         setSaving(true);
         setError(null);
+        setShowSuccess(false);
         try {
             await apiService.saveModuleRecord('pm_settings', {
                 ...settings,
                 updatedAt: new Date().toISOString()
             });
             onDataChange?.();
-            alert("Settings saved successfully!");
-        } catch (err) {
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 3000);
+        } catch (err: any) {
             console.error("Failed to save PM settings:", err);
-            setError("Failed to save settings.");
+            setError(err.message || "Failed to save settings.");
         } finally {
             setSaving(false);
         }
@@ -124,10 +127,12 @@ const PMConfigManager: React.FC<PMConfigManagerProps> = ({ institutionId, onData
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="btn-primary flex items-center gap-2"
+                    className={`btn-primary flex items-center gap-2 transition-all duration-300 ${showSuccess ? 'bg-green-600 shadow-green-100' : ''}`}
                 >
-                    {saving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <CheckCircleIcon className="w-4 h-4" />}
-                    {saving ? 'Saving...' : 'Save Settings'}
+                    {saving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : 
+                     showSuccess ? <CheckCircleIcon className="w-4 h-4 animate-scale-in" /> :
+                     <CheckCircleIcon className="w-4 h-4" />}
+                    {saving ? 'Saving...' : showSuccess ? 'Settings Saved' : 'Save Settings'}
                 </button>
             </div>
 

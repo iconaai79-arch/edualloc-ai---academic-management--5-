@@ -278,7 +278,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
     );
     const [isSavingInstSms, setIsSavingInstSms] = useState(false);
+    const [saveInstSmsStatus, setSaveInstSmsStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [isSavingInstGateways, setIsSavingInstGateways] = useState(false);
+    const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1620,27 +1622,49 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end pt-4">
+                                    <div className="flex items-center justify-end gap-4 pt-4">
+                                        {saveInstGatewaysStatus === 'success' && (
+                                            <div className="flex items-center gap-2 text-green-600 animate-scale-in">
+                                                <CheckCircleIcon className="w-5 h-5" />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Gateway Map Secured</span>
+                                            </div>
+                                        )}
+                                        {saveInstGatewaysStatus === 'error' && (
+                                            <div className="flex items-center gap-2 text-rose-500 animate-shake">
+                                                <ExclamationTriangleIcon className="w-5 h-5" />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Storage Failure</span>
+                                            </div>
+                                        )}
                                         <button 
                                             onClick={async () => {
                                                 if (!props.currentInstitution || !props.onUpdateInstitution) return;
                                                 setIsSavingInstGateways(true);
+                                                setSaveInstGatewaysStatus('idle');
                                                 try {
                                                     await props.onUpdateInstitution(props.currentInstitution.id, { 
                                                         ncbaConfig: localInstNcbaConfig,
                                                         mpesaConfig: localInstMpesaConfig
                                                     });
-                                                    alert('Gateway configurations saved successfully.');
+                                                    setSaveInstGatewaysStatus('success');
+                                                    setTimeout(() => setSaveInstGatewaysStatus('idle'), 3000);
                                                 } catch (err) {
-                                                    alert('Failed to save gateway configurations.');
+                                                    setSaveInstGatewaysStatus('error');
+                                                    setTimeout(() => setSaveInstGatewaysStatus('idle'), 4000);
                                                 } finally {
                                                     setIsSavingInstGateways(false);
                                                 }
                                             }}
                                             disabled={isSavingInstGateways}
-                                            className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none uppercase tracking-widest text-xs"
+                                            className={`btn-primary h-12 px-10 shadow-lg uppercase tracking-widest text-xs transition-all ${
+                                                saveInstGatewaysStatus === 'success' ? 'bg-green-600 shadow-green-100' : 
+                                                saveInstGatewaysStatus === 'error' ? 'bg-rose-600 shadow-rose-100' : 
+                                                'shadow-indigo-100 dark:shadow-none'
+                                            }`}
                                         >
-                                            {isSavingInstGateways ? 'Persisting...' : 'Save Gateway Map'}
+                                            {isSavingInstGateways ? 'Persisting...' : 
+                                             saveInstGatewaysStatus === 'success' ? 'Map Saved' : 
+                                             saveInstGatewaysStatus === 'error' ? 'Retry Save' : 
+                                             'Save Gateway Map'}
                                         </button>
                                     </div>
                                 </div>
@@ -1830,24 +1854,48 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     >
                                         Use System Default
                                     </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (!props.currentInstitution || !props.onUpdateInstitution) return;
-                                            setIsSavingInstSms(true);
-                                            try {
-                                                await props.onUpdateInstitution(props.currentInstitution.id, { smsConfig: localInstSmsConfig });
-                                                alert('SMS gateway saved for this institution.');
-                                            } catch {
-                                                alert('Failed to save SMS gateway.');
-                                            } finally {
-                                                setIsSavingInstSms(false);
-                                            }
-                                        }}
-                                        disabled={isSavingInstSms}
-                                        className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs"
-                                    >
-                                        {isSavingInstSms ? 'Saving...' : 'Save Gateway'}
-                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        {saveInstSmsStatus === 'success' && (
+                                            <div className="flex items-center gap-2 text-green-600 animate-scale-in">
+                                                <CheckCircleIcon className="w-5 h-5" />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">SMS Route Secured</span>
+                                            </div>
+                                        )}
+                                        {saveInstSmsStatus === 'error' && (
+                                            <div className="flex items-center gap-2 text-rose-500 animate-shake">
+                                                <ExclamationTriangleIcon className="w-5 h-5" />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">SMS Persistence Failed</span>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={async () => {
+                                                if (!props.currentInstitution || !props.onUpdateInstitution) return;
+                                                setIsSavingInstSms(true);
+                                                setSaveInstSmsStatus('idle');
+                                                try {
+                                                    await props.onUpdateInstitution(props.currentInstitution.id, { smsConfig: localInstSmsConfig });
+                                                    setSaveInstSmsStatus('success');
+                                                    setTimeout(() => setSaveInstSmsStatus('idle'), 3000);
+                                                } catch {
+                                                    setSaveInstSmsStatus('error');
+                                                    setTimeout(() => setSaveInstSmsStatus('idle'), 4000);
+                                                } finally {
+                                                    setIsSavingInstSms(false);
+                                                }
+                                            }}
+                                            disabled={isSavingInstSms}
+                                            className={`btn-primary px-10 h-12 shadow-lg uppercase tracking-widest text-xs transition-all ${
+                                                saveInstSmsStatus === 'success' ? 'bg-green-600 shadow-green-100' : 
+                                                saveInstSmsStatus === 'error' ? 'bg-rose-600 shadow-rose-100' : 
+                                                'shadow-indigo-100 dark:shadow-none'
+                                            }`}
+                                        >
+                                            {isSavingInstSms ? 'Syncing...' : 
+                                             saveInstSmsStatus === 'success' ? 'Route Updated' : 
+                                             saveInstSmsStatus === 'error' ? 'Retry' : 
+                                             'Save SMS Route'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
