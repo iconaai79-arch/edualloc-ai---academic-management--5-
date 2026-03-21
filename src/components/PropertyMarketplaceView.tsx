@@ -204,6 +204,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 setListings(activeListings);
                 setRetailProducts(liveRetailItems);
                 setInstitutions(instList);
+
+                // SEO: Update page title and description
+                document.title = "Real Estate and Retail Marketplace | Eduai Automation";
+                const metaDesc = document.querySelector('meta[name="description"]');
+                if (metaDesc) {
+                    metaDesc.setAttribute("content", `Discover ${activeListings.length} premium properties and ${liveRetailItems.length} retail products on our unified marketplace. Rent, buy, or lease across Kenya.`);
+                }
             } catch (e) {
                 console.error("Marketplace Load Error:", e);
             }
@@ -211,6 +218,56 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         };
         loadMarketplace();
     }, []);
+
+    // SEO: Dynamic Structured Data (JSON-LD)
+    useEffect(() => {
+        if (listings.length === 0 && retailProducts.length === 0) return;
+
+        const structuredData = {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            "numberOfItems": listings.length + retailProducts.length,
+            "itemListElement": [
+                ...listings.slice(0, 10).map((l, index) => ({
+                    "@type": "ListItem",
+                    "position": index + 1,
+                    "item": {
+                        "@type": "RealEstateListing",
+                        "name": l.title,
+                        "description": l.description,
+                        "url": window.location.href,
+                        "price": l.price,
+                        "priceCurrency": "KES"
+                    }
+                })),
+                ...retailProducts.slice(0, 10).map((p, index) => ({
+                    "@type": "ListItem",
+                    "position": listings.length + index + 1,
+                    "item": {
+                        "@type": "Product",
+                        "name": p.name,
+                        "description": p.description,
+                        "offers": {
+                            "@type": "Offer",
+                            "price": p.srpPrice || p.costPrice,
+                            "priceCurrency": "KES"
+                        }
+                    }
+                }))
+            ]
+        };
+
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.id = 'marketplace-json-ld';
+        script.text = JSON.stringify(structuredData);
+        document.head.appendChild(script);
+
+        return () => {
+            const existing = document.getElementById('marketplace-json-ld');
+            if (existing) existing.remove();
+        };
+    }, [listings, retailProducts]);
 
     const filteredListings = listings.filter(l => {
         const matchesSearch = l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://eduai.co.ke/sitemap.xml

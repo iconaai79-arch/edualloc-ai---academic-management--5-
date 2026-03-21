@@ -184,8 +184,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     });
     const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
         collectionDate: new Date().toISOString().split('T')[0],
-        productType: 'Milk',
-        unit: 'KG',
+        productType: 'milk',
+        unit: 'kgs',
         factoryConfirmed: false,
         notified: false
     });
@@ -229,8 +229,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsLoggingCollection(false);
             setNewCollection({
                 collectionDate: new Date().toISOString().split('T')[0],
-                productType: 'Milk',
-                unit: 'KG',
+                productType: 'milk',
+                unit: 'kgs',
                 factoryConfirmed: false,
                 notified: false
             });
@@ -978,18 +978,18 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Product Type</label>
                                                     <select 
                                                         required
-                                                        value={newCollection.productType || 'Milk'}
+                                                        value={newCollection.productType || 'milk'}
                                                         onChange={e => setNewCollection({...newCollection, productType: e.target.value as any})}
                                                         className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                                     >
-                                                        <option value="Milk">Milk</option>
-                                                        <option value="Tea">Tea</option>
-                                                        <option value="Coffee">Coffee</option>
-                                                        <option value="Other">Other</option>
+                                                        <option value="milk">Milk</option>
+                                                        <option value="tea">Tea</option>
+                                                        <option value="coffee">Coffee</option>
+                                                        <option value="other">Other</option>
                                                     </select>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity ({newCollection.unit || 'KG'})</label>
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity ({newCollection.unit === 'liters' ? 'Ltr' : 'KGs'})</label>
                                                     <input 
                                                         required
                                                         type="number" 
@@ -999,6 +999,18 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         placeholder="0.00"
                                                         className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                                     />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit</label>
+                                                    <select 
+                                                        required
+                                                        value={newCollection.unit || 'kgs'}
+                                                        onChange={e => setNewCollection({...newCollection, unit: e.target.value as any})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="kgs">Kilograms (KGs)</option>
+                                                        <option value="liters">Liters</option>
+                                                    </select>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Collection Date</label>

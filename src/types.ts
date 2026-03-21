@@ -2706,7 +2706,7 @@ export interface CoopCollection {
     farmerId: string;
     riderId?: string;
     collectionDate: string;
-    productType: 'Milk' | 'Tea' | 'Coffee' | 'Other';
+    productType: 'milk' | 'tea' | 'coffee' | 'other';
     quantity: number;
     unit: string;
     qualityGrade?: string;
