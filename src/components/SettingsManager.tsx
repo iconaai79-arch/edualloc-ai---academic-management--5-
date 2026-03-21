@@ -193,7 +193,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
@@ -242,7 +242,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
         aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
         isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
-        parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false
+        parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
+        farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false
     });
 
     // --- Exam Settings State ---
@@ -260,7 +261,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true,
                 aiModelTier: props.currentInstitution.aiModelTier || 'premium',
                 isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false,
-                parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false
+                parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false,
+                farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false
             });
         }
     }, [props.currentInstitution]);
@@ -1290,6 +1292,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     if (props.currentUser.role === 'admin' || isCoop) {
                                         filtered.push('billing');
                                         filtered.push('sms');
+                                        if (isCoop) filtered.push('farmer_billing');
                                         filtered.push('gateways');
                                     }
                                     return filtered;
@@ -1751,6 +1754,63 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs"
                                     >
                                         {isSavingInstSms ? 'Saving...' : 'Save Gateway'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {generalSubTab === 'farmer_billing' && isCoop && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600">
+                                        <CreditCardIcon className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Farmer Communication Billing</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Manage monthly SMS billing preferences for cooperative members</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700/50 space-y-6">
+                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 rounded-xl transition-colors ${instProfile.farmerSmsBillingEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                <PaperAirplaneIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Monthly SMS Billing</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Toggle automated billing for SMS notifications</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={instProfile.farmerSmsBillingEnabled}
+                                                onChange={(e) => setInstProfile({ ...instProfile, farmerSmsBillingEnabled: e.target.checked })}
+                                                className="sr-only peer" 
+                                            />
+                                            <div className="w-14 h-7 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600 shadow-inner"></div>
+                                        </label>
+                                    </div>
+
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/30">
+                                        <div className="flex items-start gap-3">
+                                            <InformationCircleIcon className="w-5 h-5 text-amber-600 mt-0.5" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">Billing Policy Note</p>
+                                                <p className="text-[11px] text-amber-600 dark:text-amber-500/80 leading-relaxed italic">
+                                                    When enabled, farmers will be automatically billed for SMS notifications sent to them throughout the month. This balance will be deducted from their payouts or added to their monthly statement.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end pt-4">
+                                    <button 
+                                        onClick={handleSaveInstitutionProfile}
+                                        className="btn-primary h-12 px-10 shadow-lg shadow-indigo-100 dark:shadow-none bg-indigo-600 border-none uppercase tracking-[0.2em] text-[10px] font-black"
+                                    >
+                                        Update Billing Registry
                                     </button>
                                 </div>
                             </div>

@@ -145,6 +145,7 @@ export interface Institution {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
+    farmerSmsBillingEnabled?: boolean;
 }
 
 export interface NcbaConfig {
