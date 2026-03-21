@@ -2958,7 +2958,7 @@ export const App: React.FC = () => {
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
                                     onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                    onLogCollection={async (data) => { await apiService.saveModuleRecord('coop_collections', { ...data, id: `c_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onLogCollection={async (data) => { await apiService.saveModuleRecord('coop_collections', { ...data, id: `c_${Date.now()}`, institutionId: currentUser.institutionId, recordedBy: currentUser.id }); loadData(); }}
                                     onAddRider={async (data) => { await apiService.saveModuleRecord('coop_riders', { ...data, id: `r_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
                                     onConfirmCollection={async (id, qty) => { 
                                         await apiService.confirmCoopCollection(id, qty, currentUser.id); 

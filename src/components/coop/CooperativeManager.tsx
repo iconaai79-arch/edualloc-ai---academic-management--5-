@@ -985,7 +985,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         <option value="milk">Milk</option>
                                                         <option value="tea">Tea</option>
                                                         <option value="coffee">Coffee</option>
-                                                        <option value="other">Other</option>
                                                     </select>
                                                 </div>
                                                 <div className="space-y-2">
