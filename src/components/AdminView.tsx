@@ -393,14 +393,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             return [
                 { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
                 { id: 'farmers', label: 'Farmers', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'collections', label: 'Collections', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
                 { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
                 { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
                 { id: 'finances', label: 'Finances', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'approvals', label: 'Approvals', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
                 { id: 'comms', label: 'Communication', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
         }
 
@@ -891,7 +889,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     const coopTabMap: Record<string, string> = {
                         'dashboard': 'overview',
                         'farmers': 'farmers',
-                        'collections': 'collections',
+                        'collections': 'farmers',
                         'riders': 'farmers',
                         'agrovet': 'agrovet',
                         'sacco': 'sacco',
@@ -899,6 +897,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         'finances': 'finances',
                         'approvals': 'approvals',
                         'reports': 'reports',
+                        'settings': 'settings',
                         'coop': 'farmers'
                     };
 
@@ -926,20 +925,29 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onAddExpense={props.onAddCoopExpense}
                                 onAddIncome={props.onAddCoopIncome}
                                 onLogAction={props.onLogAction}
-                                onInitiatePayouts={props.onInitiatePayouts}
+                                 onInitiatePayouts={props.onInitiatePayouts}
                                 onApprovePayouts={props.onApprovePayouts}
+                                onUpdateInstitution={props.onUpdateInstitution}
+                                onUpdateLogo={props.onUpdateLogo}
+                                onUpdateFooterImage={props.onUpdateFooterImage}
+                                onSaveLetterheadConfig={props.onSaveLetterheadConfig}
+                                logoUrl={props.logoUrl}
+                                footerImageUrl={props.footerImageUrl}
+                                companyDetails={props.companyDetails}
+                                onUpdateCompanyDetails={props.onUpdateCompanyDetails}
                                 activeTab={coopTabMap[activeTab] as any}
                                 onTabChange={(tab) => {
                                     const reverseMap: Record<string, string> = {
                                         'farmers': 'farmers',
-                                        'collections': 'collections',
+                                        'collections': 'farmers',
                                         'logistics': 'farmers',
                                         'agrovet': 'agrovet',
                                         'sacco': 'sacco',
                                         'payouts': 'farmers',
                                         'finances': 'finances',
                                         'approvals': 'approvals',
-                                        'reports': 'reports'
+                                        'reports': 'reports',
+                                        'settings': 'settings'
                                     };
                                     if (reverseMap[tab]) setActiveTab(reverseMap[tab] as any);
                                 }}

@@ -21,8 +21,10 @@ import {
     Mail as EmailIcon,
     Send as SmsIcon,
     Eye as EyeIcon,
-    ArrowUpRight as ExportIcon
+    ArrowUpRight as ExportIcon,
+    Settings as CogIcon
 } from 'lucide-react';
+import { SettingsManager } from '../SettingsManager';
 import * as pdfService from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
 import { 
@@ -73,8 +75,16 @@ interface CooperativeManagerProps {
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     currentInstitution?: Institution | null;
-    activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports';
+    activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'settings';
     onTabChange?: (tab: string) => void;
+    onUpdateInstitution?: (id: string, data: any) => Promise<void> | void;
+    onUpdateLogo?: (url: string | null) => void;
+    onUpdateFooterImage?: (url: string | null) => void;
+    onSaveLetterheadConfig?: (config: any) => void;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
+    companyDetails?: any;
+    onUpdateCompanyDetails?: (details: any) => Promise<void>;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -100,17 +110,34 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onApprovePayouts,
     currentInstitution,
     activeTab: externalActiveTab,
-    onTabChange
+    onTabChange,
+    onUpdateInstitution,
+    onUpdateLogo,
+    onUpdateFooterImage,
+    onSaveLetterheadConfig,
+    logoUrl,
+    footerImageUrl,
+    companyDetails,
+    onUpdateCompanyDetails
 }) => {
-    const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports'>('overview');
-    const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'logistics' | 'payouts'>('registry');
+    const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'settings'>('overview');
+    const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
         if (onTabChange) onTabChange(tab);
-        else setLocalActiveSubTab(tab);
-        if (tab !== 'farmers') setFarmerSubTab('registry');
+        else setLocalActiveSubTab(tab);        // Reset farmer sub-tab when navigating away from farmers section
+        if (tab !== 'farmers' && tab !== 'payouts' && tab !== 'logistics' && tab !== 'collections') {
+            setFarmerSubTab('registry');
+        }
     };
+
+    // Sync farmer sub-tab with active sub-tab for deep links
+    React.useEffect(() => {
+        if (activeSubTab === 'payouts') setFarmerSubTab('payouts');
+        if (activeSubTab === 'logistics') setFarmerSubTab('logistics');
+        if (activeSubTab === 'collections') setFarmerSubTab('collections');
+    }, [activeSubTab]);
 
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
     const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
@@ -234,12 +261,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
                         {[
                             { id: 'farmers', label: 'Farmers', icon: <FarmerIcon className="w-4 h-4" /> },
-                            { id: 'collections', label: 'Collections', icon: <CollectionIcon className="w-4 h-4" /> },
                             { id: 'agrovet', label: 'Agrovet', icon: <StoreIcon className="w-4 h-4" /> },
                             { id: 'sacco', label: 'SACCO', icon: <SaccoIcon className="w-4 h-4" /> },
                             { id: 'finances', label: 'Finances', icon: <FinanceIcon className="w-4 h-4" /> },
                             { id: 'approvals', label: 'Approvals', icon: <ApprovalIcon className="w-4 h-4" /> },
-                            { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> }
+                            { id: 'reports', label: 'Analytics', icon: <ReportsIcon className="w-4 h-4" /> },
+                            { id: 'settings', label: 'Config', icon: <CogIcon className="w-4 h-4" /> }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -450,11 +477,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         </div>
                     </div>
                 )}
-                {(activeSubTab === 'farmers' || activeSubTab === 'payouts' || activeSubTab === 'logistics') && (
+                {(activeSubTab === 'farmers' || activeSubTab === 'payouts' || activeSubTab === 'logistics' || activeSubTab === 'collections') && (
                     <div className="p-8">
                         <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-2xl w-fit mb-8 border border-slate-200 dark:border-slate-800">
                             {[
                                 { id: 'registry', label: 'Farmer Registry', icon: <UsersIcon className="w-3.5 h-3.5" /> },
+                                { id: 'collections', label: 'Daily Intake Log', icon: <CollectionIcon className="w-3.5 h-3.5" /> },
                                 { id: 'logistics', label: 'Logistics & Riders', icon: <LogisticsIcon className="w-3.5 h-3.5" /> },
                                 { id: 'payouts', label: 'Payouts Processing', icon: <PayoutIcon className="w-3.5 h-3.5" /> }
                             ].map(sub => (
@@ -675,86 +703,85 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-
-                {activeSubTab === 'collections' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
-                            <button 
-                                onClick={() => onLogCollection({})}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Log Collection
-                            </button>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-separate border-spacing-y-4">
-                                <thead>
-                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                        <th className="px-6 pb-2">Farmer</th>
-                                        <th className="px-6 pb-2">Product</th>
-                                        <th className="px-6 pb-2 text-right">Rider Qty</th>
-                                        <th className="px-6 pb-2 text-right">Final Qty</th>
-                                        <th className="px-6 pb-2">Status</th>
-                                        <th className="px-6 pb-2 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {collections.slice(0, 30).map(col => (
-                                        <tr key={col.id} className="group bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
-                                            <td className="px-6 py-5 rounded-l-3xl">
-                                                <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(col.farmerId)}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{col.collectionDate}</p>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <span className="text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-full">
-                                                    {col.productType}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5 text-right font-black text-slate-400">{col.quantity}</td>
-                                            <td className="px-6 py-5 text-right font-black text-indigo-600 dark:text-indigo-400">
-                                                {col.factoryConfirmed ? col.finalQuantity : '-'}
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`w-2 h-2 rounded-full ${
-                                                        col.factoryConfirmed 
-                                                            ? col.requiresApproval 
-                                                                ? col.approvalStatus === 'approved' ? 'bg-emerald-500' : col.approvalStatus === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'
-                                                                : 'bg-emerald-500'
-                                                            : 'bg-slate-300'
-                                                    }`} />
-                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-                                                        {col.factoryConfirmed 
-                                                            ? col.requiresApproval 
-                                                                ? col.approvalStatus === 'pending' ? 'Pending Approval' : col.approvalStatus
-                                                                : 'Confirmed'
-                                                            : 'Pending Intake'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 text-right rounded-r-3xl">
-                                                {!col.factoryConfirmed && (
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const finalQty = prompt(`Confirm quantity for ${getFarmerName(col.farmerId)} (Rider recorded: ${col.quantity})`, col.quantity.toString());
-                                                            if (finalQty !== null) onConfirmCollection?.(col.id, parseFloat(finalQty));
-                                                        }}
-                                                        className="bg-slate-900 dark:bg-indigo-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
-                                                    >
-                                                        Confirm
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {farmerSubTab === 'collections' && (
+                            <div className="animate-fade-in">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
+                                    <button 
+                                        onClick={() => onLogCollection({})}
+                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        Log Collection
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-separate border-spacing-y-4">
+                                        <thead>
+                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                <th className="px-6 pb-2">Farmer</th>
+                                                <th className="px-6 pb-2">Product</th>
+                                                <th className="px-6 pb-2 text-right">Rider Qty</th>
+                                                <th className="px-6 pb-2 text-right">Final Qty</th>
+                                                <th className="px-6 pb-2">Status</th>
+                                                <th className="px-6 pb-2 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {collections.slice(0, 30).map(col => (
+                                                <tr key={col.id} className="group bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
+                                                    <td className="px-6 py-5 rounded-l-3xl">
+                                                        <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(col.farmerId)}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{col.collectionDate}</p>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <span className="text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-full">
+                                                            {col.productType}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right font-black text-slate-400">{col.quantity}</td>
+                                                    <td className="px-6 py-5 text-right font-black text-indigo-600 dark:text-indigo-400">
+                                                        {col.factoryConfirmed ? col.finalQuantity : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`w-2 h-2 rounded-full ${
+                                                                col.factoryConfirmed 
+                                                                    ? col.requiresApproval 
+                                                                        ? col.approvalStatus === 'approved' ? 'bg-emerald-500' : col.approvalStatus === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'
+                                                                        : 'bg-emerald-500'
+                                                                    : 'bg-slate-300'
+                                                            }`} />
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                                                                {col.factoryConfirmed 
+                                                                    ? col.requiresApproval 
+                                                                        ? col.approvalStatus === 'pending' ? 'Pending Approval' : col.approvalStatus
+                                                                        : 'Confirmed'
+                                                                    : 'Pending Intake'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right rounded-r-3xl">
+                                                        {!col.factoryConfirmed && (
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const finalQty = prompt(`Confirm quantity for ${getFarmerName(col.farmerId)} (Rider recorded: ${col.quantity})`, col.quantity.toString());
+                                                                    if (finalQty !== null) onConfirmCollection?.(col.id, parseFloat(finalQty));
+                                                                }}
+                                                                className="bg-slate-900 dark:bg-indigo-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                                            >
+                                                                Confirm
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1477,6 +1504,42 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     </div>
                 );
             })()}
+
+            {activeSubTab === 'settings' && (
+                <div className="p-8">
+                    <div className="mb-8">
+                        <h2 className="text-xl font-black tracking-tighter uppercase">Portal Configuration</h2>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manage branding, institution profile and system settings</p>
+                    </div>
+                    <SettingsManager
+                        currentUser={currentUser}
+                        currentInstitution={currentInstitution}
+                        onUpdateInstitution={onUpdateInstitution}
+                        onUpdateLogo={onUpdateLogo}
+                        onUpdateFooterImage={onUpdateFooterImage}
+                        onSaveLetterheadConfig={onSaveLetterheadConfig}
+                        logoUrl={logoUrl || null}
+                        footerImageUrl={footerImageUrl || null}
+                        companyDetails={companyDetails}
+                        onUpdateCompanyDetails={onUpdateCompanyDetails}
+                        isCoop={true}
+                        // Default empty arrays for other required but non-essential props for branding
+                        departments={[]}
+                        subjects={[]}
+                        buildings={[]}
+                        rooms={[]}
+                        courses={[]}
+                        academicLevels={[]}
+                        timetableSettings={{ operatingDays: [], startTime: '', endTime: '', periods: [], breaks: [], cellSpanMinutes: 60 }}
+                        examTimetableSettings={{ sessionsPerDay: [] }}
+                        allocations={[]}
+                        academicYears={[]}
+                        semesters={[]}
+                        users={[]}
+                        themeColor="#4f46e5"
+                    />
+                </div>
+            )}
             </div>
         </div>
     );
