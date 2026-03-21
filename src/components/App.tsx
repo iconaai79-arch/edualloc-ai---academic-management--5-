@@ -1915,6 +1915,11 @@ export const App: React.FC = () => {
             return 'county_admin';
         }
 
+        // Force Reseller role for admins of Reseller institutions
+        if (inst?.institutionType === 'Reseller' && roleToUse === 'admin') {
+            return 'reseller';
+        }
+
         return roleToUse;
     }, [impersonatedRole, currentUser, institutions, selectedRole]);
     const isAdminCatchAll = ['super_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'agrovet_admin', 'property_admin', 'carwash_admin', 'transport_admin', 'retail_agent', 'his_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin'].includes(activeRole || '');

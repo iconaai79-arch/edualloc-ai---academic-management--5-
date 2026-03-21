@@ -678,32 +678,53 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     </div>
                                 }
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                    {filteredFarmers.map(farmer => (
-                                        <div key={farmer.id} className="group p-6 rounded-3xl border border-slate-100 dark:border-slate-700 hover:border-indigo-100 dark:hover:border-indigo-900/30 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all duration-300 cursor-pointer">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 uppercase tracking-tighter">
-                                                    {farmer.name.substring(0, 2)}
-                                                </div>
-                                                <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full ${
-                                                    farmer.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
-                                                }`}>
-                                                    {farmer.status}
-                                                </span>
-                                            </div>
-                                            <h4 className="font-black text-slate-900 dark:text-white text-lg tracking-tighter mb-1 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                                                {farmer.name}
-                                            </h4>
-                                            <p className="text-xs text-slate-500 mb-4 font-medium">{farmer.phone}</p>
-                                            <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Location</p>
-                                                    <p className="text-xs font-bold">{farmer.location || 'Main'}</p>
-                                                </div>
-                                                <ChevronRightIcon className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 translate-x-0 group-hover:translate-x-1 transition-all" />
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                            <tr>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">A/C Number</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Number</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</th>
+                                                <th className="text-center py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                                            {filteredFarmers.map(farmer => (
+                                                <tr key={farmer.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-all cursor-pointer border-none">
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 uppercase text-[10px]">
+                                                                {farmer.name.substring(0, 2)}
+                                                            </div>
+                                                            <span className="font-black text-slate-900 dark:text-white text-xs tracking-tight group-hover:text-indigo-600 transition-colors">
+                                                                {farmer.name}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6 text-xs text-slate-500 font-medium">{farmer.phone}</td>
+                                                    <td className="py-4 px-6 text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-tighter">{farmer.accountNumber}</td>
+                                                    <td className="py-4 px-6 text-xs font-medium text-slate-500">{farmer.nationalId || 'N/A'}</td>
+                                                    <td className="py-4 px-6 text-xs font-bold text-slate-700 dark:text-slate-300">{farmer.location || 'Main'}</td>
+                                                    <td className="py-4 px-6 text-center">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                                                            farmer.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20'
+                                                        }`}>
+                                                            {farmer.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filteredFarmers.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={6} className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                                        No farmers found matching your search
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
