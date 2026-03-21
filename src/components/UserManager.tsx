@@ -841,6 +841,20 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const institutionDomain = useMemo(() => currentInstitution?.email?.split('@')[1] || 'institution.edu', [currentInstitution]);
 
+    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isCoop = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
+        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
+               type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
+               subType.includes('coop') || subType.includes('sacco');
+    }, [currentInstitution]);
+
+    const isEdu = useMemo(() => {
+        const type = currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+    }, [currentInstitution]);
+
     // Form State
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -878,20 +892,6 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             setRoles(['student']);
         }
     }, [activeTab, isCoop, isRetailAgency]);
-
-    const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
-    const isCoop = useMemo(() => {
-        const type = currentInstitution?.institutionType;
-        const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
-        return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
-               type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
-               subType.includes('coop') || subType.includes('sacco');
-    }, [currentInstitution]);
-
-    const isEdu = useMemo(() => {
-        const type = currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
-    }, [currentInstitution]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
