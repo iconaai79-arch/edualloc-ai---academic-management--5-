@@ -946,6 +946,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                  departments={props.departments || []}
                                  subjects={props.subjects || []}
                                  courses={props.courses || []}
+                                 onImportStudents={props.onImportStudents}
+                                 onWithdrawRequest={props.onWithdrawRequest}
+                                 onAddExtensionRequest={props.onAddExtensionRequest}
                                 activeTab={coopTabMap[activeTab] as any}
                                 onTabChange={(tab) => {
                                     const reverseMap: Record<string, string> = {
@@ -1018,6 +1021,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         timetableSettings={props.timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                         examTimetableSettings={props.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
                         isCoop={isCoop}
+                        onImportStudents={props.onImportStudents}
+                        smsConfig={props.smsConfig}
+                        onWithdrawRequest={props.onWithdrawRequest}
+                        onAddExtensionRequest={props.onAddExtensionRequest}
                     />
                 )}
 

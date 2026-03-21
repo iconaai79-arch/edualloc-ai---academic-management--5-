@@ -98,6 +98,9 @@ interface CooperativeManagerProps {
     departments?: any[];
     subjects?: any[];
     courses?: any[];
+    onImportStudents?: (students: any[]) => Promise<void>;
+    onWithdrawRequest?: (requestId: string) => Promise<void>;
+    onAddExtensionRequest?: (reason: string) => void;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -141,7 +144,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     smsConfig = { provider: 'at', apiKey: '', username: '', senderId: '' },
     departments = [],
     subjects = [],
-    courses = []
+    courses = [],
+    onImportStudents,
+    onWithdrawRequest,
+    onAddExtensionRequest
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -1926,6 +1932,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         semesters={[]}
                         themeColor="#4f46e5"
                         onRefreshData={() => {}}
+                        onImportStudents={onImportStudents}
+                        onWithdrawRequest={onWithdrawRequest}
+                        onAddExtensionRequest={onAddExtensionRequest}
                         timetableSettings={{ 
                             operatingDays: [], 
                             startTime: '08:00', 

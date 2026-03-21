@@ -8,7 +8,7 @@ import type {
     MpesaTransaction, InvoiceItem, TransactionStatus, ExtensionRequest,
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
-    TeacherLogicRule, TeacherRuleType, Invoice, Receipt
+    TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig
 } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -148,6 +148,10 @@ interface SettingsManagerProps {
     invoices?: Invoice[];
     extensionRequests?: ExtensionRequest[];
     isCoop?: boolean;
+    onAddExtensionRequest?: (reason: string) => void;
+    onImportStudents?: (imported: any[]) => Promise<void>;
+    smsConfig?: SmsConfig;
+    onWithdrawRequest?: (id: string) => void;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -194,7 +198,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
-    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing'>('profile');
+    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'showcase'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
     const [showPaperPreview, setShowPaperPreview] = useState(false);
@@ -485,7 +489,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         welcomeMessage: props.companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
-        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
+        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' },
+        showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -513,7 +518,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 welcomeMessage: props.companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
-                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
+                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' },
+                showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
             setLocalEmailConfig(props.companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -700,6 +706,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             <button onClick={() => setGlobalSubTab('sms')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'sms' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><PaperAirplaneIcon className="w-4 h-4" /> SMS Gateway</button>
                             <button onClick={() => setGlobalSubTab('email')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><EnvelopeIcon className="w-4 h-4" /> Email Relay</button>
                             <button onClick={() => setGlobalSubTab('billing')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><CreditCardIcon className="w-4 h-4" /> Platform Billing</button>
+                            <button onClick={() => setGlobalSubTab('showcase')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'showcase' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Showcase</button>
                         </nav>
                     </div>
 
@@ -1109,6 +1116,80 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="pt-6 border-t flex justify-end gap-4">
                                     <button onClick={handleSendTestEmail} disabled={isSavingConfigs} className="btn-secondary px-6 h-12 border-slate-200 uppercase tracking-widest text-xs">Verify Configuration</button>
                                     <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">{isSavingConfigs ? 'Synchronizing...' : 'Authorize Relay'}</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {globalSubTab === 'showcase' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-4 bg-indigo-600 rounded-2xl text-white shadow-lg">
+                                        <SparklesIcon className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Marketing Showcase</h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Manage Public Facing Landing Page & Discovery</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-6">
+                                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                            <h4 className="text-sm font-bold mb-4 uppercase tracking-tight">Visibility Settings</h4>
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300">Enable Marketing Page</h5>
+                                                        <p className="text-[10px] text-slate-500">Show the showcase to unauthenticated users.</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setLocalCompanyInfo({ 
+                                                            ...localCompanyInfo, 
+                                                            showcaseConfig: { ...localCompanyInfo.showcaseConfig, enabled: !localCompanyInfo.showcaseConfig?.enabled } as any 
+                                                        })}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.showcaseConfig?.enabled ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                    >
+                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.showcaseConfig?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300">Show Login Link</h5>
+                                                        <p className="text-[10px] text-slate-500">Include "Showcase" button on the login screen.</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setLocalCompanyInfo({ 
+                                                            ...localCompanyInfo, 
+                                                            showcaseConfig: { ...localCompanyInfo.showcaseConfig, showLoginLink: !localCompanyInfo.showcaseConfig?.showLoginLink } as any 
+                                                        })}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                    >
+                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                                            <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2 uppercase tracking-tight">Quick Actions</h4>
+                                            <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-4">Preview the marketing landing page before going live.</p>
+                                            <button 
+                                                onClick={() => window.open(window.location.origin + '?view=showcase', '_blank')}
+                                                className="w-full btn-secondary h-12 bg-white flex items-center justify-center gap-2 text-xs font-bold shadow-sm"
+                                            >
+                                                <EyeIcon className="w-4 h-4" /> Open Showcase Preview
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t flex justify-end">
+                                    <button onClick={handleSaveGlobalConfigs} disabled={isSavingConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs">
+                                        {isSavingConfigs ? 'Saving...' : 'Save Showcase Settings'}
+                                    </button>
                                 </div>
                             </div>
                         )}

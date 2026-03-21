@@ -2426,6 +2426,9 @@ export const App: React.FC = () => {
                                     timeOffRequests={timeOffRequests}
                                     onAssociateSubjectToCourseLevel={handleAssociateSubjectToCourseLevel}
                                     onDisassociateSubjectFromCourseLevel={handleDisassociateSubjectFromCourseLevel}
+                                    onImportStudents={onImportStudents}
+                                    onWithdrawRequest={async (id) => { await apiService.deleteModuleRecord('allocation_requests', id); await handleLogAction("Withdrew allocation request"); loadData(); }}
+                                    onAddExtensionRequest={handleAddExtensionRequest}
                                     onLogAction={handleLogAction}
                                 />
                             ) : activeRole === 'security' ? (

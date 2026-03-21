@@ -487,6 +487,10 @@ export interface CompanyDetails {
         pricingAmount: number;
         customUrl: string;
     };
+    showcaseConfig?: {
+        enabled: boolean;
+        showLoginLink?: boolean;
+    };
     footerImageUrl?: string | null;
     applicationTitle?: string;
     themeColor?: string;

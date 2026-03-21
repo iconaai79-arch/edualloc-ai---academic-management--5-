@@ -78,6 +78,9 @@ interface AcademicsOfficerViewProps {
     allocations?: AllocationRequest[];
     timeOffRequests?: TimeOffRequest[];
     onLogAction?: (action: string) => Promise<void>;
+    onImportStudents?: (students: any[]) => Promise<void>;
+    onWithdrawRequest?: (requestId: string) => Promise<void>;
+    onAddExtensionRequest?: (reason: string) => void;
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {

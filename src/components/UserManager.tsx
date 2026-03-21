@@ -813,6 +813,7 @@ interface UserManagerProps {
     companyDetails?: CompanyDetails;
     isRetailAgency?: boolean;
     isAdding?: boolean;
+    onAddExtensionRequest?: (reason: string) => void;
 }
 
 export const UserManager: React.FC<UserManagerProps> = (props) => {
@@ -822,7 +823,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
-        isAdding: isAddingProp = false
+        isAdding: isAddingProp = false, onAddExtensionRequest
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
