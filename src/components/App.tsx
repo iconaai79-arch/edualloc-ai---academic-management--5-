@@ -3187,23 +3187,23 @@ export const App: React.FC = () => {
                                         }
                                         loadData();
                                     }}
-                                    onUpdateInstitution={async (id, data) => { await apiService.saveModuleRecord('institutions', { ...data, id }); loadData(); }}
-                                    onUpdateLogo={(url) => setLogoUrl(url)}
-                                    onUpdateFooterImage={(url) => setFooterImageUrl(url)}
-                                    onSaveLetterheadConfig={(config) => setLetterheadConfig(config)}
-                                    onUpdateCompanyDetails={onUpdateCompanyDetails}
+                                    onUpdateInstitution={onUpdateInstitution}
+                                    onUpdateLogo={(url) => onUpdateInstitution(activeInstitution!.id, { logoUrl: url })}
+                                    onUpdateFooterImage={(url) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: url })}
+                                    onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
                                     onAddUser={async (userData) => { await apiService.saveUser(userData); loadData(); }}
-                                    onEditUser={async (userId, data) => { await apiService.saveUser({ ...data, id: userId }); loadData(); }}
-                                    onDeleteUser={async (userId) => { await apiService.deleteModuleRecord('users', userId); loadData(); }}
-                                    onImportUsers={async (users) => { await apiService.onImportUsers(users, activeInstitution?.id || currentUser.institutionId, activeInstitution?.name); loadData(); }}
-                                    onImportStudents={async (students) => { await apiService.onImportStudents(students, activeInstitution?.id || currentUser.institutionId, activeInstitution?.name); loadData(); }}
-                                    onWithdrawRequest={async (requestId) => { await apiService.deleteModuleRecord('institution_extension_requests', requestId); loadData(); }}
-                                    onAddExtensionRequest={(reason) => apiService.saveModuleRecord('institution_extension_requests', { id: `ext_${Date.now()}`, institutionId: activeInstitution?.id || currentUser.institutionId, reason, status: 'pending', requestedAt: new Date().toISOString() }).then(() => loadData())}
-                                    onLogAction={async (action) => { console.log(`[Coop Action] ${action}`); }}
+                                    onEditUser={onEditUser}
+                                    onDeleteUser={onDeleteUser}
+                                    onImportUsers={onImportUsers}
+                                    onImportStudents={onImportStudents}
+                                    onWithdrawRequest={async (requestId) => { await apiService.deleteModuleRecord('allocation_requests', requestId); loadData(); }}
+                                    onAddExtensionRequest={handleAddExtensionRequest}
+                                    onLogAction={handleLogAction}
                                     smsConfig={activeInstitution?.smsConfig}
-                                    logoUrl={logoUrl}
-                                    footerImageUrl={footerImageUrl}
-                                    letterheadConfig={letterheadConfig}
+                                    logoUrl={activeBranding.logoUrl}
+                                    footerImageUrl={activeFooterImageUrl}
+                                    letterheadConfig={activeLetterheadConfig}
                                     companyDetails={companyDetails}
                                     users={users}
                                 />
