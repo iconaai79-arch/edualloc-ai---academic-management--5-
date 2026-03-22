@@ -189,6 +189,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         factoryConfirmed: false,
         notified: false
     });
+    const [isAddingRider, setIsAddingRider] = useState(false);
+    const [newRider, setNewRider] = useState<Partial<CoopRider>>({
+        status: 'active'
+    });
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -777,14 +781,113 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Logistics & Riders</h2>
-                                    <button 
-                                        onClick={() => onAddRider({})}
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Register Rider
-                                    </button>
+                                    {!isAddingRider && (
+                                        <button 
+                                            onClick={() => setIsAddingRider(true)}
+                                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Register Rider
+                                        </button>
+                                    )}
                                 </div>
+
+                                {isAddingRider && (
+                                    <div className="mb-12 p-8 rounded-[40px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-none animate-in fade-in slide-in-from-top-4 duration-500">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
+                                                    <LogisticsIcon className="w-6 h-6 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-black tracking-tighter uppercase">New Rider Onboarding</h3>
+                                                    <p className="text-xs text-slate-400 font-bold tracking-widest uppercase">Register a delivery partner</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => setIsAddingRider(false)}
+                                                className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition-all text-slate-400"
+                                            >
+                                                <PlusIcon className="w-5 h-5 rotate-45" />
+                                            </button>
+                                        </div>
+
+                                        <form onSubmit={handleSubmitRider} className="space-y-8">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Rider Name</label>
+                                                    <input 
+                                                        required
+                                                        type="text" 
+                                                        value={newRider.name || ''} 
+                                                        onChange={e => setNewRider({...newRider, name: e.target.value})}
+                                                        placeholder="Enter rider's full name"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                                                    <input 
+                                                        required
+                                                        type="tel" 
+                                                        value={newRider.phone || ''} 
+                                                        onChange={e => setNewRider({...newRider, phone: e.target.value})}
+                                                        placeholder="07XXXXXXXX"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">National ID</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newRider.nationalId || ''} 
+                                                        onChange={e => setNewRider({...newRider, nationalId: e.target.value})}
+                                                        placeholder="ID Number"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">License Number</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newRider.licenseNumber || ''} 
+                                                        onChange={e => setNewRider({...newRider, licenseNumber: e.target.value})}
+                                                        placeholder="Driving License"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Vehicle Plate</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newRider.vehiclePlate || ''} 
+                                                        onChange={e => setNewRider({...newRider, vehiclePlate: e.target.value})}
+                                                        placeholder="KXX 000X"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white uppercase"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-end gap-4 pt-4">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setIsAddingRider(false)}
+                                                    className="px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button 
+                                                    type="submit"
+                                                    disabled={isProcessing}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'Registering...' : 'Save Rider Record'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {riders.map(rider => (
                                         <div key={rider.id} className="p-6 rounded-3xl border border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
