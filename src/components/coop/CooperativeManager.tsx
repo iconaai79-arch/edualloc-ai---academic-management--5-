@@ -145,7 +145,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     logoUrl,
     footerImageUrl,
     companyDetails,
-    onUpdateCompanyDetails,
     letterheadConfig,
     users = [],
     onAddUser,
@@ -2524,7 +2523,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         logoUrl={logoUrl || null}
                         footerImageUrl={footerImageUrl || null}
                         companyDetails={companyDetails}
-                        onUpdateCompanyDetails={onUpdateCompanyDetails}
+                        onUpdateCompanyDetails={props.onUpdateCompanyDetails}
                         letterheadConfig={letterheadConfig}
                         isCoop={true}
                         users={users}

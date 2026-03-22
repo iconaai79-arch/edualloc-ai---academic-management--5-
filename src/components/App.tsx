@@ -2154,6 +2154,7 @@ export const App: React.FC = () => {
                                     departments={departments}
                                     courses={courses}
                                     companyDetails={companyDetails}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
                                     transactions={transactions}
                                     receipts={receipts}
                                     activityLog={activityLog}
@@ -2161,7 +2162,6 @@ export const App: React.FC = () => {
                                     onImportStudents={onImportStudents}
                                     onDeleteUser={onDeleteUser}
                                     onEditUser={onEditUser}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
                                     onAddInstitution={async (d) => { 
                                         const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
                                         await apiService.saveInstitution({ ...d, id: newId } as any); 
@@ -2843,6 +2843,7 @@ export const App: React.FC = () => {
                                     footerImageUrl={activeFooterImageUrl}
                                     themeColor={activeBranding.primaryColor}
                                     companyDetails={companyDetails}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
                                     activityLog={activityLog}
                                     transactions={transactions}
                                     onAddTransaction={apiService.onAddTransaction.bind(apiService)}
@@ -3046,7 +3047,6 @@ export const App: React.FC = () => {
                                     farmers={coopFarmers}
                                     collections={coopCollections}
                                     riders={coopRiders}
-                                    inventory={coopAgrovetInventory}
                                     sales={coopAgrovetSales}
                                     saccoAccounts={saccoAccounts}
                                     payouts={coopPayouts}

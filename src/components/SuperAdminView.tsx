@@ -302,7 +302,6 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onDeleteInstitution,
         onToggleInstitutionStatus,
         onUpdateInstitution,
-        onUpdateCompanyDetails,
         onLoginAsAdmin,
         onSendSms,
         currentUser,
@@ -547,8 +546,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
         try {
-            if (onUpdateCompanyDetails) {
-                await onUpdateCompanyDetails({
+            if (props.onUpdateCompanyDetails) {
+                await props.onUpdateCompanyDetails({
                     ...companyDetails,
                     ...localCompanyInfo,
                     smsConfig: localSmsConfig,
