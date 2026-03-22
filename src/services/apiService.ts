@@ -596,6 +596,8 @@ export const apiService = {
 
             if (userData.role === 'driver' || userData.role === 'transport_assistant') {
                 smsMessage = `Welcome to the Transport Fleet. Your driver account is active. ID: ${userData.staffId || userData.email}, Pass: ${password}. Access portal at ${window.location.origin}`;
+            } else if (userData.role === 'rider') {
+                smsMessage = `Welcome to the Logistics Team. Your rider account is active. ID: ${userData.phoneNumber}, Pass: ${password}. Access portal at ${window.location.origin}`;
             }
 
             this.sendSms(userData.phoneNumber, smsMessage).catch(e => {

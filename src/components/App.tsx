@@ -2971,7 +2971,22 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecord('coop_collections', payload); 
                                         loadData(); 
                                     }}
-                                    onAddRider={async (data) => { await apiService.saveModuleRecord('coop_riders', { ...data, id: `r_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onAddRider={async (data: CoopRider) => { 
+                                        const riderId = `r_${Date.now()}`;
+                                        await apiService.saveModuleRecord('coop_riders', { ...data, id: riderId, institutionId: currentUser.institutionId }); 
+                                        
+                                        // Auto-register a user for the rider to enable portal access
+                                        await apiService.registerUser({
+                                            name: data.name,
+                                            phoneNumber: data.phone,
+                                            role: 'rider',
+                                            riderId: riderId,
+                                            institutionId: currentUser.institutionId,
+                                            email: `${data.phone}@eduai.co.ke` // Fallback email/username
+                                        }, activeInstitution?.name);
+                                        
+                                        loadData(); 
+                                    }}
                                     onConfirmCollection={async (id, qty) => { 
                                         await apiService.confirmCoopCollection(id, qty, currentUser.id); 
                                         const col = coopCollections.find(c => c.id === id);
