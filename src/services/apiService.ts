@@ -1480,8 +1480,8 @@ export const apiService = {
         if (!collection) throw new Error("Collection not found");
 
         const hasDiscrepancy = finalQuantity !== collection.quantity;
-        const update: Partial<CoopCollection> = {
-            id,
+        const update: CoopCollection = {
+            ...collection,
             finalQuantity,
             factoryConfirmed: true,
             confirmedBy,
@@ -1492,15 +1492,14 @@ export const apiService = {
         };
 
         await this.saveModuleRecord('coop_collections', update);
-        
-        // If no discrepancy, we can trigger SMS immediately (or let the caller do it)
-        if (!hasDiscrepancy) {
-            // SMS logic would go here or in App/Component
-        }
     },
     async approveCoopCollection(id: string, approvedBy: string, status: 'approved' | 'rejected'): Promise<void> {
-        const update: Partial<CoopCollection> = {
-            id,
+        const collections = await this.fetchCoopCollections();
+        const collection = collections.find(c => c.id === id);
+        if (!collection) throw new Error("Collection not found");
+
+        const update: CoopCollection = {
+            ...collection,
             approvalStatus: status,
             approvedBy,
             approvedAt: new Date().toISOString(),
