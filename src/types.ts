@@ -2825,7 +2825,7 @@ export interface CoopCollection {
 export interface CoopAgrovetInventory {
     id: string;
     institutionId: string;
-    productName: string;
+    itemName: string;
     category: string;
     quantity: number;
     unitPrice: number;
@@ -2837,7 +2837,7 @@ export interface CoopAgrovetSales {
     id: string;
     institutionId: string;
     farmerId: string;
-    productId: string;
+    itemId: string;
     quantity: number;
     amount: number;
     paymentStatus: 'paid' | 'credit' | 'deducted';
