@@ -217,6 +217,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
     };
 
+
+
     const handleSubmitCollection = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newCollection.farmerId || !newCollection.quantity) {
@@ -326,6 +328,30 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const getFarmerName = (id: string) => farmers.find(f => f.id === id)?.name || 'Unknown Farmer';
     const getRiderName = (id?: string) => riders.find(r => r.id === id)?.name || 'N/A';
+
+    async function handleSubmitRider(e: React.FormEvent) {
+        e.preventDefault();
+        console.log("handleSubmitRider triggered", { newRider });
+        if (!newRider.name || !newRider.phone) {
+            alert("Please fill in Name and Phone");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            await onAddRider({
+                ...newRider,
+                id: `r_${Date.now()}`,
+                institutionId: currentInstitution?.id || ''
+            });
+            setIsAddingRider(false);
+            setNewRider({ status: 'active' });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save rider record");
+        } finally {
+            setIsProcessing(false);
+        }
+    }
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
