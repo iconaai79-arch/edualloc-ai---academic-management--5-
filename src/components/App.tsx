@@ -3167,6 +3167,45 @@ export const App: React.FC = () => {
                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
+                                    onAddInventory={async (data) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCoopAgrovetInventory({ ...data, institutionId: instId });
+                                        loadData();
+                                    }}
+                                    onAddSale={async (data) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCoopAgrovetSale({ ...data, institutionId: instId });
+                                        loadData();
+                                    }}
+                                    onInitiatePayouts={async (payoutIds) => {
+                                        await apiService.disburseBulkMpesa(payoutIds, currentUser.id);
+                                        loadData();
+                                    }}
+                                    onApprovePayouts={async (payoutIds) => {
+                                        for (const id of payoutIds) {
+                                            await apiService.updatePayoutStatus(id, 'approved', currentUser.id);
+                                        }
+                                        loadData();
+                                    }}
+                                    onUpdateInstitution={async (id, data) => { await apiService.saveModuleRecord('institutions', { ...data, id }); loadData(); }}
+                                    onUpdateLogo={(url) => setLogoUrl(url)}
+                                    onUpdateFooterImage={(url) => setFooterImageUrl(url)}
+                                    onSaveLetterheadConfig={(config) => setLetterheadConfig(config)}
+                                    onUpdateCompanyDetails={onUpdateCompanyDetails}
+                                    onAddUser={async (userData) => { await apiService.saveUser(userData); loadData(); }}
+                                    onEditUser={async (userId, data) => { await apiService.saveUser({ ...data, id: userId }); loadData(); }}
+                                    onDeleteUser={async (userId) => { await apiService.deleteModuleRecord('users', userId); loadData(); }}
+                                    onImportUsers={async (users) => { await apiService.onImportUsers(users, activeInstitution?.id || currentUser.institutionId, activeInstitution?.name); loadData(); }}
+                                    onImportStudents={async (students) => { await apiService.onImportStudents(students, activeInstitution?.id || currentUser.institutionId, activeInstitution?.name); loadData(); }}
+                                    onWithdrawRequest={async (requestId) => { await apiService.deleteModuleRecord('institution_extension_requests', requestId); loadData(); }}
+                                    onAddExtensionRequest={(reason) => apiService.saveModuleRecord('institution_extension_requests', { id: `ext_${Date.now()}`, institutionId: activeInstitution?.id || currentUser.institutionId, reason, status: 'pending', requestedAt: new Date().toISOString() }).then(() => loadData())}
+                                    onLogAction={async (action) => { console.log(`[Coop Action] ${action}`); }}
+                                    smsConfig={activeInstitution?.smsConfig}
+                                    logoUrl={logoUrl}
+                                    footerImageUrl={footerImageUrl}
+                                    letterheadConfig={letterheadConfig}
+                                    companyDetails={companyDetails}
+                                    users={users}
                                 />
                             ) : null}
                         </main>
