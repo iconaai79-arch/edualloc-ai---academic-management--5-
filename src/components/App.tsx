@@ -1680,9 +1680,9 @@ export const App: React.FC = () => {
             await apiService.saveCoopAgrovetInventory(data);
             await loadData();
             alert("Agrovet inventory added successfully.");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to add Agrovet inventory:", error);
-            alert("Failed to add Agrovet inventory.");
+            alert(`Failed: ${error.message || JSON.stringify(error)}`);
         }
     }, [loadData]);
 
@@ -1691,9 +1691,9 @@ export const App: React.FC = () => {
             await apiService.saveCoopAgrovetSale(data);
             await loadData();
             alert("Agrovet sale recorded successfully.");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to record Agrovet sale:", error);
-            alert("Failed to record Agrovet sale.");
+            alert(`Failed: ${error.message || JSON.stringify(error)}`);
         }
     }, [loadData]);
 
@@ -2859,7 +2859,7 @@ export const App: React.FC = () => {
                                     allTimetableEntries={generatedTimetable}
                                     finalTimetableUrl={null}
                                     letterheadConfig={activeLetterheadConfig}
-                                    smsConfig={companyDetails.smsConfig}
+                                    smsConfig={companyDetails.smsConfig as any}
                                     emailConfig={companyDetails.emailConfig}
                                     timetableConflicts={timetableConflicts}
                                     retailExpenses={retailExpenses}
@@ -3187,7 +3187,7 @@ export const App: React.FC = () => {
                                         }
                                         loadData();
                                     }}
-                                    onUpdateInstitution={onUpdateInstitution}
+
                                     onUpdateLogo={(url) => onUpdateInstitution(activeInstitution!.id, { logoUrl: url })}
                                     onUpdateFooterImage={(url) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: url })}
                                     onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
