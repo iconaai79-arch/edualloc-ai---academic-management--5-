@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
 import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
 import type {
@@ -11,7 +11,8 @@ import type {
     Supplier, Internship, AbsenceRequest, StudentAbsenceRequest, EnrollmentRequest, StudentAttendance, TaAssignment, Assessment, AssessmentMark,
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
     Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
-    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert
+    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
+    CoopExpense, CoopIncome
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -36,10 +37,8 @@ export const initSupabaseClient = (url?: string, key?: string) => {
 
     if (finalUrl && finalKey && finalUrl.startsWith('http')) {
         try {
-            // Sync with lib/supabase.ts
-            initSupabase(finalUrl, finalKey);
-
-            _supabase = createClient(finalUrl, finalKey, {
+            // Use the singleton from lib/supabase.ts
+            _supabase = initSupabase(finalUrl, finalKey, {
                 auth: { persistSession: true, autoRefreshToken: true },
                 global: { headers: { 'x-application-name': 'eduai-academic' } }
             });

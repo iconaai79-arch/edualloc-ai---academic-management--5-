@@ -8,15 +8,16 @@ let supabaseInstance: SupabaseClient | null = null;
  * Initializes or returns the existing Supabase client instance.
  * @param url The Supabase Project URL
  * @param key The Supabase Anon Key
+ * @param options Optional Supabase client configuration
  */
-export const initSupabase = (url: string, key: string): SupabaseClient => {
+export const initSupabase = (url: string, key: string, options?: any): SupabaseClient => {
     if (!url || !key) {
         throw new Error("Missing Supabase URL or Anon Key");
     }
 
     // Only re-initialize if the URL changes or instance is null
     if (!supabaseInstance || (supabaseInstance as any).supabaseUrl !== url) {
-        supabaseInstance = createClient(url, key);
+        supabaseInstance = createClient(url, key, options);
         supabase = supabaseInstance;
     }
 
