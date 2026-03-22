@@ -2958,6 +2958,7 @@ export const App: React.FC = () => {
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
                                     onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onUpdateFarmer={async (id, data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id }); loadData(); }}
                                     onLogCollection={async (data) => { 
                                         const payload = { 
                                             ...data, 

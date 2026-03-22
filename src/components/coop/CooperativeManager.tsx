@@ -23,7 +23,8 @@ import {
     Eye as EyeIcon,
     ArrowUpRight as ExportIcon,
     Settings as CogIcon,
-    UploadCloud
+    UploadCloud,
+    X
 } from 'lucide-react';
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
@@ -69,6 +70,7 @@ interface CooperativeManagerProps {
     expenses: CoopExpense[];
     income: CoopIncome[];
     onAddFarmer: (data: Partial<CoopFarmer>) => Promise<void>;
+    onUpdateFarmer: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
     onLogCollection: (data: Partial<CoopCollection>) => Promise<void>;
     onAddRider: (data: Partial<CoopRider>) => Promise<void>;
     onConfirmCollection?: (id: string, qty: number) => Promise<void>;
@@ -116,6 +118,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     expenses = [],
     income = [],
     onAddFarmer,
+    onUpdateFarmer,
     onLogCollection,
     onAddRider,
     onConfirmCollection,
@@ -195,6 +198,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [newRider, setNewRider] = useState<Partial<CoopRider>>({
         status: 'active'
     });
+    const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -732,6 +736,19 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                                     />
                                                 </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Assigned Rider</label>
+                                                    <select 
+                                                        value={newFarmer.riderId || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, riderId: e.target.value})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white appearance-none cursor-pointer"
+                                                    >
+                                                        <option value="">Select Rider (Optional)</option>
+                                                        {riders.map(r => (
+                                                            <option key={r.id} value={r.id}>{r.name} ({r.vehiclePlate || r.licenseNumber})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             </div>
 
                                             <div className="flex items-center justify-end gap-4 pt-4">
@@ -761,9 +778,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">A/C Number</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Rider</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Number</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</th>
                                                 <th className="text-center py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                                <th className="text-right py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -781,6 +800,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     </td>
                                                     <td className="py-4 px-6 text-xs text-slate-500 font-medium">{farmer.phone}</td>
                                                     <td className="py-4 px-6 text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-tighter">{farmer.accountNumber}</td>
+                                                    <td className="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap">
+                                                        {farmer.riderId ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-[10px] font-black text-indigo-600">
+                                                                    <LogisticsIcon className="w-3 h-3" />
+                                                                </div>
+                                                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                                    {riders.find(r => r.id === farmer.riderId)?.name || 'Unknown Rider'}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-300 italic">Unassigned</span>
+                                                        )}
+                                                    </td>
                                                     <td className="py-4 px-6 text-xs font-medium text-slate-500">{farmer.nationalId || 'N/A'}</td>
                                                     <td className="py-4 px-6 text-xs font-bold text-slate-700 dark:text-slate-300">{farmer.location || 'Main'}</td>
                                                     <td className="py-4 px-6 text-center">
@@ -789,6 +822,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         }`}>
                                                             {farmer.status}
                                                         </span>
+                                                    </td>
+                                                    <td className="py-4 px-6 text-right">
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditingFarmer(farmer);
+                                                            }}
+                                                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 hover:text-indigo-600 transition-all opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <CogIcon className="w-4 h-4" />
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -2131,7 +2175,81 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     currentUser={currentUser}
                 />
             )}
+            {editingFarmer && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-lg shadow-2xl border border-white/20 overflow-hidden animate-fade-in-up">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white">
+                                    <CogIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tighter">Edit Farmer</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{editingFarmer.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setEditingFarmer(null)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl text-slate-400 transition-all">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Assigned Rider (Collection Partner)</label>
+                                <select 
+                                    value={editingFarmer.riderId || ''} 
+                                    onChange={e => setEditingFarmer({...editingFarmer, riderId: e.target.value})}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                >
+                                    <option value="">No Rider Assigned</option>
+                                    {riders.map(r => (
+                                        <option key={r.id} value={r.id}>{r.name} ({r.vehiclePlate || r.licenseNumber})</option>
+                                    ))}
+                                </select>
+                                <p className="text-[9px] text-slate-400 px-2">Assigning a rider helps track collections and automate logistics for this farmer.</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Status</label>
+                                <div className="flex gap-4">
+                                    {(['active', 'inactive'] as const).map(s => (
+                                        <button
+                                            key={s}
+                                            onClick={() => setEditingFarmer({...editingFarmer, status: s})}
+                                            className={`flex-1 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                                editingFarmer.status === s 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
+                                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    setIsProcessing(true);
+                                    try {
+                                        await onUpdateFarmer(editingFarmer.id, editingFarmer);
+                                        setEditingFarmer(null);
+                                    } catch (err) {
+                                        alert("Failed to update farmer record.");
+                                    } finally {
+                                        setIsProcessing(false);
+                                    }
+                                }}
+                                disabled={isProcessing}
+                                className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-5 rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Updating...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             </div>
         </div>
     );
 };
+

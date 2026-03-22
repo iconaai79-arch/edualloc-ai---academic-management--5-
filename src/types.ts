@@ -2686,6 +2686,7 @@ export interface CoopFarmer {
     nationalId?: string;
     location?: string;
     status: 'active' | 'inactive';
+    riderId?: string;
     joinedAt: string;
 }
 
