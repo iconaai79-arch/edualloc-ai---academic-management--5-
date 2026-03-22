@@ -201,7 +201,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
 
     const downloadTemplate = () => {
         const ws = XLSX.utils.aoa_to_sheet([
-            ['Full Name', 'Phone Number', 'National ID', 'KRA PIN', 'Bank Account', 'Location', 'Email'],
+            ['Full Name', 'Phone Number', 'National ID', 'KRA PIN', 'Account Number', 'Location', 'Email'],
             ['John Doe', '0712345678', '12345678', 'A123456789Z', '011000000000', 'Nairobi Central', 'john@example.com']
         ]);
         const wb = XLSX.utils.book_new();
@@ -356,6 +356,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Name</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Phone</th>
+                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">A/C Number</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">ID / KRA</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Issues</th>
                                         </tr>
@@ -376,6 +377,9 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                                 </td>
                                                 <td className="p-4 text-sm font-medium text-slate-600 dark:text-slate-300">
                                                     {row.parsedData.phone || '-'}
+                                                </td>
+                                                <td className="p-4 text-sm font-bold text-slate-700 dark:text-slate-300 font-mono tracking-tighter uppercase">
+                                                    {row.parsedData.accountNumber || '-'}
                                                 </td>
                                                 <td className="p-4 text-sm text-slate-600 dark:text-slate-300">
                                                     <p>{row.parsedData.nationalId || '-'}</p>
