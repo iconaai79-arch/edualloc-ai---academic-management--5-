@@ -107,6 +107,8 @@ interface CooperativeManagerProps {
     onImportStudents?: (students: any[]) => Promise<void>;
     onWithdrawRequest?: (requestId: string) => Promise<void>;
     onAddExtensionRequest?: (reason: string) => void;
+    onAddInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
+    onAddSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -157,7 +159,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     courses = [],
     onImportStudents,
     onWithdrawRequest,
-    onAddExtensionRequest
+    onAddExtensionRequest,
+    onAddInventory,
+    onAddSale
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -200,9 +204,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         factoryConfirmed: false,
         notified: false
     });
-    const [isAddingRider, setIsAddingRider] = useState(false);
     const [newRider, setNewRider] = useState<Partial<CoopRider>>({
         status: 'active'
+    });
+    const [isAddingInventory, setIsAddingInventory] = useState(false);
+    const [isRecordingSale, setIsRecordingSale] = useState(false);
+    const [newInventory, setNewInventory] = useState<Partial<CoopAgrovetInventory>>({
+        status: 'in_stock'
+    });
+    const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
+        saleDate: new Date().toISOString().split('T')[0],
+        paymentStatus: 'pending'
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
@@ -365,6 +377,61 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsProcessing(false);
         }
     }
+
+    const handleSubmitInventory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newInventory.itemName || !newInventory.quantity) {
+            alert("Please fill in Item Name and Quantity");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            if (onAddInventory) {
+                await onAddInventory({
+                    ...newInventory,
+                    id: `inv_${Date.now()}`,
+                    institutionId: currentInstitution?.id || ''
+                });
+            }
+            setIsAddingInventory(false);
+            setNewInventory({ status: 'in_stock' });
+            if (onLogAction) await onLogAction(`Added inventory item: ${newInventory.itemName}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save inventory record");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSubmitSale = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newSale.farmerId || !newSale.itemId || !newSale.quantity) {
+            alert("Please select a farmer, item and enter quantity");
+            return;
+        }
+        setIsProcessing(true);
+        try {
+            if (onAddSale) {
+                await onAddSale({
+                    ...newSale,
+                    id: `sale_${Date.now()}`,
+                    institutionId: currentInstitution?.id || ''
+                });
+            }
+            setIsRecordingSale(false);
+            setNewSale({
+                saleDate: new Date().toISOString().split('T')[0],
+                paymentStatus: 'pending'
+            });
+            if (onLogAction) await onLogAction(`Recorded sale for farmer ${newSale.farmerId}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to record sale");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     return (
         <div className="space-y-8 animate-fade-in pb-20">
@@ -1554,29 +1621,264 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-xl font-black tracking-tighter uppercase">Agrovet Inventory & Sales</h2>
                             <div className="flex gap-4">
-                                <button className="text-xs font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 px-6 py-3 rounded-2xl transition-all">Stocks</button>
-                                <button className="text-xs font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl transition-all shadow-lg active:scale-95">Record Sale</button>
+                                <button 
+                                    onClick={() => { setIsAddingInventory(!isAddingInventory); setIsRecordingSale(false); }}
+                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isAddingInventory ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'}`}
+                                >
+                                    <PlusIcon className={`w-4 h-4 ${isAddingInventory ? 'rotate-45' : ''}`} />
+                                    {isAddingInventory ? 'Cancel' : 'Add Stock'}
+                                </button>
+                                <button 
+                                    onClick={() => { setIsRecordingSale(!isRecordingSale); setIsAddingInventory(false); }}
+                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isRecordingSale ? 'bg-slate-100 text-slate-500' : 'bg-indigo-600 text-white'}`}
+                                >
+                                    <PlusIcon className={`w-4 h-4 ${isRecordingSale ? 'rotate-45' : ''}`} />
+                                    {isRecordingSale ? 'Cancel' : 'Record Sale'}
+                                </button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                            {inventory.slice(0, 6).map(item => (
-                                <div key={item.id} className="p-6 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-                                            <StoreIcon className="w-5 h-5 text-slate-400" />
+
+                        {/* Add Inventory Form */}
+                        {isAddingInventory && (
+                            <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
+                                    <StoreIcon className="w-5 h-5 text-indigo-500" />
+                                    Restock Inventory
+                                </h3>
+                                <form onSubmit={handleSubmitInventory} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Item Name</label>
+                                            <input 
+                                                required
+                                                type="text" 
+                                                value={newInventory.itemName || ''} 
+                                                onChange={e => setNewInventory({...newInventory, itemName: e.target.value})}
+                                                placeholder="e.g. DAP Fertilizer"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                            />
                                         </div>
-                                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-                                            Number(item.quantity) < item.reorderLevel ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-900/20'
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Category</label>
+                                            <select 
+                                                value={newInventory.category || ''} 
+                                                onChange={e => setNewInventory({...newInventory, category: e.target.value})}
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                            >
+                                                <option value="">Select Category</option>
+                                                <option value="Fertilizer">Fertilizer</option>
+                                                <option value="Seeds">Seeds</option>
+                                                <option value="Animal Feed">Animal Feed</option>
+                                                <option value="Chemicals">Chemicals</option>
+                                                <option value="Tools">Tools</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
+                                            <input 
+                                                required
+                                                type="number" 
+                                                value={newInventory.quantity || ''} 
+                                                onChange={e => setNewInventory({...newInventory, quantity: Number(e.target.value)})}
+                                                placeholder="0"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Price (KES)</label>
+                                            <input 
+                                                required
+                                                type="number" 
+                                                value={newInventory.unitPrice || ''} 
+                                                onChange={e => setNewInventory({...newInventory, unitPrice: Number(e.target.value)})}
+                                                placeholder="0.00"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end pt-4">
+                                        <button 
+                                            type="submit"
+                                            disabled={isProcessing}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+                                        >
+                                            {isProcessing ? 'Saving...' : 'Confirm Restock'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Record Sale Form */}
+                        {isRecordingSale && (
+                            <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
+                                    <PayoutIcon className="w-5 h-5 text-emerald-500" />
+                                    New Sales Record
+                                </h3>
+                                <form onSubmit={handleSubmitSale} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer / Customer</label>
+                                            <select 
+                                                required
+                                                value={newSale.farmerId || ''} 
+                                                onChange={e => setNewSale({...newSale, farmerId: e.target.value})}
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                            >
+                                                <option value="">Select Farmer</option>
+                                                {farmers.map(f => (
+                                                    <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inventory Item</label>
+                                            <select 
+                                                required
+                                                value={newSale.itemId || ''} 
+                                                onChange={e => {
+                                                    const item = inventory.find(i => i.id === e.target.value);
+                                                    setNewSale({
+                                                        ...newSale, 
+                                                        itemId: e.target.value,
+                                                        amount: item ? item.unitPrice * (newSale.quantity || 0) : 0
+                                                    });
+                                                }}
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                            >
+                                                <option value="">Select Item</option>
+                                                {inventory.map(i => (
+                                                    <option key={i.id} value={i.id}>{i.itemName} (Stock: {i.quantity})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
+                                            <input 
+                                                required
+                                                type="number" 
+                                                value={newSale.quantity || ''} 
+                                                onChange={e => {
+                                                    const qty = Number(e.target.value);
+                                                    const item = inventory.find(i => i.id === newSale.itemId);
+                                                    setNewSale({
+                                                        ...newSale, 
+                                                        quantity: qty,
+                                                        amount: item ? item.unitPrice * qty : 0
+                                                    });
+                                                }}
+                                                placeholder="0"
+                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Total Amount (KES)</label>
+                                            <input 
+                                                required
+                                                readOnly
+                                                type="number" 
+                                                value={newSale.amount || ''} 
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-black outline-none transition-all dark:text-white text-emerald-600"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end pt-4">
+                                        <button 
+                                            type="submit"
+                                            disabled={isProcessing}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                                        >
+                                            {isProcessing ? 'Recording...' : 'Finalize Sale'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                            {inventory.length > 0 ? inventory.map(item => (
+                                <div key={item.id} className="p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors">
+                                            <StoreIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-full ${
+                                            Number(item.quantity) < 10 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
                                         }`}>
                                             {item.quantity} In Stock
                                         </span>
                                     </div>
-                                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-sm mb-1">{item.productName}</h4>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.category}</p>
-                                    <p className="text-lg font-black text-indigo-600 mt-4 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
+                                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg mb-1">{item.itemName}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">{item.category}</p>
+                                    <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700 pt-6">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unit Price</p>
+                                            <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                            <p className="text-xs font-black uppercase text-slate-500 italic">{item.status?.replace('_', ' ')}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="col-span-full p-20 text-center bg-slate-50 dark:bg-slate-900/40 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                    <StoreIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-black text-slate-400 uppercase italic">No inventory records found</h3>
+                                    <p className="text-xs text-slate-400 mt-2 font-bold uppercase">Add stock to begin managing agrovet supplies</p>
+                                </div>
+                            )}
                         </div>
+
+                        {sales.length > 0 && (
+                            <div className="mt-12">
+                                <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-3">
+                                    <PayoutIcon className="w-5 h-5 text-indigo-500" />
+                                    Recent Sales History
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-separate border-spacing-y-4">
+                                        <thead>
+                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                <th className="px-6 pb-2">Farmer</th>
+                                                <th className="px-6 pb-2">Item</th>
+                                                <th className="px-6 pb-2 text-center">Qty</th>
+                                                <th className="px-6 pb-2 text-right">Total Amount</th>
+                                                <th className="px-6 pb-2">Date</th>
+                                                <th className="px-6 pb-2">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sales.slice(0, 10).map(sale => (
+                                                <tr key={sale.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all shadow-sm">
+                                                    <td className="px-6 py-5 rounded-l-3xl">
+                                                        <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(sale.farmerId)}</p>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <p className="text-xs font-black uppercase italic dark:text-slate-300">
+                                                            {inventory.find(i => i.id === sale.itemId)?.itemName || 'Deleted Item'}
+                                                        </p>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-center font-bold">{sale.quantity}</td>
+                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {sale.amount.toLocaleString()}</td>
+                                                    <td className="px-6 py-5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sale.saleDate}</p>
+                                                    </td>
+                                                    <td className="px-6 py-5 rounded-r-3xl">
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
+                                                            sale.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                        }`}>
+                                                            {sale.paymentStatus}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

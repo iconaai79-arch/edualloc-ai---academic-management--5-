@@ -219,6 +219,8 @@ export interface AdminViewProps {
     onApproveCollection: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
     onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
+    onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
+    onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     enrollmentRequests?: EnrollmentRequest[];
@@ -925,6 +927,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onApproveCollection={props.onApproveCollection}
                                 onAddExpense={props.onAddCoopExpense}
                                 onAddIncome={props.onAddCoopIncome}
+                                onAddInventory={props.onAddCoopAgrovetInventory}
+                                onAddSale={props.onAddCoopAgrovetSale}
                                 onLogAction={props.onLogAction}
                                  onInitiatePayouts={props.onInitiatePayouts}
                                 onApprovePayouts={props.onApprovePayouts}

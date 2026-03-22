@@ -1675,6 +1675,28 @@ export const App: React.FC = () => {
         }
     }, [counties, loadData]);
 
+    const handleAddCoopAgrovetInventory = useCallback(async (data: any) => {
+        try {
+            await apiService.saveCoopAgrovetInventory(data);
+            await loadData();
+            alert("Agrovet inventory added successfully.");
+        } catch (error) {
+            console.error("Failed to add Agrovet inventory:", error);
+            alert("Failed to add Agrovet inventory.");
+        }
+    }, [loadData]);
+
+    const handleAddCoopAgrovetSale = useCallback(async (data: any) => {
+        try {
+            await apiService.saveCoopAgrovetSale(data);
+            await loadData();
+            alert("Agrovet sale recorded successfully.");
+        } catch (error) {
+            console.error("Failed to record Agrovet sale:", error);
+            alert("Failed to record Agrovet sale.");
+        }
+    }, [loadData]);
+
     const handleDeleteCounty = useCallback(async (id: string) => {
         try {
             await apiService.deleteModuleRecord('counties', id);
@@ -2067,16 +2089,14 @@ export const App: React.FC = () => {
                 />
             );
         }
-    }
-
-    if (currentUser && !currentUser.isImpersonated && (!currentUser.passwordLastUpdated || currentUser.password === 'password123')) {
         return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
             const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
             await apiService.saveUser(updated);
             setCurrentUser(updated);
             apiService.storeSession(updated);
-        }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
+        }} />;
     }
+
 
     return (
         <AppErrorBoundary>
@@ -2126,17 +2146,84 @@ export const App: React.FC = () => {
                                 />
                             ) : activeRole === 'super_admin' ? (
                                 <SuperAdminView
-                                    currentUser={currentUser} institutions={institutions} counties={counties} users={users} subjects={subjects} departments={departments} courses={courses} companyDetails={companyDetails} transactions={transactions} receipts={receipts} activityLog={activityLog} onImportUsers={onImportUsers} onImportStudents={onImportStudents} onDeleteUser={onDeleteUser} onEditUser={onEditUser} onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }} onAddInstitution={async (d) => { const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; await apiService.saveInstitution({ ...d, id: newId } as any); const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; await apiService.registerUser({ id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role, institutionId: newId, countyId: (d as any).countyId, status: 'active' } as any, d.name); loadData(); }} onUpdateInstitution={onUpdateInstitution} onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }} onToggleInstitutionStatus={onToggleInstitutionStatus} onLoginAsAdmin={onLoginAsAdmin} allocations={allocations} requests={requests} semesters={semesters} letterheadConfig={activeLetterheadConfig} footerImageUrl={activeFooterImageUrl} onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId); await handleLogAction(`Sent SMS to ${r}`); return res; }}
-
+                                    currentUser={currentUser}
+                                    institutions={institutions}
+                                    counties={counties}
+                                    users={users}
+                                    subjects={subjects}
+                                    departments={departments}
+                                    courses={courses}
+                                    companyDetails={companyDetails}
+                                    transactions={transactions}
+                                    receipts={receipts}
+                                    activityLog={activityLog}
+                                    onImportUsers={onImportUsers}
+                                    onImportStudents={onImportStudents}
+                                    onDeleteUser={onDeleteUser}
+                                    onEditUser={onEditUser}
+                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
+                                    onAddInstitution={async (d) => { 
+                                        const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
+                                        await apiService.saveInstitution({ ...d, id: newId } as any); 
+                                        const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
+                                        await apiService.registerUser({ 
+                                            id: `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, 
+                                            name: `${d.name} Admin`, 
+                                            email: d.email, 
+                                            phoneNumber: d.phoneNumber, 
+                                            role: role, 
+                                            institutionId: newId, 
+                                            countyId: (d as any).countyId, 
+                                            status: 'active' 
+                                        } as any, d.name); 
+                                        loadData(); 
+                                    }}
+                                    onUpdateInstitution={onUpdateInstitution}
+                                    onDeleteInstitution={(id) => { if (id) onDeleteInstitution(id); }}
+                                    onToggleInstitutionStatus={onToggleInstitutionStatus}
+                                    onLoginAsAdmin={onLoginAsAdmin}
+                                    allocations={allocations}
+                                    requests={requests}
+                                    semesters={semesters}
+                                    letterheadConfig={activeLetterheadConfig}
+                                    footerImageUrl={activeFooterImageUrl}
+                                    onSendSms={async (r, m, config, units, instId) => { 
+                                        const res = await apiService.sendSms(r, m, config, units, instId); 
+                                        await handleLogAction(`Sent SMS to ${r}`); 
+                                        return res; 
+                                    }}
+                                    onAddCoopAgrovetInventory={handleAddCoopAgrovetInventory}
+                                    onAddCoopAgrovetSale={handleAddCoopAgrovetSale}
                                     onRefreshData={() => loadData()}
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
                                     onDeleteCounty={handleDeleteCounty}
-                                    rooms={rooms} buildings={buildings} academicLevels={academicLevels} academicYears={academicYears} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} timetableSettings={timetableSettings} examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)} onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} onAddSubject={handleAddSubject} onUpdateSubject={handleUpdateSubject} onDeleteSubject={handleDeleteSubject} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={handleDeleteCourse} onImportCourses={handleImportCourses} onAddUser={async (userData) => {
+                                    rooms={rooms}
+                                    buildings={buildings}
+                                    academicLevels={academicLevels}
+                                    academicYears={academicYears}
+                                    activeAcademicYear={activeAcademicYear}
+                                    activeSemester={activeSemester}
+                                    timetableSettings={timetableSettings}
+                                    examTimetableSettings={activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS}
+                                    onTimetableGenerated={async (entries, ay, sem) => apiService.saveTimetable(currentUser!.institutionId, ay, sem, entries)}
+                                    onExamTimetableGenerated={async (entries, ay, sem) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)}
+                                    onAddSubject={handleAddSubject}
+                                    onUpdateSubject={handleUpdateSubject}
+                                    onDeleteSubject={handleDeleteSubject}
+                                    onAddCourse={handleAddCourse}
+                                    onUpdateCourse={handleUpdateCourse}
+                                    onDeleteCourse={handleDeleteCourse}
+                                    onImportCourses={handleImportCourses}
+                                    onAddUser={async (userData) => {
                                         try {
                                             const targetInstitutionId = currentUser?.role === 'super_admin' ? 'SYSTEM' : currentUser?.institutionId;
                                             if (!targetInstitutionId) throw new Error("Institution context missing.");
-                                            await apiService.registerUser({ ...userData, id: generateUserId(), institutionId: targetInstitutionId }, activeInstitution?.name);
+                                            await apiService.registerUser({
+                                                ...userData,
+                                                id: generateUserId(),
+                                                institutionId: targetInstitutionId
+                                            }, activeInstitution?.name);
                                             loadData();
                                         } catch (err: any) {
                                             console.error("User registration failed:", err);
@@ -2841,6 +2928,8 @@ export const App: React.FC = () => {
                                     onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}
                                     onUpdateFooterImage={(footer) => { onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer }); handleLogAction(`Updated institution footer image`); }}
                                     onUpdateThemeColor={(color) => { onUpdateInstitution(activeInstitution!.id, { themeColor: color }); handleLogAction(`Updated institution theme color`); }}
+                                    onAddCoopAgrovetInventory={handleAddCoopAgrovetInventory}
+                                    onAddCoopAgrovetSale={handleAddCoopAgrovetSale}
                                     onUpdateInstitution={onUpdateInstitution}
                                     onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
@@ -2951,7 +3040,7 @@ export const App: React.FC = () => {
                                     onConfirmReceipt={handleConfirmReceipt}
                                     onAddInstitution={() => { }}
                                     onDeleteInstitution={() => { }}
-                                                                        onToggleInstitutionStatus={() => { }}
+                                    onToggleInstitutionStatus={() => { }}
                                     onLoginAsAdmin={() => { }}
                                     onGenerateReceipt={() => { }}
                                     farmers={coopFarmers}
@@ -3068,155 +3157,30 @@ export const App: React.FC = () => {
                                         }
                                         loadData(); 
                                     }}
-                                    onAddExpense={async (data) => { 
-                                        const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
-                                        loadData(); 
-                                    }}
                                     onAddIncome={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
-                                    onInitiatePayouts={async (ids) => {
-                                        await Promise.all(ids.map(id => apiService.updatePayoutStatus(id, 'initiated', currentUser.id)));
-                                        loadData();
-                                        handleLogAction(`Initiated bulk payout for ${ids.length} farmers`);
-                                    }}
-                                    onApprovePayouts={async (ids) => {
-                                        // Simulate M-Pesa Bulk Disbursement
-                                        const results = await apiService.disburseBulkMpesa(ids, currentUser.id);
-                                        loadData();
-                                        handleLogAction(`Approved and Disbursed bulk M-Pesa payout for ${ids.length} farmers`);
-                                        alert(`${ids.length} Payouts processed successfully via M-PESA B2C API.`);
+                                    onAddExpense={async (data) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
+                                        loadData(); 
                                     }}
                                 />
-                            ) : (
-                                <LecturerView
-                                    user={currentUser}
-                                    users={users}
-                                    subjects={subjects}
-                                    departments={departments}
-                                    courses={courses}
-                                    rooms={rooms}
-                                    requests={requests}
-                                    allocations={allocations}
-                                    timetableSettings={timetableSettings}
-                                    generatedTimetable={generatedTimetable}
-                                    allTimetableEntries={generatedTimetable}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    getSubjectById={getSubjectById}
-                                    getRoomById={getRoomById}
-                                    getLecturerById={getLecturerById}
-                                    academicYears={academicYears}
-                                    semesters={semesters}
-                                    userTasks={userTasks}
-                                    onSubmitRequest={handleLecturerRequest}
-                                    onAllocationChangeRequest={handleAllocationChangeRequest}
-                                    onDeallocationRequest={handleDeallocationRequest}
-                                    onAddTask={async (t) => apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()} `, createdAt: new Date().toISOString() })}
-                                    onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); }}
-                                    onDeleteTask={async (id) => apiService.deleteModuleRecord('tasks', id)}
-                                    timeOffRequests={timeOffRequests.filter(r => r.lecturerId === currentUser.id)}
-                                    onWithdrawRequest={(id) => apiService.deleteModuleRecord('allocation_requests', id)}
-                                    currentInstitution={activeInstitution}
-                                    assignments={assignments}
-                                    submissions={submissions}
-                                    onAddAssignment={async (d) => { await apiService.saveModuleRecord('assignments', { ...d, id: `asg_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssignment={async (id) => { await apiService.deleteModuleRecord('assignments', id); loadData(); }}
-                                    onUpdateSubmission={async (id, data) => {
-                                        const sub = submissions.find(s => s.id === id);
-                                        if (sub) {
-                                            await apiService.saveModuleRecord('submissions', { ...sub, ...data, status: 'graded' });
-                                            loadData();
-                                        }
-                                    }}
-                                    assessments={assessments}
-                                    assessmentMarks={assessmentMarks}
-                                    onAddAssessment={async (d) => { await apiService.saveModuleRecord('assessments', { ...d, id: `asm_${Date.now()} `, institutionId: currentUser.institutionId, createdAt: new Date().toISOString() }); loadData(); }}
-                                    onDeleteAssessment={async (id) => { await apiService.deleteModuleRecord('assessments', id); loadData(); }}
-                                    onSaveAssessmentMarks={async (id, marks) => {
-                                        const promises = marks.map((m: any) => {
-                                            const existing = assessmentMarks.find(am => am.assessmentId === id && am.studentId === m.studentId);
-                                            const recordId = existing ? existing.id : `am_${id}_${m.studentId}_${Date.now()} `;
-
-                                            const record: AssessmentMark = {
-                                                id: recordId,
-                                                assessmentId: id,
-                                                studentId: m.studentId,
-                                                marks: m.marks,
-                                                comments: m.comments,
-                                                gradedBy: currentUser.id,
-                                                timestamp: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId
-                                            };
-                                            return apiService.saveModuleRecord('assessment_marks', record);
-                                        });
-                                        await Promise.all(promises);
-                                        loadData();
-                                    }}
-                                    inventoryItems={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId && i.status === 'received')}
-                                    onIssueInventoryItem={async (itemId, quantity, recipientId, recipientName) => {
-                                        const item = countyInventory.find(i => i.id === itemId);
-                                        if (item) {
-                                            const newQty = Math.max(0, item.quantity - quantity);
-                                            await apiService.saveModuleRecord('county_inventory', { ...item, quantity: newQty });
-
-                                            const transaction: StockTransaction = {
-                                                id: `stx_issue_${Date.now()} `,
-                                                itemId: item.id,
-                                                itemName: item.name,
-                                                type: 'Issue',
-                                                quantity: quantity,
-                                                recipientOrSupplier: recipientName,
-                                                date: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId,
-                                                recordedBy: currentUser.id
-                                            };
-                                            await apiService.saveModuleRecord('stock_transactions', transaction);
-                                            loadData();
-                                        }
-                                    }}
-                                    studentAttendances={studentAttendances}
-                                    studentAbsenceRequests={studentAbsenceRequests}
-                                    onSaveAttendance={handleSaveAttendance}
-                                />
-                            )}
+                            ) : null}
                         </main>
-
-                        {isProfileModalOpen && (
-                            <ProfileModal currentUser={currentUser} onClose={() => setIsProfileModalOpen(false)} onSave={async (id, data) => { const fullUpdate = { ...data, id, role: currentUser.role, institutionId: currentUser.institutionId }; await apiService.saveUser(fullUpdate); setCurrentUser(prev => prev ? ({ ...prev, ...fullUpdate }) : null); setIsProfileModalOpen(false); }} onChangePassword={async (id, data) => { const updated = { id, password: data.newPassword, passwordLastUpdated: new Date().toISOString(), role: currentUser.role, institutionId: currentUser.institutionId }; await apiService.saveUser(updated); return { success: true, message: "Password updated." }; }} onManageUnavailability={() => { }} />
-                        )}
                     </>
-                ) : showMarketplace ? (
-                    <PropertyMarketplaceView />
-                ) : showMarketing ? (
-                    <MarketingLandingPage onGetStarted={() => setShowMarketing(false)} />
                 ) : (
                     <>
                         <LoginView
-                            onOpenShowcase={() => setShowMarketing(true)}
-                            onLogin={async (e: string, p: string) => {
-                                // Error Check: If both users and institutions are empty, there's likely an API/Database failure
-                                if ((!users || users.length === 0) && (!institutions || institutions.length === 0)) {
-                                    console.error("[Login] Critical: Users and Institutions lists are empty. Fetch failure likely.");
-                                    alert("Connection Error: Unable to fetch account registry. Please check your internet or refresh the page.");
-                                    return 'failed';
-                                }
-
-                                let matchedUsers = (users || []).filter(user =>
-                                    user &&
-                                    (user.email?.toLowerCase() === e.toLowerCase() || user.phoneNumber === e) &&
-                                    (user.password === p || (!user.password && p === 'password123'))
-                                );
-
-                                // Discovery Phase: If no match in local state, try searching the API directly
+                            onLogin={async (e, p) => {
+                                // Discovery Phase: Search for user directly in DB if not in local cache
+                                let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));
+                                
                                 if (matchedUsers.length === 0) {
-                                    console.log(`[Login Discovery] No local match for ${e}. Querying registry...`);
-                                    const isEmail = e.includes('@');
-                                    const filter = isEmail ? { email: e.toLowerCase() } : { phone_number: e };
-                                    
+                                    console.log(`[Login Discovery] No local match for "${e}". Attempting API discovery...`);
+                                    const filter = e.includes('@') ? { email: e.toLowerCase() } : { phoneNumber: e };
                                     try {
                                         const discovered = await apiService.fetchModuleRecords('users', undefined, undefined, { filter });
                                         if (discovered && Array.isArray(discovered)) {
@@ -3345,12 +3309,6 @@ export const App: React.FC = () => {
                             }}
                             {...commonLoginProps}
                         />
-                        {showGuestPortal && (
-                            <PublicAppointmentView users={users} timetable={generatedTimetable} timetableSettings={timetableSettings} onClose={() => setShowGuestPortal(false)} onBookAppointment={async (apt) => { await apiService.saveModuleRecord('appointments', apt); setShowGuestPortal(false); alert("Appointment submitted."); }} institutions={institutions} />
-                        )}
-                        {showGuestFeedback && (
-                            <GuestFeedbackView institutions={institutions} onClose={() => setShowGuestFeedback(false)} onSubmit={async (feedback) => { await apiService.saveModuleRecord('feedback_submissions', feedback); setShowGuestFeedback(false); }} />
-                        )}
                     </>
                 )}
                 {companyDetails.chatAssistantConfig?.enabled && <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />}

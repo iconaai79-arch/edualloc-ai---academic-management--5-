@@ -1503,6 +1503,9 @@ export const apiService = {
     async fetchCoopAgrovetInventory(institutionId?: string): Promise<CoopAgrovetInventory[]> {
         return this.fetchModuleRecords('coop_agrovet_inventory', institutionId);
     },
+    async saveCoopAgrovetInventory(data: Partial<CoopAgrovetInventory>): Promise<void> {
+        await this.saveModuleRecord('coop_agrovet_inventory', data);
+    },
     async fetchCoopAgrovetSales(institutionId?: string): Promise<CoopAgrovetSales[]> {
         return this.fetchModuleRecords('coop_agrovet_sales', institutionId);
     },

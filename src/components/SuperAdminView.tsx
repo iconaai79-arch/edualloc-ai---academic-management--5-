@@ -93,6 +93,7 @@ import { ParentView } from './ParentView';
 import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
+import { MarketingLandingPage } from './public/MarketingLandingPage';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -195,6 +196,8 @@ export interface SuperAdminViewProps {
     onManageUnavailability?: (user: User) => void;
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
+    onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
+    onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     getLecturerById?: (id: string) => User | undefined;
     getSubjectById?: (id: string) => Subject | undefined;
     getRoomById?: (id: string) => Room | undefined;
@@ -380,7 +383,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isAddingInstitution, setIsAddingInstitution] = useState(false);
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'system_build'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
@@ -477,6 +480,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
         marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+        showcaseConfig: companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true },
         ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
     });
 
@@ -504,6 +508,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
                 marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
+                showcaseConfig: companyDetails.showcaseConfig || { enabled: true, showLoginLink: true },
                 ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
@@ -1903,6 +1908,9 @@ Please change it after login.`;
                                 onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                                 onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
                                 onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
+                                onAddCoopAgrovetInventory={props.onAddCoopAgrovetInventory}
+                                onAddCoopAgrovetSale={props.onAddCoopAgrovetSale}
+                                onAddExtensionRequest={props.onAddExtensionRequest}
                                 timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                 onSaveTimetableSettings={props.onSaveTimetableSettings}
                                 letterheadConfig={
@@ -2051,6 +2059,12 @@ Please change it after login.`;
                                     className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'marketplace' ? 'border-orange-600 text-orange-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                                 >
                                     <ShoppingCartIcon className="w-4 h-4" /> Marketplace
+                                </button>
+                                <button
+                                    onClick={() => setSettingsSubTab('showcase')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'showcase' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <SparklesIcon className="w-4 h-4" /> Showcase
                                 </button>
                                 <button
                                     onClick={() => setSettingsSubTab('system_build')}
@@ -2874,6 +2888,95 @@ Please change it after login.`;
                                             <div className="pt-8 h-full overflow-y-auto">
                                                 <div className="origin-top scale-[0.80] w-[125%] h-[125%]">
                                                     <PropertyMarketplaceView />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {settingsSubTab === 'showcase' && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in shadow-xl shadow-indigo-50/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                                            <SparklesIcon className="w-6 h-6 text-indigo-600" />
+                                        </div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Marketing Showcase Settings</h3>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                                                    <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Enable Showcase</h4>
+                                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Public Marketing Visibility</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setLocalCompanyInfo({
+                                                        ...localCompanyInfo,
+                                                        showcaseConfig: { ...localCompanyInfo.showcaseConfig, enabled: !localCompanyInfo.showcaseConfig?.enabled } as any
+                                                    });
+                                                }}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.showcaseConfig?.enabled ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.showcaseConfig?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                                                    <UserIcon className="w-5 h-5 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">Login Page Link</h4>
+                                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Display on Login Screen</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setLocalCompanyInfo({
+                                                        ...localCompanyInfo,
+                                                        showcaseConfig: { ...localCompanyInfo.showcaseConfig, showLoginLink: !localCompanyInfo.showcaseConfig?.showLoginLink } as any
+                                                    });
+                                                }}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localCompanyInfo.showcaseConfig?.showLoginLink ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t flex justify-end">
+                                        <button
+                                            onClick={handleSaveGlobalConfigs}
+                                            disabled={isSavingConfigs}
+                                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-12 h-14 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-100/50 dark:shadow-none transition-all"
+                                        >
+                                            {isSavingConfigs ? 'Synchronizing...' : 'Save Showcase Settings'}
+                                        </button>
+                                    </div>
+
+                                    <div className="pt-12 border-t border-slate-200 dark:border-slate-700">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-6 italic">Live Preview</h3>
+                                        <div className="h-[600px] border-[8px] border-slate-900 rounded-[3rem] overflow-hidden shadow-2xl relative bg-slate-950">
+                                            {/* Top bar simulating browser */}
+                                            <div className="h-8 bg-slate-900 w-full flex items-center px-4 gap-2 absolute top-0 left-0 z-10">
+                                                <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                                <div className="ml-4 flex-1 h-5 bg-slate-800 rounded text-[9px] text-slate-400 flex items-center px-3 font-mono">
+                                                    {window.location.origin + '?view=showcase'}
+                                                </div>
+                                            </div>
+                                            <div className="pt-8 h-full overflow-y-auto no-scrollbar">
+                                                <div className="origin-top scale-[0.65] w-[153%]">
+                                                    <MarketingLandingPage onGetStarted={() => {}} />
                                                 </div>
                                             </div>
                                         </div>
