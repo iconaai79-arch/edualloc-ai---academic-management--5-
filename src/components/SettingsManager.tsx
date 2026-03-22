@@ -1385,7 +1385,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         filtered.push('billing');
                                         filtered.push('sms');
                                         if (isCoop) filtered.push('farmer_billing');
-                                        filtered.push('gateways');
+                                        if (!isCoop) filtered.push('gateways');
                                     }
                                     return filtered;
                                 }
