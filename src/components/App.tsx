@@ -3068,14 +3068,14 @@ export const App: React.FC = () => {
                                         }
                                         loadData(); 
                                     }}
-                                    onAddCoopExpense={async (data) => { 
+                                    onAddExpense={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
-                                    onAddCoopIncome={async (data) => { 
+                                    onAddIncome={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
                                     onInitiatePayouts={async (ids) => {
