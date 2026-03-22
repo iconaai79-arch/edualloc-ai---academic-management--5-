@@ -72,6 +72,7 @@ interface CooperativeManagerProps {
     onAddFarmer: (data: Partial<CoopFarmer>) => Promise<void>;
     onUpdateFarmer: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
     onLogCollection: (data: Partial<CoopCollection>) => Promise<void>;
+    onBulkConfirmCollections?: (riderId: string, collections: CoopCollection[]) => Promise<void>;
     onAddRider: (data: Partial<CoopRider>) => Promise<void>;
     onConfirmCollection?: (id: string, qty: number) => Promise<void>;
     onApproveCollection?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
@@ -145,6 +146,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onEditUser,
     onDeleteUser,
     onImportUsers,
+    onBulkConfirmCollections,
     smsConfig = { provider: 'at', apiKey: '', username: '', senderId: '' },
     departments = [],
     subjects = [],
@@ -199,6 +201,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         status: 'active'
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
+    const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -862,6 +865,98 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             Register Rider
                                         </button>
                                     )}
+                                </div>
+
+                                {/* Active Deliveries Section */}
+                                <div className="mb-12">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="w-2 h-8 bg-indigo-600 rounded-full" />
+                                        <h3 className="text-sm font-black uppercase tracking-widest">Active Deliveries (Pending Confirmation)</h3>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 gap-6">
+                                        {riders.map(rider => {
+                                            const pending = collections.filter(c => c.riderId === rider.id && !c.factoryConfirmed);
+                                            if (pending.length === 0) return null;
+                                            
+                                            const systemTotal = pending.reduce((sum, c) => sum + Number(c.quantity), 0);
+                                            const reportedVol = riderVolumes[rider.id] || '';
+                                            const isMatch = Number(reportedVol) === systemTotal;
+
+                                            return (
+                                                <div key={`delivery-${rider.id}`} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm hover:shadow-xl transition-all group">
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                                <LogisticsIcon className="w-8 h-8" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase">{rider.name}</h4>
+                                                                <p className="text-xs font-bold text-indigo-500 tracking-widest uppercase">{rider.vehiclePlate || 'NO PLATE'}</p>
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{pending.length} Collections Pending</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                            <div className="text-center sm:text-right">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">System Summed Total</p>
+                                                                <p className="text-2xl font-black text-slate-900 dark:text-white">{systemTotal} <span className="text-xs text-slate-400 tracking-tighter uppercase font-bold">Ltrs/Kgs</span></p>
+                                                            </div>
+                                                            
+                                                            <div className="h-10 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+                                                            
+                                                            <div className="flex-1 min-w-[200px]">
+                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-2">Total Quantity Received</p>
+                                                                <div className="relative">
+                                                                    <input 
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        placeholder="Enter gate weight..."
+                                                                        value={reportedVol}
+                                                                        onChange={e => setRiderVolumes({...riderVolumes, [rider.id]: e.target.value})}
+                                                                        className={`w-full bg-white dark:bg-slate-800 border-2 rounded-2xl p-4 text-sm font-black outline-none transition-all ${
+                                                                            reportedVol ? (isMatch ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-rose-300 ring-4 ring-rose-500/5') : 'border-slate-100 dark:border-slate-800'
+                                                                        }`}
+                                                                    />
+                                                                    {reportedVol && isMatch && (
+                                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">
+                                                                            <SuccessIcon className="w-5 h-5" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {isMatch && (
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        if (onBulkConfirmCollections) {
+                                                                            setIsProcessing(true);
+                                                                            try {
+                                                                                await onBulkConfirmCollections(rider.id, pending);
+                                                                                setRiderVolumes({...riderVolumes, [rider.id]: ''});
+                                                                            } finally {
+                                                                                setIsProcessing(false);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    disabled={isProcessing}
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95 animate-in zoom-in duration-300"
+                                                                >
+                                                                    {isProcessing ? 'Confirming...' : 'Bulk Confirm Delivery'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {riders.every(r => collections.every(c => c.riderId !== r.id || c.factoryConfirmed)) && (
+                                            <div className="p-12 text-center bg-slate-50/50 dark:bg-slate-900/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No active deliveries pending confirmation</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {isAddingRider && (

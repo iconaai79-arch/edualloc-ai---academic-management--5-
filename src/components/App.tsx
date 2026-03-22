@@ -2959,6 +2959,21 @@ export const App: React.FC = () => {
                                     coopIncome={coopIncome}
                                     onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
                                     onUpdateFarmer={async (id, data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id }); loadData(); }}
+                                    onBulkConfirmCollections={async (riderId, pendingCollections) => {
+                                        const now = new Date().toISOString();
+                                        const promises = pendingCollections.map(c => 
+                                            apiService.saveModuleRecord('coop_collections', {
+                                                ...c,
+                                                factoryConfirmed: true,
+                                                finalQuantity: c.quantity,
+                                                confirmedBy: currentUser.id,
+                                                confirmedAt: now,
+                                                status: 'delivered'
+                                            })
+                                        );
+                                        await Promise.all(promises);
+                                        loadData();
+                                    }}
                                     onLogCollection={async (data) => { 
                                         const payload = { 
                                             ...data, 
