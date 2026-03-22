@@ -13,10 +13,10 @@ import {
     Download
 } from 'lucide-react';
 
-type FarmerMappingField = 'name' | 'phone' | 'email' | 'accountNumber' | 'kraPin' | 'nationalId' | 'location';
+type FarmerMappingField = 'name' | 'phone' | 'email' | 'accountNumber' | 'memberId' | 'kraPin' | 'nationalId' | 'location';
 const REQUIRED_FIELDS: FarmerMappingField[] = ['name', 'phone'];
 const ALL_MAPPING_FIELDS: FarmerMappingField[] = [
-    'name', 'phone', 'email', 'accountNumber', 'kraPin', 'nationalId', 'location'
+    'name', 'phone', 'email', 'accountNumber', 'memberId', 'kraPin', 'nationalId', 'location'
 ];
 
 interface FarmerImportPreview {
@@ -83,6 +83,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                     else if (h.includes('phone') || h.includes('mobile') || h.includes('contact')) autoMap.phone = header;
                     else if (h.includes('email') || h.includes('mail')) autoMap.email = header;
                     else if (h.includes('account') || h.includes('accno') || h.includes('bank')) autoMap.accountNumber = header;
+                    else if (h.includes('memberid') || h.includes('memberno') || h.includes('farmerid')) autoMap.memberId = header;
                     else if (h.includes('kra') || h.includes('pin')) autoMap.kraPin = header;
                     else if (h.includes('nationalid') || h.includes('idno') || h.includes('idnumber')) autoMap.nationalId = header;
                     else if (h.includes('location') || h.includes('area') || h.includes('village')) autoMap.location = header;
@@ -144,6 +145,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
             // Optional Fields
             if (fieldMapping.email && row[fieldMapping.email]) parsed.email = String(row[fieldMapping.email]).trim();
             if (fieldMapping.accountNumber && row[fieldMapping.accountNumber]) parsed.accountNumber = String(row[fieldMapping.accountNumber]).trim();
+            if (fieldMapping.memberId && row[fieldMapping.memberId]) parsed.memberId = String(row[fieldMapping.memberId]).trim();
             if (fieldMapping.location && row[fieldMapping.location]) parsed.location = String(row[fieldMapping.location]).trim();
             if (fieldMapping.kraPin && row[fieldMapping.kraPin]) parsed.kraPin = String(row[fieldMapping.kraPin]).trim();
             
@@ -201,8 +203,8 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
 
     const downloadTemplate = () => {
         const ws = XLSX.utils.aoa_to_sheet([
-            ['Full Name', 'Phone Number', 'National ID', 'KRA PIN', 'Account Number', 'Location', 'Email'],
-            ['John Doe', '0712345678', '12345678', 'A123456789Z', '011000000000', 'Nairobi Central', 'john@example.com']
+            ['Full Name', 'Phone Number', 'Member ID', 'National ID', 'KRA PIN', 'Account Number', 'Location', 'Email'],
+            ['John Doe', '0712345678', 'M-001', '12345678', 'A123456789Z', '011000000000', 'Nairobi Central', 'john@example.com']
         ]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Template");
@@ -354,7 +356,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                     <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-sm border-b border-slate-200 dark:border-slate-700">
                                         <tr>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
-                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Name</th>
+                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Name / ID</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Phone</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">A/C Number</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">ID / KRA</th>
@@ -373,7 +375,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                                 </td>
                                                 <td className="p-4">
                                                     <p className="font-bold text-sm text-slate-900 dark:text-white">{row.parsedData.name || '-'}</p>
-                                                    <p className="text-xs text-slate-500">{row.parsedData.location || '-'}</p>
+                                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{row.parsedData.memberId || 'NO MEMBER ID'}</p>
                                                 </td>
                                                 <td className="p-4 text-sm font-medium text-slate-600 dark:text-slate-300">
                                                     {row.parsedData.phone || '-'}

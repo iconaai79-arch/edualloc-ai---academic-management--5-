@@ -205,8 +205,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newFarmer.name || !newFarmer.phone || !newFarmer.accountNumber) {
-            alert("Please fill in Name, Phone and Account Number");
+        if (!newFarmer.name || !newFarmer.phone || !newFarmer.accountNumber || !newFarmer.memberId) {
+            alert("Please fill in Name, Phone, Account Number and Member ID");
             return;
         }
         setIsProcessing(true);
@@ -699,13 +699,24 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Account / Member ID</label>
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Member ID</label>
+                                                    <input 
+                                                        required
+                                                        type="text" 
+                                                        value={newFarmer.memberId || ''} 
+                                                        onChange={e => setNewFarmer({...newFarmer, memberId: e.target.value})}
+                                                        placeholder="M-XXXX"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank Account Number</label>
                                                     <input 
                                                         required
                                                         type="text" 
                                                         value={newFarmer.accountNumber || ''} 
                                                         onChange={e => setNewFarmer({...newFarmer, accountNumber: e.target.value})}
-                                                        placeholder="COOP-XXXX"
+                                                        placeholder="Acc No"
                                                         className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                                     />
                                                 </div>
@@ -778,7 +789,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <table className="w-full">
                                         <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                                             <tr>
-                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name / ID</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">A/C Number</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Rider</th>
@@ -796,9 +807,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 uppercase text-[10px]">
                                                                 {farmer.name.substring(0, 2)}
                                                             </div>
-                                                            <span className="font-black text-slate-900 dark:text-white text-xs tracking-tight group-hover:text-indigo-600 transition-colors">
-                                                                {farmer.name}
-                                                            </span>
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-slate-900 dark:text-white text-xs tracking-tight group-hover:text-indigo-600 transition-colors">
+                                                                    {farmer.name}
+                                                                </span>
+                                                                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none">
+                                                                    {farmer.memberId || 'NO ID'}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-6 text-xs text-slate-500 font-medium">{farmer.phone}</td>
@@ -2287,7 +2303,73 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-8 space-y-6">
+                        <div className="p-8 space-y-6 overflow-y-auto max-h-[60vh]">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.name || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, name: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Phone</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.phone || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, phone: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Member ID</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.memberId || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, memberId: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Account Number</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.accountNumber || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, accountNumber: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">National ID</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.nationalId || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, nationalId: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">KRA PIN</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.kraPin || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, kraPin: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                                <div className="col-span-2 space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Location / Route</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingFarmer.location || ''} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, location: e.target.value})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Assigned Rider (Collection Partner)</label>
                                 <select 
@@ -2300,7 +2382,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         <option key={r.id} value={r.id}>{r.name} ({r.vehiclePlate || r.licenseNumber})</option>
                                     ))}
                                 </select>
-                                <p className="text-[9px] text-slate-400 px-2">Assigning a rider helps track collections and automate logistics for this farmer.</p>
                             </div>
 
                             <div className="space-y-2">

@@ -2682,6 +2682,7 @@ export interface CoopFarmer {
     phone: string;
     email?: string;
     accountNumber: string;
+    memberId?: string;
     kraPin?: string;
     nationalId?: string;
     location?: string;
