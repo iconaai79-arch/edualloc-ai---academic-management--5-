@@ -208,12 +208,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     });
     const [isAddingInventory, setIsAddingInventory] = useState(false);
     const [isRecordingSale, setIsRecordingSale] = useState(false);
-    const [newInventory, setNewInventory] = useState<Partial<CoopAgrovetInventory>>({
+    const [isAddingRider, setIsAddingRider] = useState(false);
+    const [newInventory, setNewInventory] = useState<any>({
         status: 'in_stock'
     });
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
         saleDate: new Date().toISOString().split('T')[0],
-        paymentStatus: 'pending'
+        paymentStatus: 'cash'
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
@@ -386,14 +387,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         setIsProcessing(true);
         try {
             if (onAddInventory) {
+                const { status, ...cleanInventory } = newInventory as any;
                 await onAddInventory({
-                    ...newInventory,
+                    ...cleanInventory,
                     id: `inv_${Date.now()}`,
                     institutionId: currentInstitution?.id || ''
                 });
             }
             setIsAddingInventory(false);
-            setNewInventory({ status: 'in_stock' });
+            setNewInventory({ status: 'in_stock' }); // keep status locally so the form doesn't break if it depends on it
             if (onLogAction) await onLogAction(`Added inventory item: ${newInventory.itemName}`);
         } catch (err) {
             console.error(err);
@@ -412,8 +414,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         setIsProcessing(true);
         try {
             if (onAddSale) {
+                const { ...cleanSale } = newSale;
+                if(cleanSale.paymentStatus === 'pending') { cleanSale.paymentStatus = 'credit'; }
                 await onAddSale({
-                    ...newSale,
+                    ...cleanSale,
                     id: `sale_${Date.now()}`,
                     institutionId: currentInstitution?.id || ''
                 });
@@ -421,7 +425,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsRecordingSale(false);
             setNewSale({
                 saleDate: new Date().toISOString().split('T')[0],
-                paymentStatus: 'pending'
+                paymentStatus: 'cash'
             });
             if (onLogAction) await onLogAction(`Recorded sale for farmer ${newSale.farmerId}`);
         } catch (err) {
