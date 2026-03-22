@@ -635,69 +635,72 @@ export const App: React.FC = () => {
             let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
             
             if (currentUser) {
-                console.log("[Data Refresh] Loading institutional data for:", instId || "Global");
+                const activeInst = insts?.find(i => i.id === currentUser.institutionId);
+                const effectiveInstId = activeInst?.id || currentUser.institutionId || instId;
+                
+                console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
                 [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = await Promise.all([
-                    apiService.fetchInvoices(instId).catch(() => []),
-                    apiService.fetchExtensionRequests(instId).catch(() => []),
-                    apiService.fetchVoteHeads(instId).catch(() => []),
-                    apiService.fetchFeeStructures(instId).catch(() => []),
-                    apiService.fetchFinancialPeriods(instId).catch(() => []),
-                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', instId).catch(() => []),
-                    apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', instId).catch(() => []),
-                    apiService.fetchAbsenceRequests(instId).catch(() => []),
-                    apiService.fetchModuleRecords<LecturerContract>('contracts', instId).catch(() => []),
-                    apiService.fetchModuleRecords<StudentAttendance>('student_attendances', instId).catch(() => []),
-                    apiService.fetchModuleRecords<InventoryItem>('inventory', instId).catch(() => []),
-                    apiService.fetchTimetable(instId || '').catch(() => []),
-                    apiService.fetchExamTimetable(instId || '').catch(() => []),
-                    apiService.fetchModuleRecords<Assignment>('assignments', instId).catch(() => []),
-                    apiService.fetchModuleRecords<Submission>('submissions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<LessonRating>('lesson_ratings', instId).catch(() => []),
-                    apiService.fetchModuleRecords<TaAssignment>('ta_assignments', instId).catch(() => []),
-                    apiService.fetchModuleRecords<Assessment>('assessments', instId).catch(() => []),
-                    apiService.fetchAssessmentMarks(instId).catch(() => []),
-                    apiService.fetchModuleRecords<Book>('books', instId).catch(() => []),
-                    apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<Appointment>('appointments', instId).catch(() => []),
-                    apiService.fetchModuleRecords<Supplier>('suppliers', instId).catch(() => []),
-                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', instId, cntId).catch(() => []),
+                    apiService.fetchInvoices(effectiveInstId).catch(() => []),
+                    apiService.fetchExtensionRequests(effectiveInstId).catch(() => []),
+                    apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
+                    apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
+                    apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<StudentAbsenceRequest>('student_absence_requests', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<EnrollmentRequest>('enrollment_requests', effectiveInstId).catch(() => []),
+                    apiService.fetchAbsenceRequests(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LecturerContract>('contracts', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<StudentAttendance>('student_attendances', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstId).catch(() => []),
+                    apiService.fetchTimetable(effectiveInstId || '').catch(() => []),
+                    apiService.fetchExamTimetable(effectiveInstId || '').catch(() => []),
+                    apiService.fetchModuleRecords<Assignment>('assignments', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Submission>('submissions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LessonRating>('lesson_ratings', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<TaAssignment>('ta_assignments', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Assessment>('assessments', effectiveInstId).catch(() => []),
+                    apiService.fetchAssessmentMarks(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Book>('books', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Appointment>('appointments', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Supplier>('suppliers', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<StockTransaction>('stock_transactions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CountyInventoryItem>('county_inventory', effectiveInstId, cntId).catch(() => []),
                     apiService.fetchModuleRecords<CountyInventoryCategory>('county_inventory_categories', undefined, cntId).catch(() => []),
                     apiService.fetchModuleRecords<CountyStore>('county_stores', undefined, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', instId, cntId).catch(() => []),
+                    apiService.fetchModuleRecords<BursaryApplication>('bursary_applications', effectiveInstId, cntId).catch(() => []),
                     apiService.fetchModuleRecords<CountyBursaryFund>('county_bursary_funds', undefined, cntId).catch(() => []),
-                    apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId).catch(() => []),
-                    apiService.fetchModuleRecords<ObservationNote>('observation_notes', instId).catch(() => []),
-                    apiService.fetchModuleRecords<Visitor>('visitors', instId).catch(() => []),
-                    apiService.fetchSecurityAlerts(instId).catch(() => []),
-                    apiService.fetchModuleRecords<Requisition>('requisitions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailExpense>('retail_expenses', instId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailStore>('retail_stores', instId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', instId).catch(() => []),
-                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', instId).catch(() => []),
-                    apiService.fetchModuleRecords<BulletinItem>('bulletin_items', instId).catch(() => []),
-                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', instId).catch(() => []),
-                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', instId).catch(() => []),
-                    apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', instId).catch(() => []),
-                    apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', instId).catch(() => []),
-                    apiService.fetchModuleRecords<TransportVehicle>('vehicles', instId).catch(() => []),
-                    apiService.fetchTransportOnboarding(instId).catch(() => []),
-                    apiService.fetchVehicleLogs(instId).catch(() => []),
-                    apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CafeOrder>('cafe_orders', instId).catch(() => []),
-                    apiService.fetchModuleRecords<RetailSale>('retail_sales', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopRider>('coop_riders', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', instId).catch(() => []),
-                    apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', instId).catch(() => []),
-                    apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopExpense>('coop_expenses', instId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopIncome>('coop_income', instId).catch(() => []),
+                    apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
+                    apiService.fetchSecurityAlerts(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<TimeOffRequest>('time_off_requests', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<TransportVehicle>('vehicles', effectiveInstId).catch(() => []),
+                    apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []),
+                    apiService.fetchVehicleLogs(effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<SaccoAccount>('sacco_accounts', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<SaccoTransaction>('sacco_transactions', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
                 ]);
                 console.log("[Data Refresh] Coop Data Snapshot:", { farmers: cFarmers.length, riders: cRiders.length, collections: cColls.length });
             }
@@ -2960,8 +2963,18 @@ export const App: React.FC = () => {
                                     payouts={coopPayouts}
                                     expenses={coopExpenses}
                                     income={coopIncome}
-                                    onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
-                                    onUpdateFarmer={async (id, data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: currentUser.institutionId }); loadData(); }}
+                                    onAddFarmer={async (data) => { 
+                                        const payload = { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId };
+                                        console.log("[Coop Add] Saving farmer:", payload);
+                                        await apiService.saveModuleRecord('coop_farmers', payload); 
+                                        console.log("[Coop Add] Save complete, refreshing data...");
+                                        await loadData(); 
+                                    }}
+                                    onUpdateFarmer={async (id, data) => { 
+                                        console.log("[Coop Update] Saving farmer:", { id, ...data });
+                                        await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: currentUser.institutionId }); 
+                                        await loadData(); 
+                                    }}
                                     onBulkConfirmCollections={async (riderId, pendingCollections) => {
                                         const now = new Date().toISOString();
                                         const promises = pendingCollections.map(c => 
