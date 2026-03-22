@@ -2951,7 +2951,7 @@ export const App: React.FC = () => {
                                     onConfirmReceipt={handleConfirmReceipt}
                                     onAddInstitution={() => { }}
                                     onDeleteInstitution={() => { }}
-                                    onToggleInstitutionStatus={() => { }}
+                                                                        onToggleInstitutionStatus={() => { }}
                                     onLoginAsAdmin={() => { }}
                                     onGenerateReceipt={() => { }}
                                     farmers={coopFarmers}
@@ -2964,18 +2964,20 @@ export const App: React.FC = () => {
                                     expenses={coopExpenses}
                                     income={coopIncome}
                                     onAddFarmer={async (data) => { 
-                                        const payload = { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId };
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
                                         console.log("[Coop Add] Saving farmer:", payload);
                                         await apiService.saveModuleRecord('coop_farmers', payload); 
                                         console.log("[Coop Add] Save complete, refreshing data...");
                                         await loadData(); 
                                     }}
                                     onImportFarmers={async (farmers) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
                                         const timestamp = Date.now();
                                         const payloads = farmers.map((f, i) => ({
                                             ...f,
                                             id: f.id || `f_${timestamp}_${i}`,
-                                            institutionId: currentUser.institutionId
+                                            institutionId: instId
                                         }));
                                         console.log(`[Coop Import] Saving ${payloads.length} farmers...`);
                                         await apiService.saveModuleRecords('coop_farmers', payloads);
@@ -2983,8 +2985,9 @@ export const App: React.FC = () => {
                                         await loadData();
                                     }}
                                     onUpdateFarmer={async (id, data) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
                                         console.log("[Coop Update] Saving farmer:", { id, ...data });
-                                        await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: currentUser.institutionId }); 
+                                        await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: instId }); 
                                         await loadData(); 
                                     }}
                                     onBulkConfirmCollections={async (riderId, pendingCollections) => {
@@ -3002,11 +3005,11 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onLogCollection={async (data) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { 
                                             ...data, 
                                             id: `c_${Date.now()}`, 
-                                            institutionId: currentUser.institutionId,
-                                            institution_id: currentUser.institutionId,
+                                            institutionId: instId,
                                             recordedBy: currentUser.id,
                                             recorded_by: currentUser.id,
                                             farmer_id: data.farmerId || data.farmer_id
@@ -3015,11 +3018,12 @@ export const App: React.FC = () => {
                                         await loadData(); 
                                     }}
                                     onImportCollections={async (collections) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
                                         const timestamp = Date.now();
                                         const payloads = collections.map((c, i) => ({
                                             ...c,
                                             id: `c_${timestamp}_${i}`,
-                                            institutionId: currentUser.institutionId,
+                                            institutionId: instId,
                                             recordedBy: currentUser.id,
                                             status: 'pending'
                                         }));
@@ -3028,8 +3032,9 @@ export const App: React.FC = () => {
                                         await loadData();
                                     }}
                                     onAddRider={async (data: CoopRider) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
                                         const riderId = `r_${Date.now()}`;
-                                        await apiService.saveModuleRecord('coop_riders', { ...data, id: riderId, institutionId: currentUser.institutionId }); 
+                                        await apiService.saveModuleRecord('coop_riders', { ...data, id: riderId, institutionId: instId }); 
                                         
                                         // Auto-register a user for the rider to enable portal access
                                         await apiService.registerUser({
@@ -3037,8 +3042,8 @@ export const App: React.FC = () => {
                                             phoneNumber: data.phone,
                                             role: 'rider',
                                             riderId: riderId,
-                                            institutionId: currentUser.institutionId,
-                                            email: `${data.phone}@eduai.co.ke` // Fallback email/username
+                                            institutionId: instId,
+                                            email: `${data.phone}@eduai.co.ke`
                                         }, activeInstitution?.name);
                                         
                                         loadData(); 
@@ -3063,8 +3068,16 @@ export const App: React.FC = () => {
                                         }
                                         loadData(); 
                                     }}
-                                    onAddCoopExpense={async (data) => { await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: currentUser.institutionId, recordedBy: currentUser.id }); loadData(); }}
-                                    onAddCoopIncome={async (data) => { await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: currentUser.institutionId, recordedBy: currentUser.id }); loadData(); }}
+                                    onAddCoopExpense={async (data) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                        loadData(); 
+                                    }}
+                                    onAddCoopIncome={async (data) => { 
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                        loadData(); 
+                                    }}
                                     onInitiatePayouts={async (ids) => {
                                         await Promise.all(ids.map(id => apiService.updatePayoutStatus(id, 'initiated', currentUser.id)));
                                         loadData();

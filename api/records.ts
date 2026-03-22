@@ -109,6 +109,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
             if (error) return res.status(500).json({ success: false, error: error.message });
+            
+            // Return entire array for bulk, first element for single
+            if (Array.isArray(recordData)) {
+                return res.status(200).json(data || { success: true });
+            }
             return res.status(200).json(data?.[0] || { success: true });
         }
 
