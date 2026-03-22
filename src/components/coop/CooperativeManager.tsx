@@ -28,6 +28,7 @@ import {
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
 import { SmartFarmerImporterModal } from './SmartFarmerImporterModal';
+import { SmartCollectionImporterModal } from './SmartCollectionImporterModal';
 import * as pdfService from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
 import { 
@@ -178,6 +179,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingFarmer, setIsAddingFarmer] = useState(false);
     const [isLoggingCollection, setIsLoggingCollection] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [showCollectionImportModal, setShowCollectionImportModal] = useState(false);
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
         joinedAt: new Date().toISOString().split('T')[0]
@@ -1066,13 +1068,22 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
-                                    <button 
-                                        onClick={() => setIsLoggingCollection(!isLoggingCollection)}
-                                        className={`flex items-center gap-2 ${isLoggingCollection ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95`}
-                                    >
-                                        <PlusIcon className={`w-4 h-4 transition-transform ${isLoggingCollection ? 'rotate-45' : ''}`} />
-                                        {isLoggingCollection ? 'Cancel' : 'Log Collection'}
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            onClick={() => setIsLoggingCollection(!isLoggingCollection)}
+                                            className={`flex items-center gap-2 ${isLoggingCollection ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95`}
+                                        >
+                                            <PlusIcon className={`w-4 h-4 transition-transform ${isLoggingCollection ? 'rotate-45' : ''}`} />
+                                            {isLoggingCollection ? 'Cancel' : 'Log Collection'}
+                                        </button>
+                                        <button 
+                                            onClick={() => setShowCollectionImportModal(true)}
+                                            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                                        >
+                                            <UploadCloud className="w-4 h-4" />
+                                            Bulk Import
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {isLoggingCollection && (
@@ -2102,6 +2113,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         }
                     }}
                     existingFarmers={farmers}
+                    currentInstitution={currentInstitution}
+                    currentUser={currentUser}
+                />
+            )}
+
+            {showCollectionImportModal && currentInstitution && currentUser && (
+                <SmartCollectionImporterModal
+                    onClose={() => setShowCollectionImportModal(false)}
+                    onImport={async (collectionsToImport) => {
+                        for (const c of collectionsToImport) {
+                            await onLogCollection(c);
+                        }
+                    }}
+                    farmers={farmers}
                     currentInstitution={currentInstitution}
                     currentUser={currentUser}
                 />

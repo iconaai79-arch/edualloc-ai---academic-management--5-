@@ -493,3 +493,15 @@ export const analyzeRetailInventorySpreadsheet = async (headers: string[]): Prom
         return {};
     }
 };
+
+export const analyzeCollectionSpreadsheet = async (headers: string[]): Promise<Record<string, string | null>> => {
+    try {
+        checkAiAvailable();
+        const prompt = `Map these spreadsheet headers to cooperative collection fields: farmerName, farmerAccountNumber, farmerPhoneNumber, collectionDate, productType, quantity, unit, qualityGrade. Headers: ${JSON.stringify(headers)}. Return ONLY a JSON object mapping fields to the corresponding spreadsheet headers. Use null for missing fields.`;
+        const response = await safeGenerateContent(prompt, { responseMimeType: 'application/json' });
+        return sanitizeAndParseJson(response.text || "{}");
+    } catch (error) {
+        console.error("AI collection map error:", error);
+        return {};
+    }
+};
