@@ -513,6 +513,46 @@ export const apiService = {
             throw e;
         }
     },
+    async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
+        const payload = data.map(toSnakeCase);
+
+        if (!_supabase) {
+            payload.forEach(item => ls.upsert(module, item));
+            return data;
+        }
+
+        try {
+            const session = this.getSession();
+            const token = session?.id || '';
+
+            const response = await fetch('/api/records?module=' + module, {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: payload })
+            });
+
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                let errData: any = {};
+                if (contentType && contentType.includes('application/json')) {
+                    errData = await response.json().catch(() => ({}));
+                } else {
+                    errData = { error: await response.text().catch(() => `Status ${response.status}`) };
+                }
+                console.error(`Bulk Save API Error [${module}]:`, response.status, errData);
+                throw new Error(errData.error || `Failed to bulk save ${module}`);
+            }
+
+            const savedData = await response.json();
+            return Array.isArray(savedData) ? savedData.map(toCamelCase) : [toCamelCase(savedData)] as any;
+        } catch (e: any) {
+            console.error(`Bulk Save Exception [${module}]:`, e);
+            throw e;
+        }
+    },
     async fetchNotifications(userId: string): Promise<AppNotification[]> {
         return this.fetchModuleRecords('app_notifications', undefined, userId);
     },

@@ -2970,6 +2970,18 @@ export const App: React.FC = () => {
                                         console.log("[Coop Add] Save complete, refreshing data...");
                                         await loadData(); 
                                     }}
+                                    onImportFarmers={async (farmers) => {
+                                        const timestamp = Date.now();
+                                        const payloads = farmers.map((f, i) => ({
+                                            ...f,
+                                            id: f.id || `f_${timestamp}_${i}`,
+                                            institutionId: currentUser.institutionId
+                                        }));
+                                        console.log(`[Coop Import] Saving ${payloads.length} farmers...`);
+                                        await apiService.saveModuleRecords('coop_farmers', payloads);
+                                        console.log("[Coop Import] Bulk save complete, refreshing data...");
+                                        await loadData();
+                                    }}
                                     onUpdateFarmer={async (id, data) => { 
                                         console.log("[Coop Update] Saving farmer:", { id, ...data });
                                         await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: currentUser.institutionId }); 
@@ -2977,17 +2989,16 @@ export const App: React.FC = () => {
                                     }}
                                     onBulkConfirmCollections={async (riderId, pendingCollections) => {
                                         const now = new Date().toISOString();
-                                        const promises = pendingCollections.map(c => 
-                                            apiService.saveModuleRecord('coop_collections', {
-                                                ...c,
-                                                factoryConfirmed: true,
-                                                finalQuantity: c.quantity,
-                                                confirmedBy: currentUser.id,
-                                                confirmedAt: now,
-                                                status: 'delivered'
-                                            })
-                                        );
-                                        await Promise.all(promises);
+                                        const payloads = pendingCollections.map(c => ({
+                                            ...c,
+                                            factoryConfirmed: true,
+                                            finalQuantity: c.quantity,
+                                            confirmedBy: currentUser.id,
+                                            confirmedAt: now,
+                                            status: 'delivered'
+                                        }));
+                                        console.log(`[Coop Bulk Confirm] Confirming ${payloads.length} collections...`);
+                                        await apiService.saveModuleRecords('coop_collections', payloads);
                                         loadData();
                                     }}
                                     onLogCollection={async (data) => { 
@@ -3001,7 +3012,20 @@ export const App: React.FC = () => {
                                             farmer_id: data.farmerId || data.farmer_id
                                         };
                                         await apiService.saveModuleRecord('coop_collections', payload); 
-                                        loadData(); 
+                                        await loadData(); 
+                                    }}
+                                    onImportCollections={async (collections) => {
+                                        const timestamp = Date.now();
+                                        const payloads = collections.map((c, i) => ({
+                                            ...c,
+                                            id: `c_${timestamp}_${i}`,
+                                            institutionId: currentUser.institutionId,
+                                            recordedBy: currentUser.id,
+                                            status: 'pending'
+                                        }));
+                                        console.log(`[Coop Import] Saving ${payloads.length} collections...`);
+                                        await apiService.saveModuleRecords('coop_collections', payloads);
+                                        await loadData();
                                     }}
                                     onAddRider={async (data: CoopRider) => { 
                                         const riderId = `r_${Date.now()}`;

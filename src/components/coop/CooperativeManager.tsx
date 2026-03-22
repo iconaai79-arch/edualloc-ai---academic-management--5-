@@ -70,8 +70,10 @@ interface CooperativeManagerProps {
     expenses: CoopExpense[];
     income: CoopIncome[];
     onAddFarmer: (data: Partial<CoopFarmer>) => Promise<void>;
+    onImportFarmers?: (data: Partial<CoopFarmer>[]) => Promise<void>;
     onUpdateFarmer: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
     onLogCollection: (data: Partial<CoopCollection>) => Promise<void>;
+    onImportCollections?: (data: Partial<CoopCollection>[]) => Promise<void>;
     onBulkConfirmCollections?: (riderId: string, collections: CoopCollection[]) => Promise<void>;
     onAddRider: (data: Partial<CoopRider>) => Promise<void>;
     onConfirmCollection?: (id: string, qty: number) => Promise<void>;
@@ -119,8 +121,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     expenses = [],
     income = [],
     onAddFarmer,
+    onImportFarmers,
     onUpdateFarmer,
     onLogCollection,
+    onImportCollections,
     onAddRider,
     onConfirmCollection,
     onApproveCollection,
@@ -2263,8 +2267,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 <SmartFarmerImporterModal
                     onClose={() => setShowImportModal(false)}
                     onImport={async (farmersToImport) => {
-                        for (const f of farmersToImport) {
-                            await onAddFarmer(f);
+                        if (onImportFarmers) {
+                            await onImportFarmers(farmersToImport);
+                        } else {
+                            // Fallback if not provided
+                            for (const f of farmersToImport) {
+                                await onAddFarmer(f);
+                            }
                         }
                     }}
                     existingFarmers={farmers}
@@ -2277,8 +2286,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 <SmartCollectionImporterModal
                     onClose={() => setShowCollectionImportModal(false)}
                     onImport={async (collectionsToImport) => {
-                        for (const c of collectionsToImport) {
-                            await onLogCollection(c);
+                        if (onImportCollections) {
+                            await onImportCollections(collectionsToImport);
+                        } else {
+                            // Fallback
+                            for (const c of collectionsToImport) {
+                                await onLogCollection(c);
+                            }
                         }
                     }}
                     farmers={farmers}
