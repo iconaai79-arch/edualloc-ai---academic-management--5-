@@ -2947,16 +2947,15 @@ export const App: React.FC = () => {
                                     onToggleInstitutionStatus={() => { }}
                                     onLoginAsAdmin={() => { }}
                                     onGenerateReceipt={() => { }}
-                                    coopFarmers={coopFarmers}
-                                    coopCollections={coopCollections}
-                                    coopRiders={coopRiders}
-                                    coopAgrovetInventory={coopAgrovetInventory}
-                                    coopAgrovetSales={coopAgrovetSales}
+                                    farmers={coopFarmers}
+                                    collections={coopCollections}
+                                    riders={coopRiders}
+                                    inventory={coopAgrovetInventory}
+                                    sales={coopAgrovetSales}
                                     saccoAccounts={saccoAccounts}
-                                    saccoTransactions={saccoTransactions}
-                                    coopPayouts={coopPayouts}
-                                    coopExpenses={coopExpenses}
-                                    coopIncome={coopIncome}
+                                    payouts={coopPayouts}
+                                    expenses={coopExpenses}
+                                    income={coopIncome}
                                     onAddFarmer={async (data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: currentUser.institutionId }); loadData(); }}
                                     onUpdateFarmer={async (id, data) => { await apiService.saveModuleRecord('coop_farmers', { ...data, id }); loadData(); }}
                                     onBulkConfirmCollections={async (riderId, pendingCollections) => {
