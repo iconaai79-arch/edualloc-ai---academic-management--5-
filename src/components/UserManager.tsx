@@ -20,6 +20,7 @@ import {
     PhoneIcon, QrCodeIcon
 } from './icons/index';
 import { analyzeUserSpreadsheet } from '../services/geminiService';
+import { apiService } from '../services/apiService';
 import { generateMemberQrCodesPdf } from '../services/pdfService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
@@ -812,6 +813,7 @@ interface UserManagerProps {
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     companyDetails?: CompanyDetails;
     isRetailAgency?: boolean;
+    isCoop?: boolean;
     isAdding?: boolean;
     onAddExtensionRequest?: (reason: string) => void;
 }
@@ -823,6 +825,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onEditUser, currentUser, currentInstitution,
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
+        isCoop: isCoopProp,
         isAdding: isAddingProp = false, onAddExtensionRequest
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
@@ -850,12 +853,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
     const isCoop = useMemo(() => {
+        if (typeof isCoopProp === 'boolean') return isCoopProp;
         const type = currentInstitution?.institutionType;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 
                type?.toLowerCase() === 'cooperative' || type?.toLowerCase() === 'sacco' ||
                subType.includes('coop') || subType.includes('sacco');
-    }, [currentInstitution]);
+    }, [currentInstitution, isCoopProp]);
 
     const isEdu = useMemo(() => {
         const type = currentInstitution?.institutionType;
