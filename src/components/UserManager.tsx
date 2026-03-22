@@ -989,6 +989,23 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             finalEmail = `${safeName}@${institutionDomain}`;
         }
 
+        // Proactive Duplicate Check for Manual Entry
+        if (finalEmail) {
+            try {
+                 setIsSaving(true);
+                 const exists = await apiService.checkEmailExists(finalEmail);
+                 if (exists) {
+                     alert(`Registry Conflict: The email address "${finalEmail}" is already registered in the central EduAI registry for another account. Please use a unique email.`);
+                     setIsSaving(false);
+                     return;
+                 }
+            } catch (err) {
+                 console.error("Email check failed:", err);
+            } finally {
+                 setIsSaving(false);
+            }
+        }
+
         const userData: any = {
             name,
             email: finalEmail,

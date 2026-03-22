@@ -2537,6 +2537,102 @@ export interface HISBroadcast {
     createdAt: string;
 }
 
+// --- Pharmacy & Clinical Safety ---
+
+export interface HISPharmacyInventory {
+    id: string;
+    institutionId: string;
+    name: string;
+    category?: string;
+    unit?: string;
+    unitPrice: number;
+    stockQuantity: number;
+    reorderLevel: number;
+    interactionCode?: string;
+    isNarcotic?: boolean;
+    sku?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface HISPharmacyBatch {
+    id: string;
+    institutionId: string;
+    medicationId: string;
+    batchNumber: string;
+    expiryDate: string;
+    currentQuantity: number;
+    initialQuantity: number;
+    unitCost: number;
+    supplierInfo?: string;
+    createdAt: string;
+}
+
+export interface HISPharmacyInteraction {
+    id: string;
+    institutionId: string;
+    medicationAId: string;
+    medicationBId: string;
+    severity: 'mild' | 'moderate' | 'severe' | 'fatal';
+    description: string;
+    precaution?: string;
+    createdAt: string;
+}
+
+export interface HISPharmacyNarcoticsLedger {
+    id: string;
+    institutionId: string;
+    medicationId: string;
+    patientId?: string;
+    prescriptionId?: string;
+    quantityChange: number;
+    performedBy: string;
+    witnessedBy?: string;
+    notes?: string;
+    systemLog?: any;
+    createdAt: string;
+}
+
+export interface HISPharmacyAdherenceAlert {
+    id: string;
+    institutionId: string;
+    patientId: string;
+    prescriptionItemId?: string;
+    reminderTime: string;
+    frequency: string;
+    status: 'active' | 'paused' | 'completed';
+    lastSentAt?: string;
+    createdAt: string;
+}
+
+export interface HISPrescription {
+    id: string;
+    institutionId: string;
+    patientId: string;
+    doctorId?: string;
+    doctorName?: string;
+    status: 'pending' | 'dispensed' | 'cancelled';
+    notes?: string;
+    createdAt: string;
+    // Enhanced fields for UI
+    patientName?: string;
+    items?: HISPrescriptionItem[];
+}
+
+export interface HISPrescriptionItem {
+    id: string;
+    prescriptionId: string;
+    drugId: string;
+    drugName: string;
+    dosage?: string;
+    frequency?: string;
+    duration?: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    instructions?: string;
+}
+
 export interface RetailSaleItem {
     itemId: string;
     name: string;

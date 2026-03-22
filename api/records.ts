@@ -108,7 +108,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || user?.institutionId }) };
 
             const { data, error } = await supabase.from(moduleName).upsert(recordWithTenancy).select();
-            if (error) return res.status(500).json({ success: false, error: error.message });
+            if (error) {
+                const message = error.message.toLowerCase();
+                const isUniqueViolation = error.code === '23505' || String(error.code) === '23505' || message.includes('unique constraint') || message.includes('duplicate key');
+                
+                if (isUniqueViolation) {
+                    let field = 'record';
+                    if (message.includes('email')) field = 'email address';
+                    else if (message.includes('staff_id')) field = 'staff ID';
+                    else if (message.includes('username')) field = 'username';
+                    
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: `Registry Conflict: This ${field} is already registered in the system. Please use a unique value or contact support for account recovery.`,
+                        code: error.code
+                    });
+                }
+                return res.status(500).json({ success: false, error: error.message });
+            }
             
             // Return entire array for bulk, first element for single
             if (Array.isArray(recordData)) {

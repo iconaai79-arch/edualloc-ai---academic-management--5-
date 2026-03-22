@@ -615,6 +615,21 @@ export const apiService = {
         const { countyId, ...rest } = user;
         await this.saveModuleRecord('users', { ...rest, county_id: countyId }); 
     },
+    async checkEmailExists(email: string): Promise<boolean> {
+        if (!email) return false;
+        try {
+            const response = await fetch(`${API_BASE}/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
+                headers: { 'Authorization': `Bearer ${this.getToken()}` }
+            });
+            const data = await response.json();
+            return !!data.exists;
+        } catch (e) {
+            console.error("Error checking email existence:", e);
+            // Fallback to local check if system API fails
+            const records = await this.fetchModuleRecords('users', undefined, undefined, { filter: { email: email.toLowerCase() } });
+            return Array.isArray(records) && records.length > 0;
+        }
+    },
     async registerUser(userData: Partial<User>, institutionName?: string): Promise<void> {
         const password = userData.password || (userData.role === 'student' ? 'student123' : 'password123');
         const userWithPass = { ...userData, password };
