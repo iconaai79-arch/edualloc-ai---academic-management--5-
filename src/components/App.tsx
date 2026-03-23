@@ -2192,8 +2192,7 @@ export const App: React.FC = () => {
                                         await handleLogAction(`Sent SMS to ${r}`); 
                                         return res; 
                                     }}
-                                    onAddCoopAgrovetInventory={handleAddCoopAgrovetInventory}
-                                    onAddCoopAgrovetSale={handleAddCoopAgrovetSale}
+                                    
                                     onRefreshData={() => loadData()}
                                     onAddCounty={handleAddCounty}
                                     onUpdateCounty={handleUpdateCounty}
@@ -2858,6 +2857,15 @@ export const App: React.FC = () => {
                                     generatedTimetable={generatedTimetable}
                                     allTimetableEntries={generatedTimetable}
                                     finalTimetableUrl={null}
+                                     coopFarmers={coopFarmers}
+                                     coopCollections={coopCollections}
+                                     coopRiders={coopRiders}
+                                     coopAgrovetSales={coopAgrovetSales}
+                                     saccoAccounts={saccoAccounts}
+                                     coopPayouts={coopPayouts}
+                                     coopExpenses={coopExpenses}
+                                     coopIncome={coopIncome}
+                                     coopAgrovetInventory={coopAgrovetInventory}
                                     letterheadConfig={activeLetterheadConfig}
                                     smsConfig={companyDetails.smsConfig as any}
                                     emailConfig={companyDetails.emailConfig}
@@ -2929,8 +2937,49 @@ export const App: React.FC = () => {
                                     onUpdateLogo={(logo) => { onUpdateInstitution(activeInstitution!.id, { logoUrl: logo }); handleLogAction(`Updated institution logo`); }}
                                     onUpdateFooterImage={(footer) => { onUpdateInstitution(activeInstitution!.id, { footerImageUrl: footer }); handleLogAction(`Updated institution footer image`); }}
                                     onUpdateThemeColor={(color) => { onUpdateInstitution(activeInstitution!.id, { themeColor: color }); handleLogAction(`Updated institution theme color`); }}
-                                    onAddCoopAgrovetInventory={handleAddCoopAgrovetInventory}
-                                    onAddCoopAgrovetSale={handleAddCoopAgrovetSale}
+                                     onAddFarmer={async (data) => { 
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         await apiService.saveModuleRecord('coop_farmers', { ...data, id: `f_${Date.now()}`, institutionId: instId }); 
+                                         await loadData(); 
+                                     }}
+                                     onUpdateFarmer={async (id, data) => { 
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: instId }); 
+                                         await loadData(); 
+                                     }}
+                                     onImportFarmers={async (farmers) => {
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         const payloads = farmers.map((f, i) => ({ ...f, id: f.id || `f_${Date.now()}_${i}`, institutionId: instId }));
+                                         await apiService.saveModuleRecords('coop_farmers', payloads);
+                                         await loadData();
+                                     }}
+                                     onLogCollection={async (data) => { 
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         await apiService.saveModuleRecord('coop_collections', { ...data, id: `c_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                         await loadData(); 
+                                     }}
+                                     onImportCollections={async (collections) => {
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         const payloads = collections.map((c, i) => ({ ...c, id: `c_${Date.now()}_${i}`, institutionId: instId, recordedBy: currentUser.id, status: 'pending' }));
+                                         await apiService.saveModuleRecords('coop_collections', payloads);
+                                         await loadData();
+                                     }}
+                                     onConfirmCollection={async (id, qty) => { await apiService.confirmCoopCollection(id, qty, currentUser.id); loadData(); }}
+                                     onApproveCollection={async (id, status) => { await apiService.approveCoopCollection(id, currentUser.id, status); loadData(); }}
+                                     onAddCoopIncome={async (data) => { 
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                         loadData(); 
+                                     }}
+                                     onAddCoopExpense={async (data) => { 
+                                         const instId = activeInstitution?.id || currentUser.institutionId;
+                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
+                                         loadData(); 
+                                     }}
+                                     onAddPayouts={async (payouts) => { await apiService.saveModuleRecords('coop_monthly_payouts', payouts); loadData(); }}
+                                     onInitiatePayouts={async (ids) => { await apiService.disburseBulkMpesa(ids, currentUser.id); loadData(); }}
+                                     onApprovePayouts={async (ids) => { for (const id of ids) await apiService.updatePayoutStatus(id, 'approved', currentUser.id); loadData(); }}
+                                    
                                     onUpdateInstitution={onUpdateInstitution}
                                     onAddTask={async (t) => { await apiService.saveModuleRecord('tasks', { ...t, userId: currentUser.id, id: `t_${Date.now()}`, createdAt: new Date().toISOString() }); await handleLogAction(`Added task: ${t.title}`); loadData(); }}
                                     onUpdateTask={async (id, c) => { const task = userTasks.find(x => x.id === id); if (task) { await apiService.saveModuleRecord('tasks', { ...task, isComplete: c }); await handleLogAction(`${c ? 'Completed' : 'Reopened'} task: ${task.title}`); loadData(); } }}
@@ -3100,7 +3149,7 @@ export const App: React.FC = () => {
                                             id: `c_${Date.now()}`, 
                                             institutionId: instId,
                                             recordedBy: currentUser.id,
-                                            recorded_by: currentUser.id,
+                                            recordedBy: currentUser.id,
                                             farmer_id: data.farmerId || data.farmer_id
                                         };
                                         await apiService.saveModuleRecord('coop_collections', payload); 
@@ -3159,12 +3208,12 @@ export const App: React.FC = () => {
                                     }}
                                     onAddCoopIncome={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
+                                        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
                                         loadData(); 
                                     }}
                                     onAddCoopExpense={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
-                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
+                                        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
                                         loadData(); 
                                     }}
                                     onAddCoopAgrovetInventory={async (data) => {
@@ -3185,6 +3234,10 @@ export const App: React.FC = () => {
                                         for (const id of payoutIds) {
                                             await apiService.updatePayoutStatus(id, 'approved', currentUser.id);
                                         }
+                                        loadData();
+                                    }}
+                                    onAddPayouts={async (payouts: any[]) => {
+                                        await apiService.saveModuleRecords('coop_monthly_payouts', payouts);
                                         loadData();
                                     }}
 

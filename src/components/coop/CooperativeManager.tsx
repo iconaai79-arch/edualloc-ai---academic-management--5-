@@ -83,6 +83,9 @@ interface CooperativeManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onAddPayouts?: (payouts: any[]) => Promise<void>;
+    onAddInventory?: (data: any) => Promise<void>;
+    onAddSale?: (data: any) => Promise<void>;
     currentInstitution?: Institution | null;
     activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings';
     onTabChange?: (tab: string) => void;
@@ -267,6 +270,78 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         } catch (err) {
             console.error(err);
             alert("Failed to save collection record");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleGeneratePayoutDrafts = async () => {
+        if (!onAddPayouts) return;
+        if (!confirm(`Generate draft payouts for all farmers for ${filterMonth + 1}/${filterYear}?`)) return;
+
+        setIsProcessing(true);
+        try {
+            const drafts: any[] = [];
+            const monthYear = `${filterMonth + 1}/${filterYear}`;
+
+            for (const farmer of farmers) {
+                // Check if draft already exists
+                const exists = payouts.find(p => p.farmerId === farmer.id && p.monthYear === monthYear);
+                if (exists) continue;
+
+                const farmerCollections = collections.filter(c => 
+                    c.farmerId === farmer.id && 
+                    c.factoryConfirmed && 
+                    new Date(c.collectionDate).getMonth() === filterMonth &&
+                    new Date(c.collectionDate).getFullYear() === filterYear
+                );
+                
+                const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
+                const gross = totalQty * payoutRate;
+                
+                const advances = expenses.filter(ex => 
+                    ex.farmerId === farmer.id && 
+                    ex.category.toLowerCase().includes('advance') &&
+                    new Date(ex.date).getMonth() === filterMonth &&
+                    new Date(ex.date).getFullYear() === filterYear
+                ).reduce((s, ex) => s + ex.amount, 0);
+
+                const deductionsAgrovet = sales.filter(s => 
+                    s.farmerId === farmer.id && 
+                    new Date(s.saleDate).getMonth() === filterMonth &&
+                    new Date(s.saleDate).getFullYear() === filterYear
+                ).reduce((acc, sa) => acc + sa.amount, 0);
+
+                const net = gross - advances - deductionsAgrovet;
+
+                // Only generate if there's activity
+                if (totalQty > 0 || advances > 0 || deductionsAgrovet > 0) {
+                    drafts.push({
+                        id: `p_${Date.now()}_${farmer.id}`,
+                        institutionId: currentInstitution?.id,
+                        farmerId: farmer.id,
+                        monthYear,
+                        grossAmount: gross,
+                        deductionsAgrovet,
+                        deductionsSacco: 0,
+                        deductionsTransport: 0,
+                        netAmount: net,
+                        status: 'draft',
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            if (drafts.length === 0) {
+                alert("No new payouts to generate for this period.");
+            } else {
+                await onAddPayouts(drafts);
+                onLogAction?.(`Generated ${drafts.length} payout drafts for ${monthYear}`);
+                alert(`Successfully generated ${drafts.length} payout drafts.`);
+            }
+        } catch (err: any) {
+            console.error("Payout generation failed:", err);
+            alert(`Failed to generate payouts: ${err.message}`);
         } finally {
             setIsProcessing(false);
         }
@@ -1222,7 +1297,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 Approve & Play (M-PESA)
                                             </button>
                                         )}
-                                        <button className="flex items-center gap-2 border-2 border-slate-100 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50">
+                                                                                <button 
+                                            disabled={isProcessing}
+                                            onClick={handleGeneratePayoutDrafts}
+                                            className="flex items-center gap-2 border-2 border-slate-100 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50"
+                                        >
                                             <PlusIcon className="w-4 h-4" />
                                             Generate Drafts
                                         </button>
