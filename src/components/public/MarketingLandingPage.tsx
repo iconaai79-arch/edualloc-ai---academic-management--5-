@@ -37,7 +37,17 @@ const ModuleCard: React.FC<ModuleProps> = ({ icon, title, description, advantage
   </div>
 );
 
-export const MarketingLandingPage: React.FC<{ onGetStarted: () => void }> = ({ onGetStarted }) => {
+interface MarketingLandingPageProps {
+  onOpenStore?: () => void;
+  onLogin?: () => void;
+  onBookDemo?: () => void;
+}
+
+export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
+  onOpenStore,
+  onLogin,
+  onBookDemo
+}) => {
   const modules = [
     {
       icon: <Building2 className="w-8 h-8" />,
@@ -95,7 +105,7 @@ export const MarketingLandingPage: React.FC<{ onGetStarted: () => void }> = ({ o
             <a href="#advantages" className="hover:text-white transition-colors">Advantages</a>
             <a href="#tutorials" className="hover:text-white transition-colors">Tutorials</a>
           </div>
-          <button onClick={onGetStarted} className="cta-button cta-primary px-6 py-3 rounded-xl">
+          <button onClick={onLogin} className="cta-button cta-primary px-6 py-3 rounded-xl">
             Get Started
           </button>
         </nav>
@@ -115,11 +125,11 @@ export const MarketingLandingPage: React.FC<{ onGetStarted: () => void }> = ({ o
             real estate and agriculture to health and education.
           </p>
           <div className="flex flex-wrap justify-center gap-6">
-            <button onClick={onGetStarted} className="cta-button cta-primary">
+            <button onClick={onLogin} className="cta-button cta-primary">
               Start Free Trial
               <ArrowRight className="w-4 h-4" />
             </button>
-            <button className="cta-button cta-secondary">
+            <button onClick={onBookDemo} className="cta-button cta-secondary">
               Book a Demo
             </button>
           </div>

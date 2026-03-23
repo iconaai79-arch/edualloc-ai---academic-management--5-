@@ -35,6 +35,7 @@ import { RiderPortal } from './coop/RiderPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
+import { BookDemoModal } from './public/BookDemoModal';
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -444,6 +445,7 @@ export const App: React.FC = () => {
         }
     });
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [showBookDemo, setShowBookDemo] = useState(false);
 
     // 2FA State
     const [otpPendingUser, setOtpPendingUser] = useState<User | null>(null);
@@ -1829,6 +1831,8 @@ export const App: React.FC = () => {
         onOpenGuestPortal: () => setShowGuestPortal(true),
         onOpenGuestFeedback: () => setShowGuestFeedback(true),
         onOpenMarketplace: () => setShowMarketplace(true),
+        onOpenShowcase: () => setShowMarketing(true),
+        onBookDemo: () => setShowBookDemo(true),
         themeColor: companyDetails.themeColor || "#4f46e5",
         onParentRequestOtp: () => ({ success: true, message: '' }), onParentVerifyOtp: () => ({ success: true, message: '' }), companyDetails: companyDetails,
         onCountyRegister: async (data: CountyRegistrationData) => {
@@ -3213,7 +3217,16 @@ export const App: React.FC = () => {
                     </>
                 ) : (
                     <>
-                        <LoginView
+                        {showMarketplace ? (
+                            <PropertyMarketplaceView />
+                        ) : showMarketing ? (
+                            <MarketingLandingPage 
+                                onLogin={() => setShowMarketing(false)}
+                                onBookDemo={() => setShowBookDemo(true)}
+                                onOpenStore={() => setShowMarketplace(true)}
+                            />
+                        ) : (
+                            <LoginView
                             onLogin={async (e, p) => {
                                 // Discovery Phase: Search for user directly in DB if not in local cache
                                 let matchedUsers = (users || []).filter(u => u && (u.email?.toLowerCase() === e.toLowerCase() || u.phoneNumber === e) && (u.password === p || (!u.password && p === 'password123')));
@@ -3349,6 +3362,7 @@ export const App: React.FC = () => {
                             }}
                             {...commonLoginProps}
                         />
+                        )}
                     </>
                 )}
                 {companyDetails.chatAssistantConfig?.enabled && <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />}
@@ -3356,15 +3370,17 @@ export const App: React.FC = () => {
                     role={impersonatedRole}
                     isImpersonatedSession={!!originalSuperAdminSession}
                     hasCurrentUser={!!currentUser}
-                    isPublicView={showMarketplace || showGuestPortal || showGuestFeedback}
+                    isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback}
                     onReturn={() => {
                         setImpersonatedRole(null);
                         setShowGuestPortal(false);
                         setShowGuestFeedback(false);
                         setShowMarketplace(false);
+                        setShowMarketing(false);
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />
+                {showBookDemo && <BookDemoModal onClose={() => setShowBookDemo(false)} />}
             </div>
         </AppErrorBoundary>
     );

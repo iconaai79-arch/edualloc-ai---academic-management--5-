@@ -2975,7 +2975,7 @@ Please change it after login.`;
                                             </div>
                                             <div className="pt-8 h-full overflow-y-auto no-scrollbar">
                                                 <div className="origin-top scale-[0.65] w-[153%]">
-                                                    <MarketingLandingPage onGetStarted={() => {}} />
+                                                    <MarketingLandingPage onLogin={() => {}} />
                                                 </div>
                                             </div>
                                         </div>

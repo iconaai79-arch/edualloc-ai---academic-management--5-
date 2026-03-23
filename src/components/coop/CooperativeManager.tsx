@@ -1658,9 +1658,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
 
-                        {activeSubTab === 'finances' && (
-                            <div className="p-8">
+                {activeSubTab === 'finances' && (
+                    <div className="p-8">
                                 <div className="flex items-center justify-between mb-8">
                                     <div>
                                         <h2 className="text-xl font-black tracking-tighter uppercase">Financial Ledger</h2>

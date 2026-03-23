@@ -88,4 +88,5 @@ export { DocumentTextIcon } from './DocumentTextIcon';
 export { ArrowsPointingOutIcon } from './ArrowsPointingOutIcon';
 export { ArrowsPointingInIcon } from './ArrowsPointingInIcon';
 export { GlobeAltIcon } from './GlobeAltIcon';
+export { SendIcon } from './SendIcon';
 
