@@ -167,7 +167,7 @@ export interface AdminViewProps {
     onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
-    onWithdrawRequest: (id: string) => void;
+    onWithdrawRequest?: (id: string) => Promise<void>;
     onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
     onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
     onDeleteUnavailability?: (userId: string, id: string) => void;
@@ -897,11 +897,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     const coopTabMap: Record<string, string> = {
                         'dashboard': 'overview',
                         'farmers': 'farmers',
-                        'collections': 'farmers',
-                        'riders': 'farmers',
+                        'collections': 'collections',
+                        'riders': 'logistics',
                         'agrovet': 'agrovet',
                         'sacco': 'sacco',
-                        'payouts': 'farmers',
+                        'payouts': 'payouts',
                         'finances': 'finances',
                         'approvals': 'approvals',
                         'reports': 'reports',
@@ -967,11 +967,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onTabChange={(tab) => {
                                     const reverseMap: Record<string, string> = {
                                         'farmers': 'farmers',
-                                        'collections': 'farmers',
-                                        'logistics': 'farmers',
+                                        'collections': 'collections',
+                                        'logistics': 'riders',
                                         'agrovet': 'agrovet',
                                         'sacco': 'sacco',
-                                        'payouts': 'farmers',
+                                        'payouts': 'payouts',
                                         'finances': 'finances',
                                         'approvals': 'approvals',
                                         'reports': 'reports',

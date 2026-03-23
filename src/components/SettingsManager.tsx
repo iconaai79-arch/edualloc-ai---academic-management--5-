@@ -151,7 +151,7 @@ interface SettingsManagerProps {
     onAddExtensionRequest?: (reason: string) => void;
     onImportStudents?: (imported: any[]) => Promise<void>;
     smsConfig?: SmsConfig;
-    onWithdrawRequest?: (id: string) => void;
+    onWithdrawRequest?: (id: string) => Promise<void>;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {

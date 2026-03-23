@@ -149,7 +149,7 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
 
 interface SmartUserImporterModalProps {
     onClose: () => void;
-    onImport: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
+    onImport: (users: any[]) => Promise<void>;
     existingUsers: User[];
     departments: Department[];
     currentInstitution?: Institution | null;
@@ -783,15 +783,15 @@ interface UserManagerProps {
     user?: User;
     institutions?: Institution[];
     onAddUser?: (userData: any) => Promise<void>;
-    onImportUsers: (users: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
-    onImportStudents: (students: Omit<User, 'id' | 'institutionId'>[]) => Promise<void>;
+    onImportUsers?: (users: any[]) => Promise<void>;
+    onImportStudents?: (students: any[]) => Promise<void>;
     smsConfig: SmsConfig;
     departments: Department[];
     courses: Course[];
     subjects: Subject[];
     onDirectAssign?: (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections: Record<string, string[]>) => void;
     onUpdateRequest?: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
-    onWithdrawRequest: (requestId: string) => void;
+    onWithdrawRequest?: (requestId: string) => Promise<void>;
     onDeleteUser: (userId: string) => Promise<void>;
     onEditUser: (userId: string, data: UserUpdateData) => Promise<void>;
     onAddUnavailability?: (userId: string, unavailability: Omit<Unavailability, 'id' | 'status'>) => void;
@@ -976,8 +976,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 phoneNumber: row.phoneNumber || row.phone || ''
             }));
 
-            if (activeTab === 'staff') await onImportUsers(sanitizedJson);
-            else await onImportStudents(sanitizedJson);
+            if (activeTab === 'staff' && onImportUsers) await onImportUsers(sanitizedJson);
+            else if (activeTab === 'student' && onImportStudents) await onImportStudents(sanitizedJson);
         };
         reader.readAsArrayBuffer(file);
     };
@@ -1490,7 +1490,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             {isImportModalOpen && (
                 <SmartUserImporterModal
                     onClose={() => setIsImportModalOpen(false)}
-                    onImport={activeTab === 'staff' ? onImportUsers : onImportStudents}
+                    onImport={activeTab === 'staff' ? (onImportUsers || (async () => { })) : (onImportStudents || (async () => { }))}
                     existingUsers={users}
                     departments={departments}
                     currentInstitution={currentInstitution}
@@ -1558,8 +1558,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     student={managingParentsFor}
                     allUsers={users}
                     onClose={() => setManagingParentsFor(null)}
-                    onAddParent={onAddParent!}
-                    onDeleteParent={onDeleteParent!}
+                    onAddParent={onAddParent || (async () => ({ success: false, message: 'Not implemented' }))}
+                    onDeleteParent={onDeleteParent || (() => { })}
                 />
             )}
 
@@ -1571,9 +1571,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                     allocations={allocations}
                     courses={courses}
                     onClose={() => setManagingLessonsFor(null)}
-                    onAssign={onDirectAssign!}
+                    onAssign={onDirectAssign || (() => { })}
                     onUpdateAllocation={onUpdateRequest || (() => { })}
-                    onDeallocate={onWithdrawRequest}
+                    onDeallocate={onWithdrawRequest || (async () => { })}
                 />
             )}
 
