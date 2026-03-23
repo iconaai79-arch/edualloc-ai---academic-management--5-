@@ -209,9 +209,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingInventory, setIsAddingInventory] = useState(false);
     const [isRecordingSale, setIsRecordingSale] = useState(false);
     const [isAddingRider, setIsAddingRider] = useState(false);
-    const [newInventory, setNewInventory] = useState<any>({
-        status: 'in_stock'
-    });
+    const [newInventory, setNewInventory] = useState<any>({});
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
         saleDate: new Date().toISOString().split('T')[0],
         paymentStatus: 'cash'
@@ -335,6 +333,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         );
     }, [farmers, searchTerm]);
 
+    const filteredInventory = useMemo(() => {
+        return inventory.filter(item => 
+            item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [inventory, searchTerm]);
+
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         const todayCollections = collections.filter(c => c.collectionDate === today);
@@ -386,16 +392,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
         setIsProcessing(true);
         try {
-            if (onAddInventory) {
-                const { status, ...cleanInventory } = newInventory as any;
-                await onAddInventory({
-                    ...cleanInventory,
-                    id: `inv_${Date.now()}`,
-                    institutionId: currentInstitution?.id || ''
-                });
-            }
+            await onAddInventory?.({
+                ...newInventory,
+                id: `inv_${Date.now()}`,
+                institutionId: currentInstitution?.id || ''
+            });
             setIsAddingInventory(false);
-            setNewInventory({ status: 'in_stock' }); // keep status locally so the form doesn't break if it depends on it
+            setNewInventory({});
             if (onLogAction) await onLogAction(`Added inventory item: ${newInventory.itemName}`);
         } catch (err) {
             console.error(err);
@@ -1800,7 +1803,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                            {inventory.length > 0 ? inventory.map(item => (
+                            {filteredInventory.length > 0 ? filteredInventory.map(item => (
                                 <div key={item.id} className="p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors">
@@ -1820,8 +1823,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                            <p className="text-xs font-black uppercase text-slate-500 italic">{item.status?.replace('_', ' ')}</p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Reorder Level</p>
+                                            <p className="text-xs font-black uppercase text-slate-500 italic">{item.reorderLevel || 0}</p>
                                         </div>
                                     </div>
                                 </div>

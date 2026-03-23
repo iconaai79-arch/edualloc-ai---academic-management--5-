@@ -3206,6 +3206,7 @@ export const App: React.FC = () => {
                                     letterheadConfig={activeLetterheadConfig}
                                     companyDetails={companyDetails}
                                     users={users}
+                                    coopAgrovetInventory={coopAgrovetInventory}
                                 />
                             ) : null}
                         </main>
