@@ -415,6 +415,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             item.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [inventory, searchTerm]);
+    
+    const filteredPayouts = useMemo(() => {
+        const monthYear = `${filterMonth + 1}/${filterYear}`;
+        return payouts.filter(p => p.monthYear === monthYear);
+    }, [payouts, filterMonth, filterYear]);
 
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -1256,9 +1261,32 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <div className="flex items-center justify-between mb-8">
                                     <div>
                                         <h2 className="text-xl font-black tracking-tighter uppercase">Monthly Payout Processing</h2>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                            {selectedPayouts.length} Payouts selected for processing
-                                        </p>
+                                        <div className="flex items-center gap-4 mt-1">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {selectedPayouts.length} Payouts selected
+                                            </p>
+                                            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <select 
+                                                    value={filterMonth} 
+                                                    onChange={e => setFilterMonth(Number(e.target.value))}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                >
+                                                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                                                        <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                                                <select 
+                                                    value={filterYear} 
+                                                    onChange={e => setFilterYear(Number(e.target.value))}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                >
+                                                    {[2024, 2025, 2026].map(y => (
+                                                        <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         {(currentUser.role === 'cooperative_manager' || currentUser.role === 'admin') && (
@@ -1314,9 +1342,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="px-6 pb-2">
                                                     <input 
                                                         type="checkbox" 
-                                                        checked={selectedPayouts.length > 0 && selectedPayouts.length === payouts.length}
+                                                        checked={selectedPayouts.length > 0 && selectedPayouts.length === filteredPayouts.length}
                                                         onChange={(e) => {
-                                                            if (e.target.checked) setSelectedPayouts(payouts.map(p => p.id));
+                                                            if (e.target.checked) setSelectedPayouts(filteredPayouts.map(p => p.id));
                                                             else setSelectedPayouts([]);
                                                         }}
                                                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -1331,7 +1359,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {payouts.map(p => (
+                                            {filteredPayouts.map(p => (
                                                 <tr key={p.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
                                                     <td className="px-6 py-5 rounded-l-3xl">
                                                         <input 
@@ -1559,403 +1587,445 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-
-                {activeSubTab === 'approvals' && (
-                    <div className="p-8">
-                        <div className="mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Board Approvals</h2>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review quantity discrepancies and factory modifications</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-6">
-                            {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').map(col => (
-                                <div key={col.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-8 animate-fade-in-up">
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                                            <AlertIcon className="w-8 h-8 text-amber-600" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">Discrepancy: {getFarmerName(col.farmerId)}</h4>
-                                            <div className="flex items-center gap-4 mt-1">
-                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date: {col.collectionDate}</p>
-                                                <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Product: {col.productType}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-12 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-                                        <div className="text-center">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Rider Recorded</p>
-                                            <p className="text-xl font-black text-slate-600 dark:text-slate-400">{col.quantity}</p>
-                                        </div>
-                                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-                                        <div className="text-center">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Factory Confirmed</p>
-                                            <p className="text-xl font-black text-indigo-600">{col.finalQuantity}</p>
-                                        </div>
-                                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-                                        <div className="text-center">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Variance</p>
-                                            <p className={`text-xl font-black ${Number(col.finalQuantity) - Number(col.quantity) < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                                {(Number(col.finalQuantity) - Number(col.quantity)).toFixed(2)}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-3">
-                                        <button 
-                                            onClick={() => onApproveCollection?.(col.id, 'rejected')}
-                                            className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400"
-                                        >
-                                            Reject Change
-                                        </button>
-                                        <button 
-                                            onClick={() => onApproveCollection?.(col.id, 'approved')}
-                                            className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
-                                        >
-                                            Approve Quantity
-                                        </button>
-                                    </div>
+                        {farmerSubTab === 'approvals' && (
+                            <div className="animate-fade-in">
+                                <div className="mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">Board Approvals</h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review quantity discrepancies and factory modifications</p>
                                 </div>
-                            ))}
-                            {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length === 0 && (
-                                <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
-                                    <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-6">
-                                        <SuccessIcon className="w-10 h-10 text-emerald-500" />
-                                    </div>
-                                    <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase mb-2">Queue Fully Cleared</h3>
-                                    <p className="text-xs font-medium text-slate-500 max-w-sm">There are no pending collection approvals at this moment. All discrepancies have been resolved.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {activeSubTab === 'finances' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h2 className="text-xl font-black tracking-tighter uppercase">Financial Ledger</h2>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking Cooperative Expenses & Income flows</p>
-                            </div>
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={() => onAddExpense?.({})}
-                                    className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 text-slate-900 dark:text-white flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    Record Expense
-                                </button>
-                                <button 
-                                    onClick={() => onAddIncome?.({})}
-                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 flex items-center gap-2"
-                                >
-                                    <PlusIcon className="w-4 h-4" />
-                                    Record Income
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
-                            {/* Expenses List */}
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-rose-500" />
-                                    Recent Expenditures
-                                </h3>
-                                <div className="space-y-4">
-                                    {expenses.slice(0, 10).map(exp => (
-                                        <div key={exp.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex justify-between items-center shadow-sm">
-                                            <div>
-                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{exp.description}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{exp.date} • {exp.category}</p>
+                                
+                                <div className="grid grid-cols-1 gap-6">
+                                    {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').map(col => (
+                                        <div key={col.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-8 animate-fade-in-up">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                                                    <AlertIcon className="w-8 h-8 text-amber-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">Discrepancy: {getFarmerName(col.farmerId)}</h4>
+                                                    <div className="flex items-center gap-4 mt-1">
+                                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date: {col.collectionDate}</p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Product: {col.productType}</p>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <p className="text-lg font-black text-rose-600">- KES {exp.amount.toLocaleString()}</p>
+                                            
+                                            <div className="flex items-center gap-12 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Rider Recorded</p>
+                                                    <p className="text-xl font-black text-slate-600 dark:text-slate-400">{col.quantity}</p>
+                                                </div>
+                                                <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Factory Confirmed</p>
+                                                    <p className="text-xl font-black text-indigo-600">{col.finalQuantity}</p>
+                                                </div>
+                                                <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Variance</p>
+                                                    <p className={`text-xl font-black ${Number(col.finalQuantity) - Number(col.quantity) < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                        {(Number(col.finalQuantity) - Number(col.quantity)).toFixed(2)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => onApproveCollection?.(col.id, 'rejected')}
+                                                    className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400"
+                                                >
+                                                    Reject Change
+                                                </button>
+                                                <button 
+                                                    onClick={() => onApproveCollection?.(col.id, 'approved')}
+                                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                                                >
+                                                    Approve Quantity
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
-                                </div>
-                            </div>
-
-                            {/* Income List */}
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    Revenue Generation
-                                </h3>
-                                <div className="space-y-4">
-                                    {income.slice(0, 10).map(inc => (
-                                        <div key={inc.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex justify-between items-center shadow-sm">
-                                            <div>
-                                                <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{inc.companyName}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{inc.date} • {inc.productType} ({inc.quantity} {inc.unit})</p>
+                                    {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length === 0 && (
+                                        <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
+                                            <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-6">
+                                                <SuccessIcon className="w-10 h-10 text-emerald-500" />
                                             </div>
-                                            <p className="text-lg font-black text-emerald-600">+ KES {inc.amount.toLocaleString()}</p>
+                                            <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase mb-2">Queue Fully Cleared</h3>
+                                            <p className="text-xs font-medium text-slate-500 max-w-sm">There are no pending collection approvals at this moment. All discrepancies have been resolved.</p>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeSubTab === 'agrovet' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">Agrovet Inventory & Sales</h2>
-                            <div className="flex gap-4">
-                                <button 
-                                    onClick={() => { setIsAddingInventory(!isAddingInventory); setIsRecordingSale(false); }}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isAddingInventory ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'}`}
-                                >
-                                    <PlusIcon className={`w-4 h-4 ${isAddingInventory ? 'rotate-45' : ''}`} />
-                                    {isAddingInventory ? 'Cancel' : 'Add Stock'}
-                                </button>
-                                <button 
-                                    onClick={() => { setIsRecordingSale(!isRecordingSale); setIsAddingInventory(false); }}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isRecordingSale ? 'bg-slate-100 text-slate-500' : 'bg-indigo-600 text-white'}`}
-                                >
-                                    <PlusIcon className={`w-4 h-4 ${isRecordingSale ? 'rotate-45' : ''}`} />
-                                    {isRecordingSale ? 'Cancel' : 'Record Sale'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Add Inventory Form */}
-                        {isAddingInventory && (
-                            <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
-                                <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
-                                    <StoreIcon className="w-5 h-5 text-indigo-500" />
-                                    Restock Inventory
-                                </h3>
-                                <form onSubmit={handleSubmitInventory} className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Item Name</label>
-                                            <input 
-                                                required
-                                                type="text" 
-                                                value={newInventory.itemName || ''} 
-                                                onChange={e => setNewInventory({...newInventory, itemName: e.target.value})}
-                                                placeholder="e.g. DAP Fertilizer"
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Category</label>
-                                            <select 
-                                                value={newInventory.category || ''} 
-                                                onChange={e => setNewInventory({...newInventory, category: e.target.value})}
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
-                                            >
-                                                <option value="">Select Category</option>
-                                                <option value="Fertilizer">Fertilizer</option>
-                                                <option value="Seeds">Seeds</option>
-                                                <option value="Animal Feed">Animal Feed</option>
-                                                <option value="Chemicals">Chemicals</option>
-                                                <option value="Tools">Tools</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
-                                            <input 
-                                                required
-                                                type="number" 
-                                                value={newInventory.quantity || ''} 
-                                                onChange={e => setNewInventory({...newInventory, quantity: Number(e.target.value)})}
-                                                placeholder="0"
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Price (KES)</label>
-                                            <input 
-                                                required
-                                                type="number" 
-                                                value={newInventory.unitPrice || ''} 
-                                                onChange={e => setNewInventory({...newInventory, unitPrice: Number(e.target.value)})}
-                                                placeholder="0.00"
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end pt-4">
-                                        <button 
-                                            type="submit"
-                                            disabled={isProcessing}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
-                                        >
-                                            {isProcessing ? 'Saving...' : 'Confirm Restock'}
-                                        </button>
-                                    </div>
-                                </form>
                             </div>
                         )}
 
-                        {/* Record Sale Form */}
-                        {isRecordingSale && (
-                            <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
-                                <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
-                                    <PayoutIcon className="w-5 h-5 text-emerald-500" />
-                                    New Sales Record
-                                </h3>
-                                <form onSubmit={handleSubmitSale} className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer / Customer</label>
-                                            <select 
-                                                required
-                                                value={newSale.farmerId || ''} 
-                                                onChange={e => setNewSale({...newSale, farmerId: e.target.value})}
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                            >
-                                                <option value="">Select Farmer</option>
-                                                {farmers.map(f => (
-                                                    <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inventory Item</label>
-                                            <select 
-                                                required
-                                                value={newSale.itemId || ''} 
-                                                onChange={e => {
-                                                    const item = inventory.find(i => i.id === e.target.value);
-                                                    setNewSale({
-                                                        ...newSale, 
-                                                        itemId: e.target.value,
-                                                        amount: item ? item.unitPrice * (newSale.quantity || 0) : 0
-                                                    });
-                                                }}
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                            >
-                                                <option value="">Select Item</option>
-                                                {inventory.map(i => (
-                                                    <option key={i.id} value={i.id}>{i.itemName} (Stock: {i.quantity})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
-                                            <input 
-                                                required
-                                                type="number" 
-                                                value={newSale.quantity || ''} 
-                                                onChange={e => {
-                                                    const qty = Number(e.target.value);
-                                                    const item = inventory.find(i => i.id === newSale.itemId);
-                                                    setNewSale({
-                                                        ...newSale, 
-                                                        quantity: qty,
-                                                        amount: item ? item.unitPrice * qty : 0
-                                                    });
-                                                }}
-                                                placeholder="0"
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Total Amount (KES)</label>
-                                            <input 
-                                                required
-                                                readOnly
-                                                type="number" 
-                                                value={newSale.amount || ''} 
-                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-black outline-none transition-all dark:text-white text-emerald-600"
-                                            />
-                                        </div>
+                        {activeSubTab === 'finances' && (
+                            <div className="p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h2 className="text-xl font-black tracking-tighter uppercase">Financial Ledger</h2>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tracking Cooperative Expenses & Income flows</p>
                                     </div>
-                                    <div className="flex justify-end pt-4">
+                                    <div className="flex gap-4">
                                         <button 
-                                            type="submit"
-                                            disabled={isProcessing}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                                            onClick={() => onAddExpense?.({})}
+                                            className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 text-slate-900 dark:text-white flex items-center gap-2"
                                         >
-                                            {isProcessing ? 'Recording...' : 'Finalize Sale'}
+                                            <PlusIcon className="w-4 h-4" />
+                                            Record Expense
+                                        </button>
+                                        <button 
+                                            onClick={() => onAddIncome?.({})}
+                                            className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Record Income
                                         </button>
                                     </div>
-                                </form>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
+                                    {/* Expenses List */}
+                                    <div className="space-y-6">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-rose-500" />
+                                            Recent Expenditures
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {expenses.slice(0, 10).map(exp => (
+                                                <div key={exp.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex justify-between items-center shadow-sm">
+                                                    <div>
+                                                        <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{exp.description}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{exp.date} • {exp.category}</p>
+                                                    </div>
+                                                    <p className="text-lg font-black text-rose-600">- KES {exp.amount.toLocaleString()}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Income List */}
+                                    <div className="space-y-6">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500 flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                            Revenue Generation
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {income.slice(0, 10).map(inc => (
+                                                <div key={inc.id} className="bg-white dark:bg-slate-800 p-5 rounded-[2rem] border border-slate-100 dark:border-slate-700 flex justify-between items-center shadow-sm">
+                                                    <div>
+                                                        <p className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{inc.companyName}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{inc.date} • {inc.productType} ({inc.quantity} {inc.unit})</p>
+                                                    </div>
+                                                    <p className="text-lg font-black text-emerald-600">+ KES {inc.amount.toLocaleString()}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                            {filteredInventory.length > 0 ? filteredInventory.map(item => (
-                                <div key={item.id} className="p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors">
-                                            <StoreIcon className="w-6 h-6" />
-                                        </div>
-                                        <span className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-full ${
-                                            Number(item.quantity) < 10 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
-                                        }`}>
-                                            {item.quantity} In Stock
-                                        </span>
-                                    </div>
-                                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg mb-1">{item.itemName}</h4>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">{item.category}</p>
-                                    <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700 pt-6">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unit Price</p>
-                                            <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Reorder Level</p>
-                                            <p className="text-xs font-black uppercase text-slate-500 italic">{item.reorderLevel || 0}</p>
-                                        </div>
+                        {activeSubTab === 'agrovet' && (
+                            <div className="p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">Agrovet Inventory & Sales</h2>
+                                    <div className="flex gap-4">
+                                        <button 
+                                            onClick={() => { setIsAddingInventory(!isAddingInventory); setIsRecordingSale(false); }}
+                                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isAddingInventory ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'}`}
+                                        >
+                                            <PlusIcon className={`w-4 h-4 ${isAddingInventory ? 'rotate-45' : ''}`} />
+                                            {isAddingInventory ? 'Cancel' : 'Add Stock'}
+                                        </button>
+                                        <button 
+                                            onClick={() => { setIsRecordingSale(!isRecordingSale); setIsAddingInventory(false); }}
+                                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${isRecordingSale ? 'bg-slate-100 text-slate-500' : 'bg-indigo-600 text-white'}`}
+                                        >
+                                            <PlusIcon className={`w-4 h-4 ${isRecordingSale ? 'rotate-45' : ''}`} />
+                                            {isRecordingSale ? 'Cancel' : 'Record Sale'}
+                                        </button>
                                     </div>
                                 </div>
-                            )) : (
-                                <div className="col-span-full p-20 text-center bg-slate-50 dark:bg-slate-900/40 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
-                                    <StoreIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                                    <h3 className="text-lg font-black text-slate-400 uppercase italic">No inventory records found</h3>
-                                    <p className="text-xs text-slate-400 mt-2 font-bold uppercase">Add stock to begin managing agrovet supplies</p>
-                                </div>
-                            )}
-                        </div>
 
-                        {sales.length > 0 && (
-                            <div className="mt-12">
-                                <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-3">
-                                    <PayoutIcon className="w-5 h-5 text-indigo-500" />
-                                    Recent Sales History
-                                </h3>
+                                {/* Add Inventory Form */}
+                                {isAddingInventory && (
+                                    <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                        <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
+                                            <StoreIcon className="w-5 h-5 text-indigo-500" />
+                                            Restock Inventory
+                                        </h3>
+                                        <form onSubmit={handleSubmitInventory} className="space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Item Name</label>
+                                                    <input 
+                                                        required
+                                                        type="text" 
+                                                        value={newInventory.itemName || ''} 
+                                                        onChange={e => setNewInventory({...newInventory, itemName: e.target.value})}
+                                                        placeholder="e.g. DAP Fertilizer"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Category</label>
+                                                    <select 
+                                                        value={newInventory.category || ''} 
+                                                        onChange={e => setNewInventory({...newInventory, category: e.target.value})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="">Select Category</option>
+                                                        <option value="Fertilizer">Fertilizer</option>
+                                                        <option value="Seeds">Seeds</option>
+                                                        <option value="Animal Feed">Animal Feed</option>
+                                                        <option value="Chemicals">Chemicals</option>
+                                                        <option value="Tools">Tools</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
+                                                    <input 
+                                                        required
+                                                        type="number" 
+                                                        value={newInventory.quantity || ''} 
+                                                        onChange={e => setNewInventory({...newInventory, quantity: Number(e.target.value)})}
+                                                        placeholder="0"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Unit Price (KES)</label>
+                                                    <input 
+                                                        required
+                                                        type="number" 
+                                                        value={newInventory.unitPrice || ''} 
+                                                        onChange={e => setNewInventory({...newInventory, unitPrice: Number(e.target.value)})}
+                                                        placeholder="0.00"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end pt-4">
+                                                <button 
+                                                    type="submit"
+                                                    disabled={isProcessing}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'Saving...' : 'Confirm Restock'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
+
+                                {/* Record Sale Form */}
+                                {isRecordingSale && (
+                                    <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
+                                        <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
+                                            <PayoutIcon className="w-5 h-5 text-emerald-500" />
+                                            New Sales Record
+                                        </h3>
+                                        <form onSubmit={handleSubmitSale} className="space-y-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer / Customer</label>
+                                                    <select 
+                                                        required
+                                                        value={newSale.farmerId || ''} 
+                                                        onChange={e => setNewSale({...newSale, farmerId: e.target.value})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="">Select Farmer</option>
+                                                        {farmers.map(f => (
+                                                            <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inventory Item</label>
+                                                    <select 
+                                                        required
+                                                        value={newSale.itemId || ''} 
+                                                        onChange={e => {
+                                                            const item = inventory.find(i => i.id === e.target.value);
+                                                            setNewSale({
+                                                                ...newSale, 
+                                                                itemId: e.target.value,
+                                                                amount: item ? item.unitPrice * (newSale.quantity || 0) : 0
+                                                            });
+                                                        }}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="">Select Item</option>
+                                                        {inventory.map(i => (
+                                                            <option key={i.id} value={i.id}>{i.itemName} (Stock: {i.quantity})</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
+                                                    <input 
+                                                        required
+                                                        type="number" 
+                                                        value={newSale.quantity || ''} 
+                                                        onChange={e => {
+                                                            const qty = Number(e.target.value);
+                                                            const item = inventory.find(i => i.id === newSale.itemId);
+                                                            setNewSale({
+                                                                ...newSale, 
+                                                                quantity: qty,
+                                                                amount: item ? item.unitPrice * qty : 0
+                                                            });
+                                                        }}
+                                                        placeholder="0"
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Total Amount (KES)</label>
+                                                    <input 
+                                                        required
+                                                        readOnly
+                                                        type="number" 
+                                                        value={newSale.amount || ''} 
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-black outline-none transition-all dark:text-white text-emerald-600"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end pt-4">
+                                                <button 
+                                                    type="submit"
+                                                    disabled={isProcessing}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'Recording...' : 'Finalize Sale'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                                    {filteredInventory.length > 0 ? filteredInventory.map(item => (
+                                        <div key={item.id} className="p-8 rounded-[2rem] border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm group hover:border-indigo-500 transition-all">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors">
+                                                    <StoreIcon className="w-6 h-6" />
+                                                </div>
+                                                <span className={`text-[9px] font-black uppercase tracking-[0.1em] px-4 py-2 rounded-full ${
+                                                    Number(item.quantity) < 10 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20'
+                                                }`}>
+                                                    {item.quantity} In Stock
+                                                </span>
+                                            </div>
+                                            <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tighter text-lg mb-1">{item.itemName}</h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">{item.category}</p>
+                                            <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-700 pt-6">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unit Price</p>
+                                                    <p className="text-xl font-black text-indigo-600 tracking-tighter">KES {item.unitPrice.toLocaleString()}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Reorder Level</p>
+                                                    <p className="text-xs font-black uppercase text-slate-500 italic">{item.reorderLevel || 0}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="col-span-full p-20 text-center bg-slate-50 dark:bg-slate-900/40 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                            <StoreIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                            <h3 className="text-lg font-black text-slate-400 uppercase italic">No inventory records found</h3>
+                                            <p className="text-xs text-slate-400 mt-2 font-bold uppercase">Add stock to begin managing agrovet supplies</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {sales.length > 0 && (
+                                    <div className="mt-12">
+                                        <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-3">
+                                            <PayoutIcon className="w-5 h-5 text-indigo-500" />
+                                            Recent Sales History
+                                        </h3>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                        <th className="px-6 pb-2">Farmer</th>
+                                                        <th className="px-6 pb-2">Item</th>
+                                                        <th className="px-6 pb-2 text-center">Qty</th>
+                                                        <th className="px-6 pb-2 text-right">Total Amount</th>
+                                                        <th className="px-6 pb-2">Date</th>
+                                                        <th className="px-6 pb-2">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {sales.slice(0, 10).map(sale => (
+                                                        <tr key={sale.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all shadow-sm">
+                                                            <td className="px-6 py-5 rounded-l-3xl">
+                                                                <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(sale.farmerId)}</p>
+                                                            </td>
+                                                            <td className="px-6 py-5">
+                                                                <p className="text-xs font-black uppercase italic dark:text-slate-300">
+                                                                    {inventory.find(i => i.id === sale.itemId)?.itemName || 'Deleted Item'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-center font-bold">{sale.quantity}</td>
+                                                            <td className="px-6 py-5 text-right font-black text-emerald-600">KES {sale.amount.toLocaleString()}</td>
+                                                            <td className="px-6 py-5">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sale.saleDate}</p>
+                                                            </td>
+                                                            <td className="px-6 py-5 rounded-r-3xl">
+                                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
+                                                                    sale.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                                }`}>
+                                                                    {sale.paymentStatus}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeSubTab === 'sacco' && (
+                            <div className="p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <h2 className="text-xl font-black tracking-tighter uppercase">SACCO Accounts</h2>
+                                    <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Open Account</button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-separate border-spacing-y-4">
                                         <thead>
                                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                                <th className="px-6 pb-2">Farmer</th>
-                                                <th className="px-6 pb-2">Item</th>
-                                                <th className="px-6 pb-2 text-center">Qty</th>
-                                                <th className="px-6 pb-2 text-right">Total Amount</th>
-                                                <th className="px-6 pb-2">Date</th>
+                                                <th className="px-6 pb-2">Account Holder</th>
+                                                <th className="px-6 pb-2">Acc Type</th>
+                                                <th className="px-6 pb-2 text-right">Balance</th>
                                                 <th className="px-6 pb-2">Status</th>
+                                                <th className="px-6 pb-2 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sales.slice(0, 10).map(sale => (
-                                                <tr key={sale.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all shadow-sm">
+                                            {saccoAccounts.map(acc => (
+                                                <tr key={acc.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
                                                     <td className="px-6 py-5 rounded-l-3xl">
-                                                        <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(sale.farmerId)}</p>
+                                                        <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(acc.farmerId)}</p>
                                                     </td>
                                                     <td className="px-6 py-5">
-                                                        <p className="text-xs font-black uppercase italic dark:text-slate-300">
-                                                            {inventory.find(i => i.id === sale.itemId)?.itemName || 'Deleted Item'}
-                                                        </p>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-center font-bold">{sale.quantity}</td>
-                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {sale.amount.toLocaleString()}</td>
-                                                    <td className="px-6 py-5">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{sale.saleDate}</p>
-                                                    </td>
-                                                    <td className="px-6 py-5 rounded-r-3xl">
-                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-                                                            sale.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                                        }`}>
-                                                            {sale.paymentStatus}
+                                                        <span className="text-[10px] font-black uppercase bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 px-3 py-1.5 rounded-full">
+                                                            {acc.accountType}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right font-black text-emerald-600">KES {acc.balance.toLocaleString()}</td>
+                                                    <td className="px-6 py-5">
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{acc.status}</span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right rounded-r-3xl">
+                                                        <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View Statement</button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1964,51 +2034,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                         )}
-                    </div>
-                )}
-
-                {activeSubTab === 'sacco' && (
-                    <div className="p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <h2 className="text-xl font-black tracking-tighter uppercase">SACCO Accounts</h2>
-                            <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Open Account</button>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-separate border-spacing-y-4">
-                                <thead>
-                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                        <th className="px-6 pb-2">Account Holder</th>
-                                        <th className="px-6 pb-2">Acc Type</th>
-                                        <th className="px-6 pb-2 text-right">Balance</th>
-                                        <th className="px-6 pb-2">Status</th>
-                                        <th className="px-6 pb-2 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {saccoAccounts.map(acc => (
-                                        <tr key={acc.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
-                                            <td className="px-6 py-5 rounded-l-3xl">
-                                                <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(acc.farmerId)}</p>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <span className="text-[10px] font-black uppercase bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 px-3 py-1.5 rounded-full">
-                                                    {acc.accountType}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-5 text-right font-black text-emerald-600">KES {acc.balance.toLocaleString()}</td>
-                                            <td className="px-6 py-5">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{acc.status}</span>
-                                            </td>
-                                            <td className="px-6 py-5 text-right rounded-r-3xl">
-                                                <button className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:underline">View Statement</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
 
 
                 {activeSubTab === 'reports' && (() => {
