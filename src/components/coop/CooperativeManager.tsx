@@ -308,16 +308,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     new Date(ex.date).getFullYear() === filterYear
                 ).reduce((s, ex) => s + ex.amount, 0);
 
-                const deductionsAgrovet = sales.filter(s => 
+                const agrovetDeduction = sales.filter(s => 
                     s.farmerId === farmer.id && 
                     new Date(s.saleDate).getMonth() === filterMonth &&
                     new Date(s.saleDate).getFullYear() === filterYear
                 ).reduce((acc, sa) => acc + sa.amount, 0);
 
-                const net = gross - advances - deductionsAgrovet;
+                const net = gross - advances - agrovetDeduction;
 
                 // Only generate if there's activity
-                if (totalQty > 0 || advances > 0 || deductionsAgrovet > 0) {
+                if (totalQty > 0 || advances > 0 || agrovetDeduction > 0) {
                     drafts.push({
                         id: `p_${Date.now()}_${farmer.id}`,
                         institutionId: currentInstitution?.id,
