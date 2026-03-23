@@ -328,7 +328,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         saccoDeduction: 0,
                         logisticsDeduction: 0,
                         netPayout: net,
-                        status: 'draft',
+                        status: 'pending',
                         createdAt: new Date().toISOString()
                     });
                 }
