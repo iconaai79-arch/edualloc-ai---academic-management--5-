@@ -3044,14 +3044,14 @@ export const App: React.FC = () => {
                                     onToggleInstitutionStatus={() => { }}
                                     onLoginAsAdmin={() => { }}
                                     onGenerateReceipt={() => { }}
-                                    farmers={coopFarmers}
-                                    collections={coopCollections}
-                                    riders={coopRiders}
-                                    sales={coopAgrovetSales}
+                                    coopFarmers={coopFarmers}
+                                    coopCollections={coopCollections}
+                                    coopRiders={coopRiders}
+                                    coopAgrovetSales={coopAgrovetSales}
                                     saccoAccounts={saccoAccounts}
-                                    payouts={coopPayouts}
-                                    expenses={coopExpenses}
-                                    income={coopIncome}
+                                    coopPayouts={coopPayouts}
+                                    coopExpenses={coopExpenses}
+                                    coopIncome={coopIncome}
                                     onAddFarmer={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
@@ -3157,22 +3157,22 @@ export const App: React.FC = () => {
                                         }
                                         loadData(); 
                                     }}
-                                    onAddIncome={async (data) => { 
+                                    onAddCoopIncome={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
-                                    onAddExpense={async (data) => { 
+                                    onAddCoopExpense={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institution_id: instId, recorded_by: currentUser.id }); 
                                         loadData(); 
                                     }}
-                                    onAddInventory={async (data) => {
+                                    onAddCoopAgrovetInventory={async (data) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopAgrovetInventory({ ...data, institutionId: instId });
                                         loadData();
                                     }}
-                                    onAddSale={async (data) => {
+                                    onAddCoopAgrovetSale={async (data) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopAgrovetSale({ ...data, institutionId: instId });
                                         loadData();

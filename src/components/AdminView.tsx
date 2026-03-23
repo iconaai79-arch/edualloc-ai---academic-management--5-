@@ -213,7 +213,11 @@ export interface AdminViewProps {
     coopIncome: CoopIncome[];
 
     onAddFarmer: (data: any) => Promise<void>;
+    onUpdateFarmer?: (id: string, data: any) => Promise<void>;
+    onImportFarmers?: (data: any[]) => Promise<void>;
     onLogCollection: (data: any) => Promise<void>;
+    onImportCollections?: (data: any[]) => Promise<void>;
+    onBulkConfirmCollections?: (riderId: string, collections: any[]) => Promise<void>;
     onAddRider: (data: any) => Promise<void>;
     onConfirmCollection: (id: string, qty: number) => Promise<void>;
     onApproveCollection: (id: string, status: 'approved' | 'rejected') => Promise<void>;
@@ -921,7 +925,11 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 expenses={coopExpenses}
                                 income={coopIncome}
                                 onAddFarmer={props.onAddFarmer || (async () => { })}
+                                onUpdateFarmer={props.onUpdateFarmer || (async () => { })}
+                                onImportFarmers={props.onImportFarmers || (async () => { })}
                                 onLogCollection={props.onLogCollection || (async () => { })}
+                                onImportCollections={props.onImportCollections || (async () => { })}
+                                onBulkConfirmCollections={props.onBulkConfirmCollections || (async () => { })}
                                 onAddRider={props.onAddRider || (async () => { })}
                                 onConfirmCollection={props.onConfirmCollection}
                                 onApproveCollection={props.onApproveCollection}
