@@ -2867,12 +2867,12 @@ export interface CoopMonthlyPayout {
     id: string;
     institutionId: string;
     farmerId: string;
-    monthYear: string; // YYYY-MM
-    grossAmount: number;
-    deductionsAgrovet: number;
-    deductionsSacco: number;
-    deductionsTransport: number;
-    netAmount: number;
+    payoutMonth: string; // YYYY-MM-DD
+    grossPayout: number;
+    agrovetDeduction: number;
+    saccoDeduction: number;
+    logisticsDeduction: number;
+    netPayout: number;
     status: 'pending' | 'initiated' | 'approved' | 'paid' | 'rejected';
     processedAt?: string;
     initiatedBy?: string;

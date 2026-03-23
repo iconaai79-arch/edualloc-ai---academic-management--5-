@@ -284,11 +284,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         setIsProcessing(true);
         try {
             const drafts: any[] = [];
-            const monthYear = `${filterMonth + 1}/${filterYear}`;
+            const payoutMonth = `${filterYear}-${String(filterMonth + 1).padStart(2, '0')}-01`;
 
             for (const farmer of farmers) {
                 // Check if draft already exists
-                const exists = payouts.find(p => p.farmerId === farmer.id && p.monthYear === monthYear);
+                const exists = payouts.find(p => p.farmerId === farmer.id && p.payoutMonth === payoutMonth);
                 if (exists) continue;
 
                 const farmerCollections = collections.filter(c => 
@@ -322,12 +322,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         id: `p_${Date.now()}_${farmer.id}`,
                         institutionId: currentInstitution?.id,
                         farmerId: farmer.id,
-                        monthYear,
-                        grossAmount: gross,
-                        deductionsAgrovet,
-                        deductionsSacco: 0,
-                        deductionsTransport: 0,
-                        netAmount: net,
+                        payoutMonth,
+                        grossPayout: gross,
+                        agrovetDeduction,
+                        saccoDeduction: 0,
+                        logisticsDeduction: 0,
+                        netPayout: net,
                         status: 'draft',
                         createdAt: new Date().toISOString()
                     });
@@ -338,7 +338,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 alert("No new payouts to generate for this period.");
             } else {
                 await onAddPayouts(drafts);
-                onLogAction?.(`Generated ${drafts.length} payout drafts for ${monthYear}`);
+                onLogAction?.(`Generated ${drafts.length} payout drafts for ${payoutMonth}`);
                 alert(`Successfully generated ${drafts.length} payout drafts.`);
             }
         } catch (err: any) {
@@ -418,17 +418,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         );
     }, [inventory, searchTerm]);
     
-    const filteredPayouts = useMemo(() => {
-        const monthYear = `${filterMonth + 1}/${filterYear}`;
-        return payouts.filter(p => p.monthYear === monthYear);
-    }, [payouts, filterMonth, filterYear]);
+    const getFilteredPayouts = () => {
+        const payoutMonth = `${filterYear}-${String(filterMonth + 1).padStart(2, '0')}-01`;
+        return payouts.filter(p => p.payoutMonth === payoutMonth);
+    };
 
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
         const todayCollections = collections.filter(c => c.collectionDate === today);
         const todayQty = todayCollections.reduce((sum, c) => sum + Number(c.quantity), 0);
         const totalSaccoAssets = saccoAccounts.reduce((sum, a) => sum + a.balance, 0);
-        const totalPayouts = payouts.reduce((sum, p) => sum + p.netAmount, 0);
+        const totalPayouts = payouts.reduce((sum, p) => sum + p.netPayout, 0);
 
         return {
             todayQty,
@@ -716,7 +716,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         {collections.slice(0, 5).map(col => (
                                             <div key={col.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center font-black text-slate-400 text-xs">
+                                                    <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-700 flex items-center justify-center font-black text-slate-400 text-xs">
                                                         {getFarmerName(col.farmerId)?.substring(0, 2)}
                                                     </div>
                                                     <div>
@@ -1344,9 +1344,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="px-6 pb-2">
                                                     <input 
                                                         type="checkbox" 
-                                                        checked={selectedPayouts.length > 0 && selectedPayouts.length === filteredPayouts.length}
+                                                        checked={selectedPayouts.length > 0 && selectedPayouts.length === getFilteredPayouts().length}
                                                         onChange={(e) => {
-                                                            if (e.target.checked) setSelectedPayouts(filteredPayouts.map(p => p.id));
+                                                            if (e.target.checked) setSelectedPayouts(getFilteredPayouts().map(p => p.id));
                                                             else setSelectedPayouts([]);
                                                         }}
                                                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -1361,7 +1361,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredPayouts.map(p => (
+                                            {getFilteredPayouts().map(p => (
                                                 <tr key={p.id} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm">
                                                     <td className="px-6 py-5 rounded-l-3xl">
                                                         <input 
@@ -1377,11 +1377,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     </td>
                                                     <td className="px-6 py-5">
                                                         <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(p.farmerId)}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.monthYear}</p>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossAmount.toLocaleString()}</td>
-                                                    <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.deductionsAgrovet + p.deductionsSacco + p.deductionsTransport).toLocaleString()}</td>
-                                                    <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netAmount.toLocaleString()}</td>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.payoutMonth}</p>
+                                                </td>
+                                                <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossPayout.toLocaleString()}</td>
+                                                <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.agrovetDeduction + p.saccoDeduction + p.logisticsDeduction).toLocaleString()}</td>
+                                                <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netPayout.toLocaleString()}</td>
                                                     <td className="px-6 py-5">
                                                         <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
                                                             p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
@@ -2088,11 +2088,11 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 payouts.filter(p => p.farmerId === targetId && p.status === 'paid' && p.processedAt && p.processedAt >= stStartDate && p.processedAt <= stEndDate)
                                     .forEach(p => list.push({
                                         id: p.id,
-                                        date: p.processedAt!,
-                                        description: `Monthly Payout (${p.monthYear})`,
+                                        date: p.processedAt,
+                                        description: `Monthly Payout (${p.payoutMonth})`,
                                         ref: p.id.substring(0, 8).toUpperCase(),
                                         type: 'debit',
-                                        amount: p.netAmount
+                                        amount: p.netPayout
                                     }));
                             } else {
                                 collections.filter(c => c.riderId === targetId && c.factoryConfirmed && c.collectionDate >= stStartDate && c.collectionDate <= stEndDate)
