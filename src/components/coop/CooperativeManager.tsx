@@ -293,8 +293,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             console.error(err);
             alert("Failed to bulk confirm collections");
         } finally {
-            setIsProcessing(true); // Wait for loadData to refresh
-            setTimeout(() => setIsProcessing(false), 2000);
+            setIsProcessing(false);
         }
     };
 
@@ -317,8 +316,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             console.error(err);
             alert("Failed to confirm all collections");
         } finally {
-            setIsProcessing(true);
-            setTimeout(() => setIsProcessing(false), 2000);
+            setIsProcessing(false);
         }
     };
 

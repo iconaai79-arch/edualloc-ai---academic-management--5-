@@ -3092,7 +3092,7 @@ export const App: React.FC = () => {
                                         }));
                                         console.log(`[Coop Bulk Confirm] Confirming ${payloads.length} collections...`);
                                         await apiService.saveModuleRecords('coop_collections', payloads);
-                                        loadData();
+                                        await loadData();
                                     }}
                                     onLogCollection={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
@@ -3135,7 +3135,7 @@ export const App: React.FC = () => {
                                             email: `${data.phone}@eduai.co.ke`
                                         }, activeInstitution?.name);
                                         
-                                        loadData(); 
+                                        await loadData(); 
                                     }}
                                     onConfirmCollection={async (id, qty) => { 
                                         await apiService.confirmCoopCollection(id, qty, currentUser.id); 
@@ -3144,7 +3144,7 @@ export const App: React.FC = () => {
                                         if (col && farmer && qty === col.quantity) {
                                             await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery on ${col.collectionDate} has been confirmed at Factory. Final Qty: ${qty} ${col.unit}. Thank you!`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
                                         }
-                                        loadData(); 
+                                        await loadData(); 
                                     }}
                                     onApproveCollection={async (id, status) => { 
                                         await apiService.approveCoopCollection(id, currentUser.id, status); 
@@ -3155,17 +3155,17 @@ export const App: React.FC = () => {
                                                 await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery discrepancy for ${col.collectionDate} has been RESOLVED and APPROVED by the board. Final Qty: ${col.finalQuantity} ${col.unit}.`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
                                             }
                                         }
-                                        loadData(); 
+                                        await loadData(); 
                                     }}
                                     onAddCoopIncome={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
-                                        loadData(); 
+                                        await loadData(); 
                                     }}
                                     onAddCoopExpense={async (data) => { 
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id }); 
-                                        loadData(); 
+                                        await loadData(); 
                                     }}
                                     onAddCoopAgrovetInventory={async (data) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
