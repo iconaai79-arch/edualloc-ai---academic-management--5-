@@ -1483,7 +1483,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 onClick={handleConfirmAllLog}
                                                 className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 animate-in slide-in-from-right-4"
                                             >
-                                                <CheckCircle2 className="w-4 h-4" />
+                                                <SuccessIcon className="w-4 h-4" />
                                                 Confirm All Pending
                                             </button>
                                         )}
