@@ -298,6 +298,30 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
     };
 
+    const handleConfirmAllLog = async () => {
+        const pending = collections.filter(c => !c.factoryConfirmed);
+        if (pending.length === 0) {
+            alert("No pending records to confirm.");
+            return;
+        }
+        if (!confirm(`Confirm ALL ${pending.length} pending intake records?`)) return;
+
+        setIsProcessing(true);
+        try {
+            if (onBulkConfirmCollections) {
+                await onBulkConfirmCollections('', pending);
+                setSelectedCollections([]);
+                alert(`Successfully confirmed all ${pending.length} records.`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Failed to confirm all collections");
+        } finally {
+            setIsProcessing(true);
+            setTimeout(() => setIsProcessing(false), 2000);
+        }
+    };
+
     const handleGeneratePayoutDrafts = async () => {
         if (!onAddPayouts) return;
         if (!confirm(`Generate draft payouts for all farmers for ${filterMonth + 1}/${filterYear}?`)) return;
@@ -1452,6 +1476,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             >
                                                 <ApprovalIcon className="w-4 h-4" />
                                                 Confirm {selectedCollections.length} Selected
+                                            </button>
+                                        )}
+                                        {collections.filter(c => !c.factoryConfirmed).length > 0 && selectedCollections.length === 0 && (
+                                            <button 
+                                                onClick={handleConfirmAllLog}
+                                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 animate-in slide-in-from-right-4"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                Confirm All Pending
                                             </button>
                                         )}
                                     </div>
