@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await getAuthUser(supabase, req.headers.authorization);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
-        const isRegistration = req.method === 'POST' && (moduleName === 'users' || moduleName === 'institutions' || moduleName === 'counties');
+        const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests'].includes(moduleName));
         
         if (!user && !isPublicGet && !isRegistration) return res.status(401).json({ success: false, error: 'Unauthorized' });
 

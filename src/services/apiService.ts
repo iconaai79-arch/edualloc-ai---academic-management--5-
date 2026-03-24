@@ -12,7 +12,7 @@ import type {
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
     Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
-    CoopExpense, CoopIncome
+    CoopExpense, CoopIncome, DemoRequest
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
