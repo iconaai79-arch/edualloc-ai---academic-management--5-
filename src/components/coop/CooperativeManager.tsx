@@ -221,6 +221,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
+    const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -244,7 +245,6 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsProcessing(false);
         }
     };
-
 
 
     const handleSubmitCollection = async (e: React.FormEvent) => {
@@ -274,6 +274,27 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             alert("Failed to save collection record");
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const handleBulkConfirmLog = async () => {
+        if (selectedCollections.length === 0) return;
+        if (!confirm(`Confirm ${selectedCollections.length} selected intake records?`)) return;
+
+        setIsProcessing(true);
+        try {
+            const toConfirm = collections.filter(c => selectedCollections.includes(c.id));
+            if (onBulkConfirmCollections) {
+                await onBulkConfirmCollections('', toConfirm);
+                setSelectedCollections([]);
+                alert(`Successfully confirmed ${toConfirm.length} records.`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Failed to bulk confirm collections");
+        } finally {
+            setIsProcessing(true); // Wait for loadData to refresh
+            setTimeout(() => setIsProcessing(false), 2000);
         }
     };
 
@@ -1424,6 +1445,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <UploadCloud className="w-4 h-4" />
                                             Bulk Import
                                         </button>
+                                        {selectedCollections.length > 0 && (
+                                            <button 
+                                                onClick={handleBulkConfirmLog}
+                                                className="flex items-center gap-2 bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 animate-in slide-in-from-right-4"
+                                            >
+                                                <ApprovalIcon className="w-4 h-4" />
+                                                Confirm {selectedCollections.length} Selected
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1526,6 +1556,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <table className="w-full text-left border-separate border-spacing-y-4">
                                         <thead>
                                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                <th className="px-6 pb-2">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedCollections.length > 0 && selectedCollections.length === collections.filter(c => !c.factoryConfirmed).length}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) setSelectedCollections(collections.filter(c => !c.factoryConfirmed).map(c => c.id));
+                                                            else setSelectedCollections([]);
+                                                        }}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                </th>
                                                 <th className="px-6 pb-2">Farmer</th>
                                                 <th className="px-6 pb-2">Product</th>
                                                 <th className="px-6 pb-2 text-right">Rider Qty</th>
@@ -1538,6 +1579,19 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             {collections.slice(0, 30).map(col => (
                                                 <tr key={col.id} className="group bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                                                     <td className="px-6 py-5 rounded-l-3xl">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            disabled={col.factoryConfirmed}
+                                                            checked={selectedCollections.includes(col.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedCollections(prev => [...prev, col.id]);
+                                                                else setSelectedCollections(prev => prev.filter(id => id !== col.id));
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-5">
                                                         <p className="font-black text-slate-900 dark:text-white tracking-tighter text-sm">{getFarmerName(col.farmerId)}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{col.collectionDate}</p>
                                                     </td>

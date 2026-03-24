@@ -54,6 +54,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
     const [errorMessage, setErrorMessage] = useState('');
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
+    const [isAutoConfirm, setIsAutoConfirm] = useState(false);
 
     const farmersByName = useMemo(() => new Map(farmers.map(f => [f.name.toLowerCase().trim(), f.id])), [farmers]);
     const farmersByAcc = useMemo(() => new Map(farmers.map(f => [String(f.accountNumber || '').toLowerCase().trim(), f.id])), [farmers]);
@@ -119,8 +120,9 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 institutionId: currentInstitution.id,
                 recordedBy: currentUser.id,
                 notified: false,
-                factoryConfirmed: false,
-                status: 'pending' as any // Backward compatibility if status exists
+                factoryConfirmed: isAutoConfirm,
+                status: isAutoConfirm ? 'delivered' : 'pending' as any,
+                finalQuantity: isAutoConfirm ? Number(row[fieldMapping.quantity]) : undefined
             };
 
             // Resolve Farmer
@@ -312,6 +314,25 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                 <p className="text-xs text-indigo-700 dark:text-indigo-400">
                                     Map your file columns to the intake fields. At least one farmer identifier is required.
                                 </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className="relative">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isAutoConfirm}
+                                            onChange={(e) => setIsAutoConfirm(e.target.checked)}
+                                            className="peer sr-only"
+                                        />
+                                        <div className="w-10 h-5 bg-slate-300 rounded-full peer-checked:bg-emerald-500 transition-colors shadow-inner"></div>
+                                        <div className="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5 shadow-sm"></div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Auto-confirm on Import</p>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase">Skip manual confirmation for these records</p>
+                                    </div>
+                                </label>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
