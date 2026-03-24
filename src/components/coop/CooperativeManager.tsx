@@ -505,7 +505,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         };
     }, [collections, farmers, riders, saccoAccounts, payouts]);
 
-    const getFarmerName = (id: string) => farmers.find(f => f.id === id)?.name || 'Unknown Farmer';
+
     const getRiderName = (id?: string) => riders.find(r => r.id === id)?.name || 'N/A';
 
     async function handleSubmitRider(e: React.FormEvent) {
