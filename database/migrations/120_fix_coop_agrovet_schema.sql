@@ -40,3 +40,7 @@ ALTER TABLE coop_agrovet_sales ADD CONSTRAINT coop_agrovet_sales_payment_status_
 
 CREATE INDEX IF NOT EXISTS idx_coop_agrovet_sales_item ON coop_agrovet_sales(item_id);
 CREATE INDEX IF NOT EXISTS idx_coop_agrovet_sales_date ON coop_agrovet_sales(sale_date);
+
+-- 3. Fix coop_collections constraints
+ALTER TABLE coop_collections DROP CONSTRAINT IF EXISTS coop_collections_product_type_check;
+ALTER TABLE coop_collections ADD CONSTRAINT coop_collections_product_type_check CHECK (product_type IN ('milk', 'tea', 'coffee', 'produce'));
