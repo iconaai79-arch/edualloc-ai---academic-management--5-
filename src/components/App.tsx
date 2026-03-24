@@ -638,7 +638,7 @@ export const App: React.FC = () => {
             
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
-                const effectiveInstId = activeInst?.id || currentUser.institutionId || instId;
+                const effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
                 [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = await Promise.all([
@@ -2075,7 +2075,9 @@ export const App: React.FC = () => {
                         const status = await apiService.onAddTransaction({
                             ...paymentData,
                             institutionId: inst.id,
-                        }, items);
+                            provider: 'mpesa',
+                            paymentMethod: 'stk'
+                        } as any, items);
                         if (status === 'completed') loadData();
                         return status;
                     }}
@@ -2098,7 +2100,7 @@ export const App: React.FC = () => {
             await apiService.saveUser(updated);
             setCurrentUser(updated);
             apiService.storeSession(updated);
-        }} />;
+        }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
     }
 
 
@@ -2862,8 +2864,8 @@ export const App: React.FC = () => {
                                     allTimetableEntries={generatedTimetable}
                                     finalTimetableUrl={null}
                                     letterheadConfig={activeLetterheadConfig}
-                                    smsConfig={companyDetails.smsConfig as any}
-                                    emailConfig={companyDetails.emailConfig}
+                                    smsConfig={(activeInstitution?.smsConfig || companyDetails.smsConfig) as any}
+                                    emailConfig={activeInstitution?.emailConfig || companyDetails.emailConfig}
                                     timetableConflicts={timetableConflicts}
                                     retailExpenses={retailExpenses}
                                     onAddRetailExpense={handleAddRetailExpense}
@@ -3191,25 +3193,6 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecords('coop_monthly_payouts', payouts);
                                         loadData();
                                     }}
-
-                                    onUpdateLogo={(url) => onUpdateInstitution(activeInstitution!.id, { logoUrl: url })}
-                                    onUpdateFooterImage={(url) => onUpdateInstitution(activeInstitution!.id, { footerImageUrl: url })}
-                                    onSaveLetterheadConfig={(config) => onUpdateInstitution(activeInstitution!.id, { letterheadConfig: config })}
-                                    onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
-                                    onAddUser={async (userData) => { await apiService.saveUser(userData); loadData(); }}
-                                    onEditUser={onEditUser}
-                                    onDeleteUser={onDeleteUser}
-                                    onImportUsers={onImportUsers}
-                                    onImportStudents={onImportStudents}
-                                    onWithdrawRequest={async (requestId) => { await apiService.deleteModuleRecord('allocation_requests', requestId); loadData(); }}
-                                    onAddExtensionRequest={handleAddExtensionRequest}
-                                    onLogAction={handleLogAction}
-                                    smsConfig={activeInstitution?.smsConfig}
-                                    logoUrl={activeBranding.logoUrl}
-                                    footerImageUrl={activeFooterImageUrl}
-                                    letterheadConfig={activeLetterheadConfig}
-                                    companyDetails={companyDetails}
-                                    users={users}
                                     coopAgrovetInventory={coopAgrovetInventory}
                                 />
                             ) : null}
