@@ -405,14 +405,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const filteredFarmers = useMemo(() => {
         return farmers.filter(f => 
-            f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            f.phone.includes(searchTerm)
+            f.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            f.phone?.includes(searchTerm)
         );
     }, [farmers, searchTerm]);
 
     const filteredInventory = useMemo(() => {
         return inventory.filter(item => 
-            item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -2052,8 +2052,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         const filteredTargets = useMemo(() => {
                             const list = targetType === 'farmer' ? farmers : riders;
                             return list.filter(item => 
-                                item.name.toLowerCase().includes(stSearch.toLowerCase()) || 
-                                (targetType === 'farmer' && (item as CoopFarmer).accountNumber.includes(stSearch))
+                                item.name?.toLowerCase().includes(stSearch.toLowerCase()) || 
+                                (targetType === 'farmer' && (item as CoopFarmer).accountNumber?.includes(stSearch))
                             );
                         }, [targetType, stSearch]);
 
