@@ -16,11 +16,11 @@ import {
     Scale
 } from 'lucide-react';
 
-type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
+type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 
 const REQUIRED_FIELDS: CollectionMappingField[] = ['quantity', 'unit', 'productType'];
 const ALL_MAPPING_FIELDS: CollectionMappingField[] = [
-    'farmerName', 'farmerAccountNumber', 'farmerPhoneNumber', 'collectionDate', 'productType', 'quantity', 'unit', 'qualityGrade'
+    'farmerName', 'farmerAccountNumber', 'farmerPhoneNumber', 'farmerMemberId', 'collectionDate', 'productType', 'quantity', 'unit', 'qualityGrade'
 ];
 
 interface CollectionImportPreview {
@@ -59,6 +59,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
     const farmersByName = useMemo(() => new Map(farmers.map(f => [f.name.toLowerCase().trim(), f.id])), [farmers]);
     const farmersByAcc = useMemo(() => new Map(farmers.map(f => [String(f.accountNumber || '').toLowerCase().trim(), f.id])), [farmers]);
     const farmersByPhone = useMemo(() => new Map(farmers.map(f => [String(f.phone || '').toLowerCase().trim(), f.id])), [farmers]);
+    const farmersByMemberId = useMemo(() => new Map(farmers.filter(f => f.memberId).map(f => [String(f.memberId).toLowerCase().trim(), f.id])), [farmers]);
 
     const handleFileSelect = (selectedFile: File) => {
         setStep('importing'); 
@@ -99,8 +100,8 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
 
     const handleConfirmMapping = () => {
         // Check if at least one farmer identifer is mapped
-        if (!fieldMapping.farmerName && !fieldMapping.farmerAccountNumber && !fieldMapping.farmerPhoneNumber) {
-            alert("Please map at least one farmer identifier (Name, Account Number, or Phone).");
+        if (!fieldMapping.farmerName && !fieldMapping.farmerAccountNumber && !fieldMapping.farmerPhoneNumber && !fieldMapping.farmerMemberId) {
+            alert("Please map at least one farmer identifier (Name, Account Number, Phone, or Member ID).");
             return;
         }
 
@@ -130,8 +131,10 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
             const mName = fieldMapping.farmerName ? String(row[fieldMapping.farmerName] || '').trim().toLowerCase() : null;
             const mAcc = fieldMapping.farmerAccountNumber ? String(row[fieldMapping.farmerAccountNumber] || '').trim().toLowerCase() : null;
             const mPhone = fieldMapping.farmerPhoneNumber ? String(row[fieldMapping.farmerPhoneNumber] || '').trim().toLowerCase() : null;
+            const mMemberId = fieldMapping.farmerMemberId ? String(row[fieldMapping.farmerMemberId] || '').trim().toLowerCase() : null;
 
-            if (mAcc && farmersByAcc.has(mAcc)) farmerId = farmersByAcc.get(mAcc);
+            if (mMemberId && farmersByMemberId.has(mMemberId)) farmerId = farmersByMemberId.get(mMemberId);
+            else if (mAcc && farmersByAcc.has(mAcc)) farmerId = farmersByAcc.get(mAcc);
             else if (mPhone && farmersByPhone.has(mPhone)) farmerId = farmersByPhone.get(mPhone);
             else if (mName && farmersByName.has(mName)) farmerId = farmersByName.get(mName);
 
