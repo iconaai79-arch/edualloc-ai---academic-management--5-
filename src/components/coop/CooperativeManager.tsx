@@ -186,6 +186,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         if (activeSubTab === 'collections') setFarmerSubTab('collections');
     }, [activeSubTab]);
 
+    React.useEffect(() => {
+        setSelectedCollections([]);
+    }, [filterMonth, filterYear]);
+
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
     const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
     const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
@@ -208,6 +212,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         factoryConfirmed: false,
         notified: false
     });
+
+    const getFarmerName = (id?: string) => {
+        if (!id) return 'Unknown Farmer';
+        const farmer = farmers.find(f => f.id === id);
+        return farmer ? farmer.name : 'Unknown Farmer';
+    };
+
+    const filteredCollections = useMemo(() => {
+        return collections.filter(c => {
+            if (!c.collectionDate) return false;
+            // Handle both YYYY-MM-DD and other formats
+            const date = new Date(c.collectionDate);
+            const matchesDate = date.getMonth() === filterMonth && date.getFullYear() === filterYear;
+            const matchesSearch = !searchTerm || 
+                getFarmerName(c.farmerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesDate && matchesSearch;
+        }).sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime());
+    }, [collections, filterMonth, filterYear, searchTerm, farmers]);
     const [newRider, setNewRider] = useState<Partial<CoopRider>>({
         status: 'active'
     });
@@ -298,12 +321,12 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     };
 
     const handleConfirmAllLog = async () => {
-        const pending = collections.filter(c => !c.factoryConfirmed);
+        const pending = filteredCollections.filter(c => !c.factoryConfirmed);
         if (pending.length === 0) {
-            alert("No pending records to confirm.");
+            alert("No pending records to confirm for the selected month.");
             return;
         }
-        if (!confirm(`Confirm ALL ${pending.length} pending intake records?`)) return;
+        if (!confirm(`Confirm ALL ${pending.length} pending intake records for ${new Date(filterYear, filterMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}?`)) return;
 
         setIsProcessing(true);
         try {
@@ -1451,7 +1474,35 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         {farmerSubTab === 'collections' && (
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-8">
-                                    <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
+                                    <div>
+                                        <h2 className="text-xl font-black tracking-tighter uppercase">Daily Intake Log</h2>
+                                        <div className="flex items-center gap-4 mt-1">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                {filteredCollections.filter(c => !c.factoryConfirmed).length} Pending Records
+                                            </p>
+                                            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <select 
+                                                    value={filterMonth} 
+                                                    onChange={e => setFilterMonth(Number(e.target.value))}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                >
+                                                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
+                                                        <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                                                <select 
+                                                    value={filterYear} 
+                                                    onChange={e => setFilterYear(Number(e.target.value))}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                >
+                                                    {[2024, 2025, 2026].map(y => (
+                                                        <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div className="flex items-center gap-3">
                                         <button 
                                             onClick={() => setIsLoggingCollection(!isLoggingCollection)}
@@ -1590,9 +1641,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="px-6 pb-2">
                                                     <input 
                                                         type="checkbox" 
-                                                        checked={selectedCollections.length > 0 && selectedCollections.length === collections.filter(c => !c.factoryConfirmed).length}
+                                                        checked={selectedCollections.length > 0 && selectedCollections.length === filteredCollections.filter(c => !c.factoryConfirmed).length}
                                                         onChange={(e) => {
-                                                            if (e.target.checked) setSelectedCollections(collections.filter(c => !c.factoryConfirmed).map(c => c.id));
+                                                            if (e.target.checked) setSelectedCollections(filteredCollections.filter(c => !c.factoryConfirmed).map(c => c.id));
                                                             else setSelectedCollections([]);
                                                         }}
                                                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -1600,14 +1651,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 </th>
                                                 <th className="px-6 pb-2">Farmer</th>
                                                 <th className="px-6 pb-2">Product</th>
-                                                <th className="px-6 pb-2 text-right">Rider Qty</th>
-                                                <th className="px-6 pb-2 text-right">Final Qty</th>
+                                                <th className="px-6 pb-2 text-right uppercase tracking-widest text-[9px]">Rider Qty</th>
+                                                <th className="px-6 pb-2 text-right uppercase tracking-widest text-[9px]">Final Qty</th>
                                                 <th className="px-6 pb-2">Status</th>
                                                 <th className="px-6 pb-2 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {collections.slice(0, 30).map(col => (
+                                            {filteredCollections.map(col => (
                                                 <tr key={col.id} className="group bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                                                     <td className="px-6 py-5 rounded-l-3xl">
                                                         <input 
