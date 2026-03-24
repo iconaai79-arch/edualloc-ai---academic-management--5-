@@ -2095,12 +2095,14 @@ export const App: React.FC = () => {
                 />
             );
         }
-        return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
-            const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
-            await apiService.saveUser(updated);
-            setCurrentUser(updated);
-            apiService.storeSession(updated);
-        }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
+        if (!currentUser.passwordLastUpdated) {
+            return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
+                const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
+                await apiService.saveUser(updated);
+                setCurrentUser(updated);
+                apiService.storeSession(updated);
+            }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
+        }
     }
 
 
