@@ -8,7 +8,7 @@ import {
     Plus as PlusIcon,
     Search as SearchIcon,
     Filter as FilterIcon,
-    CheckCircle2 as SuccessIcon,
+    CheckCircle as SuccessIcon,
     AlertCircle as AlertIcon,
     ChevronRight as ChevronRightIcon,
     ShoppingCart as StoreIcon,

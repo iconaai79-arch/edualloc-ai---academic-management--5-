@@ -11,7 +11,7 @@ import {
     Star,
     Zap,
     Download,
-    CheckCircle2,
+    CheckCircle,
     PlayCircle,
     Package,
     ArrowUpRight
@@ -146,7 +146,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                     <div className="space-y-6">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center border-4 border-white/20">
-                                                <CheckCircle2 className="w-5 h-5" />
+                                                <CheckCircle className="w-5 h-5" />
                                             </div>
                                             <div>
                                                 <p className="font-bold text-sm">Interior Vacuuming</p>

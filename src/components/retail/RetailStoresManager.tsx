@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStore, MpesaConfig } from '../../types';
-import { Store, Truck, Plus, Search, MapPin, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, CreditCard } from 'lucide-react';
+import { Store, Truck, Plus, Search, MapPin, CheckCircle, XCircle, MoreVertical, Edit2, Trash2, CreditCard } from 'lucide-react';
 
 interface RetailStoresManagerProps {
     institutionId: string;
@@ -280,7 +280,7 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
 
                                     <div className="flex items-center gap-2 text-sm text-slate-500">
                                         {store.isActive ? (
-                                            <><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" /><span>Active Location</span></>
+                                            <><CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" /><span>Active Location</span></>
                                         ) : (
                                             <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span>Inactive</span></>
                                         )}

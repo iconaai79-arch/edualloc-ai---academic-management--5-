@@ -6,7 +6,7 @@ import {
     X, 
     UploadCloud, 
     FileSpreadsheet, 
-    CheckCircle2, 
+    CheckCircle, 
     AlertCircle, 
     ChevronRight, 
     Search,
@@ -275,7 +275,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                         <div className="space-y-6 animate-fade-in">
                             <div className="bg-indigo-50 dark:bg-indigo-500/10 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-500/20">
                                 <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-2">
-                                    <CheckCircle2 className="w-4 h-4" /> Review Column Mapping
+                                    <CheckCircle className="w-4 h-4" /> Review Column Mapping
                                 </h3>
                                 <p className="text-xs text-indigo-700 dark:text-indigo-400">
                                     We analyzed your file and attempted to automatically map the columns. Please review and adjust below.
@@ -346,7 +346,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                         disabled={previewData.valid.length === 0}
                                         className="px-6 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-500/30"
                                     >
-                                        Import {previewData.valid.length} Farmers <CheckCircle2 className="w-4 h-4" />
+                                        Import {previewData.valid.length} Farmers <CheckCircle className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -369,7 +369,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                                             <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800/50 ${!row.isValid ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                                                 <td className="p-4">
                                                     {row.isValid 
-                                                        ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><CheckCircle2 className="w-3 h-3"/> OK</span>
+                                                        ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> OK</span>
                                                         : <span className="bg-red-100 text-red-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Error</span>
                                                     }
                                                 </td>
@@ -431,7 +431,7 @@ export const SmartFarmerImporterModal: React.FC<SmartFarmerImporterModalProps> =
                     {step === 'success' && (
                         <div className="h-full flex flex-col items-center justify-center space-y-6 animate-fade-in-up">
                             <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
-                                <CheckCircle2 className="w-12 h-12 text-emerald-600" />
+                                <CheckCircle className="w-12 h-12 text-emerald-600" />
                             </div>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Import Complete!</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 text-center max-w-sm">
