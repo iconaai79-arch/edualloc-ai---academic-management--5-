@@ -3225,6 +3225,29 @@ export const App: React.FC = () => {
                                 onBookDemo={() => setShowBookDemo(true)}
                                 onOpenStore={() => setShowMarketplace(true)}
                             />
+                        ) : showGuestPortal ? (
+                            <PublicAppointmentView
+                                users={users}
+                                timetable={generatedTimetable}
+                                timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
+                                onClose={() => setShowGuestPortal(false)}
+                                institutions={institutions}
+                                onBookAppointment={async (apt) => {
+                                    await apiService.saveModuleRecord('appointments', { ...apt, id: `apt_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString() });
+                                    loadData();
+                                }}
+                            />
+                        ) : showGuestFeedback ? (
+                            <GuestFeedbackView 
+                                onSubmit={async (f) => { 
+                                    await apiService.saveModuleRecord('guest_feedback', { ...f, id: `fdb_${Date.now()}` }); 
+                                    alert('Feedback submitted!'); 
+                                    setShowGuestFeedback(false);
+                                    loadData();
+                                }} 
+                                institutions={institutions}
+                                onClose={() => setShowGuestFeedback(false)} 
+                            />
                         ) : (
                             <LoginView
                             onLogin={async (e, p) => {
