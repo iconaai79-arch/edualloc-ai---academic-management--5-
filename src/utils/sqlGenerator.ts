@@ -111,6 +111,21 @@ CREATE TABLE IF NOT EXISTS activity_log (
     mac_address TEXT,
     imei TEXT
 );
+
+CREATE TABLE IF NOT EXISTS institution_module_states (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'inactive',
+    activated_at TIMESTAMP WITH TIME ZONE,
+    trial_ends_at TIMESTAMP WITH TIME ZONE,
+    subscription_ends_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(institution_id, module_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ims_institution_id ON institution_module_states(institution_id);
+
 \n-- 2. ACADEMIC STRUCTURE --\n
 CREATE TABLE IF NOT EXISTS academic_levels (
     id TEXT PRIMARY KEY,
@@ -1496,7 +1511,7 @@ BEGIN
         'document_collections', 'watchlist_records', 'maintenance_requests',
         'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
-        'his_broadcasts'
+        'his_broadcasts', 'institution_module_states'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
