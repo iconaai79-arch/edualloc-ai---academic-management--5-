@@ -348,6 +348,8 @@ export const App: React.FC = () => {
     const [isApiOnline, setIsApiOnline] = useState(false);
     const [isSchemaInitializationRequired, setIsSchemaInitializationRequired] = useState(false);
     const [isBootstrapped, setIsBootstrapped] = useState(false);
+    const isRefreshingRef = React.useRef(false);
+    const lastRefreshTimeRef = React.useRef(0);
     const [appInitializing, setAppInitializing] = useState(true);
     const [loadStatus, setLoadStatus] = useState<string>("");
     const [loadError, setLoadError] = useState<string>("");
@@ -530,6 +532,16 @@ export const App: React.FC = () => {
     const activeFooterImageUrl = useMemo(() => activeInstitution?.footerImageUrl || companyDetails.footerImageUrl || null, [activeInstitution, companyDetails]);
 
     const loadData = useCallback(async (isFirstLoad = false) => {
+        // Prevent concurrent refreshes
+        if (isRefreshingRef.current) return;
+        
+        // Prevent too frequent refreshes (debounce to 2 seconds)
+        const now = Date.now();
+        if (!isFirstLoad && (now - lastRefreshTimeRef.current < 2000)) return;
+
+        isRefreshingRef.current = true;
+        lastRefreshTimeRef.current = now;
+
         if (isFirstLoad) setAppInitializing(true);
         setLoadStatus("Initializing...");
 
@@ -805,6 +817,7 @@ export const App: React.FC = () => {
         } finally {
             initialLoadDone.current = true;
             setAppInitializing(false);
+            isRefreshingRef.current = false;
         }
     }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
 

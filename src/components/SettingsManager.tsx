@@ -1640,6 +1640,33 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <option value="production">Live Production</option>
                                             </select>
                                         </div>
+                                        <div className="md:col-span-2 mt-4 p-4 bg-teal-50/50 dark:bg-teal-900/10 rounded-2xl border border-teal-100/50 dark:border-teal-900/20">
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className="w-6 h-6 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-lg flex items-center justify-center">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                                </div>
+                                                <h4 className="text-[10px] font-black uppercase text-teal-700 dark:text-teal-400 tracking-widest">NCBA Redirect Node</h4>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    readOnly 
+                                                    value={`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution.id}`}
+                                                    className="form-input h-10 font-mono text-[9px] bg-white dark:bg-slate-900 border-dashed"
+                                                />
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution.id}`);
+                                                        alert('Callback URL copied');
+                                                    }}
+                                                    className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold uppercase hover:bg-slate-50 transition-all"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <p className="mt-2 text-[9px] text-slate-400 italic">Provide this URL to your NCBA relationship manager for STK Push and QR Code notifications.</p>
+                                        </div>
                                     </div>
 
                                     <hr className="border-slate-100 dark:border-slate-700" />

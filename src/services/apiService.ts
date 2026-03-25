@@ -149,7 +149,10 @@ export const apiService = {
         // 2. Fallback to session ID
         const session = this.getSession();
         const token = session?.id || '';
-        console.warn(`[apiService] getAuthToken: ${token.substring(0, 10)}${token.length > 10 ? '...' : ''} (length: ${token.length})`);
+        // Changed to debug to avoid console noise during high-frequency data fetching
+        if (token && token.length > 0) {
+            // console.debug(`[apiService] getAuthToken: ${token.substring(0, 10)}${token.length > 10 ? '...' : ''} (length: ${token.length})`);
+        }
         return token;
     },
     getToken(): string {
@@ -214,8 +217,15 @@ export const apiService = {
             console.error(`IncrementCount Exception [${table}]:`, e);
         }
     },
+    _lastConnectionTest: null as { success: boolean, status: string, dbName: string, message: string, timestamp: number } | null,
     async testDatabaseConnection(url?: string, key?: string): Promise<any> {
-        const timestamp = new Date().toISOString();
+        // Skip redundant checks if performed within the last 5 seconds to prevent render loops
+        const now = Date.now();
+        if (!url && !key && this._lastConnectionTest && (now - this._lastConnectionTest.timestamp < 5000)) {
+            return { ...this._lastConnectionTest, timestamp: new Date(this._lastConnectionTest.timestamp).toISOString(), cached: true };
+        }
+
+        const timestampStr = new Date().toISOString();
         if (url && key) initSupabaseClient(url, key);
         if (!_supabase) initSupabaseClient();
 
@@ -232,19 +242,20 @@ export const apiService = {
             const timestamp = new Date().toISOString();
             const insts = await this.fetchModuleRecords('institutions', undefined, undefined, { limit: 1 });
             if (insts) {
-                return { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.', timestamp };
+                const res = { success: true, status: 'online', dbName: 'PostgreSQL', message: 'Handshake successful.' };
+                this._lastConnectionTest = { ...res, timestamp: Date.now() };
+                return { ...res, timestamp: timestampStr };
             }
             throw new Error("Handshake failed");
         } catch (e: any) {
-            const timestamp = new Date().toISOString();
-            console.error("[apiService] Connection Test Failed:", e);
-            return { 
+            const errRes = { 
                 success: false, 
                 status: 'offline', 
                 message: `Connection Error: ${e.message || 'Handshake failed'}. Ensure SUPABASE_URL and ANON_KEY are correctly configured in your environment.`, 
-                dbName: 'Error', 
-                timestamp 
+                dbName: 'Error'
             };
+            this._lastConnectionTest = { ...errRes, timestamp: Date.now() };
+            return { ...errRes, timestamp: new Date().toISOString() };
         }
     },
     async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
