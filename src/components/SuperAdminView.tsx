@@ -2696,6 +2696,27 @@ Please change it after login.`;
                                                             <option value="production">Live Production</option>
                                                         </select>
                                                     </div>
+                                                    <div className="md:col-span-2 space-y-2 mt-4">
+                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Global Platform Callback URL (Webhook)</label>
+                                                        <div className="flex gap-2">
+                                                            <input 
+                                                                type="text" 
+                                                                readOnly 
+                                                                value={`${window.location.origin}/api/integrations?action=ncbaWebhook`}
+                                                                className="form-input h-12 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
+                                                            />
+                                                            <button 
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook`);
+                                                                    alert('Platform Callback URL copied');
+                                                                }}
+                                                                className="px-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"
+                                                            >
+                                                                Copy
+                                                            </button>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-400 italic">This is your master endpoint for platform-wide settlement and administrative payments.</p>
+                                                    </div>
                                                 </div>
                                             </div>
 
