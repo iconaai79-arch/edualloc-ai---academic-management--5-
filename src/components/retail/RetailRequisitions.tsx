@@ -5,7 +5,7 @@ import {
     Plus as PlusIcon,
     Search as SearchIcon,
     Clock as ClockIcon,
-    CheckCircle as CheckCircleIcon,
+    CircleCheck as CheckCircleIcon,
     XCircle as XCircleIcon,
     Package as PackageIcon,
     Trash as TrashIcon

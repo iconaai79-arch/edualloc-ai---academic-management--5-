@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStockTransfer, RetailStore, RetailInventoryItem, RetailStockTransferItem, User } from '../../types';
-import { Truck, ArrowRight, Plus, CheckCircle, Clock, AlertCircle, Search, MapPin, Package, X, ChevronRight } from 'lucide-react';
+import { Truck, ArrowRight, Plus, CircleCheck, Clock, AlertCircle, Search, MapPin, Package, X, ChevronRight } from 'lucide-react';
 
 interface RetailStockTransfersProps {
     institutionId: string;
@@ -218,7 +218,7 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                         title="Approve"
                                                     >
-                                                        <CheckCircle className="w-4 h-4" />
+                                                        <CircleCheck className="w-4 h-4" />
                                                     </button>
                                                 )}
                                                 {transfer.status === 'approved' && (

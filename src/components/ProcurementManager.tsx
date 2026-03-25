@@ -5,7 +5,7 @@ import {
     Plus as PlusIcon,
     FileText as FileIcon,
     Truck as TruckIcon,
-    CheckCircle as CheckCircleIcon,
+    CircleCheck as CheckCircleIcon,
     Clock as ClockIcon,
     Printer as PrinterIcon,
     Mail as MailIcon,

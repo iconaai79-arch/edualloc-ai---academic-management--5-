@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CheckCircle, CreditCard, Printer, Coffee, Zap } from 'lucide-react';
+import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CircleCheck, CreditCard, Printer, Coffee, Zap } from 'lucide-react';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -587,7 +587,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                         {checkoutSuccess ? (
                             <div className="p-12 text-center space-y-8">
                                 <div className="w-24 h-24 bg-emerald-500/10 text-emerald-500 rounded-[2.5rem] flex items-center justify-center mx-auto animate-bounce shadow-inner">
-                                    <CheckCircle className="w-12 h-12" />
+                                    <CircleCheck className="w-12 h-12" />
                                 </div>
                                 <div className="space-y-2">
                                     <h3 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Transaction Verified</h3>
@@ -752,7 +752,7 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
                                                     </span>
                                                     {paymentMethod === method && (
                                                         <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border-2 border-indigo-600 text-indigo-600">
-                                                            <CheckCircle className="w-3 h-3" />
+                                                            <CircleCheck className="w-3 h-3" />
                                                         </div>
                                                     )}
                                                 </button>
