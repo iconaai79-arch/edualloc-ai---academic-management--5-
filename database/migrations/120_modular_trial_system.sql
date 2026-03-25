@@ -1,7 +1,7 @@
 -- Migration: Add support for modular trials and subscriptions
 CREATE TABLE IF NOT EXISTS institution_module_states (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     module_id TEXT NOT NULL, -- e.g., 'inventory', 'library', 'boarding', 'his', 'coop'
     status TEXT NOT NULL DEFAULT 'inactive', -- 'inactive', 'trial', 'active', 'expired', 'suspended'
     activated_at TIMESTAMPTZ,
