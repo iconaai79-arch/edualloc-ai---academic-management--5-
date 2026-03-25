@@ -70,12 +70,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const supabase = getSupabase();
         if (!supabase) return res.status(500).json({ success: false, error: 'Supabase keys missing in environment' });
 
-        const user = await getAuthUser(supabase, req.headers.authorization);
+        const authHeader = req.headers.authorization;
+        const user = await getAuthUser(supabase, authHeader);
         const isPublicModule = PUBLIC_MODULES.includes(moduleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
         const isRegistration = req.method === 'POST' && (['users', 'institutions', 'counties', 'demo_requests'].includes(moduleName));
         
-        if (!user && !isPublicGet && !isRegistration) return res.status(401).json({ success: false, error: 'Unauthorized' });
+        if (!user && !isPublicGet && !isRegistration) {
+            const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Unauthorized', 
+                reason: 'No valid user session found',
+                debug: { token: tokenSnippet, module: moduleName, method: req.method }
+            });
+        }
 
         if (req.method === 'GET') {
             let q = supabase.from(moduleName).select(getStrParam(select) || '*');
