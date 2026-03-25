@@ -2552,14 +2552,6 @@ export const App: React.FC = () => {
                                     }}
                                     coopAgrovetInventory={coopAgrovetInventory}
                                 />
-                            ) : true ? (
-                                <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-2xl border border-slate-100 dark:border-slate-700 text-center max-w-2xl mx-auto mt-20">
-                                    <h1 className="text-4xl font-black uppercase tracking-tighter mb-4">Minimal Mode Active</h1>
-                                    <p className="text-slate-500 font-medium">This is a debug view to isolate initialization errors.</p>
-                                    <button onClick={handleLogout} className="mt-8 btn-secondary px-8 py-3">Logout</button>
-                                </div>
-                            ) : false ? (
-                                <div />
                             ) : (isHealthSystemOpen || activeRole === 'his_admin') ? (
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 
