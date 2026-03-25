@@ -7,8 +7,8 @@ import {
     Mail as MailIcon, 
     Phone as PhoneIcon, 
     User as UserIcon,
-    Trash2 as TrashIcon,
-    Edit2 as EditIcon,
+    Trash as TrashIcon,
+    Pencil as EditIcon,
     X as XIcon,
     ShieldCheck as ShieldIcon,
     ArrowRight as ArrowRightIcon

@@ -8,7 +8,6 @@ import {
     Plus as PlusIcon,
     Search as SearchIcon,
     Filter as FilterIcon,
-    CheckCircle as SuccessIcon,
     AlertCircle as AlertIcon,
     ChevronRight as ChevronRightIcon,
     ShoppingCart as StoreIcon,
@@ -26,6 +25,7 @@ import {
     UploadCloud,
     X
 } from 'lucide-react';
+import { CheckCircleIcon as SuccessIcon } from '../icons/index';
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
 import { SmartFarmerImporterModal } from './SmartFarmerImporterModal';

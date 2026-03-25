@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Building2, 
+  Building, 
   Users, 
   Stethoscope, 
   ShoppingCart, 
@@ -50,7 +50,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
 }) => {
   const modules = [
     {
-      icon: <Building2 className="w-8 h-8" />,
+      icon: <Building className="w-8 h-8" />,
       title: "Property Hub",
       description: "Complete real estate automation from tenant onboarding to automated rent reconciliation.",
       advantages: ["Auto-Invoicing", "Maintenance Tracking", "Tenant Portal"]

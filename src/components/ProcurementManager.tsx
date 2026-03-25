@@ -16,7 +16,7 @@ import {
     ArrowRight as ArrowRightIcon,
     FileSearch as FileSearchIcon,
     Search as SearchIcon,
-    Trash2 as TrashIcon,
+    Trash as TrashIcon,
     XCircle as XCircleIcon
 } from 'lucide-react';
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';

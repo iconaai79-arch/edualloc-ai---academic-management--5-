@@ -18,9 +18,9 @@ import {
     ChevronRight,
     ArrowUpRight,
     CreditCard,
-    CheckCircle,
     Calendar
 } from 'lucide-react';
+import { CheckCircleIcon as CircleCheck } from '../icons/index';
 
 interface RiderPortalProps {
     currentUser: User;
@@ -181,7 +181,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = ({
                                         <p className="text-[9px] font-bold text-white/50 uppercase mb-1">Valid Until</p>
                                         <p className="text-lg font-black tracking-widest">31 DEC 2026</p>
                                     </div>
-                                    <CheckCircle className="w-8 h-8 opacity-50" />
+                                    <CircleCheck className="w-8 h-8 opacity-50" />
                                 </div>
                             </div>
                         </div>
@@ -271,7 +271,7 @@ export const RiderPortal: React.FC<RiderPortalProps> = ({
                                             <td className="py-5 px-10 font-black text-orange-600">{c.quantity} {c.unit}</td>
                                             <td className="py-5 px-10">
                                                 <span className="flex items-center gap-2 text-emerald-500 font-black uppercase text-[10px]">
-                                                    <CheckCircle className="w-3.3 h-3.3" />
+                                                    <CircleCheck className="w-3.3 h-3.3" />
                                                     Confirmed
                                                 </span>
                                             </td>

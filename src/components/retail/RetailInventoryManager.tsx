@@ -4,17 +4,17 @@ import {
     Package,
     Plus,
     Search,
-    Edit2,
-    Trash2,
+    Pencil,
+    Trash,
     AlertTriangle,
     Tag,
     Layers,
     Banknote,
     X,
-    CheckCircle,
     Image as ImageIcon,
     Upload
 } from 'lucide-react';
+import { CheckCircleIcon as CheckCircle } from '../icons/index';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 
@@ -367,13 +367,13 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                         onClick={() => openEdit(item)}
                                         className="p-5 bg-white text-indigo-600 rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
                                     >
-                                        <Edit2 className="w-6 h-6" />
+                                        <Pencil className="w-6 h-6" />
                                     </button>
                                     <button
                                         onClick={() => handleDelete(item.id)}
                                         className="p-5 bg-rose-600 text-white rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
                                     >
-                                        <Trash2 className="w-6 h-6" />
+                                        <Trash className="w-6 h-6" />
                                     </button>
                                 </div>
                             </div>
@@ -461,8 +461,8 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => openEdit(item)} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><Edit2 className="w-4 h-4" /></button>
-                                            <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><Trash2 className="w-4 h-4" /></button>
+                                            <button onClick={() => openEdit(item)} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><Pencil className="w-4 h-4" /></button>
+                                            <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><Trash className="w-4 h-4" /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -498,7 +498,7 @@ export function RetailInventoryManager({ institutionId }: RetailInventoryManager
                                             <>
                                                 <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
                                                 <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                                                    <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="p-3 bg-rose-600 text-white rounded-2xl shadow-xl hover:scale-110 transition-transform"><Trash2 className="w-5 h-5" /></button>
+                                                    <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="p-3 bg-rose-600 text-white rounded-2xl shadow-xl hover:scale-110 transition-transform"><Trash className="w-5 h-5" /></button>
                                                 </div>
                                             </>
                                         ) : (

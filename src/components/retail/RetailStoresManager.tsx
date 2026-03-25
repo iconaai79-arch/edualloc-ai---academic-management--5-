@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStore, MpesaConfig } from '../../types';
-import { Store, Truck, Plus, Search, MapPin, CheckCircle, XCircle, MoreVertical, Edit2, Trash2, CreditCard } from 'lucide-react';
+import { Store, Truck, Plus, Search, MapPin, XCircle, MoreVertical, Pencil, Trash, CreditCard } from 'lucide-react';
+import { CheckCircleIcon as CheckCircle } from '../icons/index';
 
 interface RetailStoresManagerProps {
     institutionId: string;
@@ -245,14 +246,14 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
                                     className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all"
                                     title="Edit Location"
                                 >
-                                    <Edit2 className="w-4 h-4" />
+                                    <Pencil className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={() => handleDeleteStore(store.id)}
                                     className="p-1.5 bg-white shadow-sm border border-slate-200 rounded-lg text-slate-400 hover:text-red-600 hover:border-red-100 transition-all"
                                     title="Delete Location"
                                 >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash className="w-4 h-4" />
                                 </button>
                             </div>
 

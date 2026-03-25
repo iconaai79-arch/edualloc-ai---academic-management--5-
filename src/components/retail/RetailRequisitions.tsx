@@ -8,7 +8,7 @@ import {
     CheckCircle as CheckCircleIcon,
     XCircle as XCircleIcon,
     Package as PackageIcon,
-    Trash2 as TrashIcon
+    Trash as TrashIcon
 } from 'lucide-react';
 import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
 import { generateLpoPdf } from '../../services/pdfService';
