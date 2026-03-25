@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Wallet,
-    Smartphone, Star, Clock, MapPin, Package, FileText, ShoppingCart, UserIcon as UserIconAlt, X, ChevronRight, Search,
-    CircleCheckIcon, Gift, Calendar, CreditCard, History, Zap, Download, PlayCircle, ArrowUpRight
+    WalletIcon as Wallet,
+    SmartphoneIcon as Smartphone, StarIcon as Star, ClockIcon as Clock, MapPinIcon as MapPin, PackageIcon as Package, FileTextIcon as FileText, ShoppingCartIcon as ShoppingCart, UserIcon as UserIconAlt, XIcon as X, ChevronRightIcon as ChevronRight, SearchIcon as Search,
+    CircleCheckIcon, GiftIcon as Gift, CalendarDaysIcon as Calendar, CreditCardIcon as CreditCard, HistoryIcon as History, ZapIcon as Zap, DownloadIcon as Download, PlayCircleIcon as PlayCircle, ArrowUpRightIcon as ArrowUpRight
 } from '../icons';
 import { User, ServiceBooking, Institution, RetailSale } from '../../types';
 import { apiService } from '../../services/apiService';
