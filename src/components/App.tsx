@@ -603,10 +603,17 @@ export const App: React.FC = () => {
             }
             setUsers(finalUsers);
 
-            // Ensure current user is persisted in the database to avoid foreign key violations in secondary tables (like carwash_expenses)
-            if (currentUser && !finalUsers.some(u => u.id === currentUser.id)) {
-                console.log("Persisting current user to database to maintain referential integrity...");
-                apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
+            // Sync current user if present in the fetched list
+            if (currentUser) {
+                const refreshedSelf = finalUsers.find(u => u.id === currentUser.id);
+                if (refreshedSelf) {
+                    console.log("[Data Refresh] Syncing currentUser with server state");
+                    setCurrentUser(prev => ({ ...prev, ...refreshedSelf }));
+                    apiService.storeSession({ ...currentUser, ...refreshedSelf });
+                } else if (!finalUsers.some(u => u.id === currentUser.id)) {
+                    console.log("Persisting current user to database to maintain referential integrity...");
+                    apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
+                }
             }
 
             setDepartments(d || []);
@@ -2097,10 +2104,18 @@ export const App: React.FC = () => {
         }
         if (!currentUser.passwordLastUpdated) {
             return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
-                const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
-                await apiService.saveUser(updated);
-                setCurrentUser(updated);
-                apiService.storeSession(updated);
+                try {
+                    const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
+                    await apiService.saveUser(updated);
+                    setCurrentUser(updated);
+                    apiService.storeSession(updated);
+                    // Explicitly reload all data to ensure other components pick up the change
+                    await loadData();
+                } catch (err: any) {
+                    console.error("Account activation failed:", err);
+                    alert(`Failed to activate account: ${err.message || 'Unknown error'}`);
+                    throw err; // Re-throw to let MandatoryUpdateView handle local UI state if needed
+                }
             }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
         }
     }
