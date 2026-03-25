@@ -24,6 +24,14 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       if (data?.user) {
         const { data: profile } = await supabase.from('users').select('id, institution_id, role').eq('id', data.user.id).single();
         if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
+        
+        // Fallback: If user exists in Auth but not in public.users yet (e.g. sync delay), 
+        // return a minimal object based on auth metadata if available, or guest
+        return { 
+          id: data.user.id, 
+          institutionId: (data.user.user_metadata as any)?.institutionId || 'GUEST', 
+          role: (data.user.user_metadata as any)?.role || 'guest' 
+        };
       }
     }
     // 2. Try User ID fallback

@@ -128,6 +128,34 @@ export const apiService = {
             return stored ? JSON.parse(stored) : null;
         } catch (e) { return null; }
     },
+    async getAuthToken(): Promise<string> {
+        // 1. Try Supabase session (JWT)
+        if (_supabase) {
+            try {
+                const { data } = await _supabase.auth.getSession();
+                if (data?.session?.access_token) return data.session.access_token;
+            } catch (e) { }
+
+            // fallback to localStorage supanse-auth-token if available
+            const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
+            if (storageKey) {
+                try {
+                    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                    if (stored.access_token) return stored.access_token;
+                } catch (e) { }
+            }
+        }
+
+        // 2. Fallback to session ID
+        const session = this.getSession();
+        return session?.id || '';
+    },
+    getToken(): string {
+        // Synchronous version for legacy/simple calls
+        // Since getAuthToken is async, this one will just return the session ID as a fallback
+        const session = this.getSession();
+        return session?.id || '';
+    },
     async uploadBlob(path: string, blob: Blob, contentType?: string): Promise<string> {
         if (!_supabase) {
             // Mock for local storage mode if needed
@@ -155,7 +183,7 @@ export const apiService = {
         }
 
         try {
-            const token = this.getSession()?.id || '';
+            const token = await this.getAuthToken();
             const response = await fetch(`${window.location.origin}/api/system?action=rpc`, {
                 method: 'POST',
                 headers: {
@@ -399,10 +427,8 @@ export const apiService = {
         }
 
         try {
-            // Determine Auth Token (Internal ID fallback)
-            let token = '';
-            const session = this.getSession();
-            if (session?.id) token = session.id;
+            // Determine Auth Token (Try JWT then ID fallback)
+            const token = await this.getAuthToken();
 
             const url = new URL(`${window.location.origin}/api/records`);
             url.searchParams.append('module', module);
@@ -482,8 +508,7 @@ export const apiService = {
         }
 
         try {
-            const session = this.getSession();
-            const token = session?.id || '';
+            const token = await this.getAuthToken();
 
             const response = await fetch('/api/records?module=' + module, {
                 method: 'POST',
@@ -522,8 +547,7 @@ export const apiService = {
         }
 
         try {
-            const session = this.getSession();
-            const token = session?.id || '';
+            const token = await this.getAuthToken();
 
             const response = await fetch('/api/records?module=' + module, {
                 method: 'POST',
@@ -605,8 +629,7 @@ export const apiService = {
             return;
         }
 
-        const session = this.getSession();
-        const token = session?.id || '';
+        const token = await this.getAuthToken();
 
         const response = await fetch(`/api/records?module=${module}&id=${id}`, {
             method: 'DELETE',
@@ -640,8 +663,9 @@ export const apiService = {
     async checkEmailExists(email: string): Promise<boolean> {
         if (!email) return false;
         try {
+            const token = await this.getAuthToken();
             const response = await fetch(`${API_BASE}/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
-                headers: { 'Authorization': `Bearer ${this.getToken()}` }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
             return !!data.exists;
@@ -1051,8 +1075,7 @@ export const apiService = {
             return { success: false, message: "Database service (Supabase) not initialized. Live payments require an active backend." };
         }
         try {
-            const session = this.getSession();
-            const token = session?.id || '';
+            const token = await this.getAuthToken();
 
             let action = 'initiateStkPush';
             if (provider === 'airtel') action = 'initiateAirtelMoneyStk';
@@ -1063,7 +1086,7 @@ export const apiService = {
                 method: 'POST',
                 headers: {
                     'Authorization': token ? `Bearer ${token}` : '',
-                     'Content-Type': 'application/json' 
+                    'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ action, recipient: formattedPhone, amount, config, metadata, provider })
             });
@@ -1222,12 +1245,7 @@ export const apiService = {
     async verifyMpesaTransaction(transactionId: string) {
         if (!_supabase) return { success: false, message: "Bridge unavailable" };
         try {
-            const { data } = await _supabase.auth.getSession();
-            let token = data?.session?.access_token;
-            if (!token) {
-                const session = this.getSession();
-                if (session?.id) token = session.id;
-            }
+            const token = await this.getAuthToken();
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -1481,7 +1499,7 @@ export const apiService = {
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {
-            const token = this.getSession()?.id || '';
+            const token = await this.getAuthToken();
             const response = await fetch(`${window.location.origin}/api/system?action=clearData`, {
                 method: 'POST',
                 headers: {
