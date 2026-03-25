@@ -17,16 +17,17 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   const token = authHeader.replace('Bearer ', '');
   if (!token) return null;
 
+  console.log(`[getAuthUser] Debug: token length ${token.length}, startsWith ${token.substring(0, 10)}...`);
+
   try {
     // 1. Try JWT
     if (token.includes('.') && token.split('.').length === 3) {
-      const { data } = await supabase.auth.getUser(token);
+      const { data, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr) console.error('[Auth JWT Error]', authErr.message);
       if (data?.user) {
         const { data: profile } = await supabase.from('users').select('id, institution_id, role').eq('id', data.user.id).single();
         if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
         
-        // Fallback: If user exists in Auth but not in public.users yet (e.g. sync delay), 
-        // return a minimal object based on auth metadata if available, or guest
         return { 
           id: data.user.id, 
           institutionId: (data.user.user_metadata as any)?.institutionId || 'GUEST', 
@@ -34,14 +35,18 @@ async function getAuthUser(supabase: any, authHeader?: string) {
         };
       }
     }
-    // 2. Try User ID fallback
-    if (token.startsWith('u_') || token.includes('-')) {
-      const { data: profile } = await supabase.from('users').select('id, institution_id, role').eq('id', token).single();
-      if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
+    // 2. Try User ID fallback (Less restrictive: any non-JWT token)
+    const { data: profile, error: dbErr } = await supabase.from('users').select('id, institution_id, role').eq('id', token).single();
+    if (dbErr) {
+        // Only log if it's not a "not found" error to avoid spam
+        if (dbErr.code !== 'PGRST116') console.error('[Auth DB Error]', dbErr.message);
     }
+    if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
+
   } catch (e) {
     console.error('[Auth Internal] Failure:', e);
   }
+  console.log(`[getAuthUser] Auth failed for token: ${token.substring(0, 10)}...`);
   return null;
 }
 

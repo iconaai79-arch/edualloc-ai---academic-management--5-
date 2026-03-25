@@ -148,7 +148,9 @@ export const apiService = {
 
         // 2. Fallback to session ID
         const session = this.getSession();
-        return session?.id || '';
+        const token = session?.id || '';
+        console.log(`[apiService] getAuthToken: ${token.substring(0, 10)}${token.length > 10 ? '...' : ''} (length: ${token.length})`);
+        return token;
     },
     getToken(): string {
         // Synchronous version for legacy/simple calls
