@@ -666,7 +666,7 @@ export const apiService = {
         if (!email) return false;
         try {
             const token = await this.getAuthToken();
-            const response = await fetch(`${API_BASE}/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
+            const response = await fetch(`${window.location.origin}/api/system?action=checkEmail&email=${encodeURIComponent(email.toLowerCase())}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -1112,6 +1112,24 @@ export const apiService = {
         } catch (e: any) {
             console.error(`${provider} API Handshake Failed:`, e);
             return { success: false, message: e.message || `${provider} gateway connection failed.` };
+        }
+    },
+    async generateNcbaQr(amount: number, institutionId?: string) {
+        if (!_supabase) return { success: false, message: "Database service not initialized." };
+        try {
+            const token = await this.getAuthToken();
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'ncbaGenerateQr', amount, institutionId })
+            });
+            return await response.json();
+        } catch (e: any) {
+            console.error("NCBA QR Generation Failed:", e);
+            return { success: false, message: e.message };
         }
     },
     async checkPaymentStatus(provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba', checkoutRequestId: string, config?: any) {

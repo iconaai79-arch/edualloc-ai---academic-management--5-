@@ -35,6 +35,8 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [finalStatus, setFinalStatus] = useState<TransactionStatus | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
+    const [ncbaMode, setNcbaMode] = useState<'stk' | 'qr'>('stk');
+    const [ncbaQrData, setNcbaQrData] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,6 +70,15 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
             } else if (provider === 'airtel') {
                 initiateResult = await apiService.initiatePayment('airtel', amount, phoneNumber, metadata, airtelMoneyConfig);
             } else if (provider === 'ncba') {
+                if (ncbaMode === 'qr') {
+                    const qrResult = await apiService.generateNcbaQr(amount, institutionId);
+                    if (qrResult.success && qrResult.qr) {
+                        setNcbaQrData(qrResult.qr);
+                        setIsLoading(false);
+                        return;
+                    }
+                    throw new Error(qrResult.message || 'Failed to generate QR code.');
+                }
                 initiateResult = await apiService.initiatePayment('ncba', amount, phoneNumber, metadata, ncbaConfig);
             } else {
                 initiateResult = await apiService.initiatePayment('intasend', amount, phoneNumber, metadata, intasendConfig);
@@ -200,7 +211,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => setProvider('ncba')}
+                                    onClick={() => { setProvider('ncba'); setNcbaQrData(null); }}
                                     className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${provider === 'ncba' ? 'border-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'border-slate-100 dark:border-slate-700'}`}
                                 >
                                     <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center text-white text-[10px] font-black shadow-lg">N</div>
@@ -237,19 +248,50 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
                                 required
                             />
                         </div>
-                        <div>
-                            <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
-                            <input
-                                type="tel"
-                                id="phoneNumber"
-                                value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
-                                placeholder="e.g., 254712345678"
-                                required
-                                pattern="^(254)\d{9}$"
-                            />
-                        </div>
+
+                        {provider === 'ncba' && (
+                            <div>
+                                <label className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2.5 ml-1">NCBA Payment Method</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setNcbaMode('stk'); setNcbaQrData(null); }}
+                                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${ncbaMode === 'stk' ? 'border-teal-600 bg-teal-50' : 'border-slate-100'}`}
+                                    >
+                                        STK Push
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNcbaMode('qr')}
+                                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${ncbaMode === 'qr' ? 'border-teal-600 bg-teal-50' : 'border-slate-100'}`}
+                                    >
+                                        Scan QR
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {ncbaQrData ? (
+                            <div className="bg-white p-4 rounded-3xl border-2 border-teal-100 shadow-inner text-center animate-fade-in">
+                                <p className="text-[10px] font-black text-teal-600 uppercase mb-3">Scan to Pay via NCBA</p>
+                                <img src={ncbaQrData} alt="NCBA Payment QR" className="mx-auto w-48 h-48 rounded-xl" />
+                                <p className="mt-3 text-[9px] font-black text-slate-400 uppercase">Once scanned, the payment will reflect automatically.</p>
+                                <button type="button" onClick={() => setNcbaQrData(null)} className="mt-4 text-[9px] font-black text-rose-500 uppercase hover:underline">Regenerate / Back</button>
+                            </div>
+                        ) : (
+                            <div>
+                                <label htmlFor="phoneNumber" className="block text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5 ml-1">{provider === 'mpesa' ? 'M-Pesa' : provider === 'airtel' ? 'Airtel Money' : 'Customer'} Phone Number</label>
+                                <input
+                                    type="tel"
+                                    id="phoneNumber"
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all"
+                                    placeholder="254..."
+                                    required={ncbaMode === 'stk'}
+                                />
+                            </div>
+                        )}
 
                         {selectedPlan !== 'forced' && (
                             <div>

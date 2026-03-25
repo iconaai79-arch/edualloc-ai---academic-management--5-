@@ -132,12 +132,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Priority 3: Special bypass for Unauthenticated Actions (Password Recovery & Registration)
-        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms')) {
+        // Priority 3: Special bypass for Unauthenticated Actions (Callbacks & Recovery)
+        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook')) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            // For forgotPassword, sendEmail, and sendSms, we verify the recipient is a registered user
-            if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
+            // For callbacks, we allow the bypass directly
+            if (action === 'mpesa-callback' || action === 'ncbaWebhook') {
+                // Verified below in specialized handlers
+            } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
                 let query = supabase.from('users').select('*');
 
                 if (action === 'sendSms' && recipient) {
@@ -645,39 +647,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ success: true, message: 'Password updated successfully. You can now log in.' });
         }
-        // --- NCBA Bank Helpers ---
+        // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
             const { clientId, clientSecret, baseUrl } = ncbaConfig;
             const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-            const tokenRes = await fetchWithTimeout(`${baseUrl}/oauth/token?grant_type=client_credentials`, {
-                method: 'POST',
+            // 2024 Spec: GET /payments/api/v1/auth/token
+            const tokenRes = await fetchWithTimeout(`${baseUrl}/payments/api/v1/auth/token`, {
+                method: 'GET',
                 headers: { 'Authorization': `Basic ${auth}` }
             });
+            if (!tokenRes.ok) throw new Error(`NCBA Auth failed: ${tokenRes.statusText}`);
             const data = await tokenRes.json() as any;
             return data.access_token;
         };
 
-        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string, reference: string) => {
+        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string) => {
             const token = await getNcbaToken(ncbaConfig);
-            // Drafting standard NCBA request structure based on generic bank APIs
-            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/v1/stk-push`, {
+            // 2024 Spec: POST /payments/api/v1/stk-push/initiate
+            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/api/v1/stk-push/initiate`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-API-Key': ncbaConfig.apiKey
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    amount,
-                    currency: 'KES',
-                    phone: normalizePhone(phone),
-                    reference,
-                    description: 'EduAi Payment',
-                    accountNumber: ncbaConfig.accountNumber,
-                    callbackUrl: `${process.env.PUBLIC_URL || 'https://eduai.vercel.app'}/api/integrations?action=ncbaWebhook`
+                    TelephoneNo: normalizePhoneNCBA(phone),
+                    Amount: String(amount),
+                    PayBillNo: ncbaConfig.paybill || '880100',
+                    AccountNo: ncbaConfig.accountNumber,
+                    Network: 'Safaricom', // Default as per spec examples
+                    TransactionType: 'CustomerPayBillOnline'
                 })
             });
             return await res.json();
+        };
+
+        const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
+            const token = await getNcbaToken(ncbaConfig);
+            // 2024 Spec: POST /payments/api/v1/qr/generate
+            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/api/v1/qr/generate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    till: ncbaConfig.accountNumber, // Till/Shortcode usually
+                    amount: amount
+                })
+            });
+            return await res.json();
+        };
+
+        const normalizePhoneNCBA = (phone: string) => {
+            let p = phone.replace(/[^\d]/g, '');
+            if (p.startsWith('0')) p = '254' + p.substring(1);
+            if (p.length === 9) p = '254' + p;
+            return p; // Expected format: 254XXXXXXXXX
         };
 
         // Internal Helper for Reconciliation
@@ -1158,13 +1184,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Integration not configured for this institution.' });
 
             try {
-                const reference = `NCBA_${Date.now()}`;
-                const result = await initiateNcbaPayment(inst.ncbaConfig, amount, phone || recipient, reference);
+                const result = await initiateNcbaPayment(inst.ncbaConfig, amount, phone || recipient);
                 
-                if (result.success || result.ResponseCode === '0') {
+                if (result.StatusCode === '0' || result.TransactionID) {
                     await supabase.from('ncba_transactions').insert({
                         id: `ncba_${Date.now()}`,
-                        transaction_id: result.CheckoutRequestID || reference,
+                        transaction_id: result.TransactionID || result.ReferenceID,
+                        checkout_request_id: result.TransactionID,
                         institution_id: inst.id,
                         amount: amount,
                         phone_number: phone || recipient,
@@ -1173,9 +1199,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     return res.status(200).json({ success: true, message: 'NCBA Direct Debit request initiated.', data: result });
                 }
-                return res.status(400).json({ success: false, message: 'NCBA gateway error.', details: result });
+                return res.status(400).json({ success: false, message: result.StatusDescription || 'NCBA gateway error.', details: result });
             } catch (err: any) {
                 return res.status(500).json({ success: false, message: 'NCBA initiation failed.', error: err.message });
+            }
+        }
+
+        if (action === 'ncbaGenerateQr') {
+            const { institutionId } = paramsMap;
+            const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user.user_metadata?.institutionId).maybeSingle();
+            if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'NCBA Config missing' });
+
+            try {
+                const result = await generateNcbaQr(inst.ncbaConfig, amount);
+                if (result.StatusCode === '0') {
+                    return res.status(200).json({ success: true, qr: result.Base64QrCode, message: 'QR Code generated successfully.' });
+                }
+                return res.status(400).json({ success: false, message: result.StatusDescription || 'QR processing failed.' });
+            } catch (err: any) {
+                return res.status(500).json({ success: false, message: 'QR generation failed.', error: err.message });
             }
         }
 
@@ -1184,18 +1226,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId).maybeSingle();
             if (!inst || !inst.ncbaConfig) return res.status(400).json({ success: false, message: 'Config missing' });
 
-            const token = await getNcbaToken(inst.ncbaConfig);
-            const resStatus = await fetchWithTimeout(`${inst.ncbaConfig.baseUrl}/payments/v1/status/${checkoutRequestId}`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'X-API-Key': inst.ncbaConfig.apiKey }
-            });
-            const statusData = await resStatus.json() as any;
-
-            if (statusData.status === 'COMPLETED' || statusData.ResultCode === '0') {
-                const { data: txn } = await supabase.from('ncba_transactions').update({ status: 'completed' }).eq('transaction_id', checkoutRequestId).select().single();
-                if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
-                return res.status(200).json({ success: true, status: 'completed', data: statusData });
+            try {
+                const token = await getNcbaToken(inst.ncbaConfig);
+                // 2024 Spec: POST /payments/api/v1/stk-push/query
+                const resStatus = await fetchWithTimeout(`${inst.ncbaConfig.baseUrl}/payments/api/v1/stk-push/query`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ TransactionID: checkoutRequestId })
+                });
+                if (resStatus.ok) {
+                    const statusData = await resStatus.json() as any;
+                    if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || String(statusData.ResultCode) === '0') {
+                        const { data: txn } = await supabase.from('ncba_transactions').update({ status: 'completed' }).eq('transaction_id', checkoutRequestId).select().single();
+                        if (txn) await reconcilePayment({ ...txn, provider: 'ncba' });
+                        return res.status(200).json({ success: true, status: 'completed', data: statusData });
+                    }
+                    return res.status(200).json({ success: true, status: statusData.status || 'pending', data: statusData });
+                }
+                return res.status(resStatus.status).json({ success: false, message: 'Failed to query NCBA status.' });
+            } catch (err: any) {
+                return res.status(500).json({ success: false, message: 'Error querying NCBA status.', error: err.message });
             }
-            return res.status(200).json({ success: true, status: statusData.status || 'pending', data: statusData });
+        }
+
+        if (action === 'ncbaWebhook') {
+            const body = req.body;
+            console.log('[NCBA Webhook] Received callback:', JSON.stringify(body));
+
+            // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
+            const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
+            if (!checkoutRequestId) return res.status(400).json({ success: false, message: 'No TransactionID' });
+
+            if (String(body.ResultCode) === '0' || body.status === 'SUCCESS' || body.status === 'COMPLETED') {
+                const { data: txn } = await supabase.from('ncba_transactions').update({ 
+                    status: 'completed',
+                    external_data: body,
+                    completed_at: new Date().toISOString()
+                }).eq('transaction_id', checkoutRequestId).select().single();
+                
+                if (txn) {
+                    await reconcilePayment({ ...txn, provider: 'ncba' });
+                    return res.status(200).json({ success: true, message: 'Payment reconciled' });
+                }
+            }
+            return res.status(200).json({ success: true, message: 'Callback received' });
         }
 
         return res.status(400).json({ success: false, message: 'Action not supported.' });

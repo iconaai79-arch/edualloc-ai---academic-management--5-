@@ -967,6 +967,61 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 </div>
             )}
 
+            {activeTab === 'suppliers' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="flex justify-between items-center px-2">
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-tight">Support Network Registry</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verified Institutional Vendors & Suppliers</p>
+                        </div>
+                        <button className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">New Vendor</button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {(suppliers || []).map(supplier => (
+                            <div key={supplier.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4 hover:border-indigo-200 transition-all group relative overflow-hidden">
+                                <div className="flex justify-between items-start">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-lg">
+                                        {supplier.name.charAt(0)}
+                                    </div>
+                                    <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${supplier.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        {supplier.status}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-slate-900 dark:text-white uppercase text-base truncate">{supplier.name}</h4>
+                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">{supplier.category}</p>
+                                </div>
+                                <div className="pt-4 border-t border-slate-50 dark:border-slate-700 space-y-2">
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                                        <span className="w-4 h-4 rounded bg-slate-100 flex items-center justify-center text-[8px]">📞</span> {supplier.phoneNumber}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 truncate">
+                                        <span className="w-4 h-4 rounded bg-slate-100 flex items-center justify-center text-[8px]">✉️</span> {supplier.email}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center pt-2">
+                                    <div className="flex items-center gap-1">
+                                        {[1, 2, 3, 4, 5].map(star => (
+                                            <span key={star} className={`text-xs ${star <= supplier.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                                        ))}
+                                    </div>
+                                    <button className="text-[9px] font-black uppercase text-slate-400 hover:text-indigo-600 transition-colors">Catalog</button>
+                                </div>
+                            </div>
+                        ))}
+                        {(suppliers || []).length === 0 && (
+                            <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 shadow-sm text-slate-300">
+                                    <BuildingOfficeIcon className="w-8 h-8" />
+                                </div>
+                                <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No registered suppliers in the system database</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'shipments' && (
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-6 rounded-[2rem] flex items-center gap-4">
