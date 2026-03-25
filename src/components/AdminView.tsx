@@ -441,10 +441,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu) {
-                    if (tab.id === 'retail') return isModuleActive('school_store');
-                    return false;
-                }
+                if (isEdu) return false;
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
