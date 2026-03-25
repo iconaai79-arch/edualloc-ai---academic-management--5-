@@ -42,6 +42,7 @@ import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { timeToMinutes } from '../utils/timeUtils';
+import { StoreIssuanceManager } from './StoreIssuanceManager';
 
 
 export interface SupportStaffViewProps {
@@ -69,7 +70,7 @@ export interface SupportStaffViewProps {
     suppliers?: Supplier[];
     onAddItem?: (item: Omit<InventoryItem, 'id' | 'institutionId' | 'lastUpdated'>) => void;
     onAddItems?: (items: Omit<InventoryItem, 'id' | 'institutionId'>[]) => void;
-    onAddStoreTransaction?: (item: InventoryItem, type: 'Restock' | 'Dispatch' | 'Adjustment', quantity: number, party: string, verificationMethod: string, signature: string | null) => void;
+    onAddStoreTransaction?: (item: InventoryItem, type: 'Restock' | 'Dispatch' | 'Adjustment' | 'Issue', quantity: number, party: string, verificationMethod: string, signature: string | null) => void;
     transactions?: MpesaTransaction[];
     invoices?: Invoice[];
     receipts?: Receipt[];
@@ -634,11 +635,14 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const { inventory = [], suppliers = [], users = [], onAddItem, onAddItems, onAddStoreTransaction, countyInventory = [], onMarkInventoryReceived } = props;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const pendingShipments = useMemo(() => countyInventory.filter(i => i.status === 'in_transit'), [countyInventory]);
+
+    const issuanceHistory = useMemo(() => (stockTransactions || []).filter(t => t.type === 'Issue'), [stockTransactions]);
+    const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.reorderLevel), [inventory]);
 
     return (
         <BaseDashboard title="Institutional Store" icon={<ArchiveBoxIcon className="w-6 h-6 text-slate-600" />}>
@@ -647,9 +651,11 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     {[
                         { id: 'dashboard', label: 'Dashboard' },
                         { id: 'inventory', label: 'Inventory' },
+                        { id: 'issuance', label: 'Issuance' },
                         { id: 'shipments', label: 'County Shipments', count: pendingShipments.length },
                         { id: 'history', label: 'History' },
-                        { id: 'suppliers', label: 'Suppliers' }
+                        { id: 'suppliers', label: 'Suppliers' },
+                        { id: 'reports', label: 'Reports' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -744,6 +750,92 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                 No shipments records found for this institution.
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'issuance' && (
+                <div className="animate-fade-in-up">
+                    <StoreIssuanceManager
+                        institutionId={props.user.institutionId}
+                        inventory={inventory}
+                        users={users}
+                        onLogAction={props.onLogAction || (async () => { })}
+                        onDataChange={() => { }} 
+                    />
+                </div>
+            )}
+
+            {activeTab === 'reports' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Stock Health</h4>
+                            <p className="text-3xl font-black text-slate-900 dark:text-white">{inventory.length - lowStockItems.length}/{inventory.length}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-tighter">Items above reorder level</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm border-l-4 border-l-rose-500">
+                            <h4 className="text-[10px] font-black uppercase text-rose-400 tracking-[0.2em] mb-2">Critical Alerts</h4>
+                            <p className="text-3xl font-black text-rose-600">{lowStockItems.length}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-tighter">Items requiring restock</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] mb-2">Total Issued</h4>
+                            <p className="text-3xl font-black text-indigo-600">{issuanceHistory.length}</p>
+                            <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-tighter">Total distribution records</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black uppercase tracking-tight">Recent Distributions</h3>
+                            <button className="text-[10px] font-black uppercase text-indigo-600 hover:underline">Export CSV</button>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Signature</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {(issuanceHistory || []).slice(0, 10).map(t => (
+                                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-5 font-black text-slate-900 dark:text-white uppercase text-xs">{t.recipientOrSupplier}</td>
+                                            <td className="px-6 py-5 font-bold text-slate-600 dark:text-slate-400 text-xs">{t.itemName}</td>
+                                            <td className="px-6 py-5 text-center font-mono font-black text-indigo-600">{t.quantity}</td>
+                                            <td className="px-6 py-5">
+                                                {t.signature ? (
+                                                    <div className="group relative">
+                                                        <EyeIcon className="w-4 h-4 text-emerald-500 cursor-pointer" />
+                                                        <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
+                                                            <img src={t.signature} className="w-32 h-16 object-contain" alt="Signature" />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[9px] font-black text-slate-300 uppercase">None</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                        </tr>
+                                    ))}
+                                    {issuanceHistory.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="py-20 text-center">
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                                                    <ChartBarIcon className="w-8 h-8 text-slate-300" />
+                                                </div>
+                                                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No distribution reports generated yet</p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}

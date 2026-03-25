@@ -6,12 +6,13 @@ import {
     X, 
     UploadCloud, 
     FileSpreadsheet, 
-    CircleCheck, 
-    AlertCircle, 
     ChevronRight, 
+    AlertTriangle,
     Search,
-    Download
+    Download,
+    AlertCircle
 } from 'lucide-react';
+import { CircleCheckIcon } from '../icons';
 
 type FarmerMappingField = 'name' | 'phone' | 'email' | 'accountNumber' | 'memberId' | 'kraPin' | 'nationalId' | 'location';
 const REQUIRED_FIELDS: FarmerMappingField[] = ['name', 'phone'];

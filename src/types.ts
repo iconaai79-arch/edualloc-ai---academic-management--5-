@@ -1055,6 +1055,8 @@ export interface StockTransaction {
     recordedBy: string;
     institutionId: string;
     verificationMethod?: string;
+    signature?: string;
+    recipientId?: string;
 }
 
 export interface VoteHead {

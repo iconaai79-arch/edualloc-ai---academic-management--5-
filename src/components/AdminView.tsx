@@ -58,9 +58,10 @@ import {
     HomeIcon,
     TruckIcon,
     UserPlusIcon,
-    MagnifyingGlassIcon as SearchIcon
+    MagnifyingGlassIcon as SearchIcon,
+    StoreIcon,
+    ShoppingBagIcon
 } from './icons/index';
-import { Store as StoreIcon, ShoppingBag as ShoppingBagIcon } from 'lucide-react';
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
 import { TimetablesView } from './TimetablesView';

@@ -1,21 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
     Wallet,
-    Gift,
-    Clock,
-    Calendar,
-    ChevronRight,
-    CreditCard,
-    History,
-    MapPin,
-    Star,
-    Zap,
-    Download,
-    CircleCheck,
-    PlayCircle,
-    Package,
-    ArrowUpRight
-} from 'lucide-react';
+    Smartphone, Star, Clock, MapPin, Package, FileText, ShoppingCart, UserIcon as UserIconAlt, X, ChevronRight, Search,
+    CircleCheck, Gift, Calendar, CreditCard, History, Zap, Download, PlayCircle, ArrowUpRight
+} from '../icons';
 import { User, ServiceBooking, Institution, RetailSale } from '../../types';
 import { apiService } from '../../services/apiService';
 
@@ -146,7 +134,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                     <div className="space-y-6">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center border-4 border-white/20">
-                                                <CircleCheck className="w-5 h-5" />
+                                                <CircleCheck className="w-12 h-12 text-emerald-600 mb-4" />
                                             </div>
                                             <div>
                                                 <p className="font-bold text-sm">Interior Vacuuming</p>

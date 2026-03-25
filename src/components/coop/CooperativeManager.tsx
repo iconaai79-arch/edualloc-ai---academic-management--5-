@@ -23,9 +23,9 @@ import {
     ArrowUpRight as ExportIcon,
     Settings as CogIcon,
     UploadCloud,
-    X
-} from 'lucide-react';
-import { CheckCircleIcon as SuccessIcon } from '../icons/index';
+    X,
+    CheckCircleIcon as SuccessIcon
+} from '../icons';
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
 import { SmartFarmerImporterModal } from './SmartFarmerImporterModal';

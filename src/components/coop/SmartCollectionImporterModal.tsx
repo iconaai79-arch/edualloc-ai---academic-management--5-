@@ -7,14 +7,14 @@ import {
     X, 
     UploadCloud, 
     FileSpreadsheet, 
-    CircleCheck, 
-    AlertCircle, 
     ChevronRight, 
     Download,
     Calendar,
-    User as UserIcon,
-    Scale
+    Scale,
+    AlertTriangle,
+    AlertCircle
 } from 'lucide-react';
+import { CircleCheck, UserIcon as UserIconAlt } from '../icons';
 
 type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 
@@ -116,22 +116,23 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
 
         rawData.forEach((row, index) => {
             const errors: string[] = [];
-            const parsed: Partial<CoopCollection> & { farmerSearch?: string } = {
+            const parsed: any = {
                 id: generateId('coll'),
                 institutionId: currentInstitution.id,
+                status: 'pending',
+                collectionDate: new Date().toISOString(),
                 recordedBy: currentUser.id,
                 notified: false,
                 factoryConfirmed: isAutoConfirm,
-                status: isAutoConfirm ? 'delivered' : 'pending' as any,
-                finalQuantity: isAutoConfirm ? Number(row[fieldMapping.quantity]) : undefined
+                finalQuantity: isAutoConfirm ? Number(row[fieldMapping.quantity as string]) : undefined
             };
 
             // Resolve Farmer
             let farmerId: string | undefined;
-            const mName = fieldMapping.farmerName ? String(row[fieldMapping.farmerName] || '').trim().toLowerCase() : null;
-            const mAcc = fieldMapping.farmerAccountNumber ? String(row[fieldMapping.farmerAccountNumber] || '').trim().toLowerCase() : null;
-            const mPhone = fieldMapping.farmerPhoneNumber ? String(row[fieldMapping.farmerPhoneNumber] || '').trim().toLowerCase() : null;
-            const mMemberId = fieldMapping.farmerMemberId ? String(row[fieldMapping.farmerMemberId] || '').trim().toLowerCase() : null;
+            const mName = fieldMapping.farmerName ? String(row[fieldMapping.farmerName as string] || '').trim().toLowerCase() : null;
+            const mAcc = fieldMapping.farmerAccountNumber ? String(row[fieldMapping.farmerAccountNumber as string] || '').trim().toLowerCase() : null;
+            const mPhone = fieldMapping.farmerPhoneNumber ? String(row[fieldMapping.farmerPhoneNumber as string] || '').trim().toLowerCase() : null;
+            const mMemberId = fieldMapping.farmerMemberId ? String(row[fieldMapping.farmerMemberId as string] || '').trim().toLowerCase() : null;
 
             if (mMemberId && farmersByMemberId.has(mMemberId)) farmerId = farmersByMemberId.get(mMemberId);
             else if (mAcc && farmersByAcc.has(mAcc)) farmerId = farmersByAcc.get(mAcc);
@@ -300,7 +301,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                     }} 
                                 />
                                 <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                    <UploadCloud className="w-8 h-8 text-indigo-500" />
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs"><UserIconAlt className="w-4 h-4" /></div>
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Click or Drag file to upload</h3>
                                 <p className="text-sm text-slate-500">Supports .xlsx, .xls, .csv up to 10MB</p>
@@ -422,7 +423,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                         {[...previewData.invalid.slice(0, 50), ...previewData.valid.slice(0, 50)].map((row, idx) => (
                                             <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800/50 ${!row.isValid ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                                                 <td className="p-4">
-                                                    {row.isValid 
+                                                    {row.isValid
                                                         ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><CircleCheck className="w-3 h-3"/> OK</span>
                                                         : <span className="bg-red-100 text-red-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Error</span>
                                                     }
