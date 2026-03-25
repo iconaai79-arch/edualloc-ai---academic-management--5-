@@ -5,11 +5,11 @@ import {
     Plus as PlusIcon,
     Search as SearchIcon,
     Clock as ClockIcon,
-    CircleCheck as CheckCircleIcon,
     XCircle as XCircleIcon,
     Package as PackageIcon,
     Trash as TrashIcon
 } from 'lucide-react';
+import { CircleCheckIcon } from '../icons';
 import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
 import { generateLpoPdf } from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
@@ -236,7 +236,7 @@ export function RetailRequisitions({
                                                     className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors group/btn"
                                                     title="Mark as Received"
                                                 >
-                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                    <CircleCheckIcon className="w-4 h-4" />
                                                 </button>
                                             )}
                                         </div>
