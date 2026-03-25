@@ -14,7 +14,7 @@ import {
     AlertTriangle,
     AlertCircle
 } from 'lucide-react';
-import { CircleCheck, UserIcon as UserIconAlt } from '../icons';
+import { CircleCheckIcon, UserIcon as UserIconAlt } from '../icons';
 
 type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 
@@ -313,7 +313,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                         <div className="space-y-6 animate-fade-in">
                             <div className="bg-indigo-50 dark:bg-indigo-500/10 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-500/20">
                                 <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 mb-1 flex items-center gap-2">
-                                    <CircleCheck className="w-4 h-4" /> Review Column Mapping
+                                    <CircleCheckIcon className="w-4 h-4" /> Review Column Mapping
                                 </h3>
                                 <p className="text-xs text-indigo-700 dark:text-indigo-400">
                                     Map your file columns to the intake fields. At least one farmer identifier is required.
@@ -379,9 +379,9 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                         <div className="space-y-6 animate-fade-in flex flex-col h-full">
                             <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
                                 <div className="flex gap-6">
-                                    <div className="text-center">
-                                        <p className="text-3xl font-black text-emerald-600">{previewData.valid.length}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valid Logs</p>
+                                    <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-100">
+                                        <CircleCheckIcon className="w-4 h-4" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{previewData.valid.length} Valid</span>
                                     </div>
                                     <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
                                     <div className="text-center">
@@ -403,7 +403,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                         disabled={previewData.valid.length === 0}
                                         className="px-6 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors uppercase text-xs tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-500/30"
                                     >
-                                        Import {previewData.valid.length} Logs <CircleCheck className="w-4 h-4" />
+                                        Import {previewData.valid.length} Collections <CircleCheckIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -413,7 +413,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                     <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-sm border-b border-slate-200 dark:border-slate-700">
                                         <tr>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Status</th>
-                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><UserIcon className="w-3 h-3 inline mr-1"/> Farmer</th>
+                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><UserIconAlt className="w-3 h-3 inline mr-1"/> Farmer</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><Calendar className="w-3 h-3 inline mr-1"/> Date</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><Scale className="w-3 h-3 inline mr-1"/> Qty</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Issues</th>
@@ -424,7 +424,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                             <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800/50 ${!row.isValid ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                                                 <td className="p-4">
                                                     {row.isValid
-                                                        ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><CircleCheck className="w-3 h-3"/> OK</span>
+                                                        ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><CircleCheckIcon className="w-3 h-3"/> OK</span>
                                                         : <span className="bg-red-100 text-red-700 px-2 py-1 rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Error</span>
                                                     }
                                                 </td>
@@ -477,7 +477,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                     {step === 'success' && (
                         <div className="h-full flex flex-col items-center justify-center space-y-6 animate-fade-in-up">
                             <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
-                                <CircleCheck className="w-12 h-12 text-emerald-600" />
+                                <CircleCheckIcon className="w-12 h-12 text-emerald-600 mb-4" />
                             </div>
                             <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">Import Complete!</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 text-center max-w-sm">

@@ -5,7 +5,6 @@ import {
     Plus as PlusIcon,
     FileText as FileIcon,
     Truck as TruckIcon,
-    CircleCheck as CheckCircleIcon,
     Clock as ClockIcon,
     Printer as PrinterIcon,
     Mail as MailIcon,
@@ -19,6 +18,7 @@ import {
     Trash as TrashIcon,
     XCircle as XCircleIcon
 } from 'lucide-react';
+import { CircleCheckIcon as CheckCircleIcon } from './icons';
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';
 import { generateLpoPdf } from '../services/pdfService';
 

@@ -11,7 +11,7 @@ export { CalendarPlusIcon } from './CalendarPlusIcon';
 export { CameraIcon } from './CameraIcon';
 export { ChatBubbleBottomCenterTextIcon } from './ChatBubbleBottomCenterTextIcon';
 export { ChatBubbleLeftRightIcon } from './ChatBubbleLeftRightIcon';
-export { CheckCircleIcon, CheckCircleIcon as CircleCheckIcon, CheckCircleIcon as CircleCheck, CheckCircleIcon as UserCheck } from './CheckCircleIcon';
+export { CheckCircleIcon, CheckCircleIcon as CircleCheckIcon, CheckCircleIcon as CircleCheck, CheckCircleIcon as UserCheck, CheckCircleIcon as SuccessIcon } from './CheckCircleIcon';
 export { CheckIcon } from './CheckIcon';
 export { ClipboardListIcon, ClipboardListIcon as ClipboardList } from './ClipboardListIcon';
 export { ClockIcon, ClockIcon as Clock } from './ClockIcon';
