@@ -374,6 +374,17 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
     }, [props.currentInstitution]);
 
+    const isModuleActive = useCallback((moduleId: string) => {
+        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || m.module_id === moduleId);
+        if (!state) return false;
+        if (state.status === 'active') return true;
+        if (state.status === 'trial') {
+            const expiry = state.trialEndsAt || (state as any).trial_ends_at;
+            return expiry ? new Date(expiry) > new Date() : false;
+        }
+        return false;
+    }, [props.currentInstitution?.moduleStates]);
+
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;
         return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto'].includes(role || '');
@@ -430,7 +441,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu) return false;
+                if (isEdu) {
+                    if (tab.id === 'retail') return isModuleActive('school_store');
+                    return false;
+                }
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
