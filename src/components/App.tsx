@@ -1290,35 +1290,7 @@ export const App: React.FC = () => {
         }
     };
 
-    const handleActivateModuleTrial = async (moduleId: string) => {
-        if (!activeInstitution) return;
-        setIsLoading(true);
-        setStatus(`Activating ${moduleId} trial...`);
-        try {
-            const trialEndsAt = new Date();
-            trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
-            const payload = {
-                id: `mod_${Date.now()}`,
-                institutionId: activeInstitution.id,
-                moduleId,
-                status: 'trial',
-                activatedAt: new Date().toISOString(),
-                trialEndsAt: trialEndsAt.toISOString(),
-                subscriptionEndsAt: null
-            };
-
-            await apiService.saveModuleRecord('institution_module_states', payload);
-            await loadData(true);
-            alert(`${moduleId} trial activated successfully!`);
-        } catch (error) {
-            console.error(`Failed to activate ${moduleId} trial:`, error);
-            alert("Failed to activate trial. Please try again.");
-        } finally {
-            setIsLoading(false);
-            setStatus('');
-        }
-    };
 
     const handleOnboardStudent = async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
         try {
