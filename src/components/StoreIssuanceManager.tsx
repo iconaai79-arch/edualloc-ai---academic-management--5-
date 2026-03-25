@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { InventoryItem, User, StockTransaction } from '../types';
+import type { InventoryItem, User, StockTransaction, Department } from '../types';
 import {
     PlusIcon, SearchIcon, CheckCircleIcon, XIcon, UserIcon,
-    ArchiveBoxIcon, ClockIcon, ArrowPathIcon, EyeIcon
+    ArchiveBoxIcon, ClockIcon, ArrowPathIcon, EyeIcon, BuildingOfficeIcon
 } from './icons/index';
 import { apiService } from '../services/apiService';
 
@@ -11,6 +11,7 @@ interface StoreIssuanceManagerProps {
     institutionId: string;
     inventory: InventoryItem[];
     users: User[];
+    departments?: Department[];
     onLogAction: (action: string) => Promise<void>;
     onDataChange: () => void;
 }
@@ -19,11 +20,13 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
     institutionId,
     inventory,
     users,
+    departments = [],
     onLogAction,
     onDataChange
 }) => {
     const [isIssuing, setIsIssuing] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [recipientType, setRecipientType] = useState<'person' | 'department'>('person');
     const [memberSearch, setMemberSearch] = useState('');
     const [itemSearch, setItemSearch] = useState('');
     
@@ -119,7 +122,8 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
         setIsProcessing(true);
         try {
             const signatureUrl = signatureCanvasRef.current?.toDataURL('image/png');
-            const user = users.find(u => u.id === newIssuance.userId);
+            const user = recipientType === 'person' ? users.find(u => u.id === newIssuance.userId) : null;
+            const dept = recipientType === 'department' ? departments.find(d => d.id === newIssuance.userId) : null;
 
             const transaction: StockTransaction = {
                 id: `stx_${Date.now()}`,
@@ -127,10 +131,10 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                 itemName: item.name,
                 type: 'Issue',
                 quantity: newIssuance.quantity,
-                recipientOrSupplier: user?.name || 'Unknown Recipient',
+                recipientOrSupplier: recipientType === 'person' ? (user?.name || 'Unknown Person') : (dept?.name || 'Kitchen'),
                 recipientId: newIssuance.userId,
                 date: new Date().toISOString(),
-                recordedBy: 'Store Keeper', // In a real app, this would be the logged-in user's name
+                recordedBy: 'Store Keeper',
                 institutionId,
                 signature: signatureUrl,
                 verificationMethod: 'Digital Signature'
@@ -214,36 +218,76 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
 
                         <form onSubmit={handleIssueItem} className="p-8 space-y-6 overflow-y-auto max-h-[75vh]">
                             <div className="space-y-4">
+                                {/* Recipient Type Toggle */}
+                                <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setRecipientType('person'); setNewIssuance({...newIssuance, userId: ''}); setMemberSearch(''); }}
+                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${recipientType === 'person' ? 'bg-white dark:bg-slate-800 shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                                    >
+                                        <UserIcon className="w-3 h-3 inline-block mr-2" />
+                                        Individual
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setRecipientType('department'); setNewIssuance({...newIssuance, userId: ''}); setMemberSearch(''); }}
+                                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${recipientType === 'department' ? 'bg-white dark:bg-slate-800 shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                                    >
+                                        <BuildingOfficeIcon className="w-3 h-3 inline-block mr-2" />
+                                        Department
+                                    </button>
+                                </div>
+
                                 {/* Recipient Selection */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Recipient (Student / Staff)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Search by ID or Name..."
-                                            value={memberSearch}
-                                            onChange={(e) => setMemberSearch(e.target.value)}
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
+                                        {recipientType === 'person' ? 'Target Recipient' : 'Target Department'}
+                                    </label>
+                                    
+                                    {recipientType === 'person' ? (
+                                        <>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search staff or student..."
+                                                    value={memberSearch}
+                                                    onChange={(e) => setMemberSearch(e.target.value)}
+                                                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
+                                                />
+                                                <div className="absolute right-4 top-4 text-slate-400">
+                                                    <SearchIcon className="w-5 h-5" />
+                                                </div>
+                                            </div>
+                                            <select
+                                                required
+                                                value={newIssuance.userId}
+                                                onChange={(e) => {
+                                                    const user = users.find(u => u.id === e.target.value);
+                                                    setNewIssuance({ ...newIssuance, userId: e.target.value });
+                                                    if (user) setMemberSearch(user.name);
+                                                }}
+                                                className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2"
+                                            >
+                                                <option value="">-- Select Recipient --</option>
+                                                {recipientOptions.map(u => (
+                                                    <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
+                                                ))}
+                                            </select>
+                                        </>
+                                    ) : (
+                                        <select
+                                            required
+                                            value={newIssuance.userId}
+                                            onChange={(e) => setNewIssuance({ ...newIssuance, userId: e.target.value })}
                                             className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
-                                        />
-                                        <div className="absolute right-4 top-4 text-slate-400">
-                                            <SearchIcon className="w-5 h-5" />
-                                        </div>
-                                    </div>
-                                    <select
-                                        required
-                                        value={newIssuance.userId}
-                                        onChange={(e) => {
-                                            const user = users.find(u => u.id === e.target.value);
-                                            setNewIssuance({ ...newIssuance, userId: e.target.value });
-                                            if (user) setMemberSearch(user.name);
-                                        }}
-                                        className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2"
-                                    >
-                                        <option value="">-- Select Recipient --</option>
-                                        {recipientOptions.map(u => (
-                                            <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
-                                        ))}
-                                    </select>
+                                        >
+                                            <option value="">-- Select Department --</option>
+                                            <option value="dept_kitchen">Kitchen Department</option>
+                                            {(departments || []).map(d => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </div>
 
                                 {/* Item Selection */}

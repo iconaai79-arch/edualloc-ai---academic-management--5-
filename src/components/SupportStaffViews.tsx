@@ -650,11 +650,18 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const isCountyManaged = Boolean(props.currentInstitution?.countyId);
 
     const pendingShipments = useMemo(() => countyInventory.filter(i => i.status === 'in_transit'), [countyInventory]);
 
     const issuanceHistory = useMemo(() => (stockTransactions || []).filter(t => t.type === 'Issue'), [stockTransactions]);
     const lowStockItems = useMemo(() => inventory.filter(i => i.quantity <= i.reorderLevel), [inventory]);
+    
+    const expiringItems = useMemo(() => {
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        return inventory.filter(i => i.expiryDate && new Date(i.expiryDate) <= thirtyDaysFromNow);
+    }, [inventory]);
 
     return (
         <BaseDashboard 
@@ -678,7 +685,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         { id: 'dashboard', label: 'Dashboard' },
                         { id: 'inventory', label: 'Inventory' },
                         { id: 'issuance', label: 'Issuance' },
-                        { id: 'shipments', label: 'County Shipments', count: pendingShipments.length },
+                        ...(isCountyManaged ? [{ id: 'shipments', label: 'County Shipments', count: pendingShipments.length }] : []),
                         { id: 'history', label: 'History' },
                         { id: 'suppliers', label: 'Suppliers' },
                         { id: 'reports', label: 'Reports' }
@@ -733,19 +740,35 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                             </div>
                         </div>
 
-                        <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
-                            <div className="absolute top-6 right-8 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-2xl text-amber-500 group-hover:rotate-12 transition-transform duration-500 shadow-inner">
-                                <ArrowUpTrayIcon className="w-5 h-5" />
+                        {isCountyManaged ? (
+                            <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
+                                <div className="absolute top-6 right-8 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-2xl text-amber-500 group-hover:rotate-12 transition-transform duration-500 shadow-inner">
+                                    <ArrowUpTrayIcon className="w-5 h-5" />
+                                </div>
+                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Inbound Stream</h4>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums">{pendingShipments.length}</span>
+                                </div>
+                                <div className="mt-6 flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                    <ClockIcon className="w-3 h-3" />
+                                    <p className="text-[9px] font-black uppercase tracking-widest">Awaiting Verification</p>
+                                </div>
                             </div>
-                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Inbound Stream</h4>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums">{pendingShipments.length}</span>
+                        ) : (
+                            <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
+                                <div className="absolute top-6 right-8 p-3 bg-violet-50 dark:bg-violet-900/30 rounded-2xl text-violet-500 group-hover:scale-110 transition-transform duration-500 shadow-inner">
+                                    <ClockIcon className="w-5 h-5" />
+                                </div>
+                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Expiry Risk</h4>
+                                <div className="flex items-baseline gap-2">
+                                    <span className={`text-5xl font-black tracking-tighter tabular-nums ${expiringItems.length > 0 ? 'text-violet-600' : 'text-slate-900 dark:text-white'}`}>{expiringItems.length}</span>
+                                </div>
+                                <div className="mt-6 flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-violet-400" />
+                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Perishables Registry</p>
+                                </div>
                             </div>
-                            <div className="mt-6 flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                                <ClockIcon className="w-3 h-3" />
-                                <p className="text-[9px] font-black uppercase tracking-widest">Awaiting Verification</p>
-                            </div>
-                        </div>
+                        )}
 
                         <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
                             <div className="absolute top-6 right-8 p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl text-emerald-500 shadow-inner">
@@ -899,16 +922,43 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     </div>
                     <div className="bg-white dark:bg-slate-800 shadow-sm rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700">
                         <table className="min-w-full border-collapse">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50"><tr><th className="px-6 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th><th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Level</th><th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th><th className="px-6 py-4"></th></tr></thead>
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-[10px] font-black uppercase text-slate-500 tracking-widest">Description</th>
+                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Type / Expiry</th>
+                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Level</th>
+                                    <th className="px-6 py-4 text-center text-[10px] font-black uppercase text-slate-500 tracking-widest">Status</th>
+                                    <th className="px-6 py-4"></th>
+                                </tr>
+                            </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {inventory.map(item => (
-                                    <tr key={item.id} className="hover:bg-slate-50/50">
-                                        <td className="px-6 py-4 font-black uppercase tracking-tight text-slate-800 dark:text-white">{item.name}</td>
+                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <p className="font-black uppercase tracking-tight text-slate-800 dark:text-white mb-0.5">{item.name}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.category}</p>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter ${item.itemType === 'consumable' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                {item.itemType || 'Asset'}
+                                            </span>
+                                            {item.expiryDate && (
+                                                <p className={`text-[10px] font-black mt-1 ${new Date(item.expiryDate) < new Date() ? 'text-rose-600 animate-pulse' : 'text-slate-500'}`}>
+                                                    EXP: {new Date(item.expiryDate).toLocaleDateString()}
+                                                </p>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 text-center font-mono font-black text-indigo-600">{item.quantity} {item.unit}</td>
                                         <td className="px-6 py-4 text-center">
-                                            {item.quantity <= item.reorderLevel ? <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span> : <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>}
+                                            {item.quantity <= item.reorderLevel ? (
+                                                <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Low Stock</span>
+                                            ) : (
+                                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-[9px] font-black uppercase tracking-widest">Stable</span>
+                                            )}
                                         </td>
-                                        <td className="px-6 py-4 text-right"><button className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button></td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button className="text-indigo-600 hover:underline font-black text-[10px] uppercase tracking-widest">Asset Card</button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -972,6 +1022,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         institutionId={props.user.institutionId}
                         inventory={inventory}
                         users={users}
+                        departments={props.departments || []}
                         onLogAction={props.onLogAction || (async () => { })}
                         onDataChange={() => { }} 
                     />

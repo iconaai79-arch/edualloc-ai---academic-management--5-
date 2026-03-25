@@ -14,6 +14,8 @@ export const StoreItemForm: React.FC<StoreItemFormProps> = ({ onSave, onClose })
     const [unit, setUnit] = useState('');
     const [reorderLevel, setReorderLevel] = useState<number>(10);
     const [location, setLocation] = useState('');
+    const [itemType, setItemType] = useState<'consumable' | 'asset'>('asset');
+    const [expiryDate, setExpiryDate] = useState('');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,13 +25,15 @@ export const StoreItemForm: React.FC<StoreItemFormProps> = ({ onSave, onClose })
             quantity,
             unit,
             reorderLevel,
-            location
+            location,
+            itemType,
+            expiryDate: expiryDate || undefined
         });
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg p-6 overflow-y-auto max-h-[90vh]">
                 <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Add Inventory Item</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -38,12 +42,15 @@ export const StoreItemForm: React.FC<StoreItemFormProps> = ({ onSave, onClose })
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium mb-1">Category</label>
-                            <input type="text" className="form-input w-full" value={category} onChange={e => setCategory(e.target.value)} required placeholder="e.g., Stationery" />
+                            <label className="block text-sm font-medium mb-1">Item Type</label>
+                            <select className="form-select w-full" value={itemType} onChange={e => setItemType(e.target.value as any)}>
+                                <option value="asset">Asset (Fixed)</option>
+                                <option value="consumable">Consumable (Stock)</option>
+                            </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium mb-1">Unit</label>
-                            <input type="text" className="form-input w-full" value={unit} onChange={e => setUnit(e.target.value)} required placeholder="e.g., Box, Pcs" />
+                            <label className="block text-sm font-medium mb-1">Category</label>
+                            <input type="text" className="form-input w-full" value={category} onChange={e => setCategory(e.target.value)} required placeholder="e.g., Stationery" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -52,8 +59,18 @@ export const StoreItemForm: React.FC<StoreItemFormProps> = ({ onSave, onClose })
                             <input type="number" className="form-input w-full" value={quantity} onChange={e => setQuantity(Number(e.target.value))} required min="0" />
                         </div>
                         <div>
+                            <label className="block text-sm font-medium mb-1">Unit</label>
+                            <input type="text" className="form-input w-full" value={unit} onChange={e => setUnit(e.target.value)} required placeholder="e.g., Box, Pcs" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
                             <label className="block text-sm font-medium mb-1">Reorder Level</label>
                             <input type="number" className="form-input w-full" value={reorderLevel} onChange={e => setReorderLevel(Number(e.target.value))} required min="0" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-rose-500">Expiry Date (Optional)</label>
+                            <input type="date" className="form-input w-full" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} />
                         </div>
                     </div>
                     <div>

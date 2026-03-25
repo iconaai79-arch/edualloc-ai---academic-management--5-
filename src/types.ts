@@ -995,6 +995,8 @@ export interface InventoryItem {
     location: string;
     lastUpdated: string;
     institutionId: string;
+    expiryDate?: string;
+    itemType?: 'consumable' | 'asset';
 }
 
 export interface TransportBill {
