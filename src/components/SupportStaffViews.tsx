@@ -13,7 +13,7 @@ import type {
 import {
     ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
     UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon,
-    CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon,
+    CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon, EyeIcon,
     // Added BuildingOfficeIcon to resolve name collision or missing reference errors
     BuildingOfficeIcon, ClockIcon, CheckIcon, ArrowUpTrayIcon, ClipboardListIcon,
     LockClosedIcon,
@@ -696,6 +696,192 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     ))}
                 </nav>
             </div>
+
+            {activeTab === 'dashboard' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    {/* Hero Stats Nexus - Glassmorphism & Cyber Glimmer */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="relative group overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-200/50 dark:shadow-none border border-white/20 transition-all duration-500 hover:scale-[1.02]">
+                            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
+                            <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-indigo-400/10 rounded-full blur-3xl" />
+                            <h4 className="text-[10px] font-black uppercase text-indigo-100/60 tracking-[0.25em] mb-4">Core Assets</h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-white tracking-tighter tabular-nums">{inventory.length}</span>
+                                <span className="text-indigo-200/80 text-[10px] font-black uppercase tracking-widest">SKUs</span>
+                            </div>
+                            <div className="mt-6 flex items-center gap-3">
+                                <div className="h-1.5 flex-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-md">
+                                    <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-300 rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]" style={{ width: '88%' }} />
+                                </div>
+                                <span className="text-[9px] font-black text-emerald-300 uppercase tracking-tighter">Operational</span>
+                            </div>
+                        </div>
+
+                        <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
+                            <div className="absolute top-6 right-8 p-3 bg-rose-50 dark:bg-rose-900/30 rounded-2xl text-rose-500 group-hover:animate-pulse shadow-inner">
+                                <ExclamationTriangleIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Critical Risk</h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className={`text-5xl font-black tracking-tighter tabular-nums ${lowStockItems.length > 0 ? 'text-rose-600 drop-shadow-[0_0_8px_rgba(225,29,72,0.2)]' : 'text-slate-900 dark:text-white'}`}>
+                                    {lowStockItems.length}
+                                </span>
+                            </div>
+                            <div className="mt-6 flex items-center gap-2">
+                                <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Immediate Action Required</p>
+                            </div>
+                        </div>
+
+                        <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
+                            <div className="absolute top-6 right-8 p-3 bg-amber-50 dark:bg-amber-900/30 rounded-2xl text-amber-500 group-hover:rotate-12 transition-transform duration-500 shadow-inner">
+                                <ArrowUpTrayIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Inbound Stream</h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums">{pendingShipments.length}</span>
+                            </div>
+                            <div className="mt-6 flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                <ClockIcon className="w-3 h-3" />
+                                <p className="text-[9px] font-black uppercase tracking-widest">Awaiting Verification</p>
+                            </div>
+                        </div>
+
+                        <div className="relative group overflow-hidden bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200/50 dark:border-slate-700 transition-all duration-500 hover:scale-[1.02] hover:bg-white dark:hover:bg-slate-800">
+                            <div className="absolute top-6 right-8 p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl text-emerald-500 shadow-inner">
+                                <ArrowsRightLeftIcon className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.25em] mb-4">Dispersal Flow</h4>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter tabular-nums">{issuanceHistory.length}</span>
+                            </div>
+                            <div className="mt-6 flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                                <ChartBarIcon className="w-3 h-3" />
+                                <p className="text-[9px] font-black uppercase tracking-widest">Active Cycle Record</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Transaction Nexus & Health Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Transaction Log Cyber-Panel */}
+                        <div className="bg-slate-900 dark:bg-slate-950 text-white p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden group border border-slate-800">
+                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 via-transparent to-violet-500/5 pointer-events-none" />
+                            <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-indigo-600/10 rounded-full blur-[80px]" />
+                            
+                            <div className="flex justify-between items-center mb-10 relative z-10">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">Logistics Nexus</h3>
+                                    <p className="text-[10px] font-black text-indigo-400/80 mt-1 uppercase tracking-[0.2em]">Real-time Transaction Stream</p>
+                                </div>
+                                <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
+                                    <ArchiveBoxIcon className="w-6 h-6 text-indigo-400 animate-pulse" />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4 relative z-10">
+                                {(issuanceHistory || []).slice(0, 5).map((t, idx) => (
+                                    <div key={t.id} className="group/item flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all duration-300">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500/20 to-violet-500/20 rounded-xl flex items-center justify-center border border-white/10">
+                                                <span className="text-indigo-300 font-black text-xs">#{idx + 1}</span>
+                                            </div>
+                                            <div>
+                                                <p className="font-black uppercase text-xs tracking-tight text-white group-hover/item:text-indigo-300 transition-colors">{t.itemName}</p>
+                                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-0.5">{t.recipientOrSupplier}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-mono font-black text-indigo-400">-{t.quantity}</p>
+                                            <p className="text-[9px] text-slate-600 uppercase font-black mt-1">{new Date(t.date).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {issuanceHistory.length === 0 && (
+                                    <div className="py-20 text-center text-slate-700 font-black uppercase text-[10px] tracking-[0.3em] border border-dashed border-slate-800 rounded-[2.5rem]">
+                                        Logistics Engine Idle
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <button 
+                                onClick={() => setActiveTab('issuance')}
+                                className="group w-full mt-10 py-5 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-indigo-950 flex items-center justify-center gap-3 active:scale-[0.98]"
+                            >
+                                Enter Central Registry
+                                <PlusIcon className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
+                            </button>
+                        </div>
+
+                        {/* Inventory Matrix Visualization */}
+                        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-10 rounded-[3.5rem] border border-slate-200/50 dark:border-slate-700 shadow-2xl flex flex-col relative overflow-hidden">
+                            <div className="absolute -left-20 -top-20 w-64 h-64 bg-emerald-500/5 rounded-full blur-[80px]" />
+                            
+                            <div className="flex justify-between items-center mb-12 relative z-10">
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Health Matrix</h3>
+                                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-[0.2em]">Operational Analytics</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                                </div>
+                            </div>
+                            
+                            <div className="flex-1 space-y-8 relative z-10">
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-end">
+                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Asset Integrity</p>
+                                        <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                                            {Math.round(((inventory.length - lowStockItems.length) / (inventory.length || 1)) * 100)}%
+                                        </p>
+                                    </div>
+                                    <div className="h-4 bg-slate-100 dark:bg-slate-900 rounded-full p-1 overflow-hidden">
+                                        <div className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 rounded-full transition-all duration-1000" style={{ width: `${((inventory.length - lowStockItems.length) / (inventory.length || 1)) * 100}%` }} />
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{inventory.length - lowStockItems.length} Stable Assets Detected</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:border-indigo-200 transition-all duration-300">
+                                        <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 mb-6 group-hover:rotate-6 transition-transform">
+                                            <ArchiveBoxIcon className="w-5 h-5" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Categories</p>
+                                        <p className="text-3xl font-black text-slate-900 dark:text-white">{new Set(inventory.map(i => i.category)).size}</p>
+                                    </div>
+                                    <div className="p-8 bg-rose-50/30 dark:bg-rose-900/10 rounded-3xl border border-rose-100/50 dark:border-rose-900/30 group hover:border-rose-300 transition-all duration-300">
+                                        <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center text-rose-600 mb-6 group-hover:scale-110 transition-transform">
+                                            <ExclamationTriangleIcon className="w-5 h-5" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Criticals</p>
+                                        <p className="text-3xl font-black text-rose-600 tabular-nums">{lowStockItems.length}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-10 p-6 bg-gradient-to-r from-indigo-500/5 to-transparent dark:from-indigo-500/10 rounded-3xl border border-indigo-100/50 dark:border-indigo-800/30 flex items-center justify-between group cursor-help transition-all hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl text-indigo-600 shadow-sm transition-transform group-hover:scale-110">
+                                        <SparklesIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black uppercase text-xs text-indigo-900 dark:text-indigo-100 tracking-tight">AI Intelligence Layer</p>
+                                        <p className="text-[9px] text-indigo-700/70 dark:text-indigo-300/70 font-bold uppercase mt-0.5">Automated Predictive Restock Active</p>
+                                    </div>
+                                </div>
+                                <div className="flex -space-x-2">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 bg-gradient-to-tr from-indigo-400 to-indigo-600" />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'inventory' && (
                 <div className="space-y-6 animate-fade-in-up">
                     <div className="flex justify-between items-center">
@@ -865,8 +1051,29 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     </div>
                 </div>
             )}
-        </BaseDashboard>
 
+            {isAddModalOpen && (
+                <StoreItemForm
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSave={(item) => {
+                        onAddItem?.(item);
+                        setIsAddModalOpen(false);
+                    }}
+                />
+            )}
+
+            {isImportModalOpen && (
+                <SmartInventoryImporterModal
+                    onClose={() => setIsImportModalOpen(false)}
+                    onImport={async (items) => {
+                        onAddItems?.(items.map(i => ({ ...i, institutionId: props.user.institutionId })));
+                        setIsImportModalOpen(false);
+                    }}
+                    countyId="INSTITUTIONAL"
+                    institutions={props.currentInstitution ? [props.currentInstitution] : []}
+                />
+            )}
+        </BaseDashboard>
     );
 };
 
