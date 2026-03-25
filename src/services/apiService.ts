@@ -578,18 +578,24 @@ export const apiService = {
         }
     },
     async activateModuleTrial(moduleId: string, institutionId: string): Promise<void> {
+        // First check if a record already exists to avoid unique constraint violations
+        const existing = await this.fetchModuleRecords<InstitutionModuleState>('institution_module_states', institutionId, undefined, {
+            filter: { module_id: moduleId }
+        });
+
         const trialDays = 14;
         const now = new Date();
         const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
         
         const moduleState: Partial<InstitutionModuleState> = {
-            id: `${institutionId}_${moduleId}_${Date.now()}`,
+            id: existing.length > 0 ? existing[0].id : `${institutionId}_${moduleId}_${Date.now()}`,
             institutionId,
             moduleId,
             status: 'trial',
             trialEndsAt,
-            activatedAt: now.toISOString()
-        };
+            activatedAt: now.toISOString(),
+            updatedAt: now.toISOString()
+        } as any;
 
         await this.saveModuleRecord('institution_module_states', moduleState);
     },
