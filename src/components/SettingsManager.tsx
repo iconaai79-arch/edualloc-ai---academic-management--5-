@@ -152,6 +152,7 @@ interface SettingsManagerProps {
     onImportStudents?: (imported: any[]) => Promise<void>;
     smsConfig?: SmsConfig;
     onWithdrawRequest?: (id: string) => Promise<void>;
+    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
 }
 
 const CONSTRAINT_TYPE_LABELS: Record<TimetableConstraintType, string> = {
@@ -1565,6 +1566,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     extensionRequests={props.extensionRequests || []}
                                     onAddExtensionRequest={props.onAddExtensionRequest}
                                     smsConfig={props.companyDetails?.smsConfig || { provider: 'ABMIS', apiKey: '', apiSecret: '', fromNumber: '' }}
+                                    onActivateModuleTrial={props.onActivateModuleTrial}
                                 />
                             </div>
                         )}

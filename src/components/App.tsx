@@ -12,6 +12,7 @@ import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
+import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { LibraryMasterView } from './LibraryMasterView';
 import { AcademicsOfficerView } from './AcademicsOfficerView';
 import { CountyAdminView } from './CountyAdminView';
@@ -579,7 +580,9 @@ export const App: React.FC = () => {
                 ]);
             }
 
-            if (insts && insts.length > 0) setInstitutions(insts);
+            if (insts && insts.length > 0) {
+                setInstitutions(insts);
+            }
             if (cnts && cnts.length > 0) setCounties(cnts);
             if (sett) {
                 setCompanyDetails(sett);
@@ -644,14 +647,14 @@ export const App: React.FC = () => {
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
-            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [];
+            let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [], sar: any[] = [], enr: any[] = [], abs: any[] = [], con: any[] = [], att: any[] = [], item: any[] = [], tt: any[] = [], et: any[] = [], asg: any[] = [], subm: any[] = [], rat: any[] = [], ta: any[] = [], asmt: any[] = [], asmtMarks: any[] = [], bks: any[] = [], ltx: any[] = [], apts: any[] = [], sups: any[] = [], stx: any[] = [], cinv: any[] = [], ccats: any[] = [], cstores: any[] = [], bApps: any[] = [], bFunds: any[] = [], lo: any[] = [], obs: any[] = [], vis: any[] = [], sec: any[] = [], reqRecords: any[] = [], retExp: any[] = [], rStores: any[] = [], rInv: any[] = [], tor: any[] = [], fBulletin: any[] = [], fDocs: any[] = [], fWatch: any[] = [], fMaint: any[] = [], fCheckIn: any[] = [], vhcls: any[] = [], tonb: any[] = [], vlogs: any[] = [], cafe: any[] = [], cOrders: any[] = [], rSales: any[] = [], cwJobs: any[] = [], cFarmers: any[] = [], cColls: any[] = [], cRiders: any[] = [], cAgroInv: any[] = [], cAgroSales: any[] = [], cSaccoAcc: any[] = [], cSaccoTx: any[] = [], cPayouts: any[] = [], cExps: any[] = [], cInc: any[] = [], ims: any[] = [];
             
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
                 const effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
-                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc] = await Promise.all([
+            [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims] = await Promise.all([
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
@@ -713,8 +716,17 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<CoopMonthlyPayout>('coop_monthly_payouts', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
                 ]);
                 console.log("[Data Refresh] Coop Data Snapshot:", { farmers: cFarmers.length, riders: cRiders.length, collections: cColls.length });
+
+                if (insts && insts.length > 0) {
+                    const finalInsts = insts.map(i => ({
+                        ...i,
+                        moduleStates: (ims || []).filter((m: any) => m.institutionId === i.id)
+                    }));
+                    setInstitutions(finalInsts);
+                }
             }
 
 
@@ -1278,6 +1290,36 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleActivateModuleTrial = async (moduleId: string) => {
+        if (!activeInstitution) return;
+        setIsLoading(true);
+        setStatus(`Activating ${moduleId} trial...`);
+        try {
+            const trialEndsAt = new Date();
+            trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+            const payload = {
+                id: `mod_${Date.now()}`,
+                institutionId: activeInstitution.id,
+                moduleId,
+                status: 'trial',
+                activatedAt: new Date().toISOString(),
+                trialEndsAt: trialEndsAt.toISOString(),
+                subscriptionEndsAt: null
+            };
+
+            await apiService.saveModuleRecord('institution_module_states', payload);
+            await loadData(true);
+            alert(`${moduleId} trial activated successfully!`);
+        } catch (error) {
+            console.error(`Failed to activate ${moduleId} trial:`, error);
+            alert("Failed to activate trial. Please try again.");
+        } finally {
+            setIsLoading(false);
+            setStatus('');
+        }
+    };
+
     const handleOnboardStudent = async (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => {
         try {
             const student = users.find(u => u.id === studentId);
@@ -1575,6 +1617,18 @@ export const App: React.FC = () => {
             setDemoDataGenerationMessage("");
         }
     }, [currentUser, activeInstitution, onUpdateInstitution, loadData]);
+    
+    const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
+        if (!activeInstitution) return;
+        try {
+            await apiService.activateModuleTrial(moduleId, activeInstitution.id);
+            await handleLogAction(`Activated 14-day free trial for module: ${moduleId}`);
+            await loadData();
+        } catch (e: any) {
+            alert(`Failed to activate trial: ${e.message || "Unknown error"}`);
+        }
+    }, [activeInstitution, handleLogAction, loadData]);
+
 
     const handleClearDemoData = useCallback(async () => {
         if (!currentUser || !activeInstitution) return;
@@ -2174,6 +2228,7 @@ export const App: React.FC = () => {
                                     academicLevels={academicLevels}
                                     academicYears={academicYears}
                                     semesters={semesters}
+                                    onActivateModuleTrial={handleActivateModuleTrial}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}
@@ -3024,31 +3079,40 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution}
                                 />
                             ) : activeRole === 'store' ? (
-                                <StoreView
-                                    user={currentUser}
-                                    inventory={inventory}
-                                    suppliers={suppliers}
-                                    stockTransactions={stockTransactions}
-                                    onAddItem={async (item) => { await apiService.saveModuleRecord('inventory', { ...item, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId, lastUpdated: new Date().toISOString() }); loadData(); }}
-                                    onAddStoreTransaction={async (transaction) => {
-                                        const item = inventory.find(i => i.id === transaction.itemId);
-                                        if (item) {
-                                            const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
-                                            await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
-                                        }
-                                        await apiService.saveModuleRecord('stock_transactions', { 
-                                            ...transaction, 
-                                            id: `stx_${Date.now()}`, 
-                                            date: new Date().toISOString(), 
-                                            institutionId: currentUser.institutionId, 
-                                            recordedBy: currentUser.id 
-                                        });
-                                        loadData();
-                                    }}
-                                    countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
-                                    onMarkInventoryReceived={onMarkInventoryReceived}
-                                    onSwitchPerspective={setImpersonatedRole}
-                                />
+                                <ModuleAccessGuard
+                                    moduleId="inventory"
+                                    moduleName="Institutional Store"
+                                    description="Manage inventory, suppliers, and stock issuance with digital signature verification."
+                                    institution={activeInstitution}
+                                    onActivateTrial={handleActivateModuleTrial}
+                                    isActivating={isLoading}
+                                >
+                                    <StoreView
+                                        user={currentUser}
+                                        inventory={inventory}
+                                        suppliers={suppliers}
+                                        stockTransactions={stockTransactions}
+                                        onAddItem={async (item) => { await apiService.saveModuleRecord('inventory', { ...item, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId, lastUpdated: new Date().toISOString() }); loadData(); }}
+                                        onAddStoreTransaction={async (transaction) => {
+                                            const item = inventory.find(i => i.id === transaction.itemId);
+                                            if (item) {
+                                                const newQty = transaction.type === 'Restock' ? item.quantity + transaction.quantity : item.quantity - transaction.quantity;
+                                                await apiService.saveModuleRecord('inventory', { ...item, quantity: newQty, lastUpdated: new Date().toISOString() });
+                                            }
+                                            await apiService.saveModuleRecord('stock_transactions', { 
+                                                ...transaction, 
+                                                id: `stx_${Date.now()}`, 
+                                                date: new Date().toISOString(), 
+                                                institutionId: currentUser.institutionId, 
+                                                recordedBy: currentUser.id 
+                                            });
+                                            loadData();
+                                        }}
+                                        countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
+                                        onMarkInventoryReceived={onMarkInventoryReceived}
+                                        onSwitchPerspective={setImpersonatedRole}
+                                    />
+                                </ModuleAccessGuard>
                             ) : activeRole === 'librarian' ? (
                                 <LibraryMasterView
                                     currentUser={currentUser}
@@ -3240,6 +3304,7 @@ export const App: React.FC = () => {
                                     academicLevels={academicLevels}
                                     academicYears={academicYears}
                                     semesters={semesters}
+                                    onActivateModuleTrial={handleActivateModuleTrial}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
                                     timetableSettings={timetableSettings}

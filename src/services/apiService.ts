@@ -12,7 +12,7 @@ import type {
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
     Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
-    CoopExpense, CoopIncome, DemoRequest
+    CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -576,6 +576,22 @@ export const apiService = {
                 await this.markNotificationAsRead(n.id);
             }
         }
+    },
+    async activateModuleTrial(moduleId: string, institutionId: string): Promise<void> {
+        const trialDays = 14;
+        const now = new Date();
+        const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+        
+        const moduleState: Partial<InstitutionModuleState> = {
+            id: `${institutionId}_${moduleId}_${Date.now()}`,
+            institutionId,
+            moduleId,
+            status: 'trial',
+            trialEndsAt,
+            activatedAt: now.toISOString()
+        };
+
+        await this.saveModuleRecord('institution_module_states', moduleState);
     },
     async deleteModuleRecord(module: string, id: string): Promise<void> {
         if (!_supabase) {

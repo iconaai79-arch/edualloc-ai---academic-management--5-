@@ -18,6 +18,7 @@ interface SubscriptionManagerProps {
     onAddExtensionRequest?: (reason: string) => void;
     smsConfig: SmsConfig;
     onRefreshData?: () => void;
+    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
 }
 
 const calculateTimeLeft = (endDate: string) => {
@@ -113,7 +114,7 @@ const InvoiceStatusBadge: React.FC<{ status: Invoice['status'] }> = ({ status })
 };
 
 
-export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ institution, companyDetails, transactions, onAddTransaction, invoices, receipts, logoUrl, extensionRequests, onAddExtensionRequest, smsConfig, onRefreshData }) => {
+export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ institution, companyDetails, transactions, onAddTransaction, invoices, receipts, logoUrl, extensionRequests, onAddExtensionRequest, smsConfig, onRefreshData, onActivateModuleTrial }) => {
     const [isPayModalOpen, setIsPayModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [extensionReason, setExtensionReason] = useState('');
@@ -186,6 +187,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         return onAddTransaction({
             ...paymentData,
             institutionId: institution.id,
+            provider: 'M-Pesa',
+            paymentMethod: 'M-Pesa'
         }, items);
     };
 
@@ -361,6 +364,65 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
                                     Pay Now with M-Pesa
                                 </button>
                             </div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-xl font-semibold mb-4 text-slate-900 dark:text-white flex items-center gap-2">
+                            Premium Modules
+                            <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 px-2 py-0.5 rounded-full uppercase tracking-tighter">New Features</span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {[
+                                { id: 'school_store', name: 'School Store & Inventory', description: 'Complete retail management for school shops, including inventory tracking, point-of-sale, and supplier management.' }
+                            ].map(module => {
+                                const state = institution.moduleStates?.find(m => m.moduleId === module.id);
+                                const isInactive = !state || state.status === 'inactive';
+                                const isTrial = state?.status === 'trial';
+                                const isActive = state?.status === 'active';
+                                const isExpired = state?.status === 'expired' || (state?.status === 'trial' && state.trialEndsAt && new Date(state.trialEndsAt) < new Date());
+
+                                return (
+                                    <div key={module.id} className="group relative bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                            <SparklesIcon className="w-12 h-12 text-slate-400" />
+                                        </div>
+                                        
+                                        <div>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h4 className="text-lg font-black text-slate-900 dark:text-white leading-tight">{module.name}</h4>
+                                                <div className="flex flex-col gap-1 items-end">
+                                                    {isTrial && <span className="text-[10px] bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-sky-200 dark:border-sky-800">Trial</span>}
+                                                    {isActive && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800">Active</span>}
+                                                    {isExpired && <span className="text-[10px] bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-red-200 dark:border-red-800">Expired</span>}
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6 line-clamp-2">{module.description}</p>
+                                        </div>
+                                        
+                                        {isInactive ? (
+                                            <button 
+                                                onClick={() => onActivateModuleTrial?.(module.id)}
+                                                className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-125 active:scale-95 transition-all shadow-lg shadow-slate-200 dark:shadow-none"
+                                            >
+                                                Start 14-Day Free Trial
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 text-center py-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                    {isTrial ? `Trial ends: ${new Date(state.trialEndsAt!).toLocaleDateString()}` : 
+                                                     isActive ? `Renews: ${new Date(state.subscriptionEndsAt!).toLocaleDateString()}` : 
+                                                     'Access Expired'}
+                                                </div>
+                                                {isExpired && (
+                                                     <button className="w-full py-3 bg-emerald-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-emerald-200 dark:shadow-none">
+                                                        Upgrade to Pro
+                                                     </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </section>
                 </>

@@ -158,6 +158,7 @@ export interface Institution {
     intasendConfig?: IntasendConfig;
     ncbaConfig?: NcbaConfig;
     farmerSmsBillingEnabled?: boolean;
+    moduleStates?: InstitutionModuleState[];
 }
 
 export interface NcbaConfig {
@@ -443,6 +444,18 @@ export interface EmailConfig {
     resendApiKey?: string;
     fromName: string;
     fromEmail: string;
+}
+
+export interface InstitutionModuleState {
+    id: string;
+    moduleId: string;
+    institutionId: string;
+    status: 'inactive' | 'trial' | 'active' | 'expired' | 'suspended';
+    activatedAt?: string;
+    trialEndsAt?: string;
+    subscriptionEndsAt?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface SubscriptionConfig {

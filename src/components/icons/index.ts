@@ -33,7 +33,7 @@ export { PencilIcon } from './PencilIcon';
 export { PhoneIcon } from './PhoneIcon';
 export { PrinterIcon } from './PrinterIcon';
 export { ShieldIcon } from './ShieldIcon';
-export { SparklesIcon as Leaf } from './SparklesIcon';
+export { SparklesIcon, SparklesIcon as Leaf } from './SparklesIcon';
 export { StarIcon, StarIcon as Star } from './StarIcon';
 export { SunIcon } from './SunIcon';
 export { UserIcon, UserIcon as UserIconAlt } from './UserIcon';

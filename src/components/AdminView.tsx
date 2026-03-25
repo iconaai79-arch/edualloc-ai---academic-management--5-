@@ -29,6 +29,7 @@ import { RetailManager } from './retail/RetailManager';
 import { ProcurementManager } from './ProcurementManager';
 import { CooperativeManager } from './coop/CooperativeManager';
 import { CarServiceView } from './carservice/CarServiceView';
+import { ModuleAccessGuard } from './ModuleAccessGuard';
 
 import {
     ClipboardListIcon,
@@ -302,6 +303,7 @@ export interface AdminViewProps {
     inventory?: RetailInventoryItem[];
     suppliers?: Supplier[];
     activeRole?: Role;
+    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
 }
 
 export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
@@ -311,7 +313,8 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         coopFarmers = [], coopCollections = [], coopRiders = [], 
         coopAgrovetInventory = [], coopAgrovetSales = [], 
         saccoAccounts = [], saccoTransactions = [], coopPayouts = [],
-        coopExpenses = [], coopIncome = []
+        coopExpenses = [], coopIncome = [],
+        onActivateModuleTrial
     } = props;
 
 
@@ -880,18 +883,26 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 )}
 
                 {activeTab === 'retail' && (
-                    <RetailManager
-                        institutionId={props.currentInstitution?.id || ''}
-                        businessSubType={props.currentInstitution?.businessSubType}
-                        currentUser={props.currentUser}
-                        retailStores={retailStores}
-                        inventory={inventory}
-                        retailExpenses={retailExpenses}
-                        onAddRetailExpense={props.onAddRetailExpense}
-                        requisitions={props.requisitions}
-                        onAddRequisition={props.onAddRequisition}
-                        onUpdateRequisition={props.onUpdateRequisition}
-                    />
+                    <ModuleAccessGuard
+                        moduleId="school_store"
+                        moduleName="School Store & Inventory"
+                        description="Manage your school's inventory, sales, and retail operations with a premium store module."
+                        institution={props.currentInstitution}
+                        onActivateTrial={onActivateModuleTrial}
+                    >
+                        <RetailManager
+                            institutionId={props.currentInstitution?.id || ''}
+                            businessSubType={props.currentInstitution?.businessSubType}
+                            currentUser={props.currentUser}
+                            retailStores={retailStores}
+                            inventory={inventory}
+                            retailExpenses={retailExpenses}
+                            onAddRetailExpense={props.onAddRetailExpense}
+                            requisitions={props.requisitions}
+                            onAddRequisition={props.onAddRequisition}
+                            onUpdateRequisition={props.onUpdateRequisition}
+                        />
+                    </ModuleAccessGuard>
                 )}
 
                 {(() => {
