@@ -22,14 +22,10 @@ ALTER TABLE institution_module_states ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Institutions can view their own module states"
 ON institution_module_states FOR SELECT
 TO authenticated
-USING (institution_id IN (
-    SELECT id FROM institutions WHERE id = institution_id
-));
+USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin');
 
--- Policy: Service role or super admins can manage all
+-- Policy: Super Admins can manage all
 CREATE POLICY "Super Admins can manage all module states"
 ON institution_module_states FOR ALL
 TO authenticated
-USING (EXISTS (
-    SELECT 1 FROM users WHERE id = auth.uid() AND role = 'super_admin'
-));
+USING (public.get_curr_user_role() = 'super_admin');
