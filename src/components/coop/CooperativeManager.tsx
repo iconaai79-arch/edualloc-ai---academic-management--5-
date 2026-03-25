@@ -21,6 +21,7 @@ import {
     EyeIcon,
     ArrowUpRightIcon as ExportIcon,
     Cog8ToothIcon as CogIcon,
+    InformationCircleIcon as AlertIcon,
     UploadCloudIcon as UploadCloud,
     XIcon as X,
     CheckCircleIcon as SuccessIcon
