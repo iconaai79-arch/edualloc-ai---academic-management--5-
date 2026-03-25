@@ -795,9 +795,9 @@ export const App: React.FC = () => {
     }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
 
     useEffect(() => {
-        // Trigger a hard reload only when identity or scope changes
+        // Trigger a hard reload when identity, scope, or perspective changes
         loadData(true);
-    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId]);
+    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole]);
 
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
@@ -2970,6 +2970,7 @@ export const App: React.FC = () => {
                                     vehicles={vehicles}
                                     vehicleLogs={vehicleLogs}
                                     onLogGateAction={handleLogGateAction}
+                                    onSwitchPerspective={setImpersonatedRole}
                                 />
 
                             ) : activeRole === 'info_desk' ? (
@@ -3008,6 +3009,7 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecord('maintenance_requests', { ...req, id: `maint_${Date.now()}`, institutionId: currentUser.institutionId, reportedAt: new Date().toISOString(), status: 'Pending' });
                                         loadData();
                                     }}
+                                    onSwitchPerspective={setImpersonatedRole}
                                 />
                             ) : (activeRole === 'driver' || activeRole === 'transport_assistant') ? (
                                 <TransportAssistantView
@@ -3045,6 +3047,7 @@ export const App: React.FC = () => {
                                     }}
                                     countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
                                     onMarkInventoryReceived={onMarkInventoryReceived}
+                                    onSwitchPerspective={setImpersonatedRole}
                                 />
                             ) : activeRole === 'librarian' ? (
                                 <LibraryMasterView
