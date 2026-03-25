@@ -258,6 +258,37 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                   </div>
                   <p className="mt-4 text-[10px] text-slate-400 italic">Set a custom cost per SMS unit for this institution. Leave empty to use system default.</p>
                 </div>
+
+                <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-xl flex items-center justify-center">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">NCBA Integration Node</h4>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Tenant Callback URL</label>
+                    <div className="flex gap-2">
+                       <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${institution.id}`}
+                        className="form-input font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${institution.id}`);
+                          alert('Callback URL copied to clipboard');
+                        }}
+                        className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 italic leading-relaxed">Give this specific URL to NCBA for STK Push and QR Code notifications for this tenant.</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

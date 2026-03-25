@@ -1254,7 +1254,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaWebhook') {
             const body = req.body;
-            console.log('[NCBA Webhook] Received callback:', JSON.stringify(body));
+            const institutionId = paramsMap.institutionId;
+            console.log(`[NCBA Webhook] Received callback for Institution ${institutionId || 'Unknown'}:`, JSON.stringify(body));
 
             // NCBA Spec: Payload contains TransactionID, ResultCode, etc.
             const checkoutRequestId = body.TransactionID || body.CheckoutRequestID;
