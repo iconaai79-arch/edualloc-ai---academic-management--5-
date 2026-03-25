@@ -424,6 +424,7 @@ export const App: React.FC = () => {
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
     const [demoDataGenerationMessage, setDemoDataGenerationMessage] = useState("");
 
+    const [isSavingModule, setIsSavingModule] = useState(false);
     const [showGuestPortal, setShowGuestPortal] = useState(false);
     const [showGuestFeedback, setShowGuestFeedback] = useState(false);
     const [showMarketplace, setShowMarketplace] = useState(() => {
@@ -1593,12 +1594,15 @@ export const App: React.FC = () => {
     
     const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
         if (!activeInstitution) return;
+        setIsSavingModule(true);
         try {
             await apiService.activateModuleTrial(moduleId, activeInstitution.id);
             await handleLogAction(`Activated 14-day free trial for module: ${moduleId}`);
             await loadData();
         } catch (e: any) {
             alert(`Failed to activate trial: ${e.message || "Unknown error"}`);
+        } finally {
+            setIsSavingModule(false);
         }
     }, [activeInstitution, handleLogAction, loadData]);
 
@@ -3050,7 +3054,7 @@ export const App: React.FC = () => {
                                     description="Manage inventory, suppliers, and stock issuance with digital signature verification."
                                     institution={activeInstitution}
                                     onActivateTrial={handleActivateModuleTrial}
-                                    isActivating={isLoading}
+                                    isActivating={isSavingModule}
                                 >
                                     <StoreView
                                         user={currentUser}
