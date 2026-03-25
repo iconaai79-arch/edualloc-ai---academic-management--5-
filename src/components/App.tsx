@@ -607,9 +607,13 @@ export const App: React.FC = () => {
             if (currentUser) {
                 const refreshedSelf = finalUsers.find(u => u.id === currentUser.id);
                 if (refreshedSelf) {
-                    console.log("[Data Refresh] Syncing currentUser with server state");
-                    setCurrentUser(prev => ({ ...prev, ...refreshedSelf }));
-                    apiService.storeSession({ ...currentUser, ...refreshedSelf });
+                    // Only update if there are actual changes to avoid effect loops
+                    const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
+                    if (hasChanges) {
+                        console.log("[Data Refresh] Syncing currentUser with server state");
+                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf }));
+                        apiService.storeSession({ ...currentUser, ...refreshedSelf });
+                    }
                 } else if (!finalUsers.some(u => u.id === currentUser.id)) {
                     console.log("Persisting current user to database to maintain referential integrity...");
                     apiService.saveUser(currentUser).catch(err => console.error("Failed to auto-persist current user:", err));
@@ -789,11 +793,12 @@ export const App: React.FC = () => {
             initialLoadDone.current = true;
             setAppInitializing(false);
         }
-    }, [currentUser]);
+    }, [currentUser?.id, currentUser?.role, currentUser?.institutionId, currentUser?.countyId]);
 
     useEffect(() => {
+        // Trigger a hard reload only when identity or scope changes
         loadData(true);
-    }, [loadData]);
+    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId]);
 
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
