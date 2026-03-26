@@ -169,6 +169,43 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
+    const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
+    const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
+    const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
+    const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
+    const [isAddingFarmer, setIsAddingFarmer] = useState(false);
+    const [isLoggingCollection, setIsLoggingCollection] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showCollectionImportModal, setShowCollectionImportModal] = useState(false);
+    const [isAddingInventory, setIsAddingInventory] = useState(false);
+    const [isRecordingSale, setIsRecordingSale] = useState(false);
+    const [isAddingRider, setIsAddingRider] = useState(false);
+    const [newInventory, setNewInventory] = useState<any>({});
+    const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
+        saleDate: new Date().toISOString().split('T')[0],
+        paymentStatus: 'cash'
+    });
+    const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
+    const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
+    const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
+        status: 'active',
+        joinedAt: new Date().toISOString().split('T')[0]
+    });
+    const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
+        collectionDate: new Date().toISOString().split('T')[0],
+        productType: 'milk',
+        unit: 'kgs',
+        factoryConfirmed: false,
+        notified: false
+    });
+    const [newRider, setNewRider] = useState<Partial<CoopRider>>({
+        status: 'active'
+    });
+
     
     const activeSubTab = externalActiveTab || localActiveSubTab;
     const setActiveSubTab = (tab: any) => {
@@ -190,28 +227,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         setSelectedCollections([]);
     }, [filterMonth, filterYear]);
 
-    const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
-    const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
-    const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
-    const [isAddingFarmer, setIsAddingFarmer] = useState(false);
-    const [isLoggingCollection, setIsLoggingCollection] = useState(false);
-    const [showImportModal, setShowImportModal] = useState(false);
-    const [showCollectionImportModal, setShowCollectionImportModal] = useState(false);
-    const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
-        status: 'active',
-        joinedAt: new Date().toISOString().split('T')[0]
-    });
-    const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
-        collectionDate: new Date().toISOString().split('T')[0],
-        productType: 'milk',
-        unit: 'kgs',
-        factoryConfirmed: false,
-        notified: false
-    });
+
 
     const getFarmerName = (id?: string) => {
         if (!id) return 'Unknown Farmer';
@@ -231,20 +247,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             return matchesDate && matchesSearch;
         }).sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime());
     }, [collections, filterMonth, filterYear, searchTerm, farmers]);
-    const [newRider, setNewRider] = useState<Partial<CoopRider>>({
-        status: 'active'
-    });
-    const [isAddingInventory, setIsAddingInventory] = useState(false);
-    const [isRecordingSale, setIsRecordingSale] = useState(false);
-    const [isAddingRider, setIsAddingRider] = useState(false);
-    const [newInventory, setNewInventory] = useState<any>({});
-    const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
-        saleDate: new Date().toISOString().split('T')[0],
-        paymentStatus: 'cash'
-    });
-    const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
-    const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
-    const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
         e.preventDefault();

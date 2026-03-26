@@ -2686,6 +2686,36 @@ Please change it after login.`;
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Merchant ID</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.merchantId || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, merchantId: e.target.value } as any })}
+                                                            className="form-input h-12 font-mono" 
+                                                            placeholder="Enter Merchant ID"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Webhook Secret</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localCompanyInfo.ncbaConfig?.webhookSecret || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, webhookSecret: e.target.value } as any })}
+                                                            className="form-input h-12" 
+                                                            placeholder="••••••••••••••••"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA Short Code / Paybill</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.shortCode || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, shortCode: e.target.value } as any })}
+                                                            className="form-input h-12 font-mono" 
+                                                            placeholder="Enter Short Code"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">API Environment</label>
                                                         <select 
                                                             value={localCompanyInfo.ncbaConfig?.environment || 'sandbox'} 
@@ -2697,17 +2727,17 @@ Please change it after login.`;
                                                         </select>
                                                     </div>
                                                     <div className="md:col-span-2 space-y-2 mt-4">
-                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Global Platform Callback URL (Webhook)</label>
+                                                        <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Standard Platform Callback URL (Required)</label>
                                                         <div className="flex gap-2">
                                                             <input 
                                                                 type="text" 
                                                                 readOnly 
-                                                                value={`${window.location.origin}/api/integrations?action=ncbaWebhook`}
+                                                                value={`${window.location.origin}/api/ncba-callback`}
                                                                 className="form-input h-12 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
                                                             />
                                                             <button 
                                                                 onClick={() => {
-                                                                    navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook`);
+                                                                    navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback`);
                                                                     alert('Platform Callback URL copied');
                                                                 }}
                                                                 className="px-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"
@@ -2715,7 +2745,7 @@ Please change it after login.`;
                                                                 Copy
                                                             </button>
                                                         </div>
-                                                        <p className="text-[10px] text-slate-400 italic">This is your master endpoint for platform-wide settlement and administrative payments.</p>
+                                                        <p className="text-[10px] text-slate-400 italic">This is the standardized NCBA 2024 compliance endpoint for settlement and administrative payments.</p>
                                                     </div>
                                                 </div>
                                             </div>

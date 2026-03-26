@@ -272,13 +272,13 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                        <input
                         type="text"
                         readOnly
-                        value={`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${institution.id}`}
+                        value={`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`}
                         className="form-input font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
                       />
                       <button 
                         type="button" 
                         onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${institution.id}`);
+                          navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`);
                           alert('Callback URL copied to clipboard');
                         }}
                         className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors"

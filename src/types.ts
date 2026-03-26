@@ -167,6 +167,9 @@ export interface NcbaConfig {
     apiKey: string;
     baseUrl: string;
     accountNumber: string;
+    merchantId?: string;
+    webhookSecret?: string;
+    shortCode?: string;
     environment?: 'sandbox' | 'production';
 }
 
