@@ -4198,3 +4198,136 @@ export const generateCoopSettlementSchedulePdf = async (
 
     return doc.output('datauristring');
 };
+
+export const generateInventoryRegistryPdfDataUri = async (
+    inventory: InventoryItem[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("INVENTORY REGISTRY", margin, yPos);
+    yPos += 10;
+
+    const head = [['Name', 'Category', 'Unit', 'Qty', 'Reorder Level', 'Value']];
+    const body = (inventory || []).map(item => [
+        item.name,
+        item.category || 'N/A',
+        item.unit || 'unit',
+        item.quantity,
+        item.reorderLevel || 0,
+        (item.quantity * (item.price || 0)).toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateIssuanceReportPdfDataUri = async (
+    transactions: StockTransaction[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("INVENTORY ISSUANCE REPORT", margin, yPos);
+    yPos += 10;
+
+    const head = [['Recipient', 'Item', 'Qty', 'Type', 'Date']];
+    const body = (transactions || []).map(t => [
+        t.recipientOrSupplier || 'N/A',
+        t.itemName,
+        t.quantity,
+        t.type,
+        new Date(t.date).toLocaleDateString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+export const generateInventoryStatementPdfDataUri = async (
+    transactions: StockTransaction[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text("INVENTORY TRANSACTION STATEMENT", margin, yPos);
+    yPos += 10;
+
+    const head = [['Date', 'Item', 'Type', 'Qty', 'Recipient/Supplier']];
+    const body = (transactions || []).map(t => [
+        new Date(t.date).toLocaleDateString(),
+        t.itemName,
+        t.type,
+        t.quantity,
+        t.recipientOrSupplier || 'N/A'
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head,
+        body,
+        theme: 'striped',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

@@ -512,6 +512,8 @@ CREATE TABLE IF NOT EXISTS stock_transactions (
     type TEXT NOT NULL,
     quantity INTEGER NOT NULL,
     recipient_or_supplier TEXT,
+    recipient_id TEXT,
+    signature TEXT,
     date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     recorded_by TEXT REFERENCES users(id),
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,

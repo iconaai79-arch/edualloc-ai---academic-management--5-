@@ -1004,6 +1004,7 @@ export interface InventoryItem {
     institutionId: string;
     expiryDate?: string;
     itemType?: 'consumable' | 'asset';
+    price?: number;
 }
 
 export interface TransportBill {
