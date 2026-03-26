@@ -27,8 +27,13 @@ import {
     ArrowPathIcon,
     EnvelopeIcon,
     ArrowsRightLeftIcon,
-    PaperAirplaneIcon
+    PaperAirplaneIcon,
+    TrashIcon,
+    PencilIcon,
+    UserPlusIcon
 } from './icons/index';
+import { UserManager } from './UserManager';
+import { DepartmentManager } from './DepartmentManager';
 import { SecurityAlertManager } from './SecurityAlertManager';
 import { LicensePlateScanner } from './LicensePlateScanner';
 import { StoreItemForm } from './StoreItemForm';
@@ -121,6 +126,22 @@ export interface SupportStaffViewProps {
     onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
     onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
     onSwitchPerspective?: (role: any) => void;
+    onAddUser?: (data: any) => Promise<void>;
+    onEditUser?: (user: User) => void;
+    onDeleteUser?: (id: string) => void;
+    onAddDepartment?: (data: any) => Promise<void>;
+    onUpdateDepartment?: (id: string, data: any) => Promise<void>;
+    onDeleteDepartment?: (id: string) => Promise<void>;
+    onImportStudents?: (students: any[]) => Promise<void>;
+    smsConfig?: SmsConfig;
+    subjects?: Subject[];
+    courses?: Course[];
+    letterheadConfig?: LetterheadConfig;
+    logoUrl?: string | null;
+    footerImageUrl?: string | null;
+    onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
+    companyDetails?: CompanyDetails;
+    onAddTransaction?: (data: any, items: any[]) => Promise<any>;
 }
 
 
@@ -648,9 +669,27 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         countyInventory = [], 
         onMarkInventoryReceived,
         onSwitchPerspective,
-        onAddSupplier
+        onAddSupplier,
+        onAddUser,
+        onEditUser,
+        onDeleteUser,
+        onAddDepartment,
+        onUpdateDepartment,
+        onDeleteDepartment,
+        onImportStudents,
+        departments = [],
+        smsConfig,
+        subjects,
+        courses,
+        letterheadConfig,
+        logoUrl,
+        footerImageUrl,
+        onSendSms,
+        companyDetails,
+        onAddTransaction,
+        onLogAction
     } = props;
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports' | 'students' | 'departments' | 'staff'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
@@ -666,6 +705,9 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
         return inventory.filter(i => i.expiryDate && new Date(i.expiryDate) <= thirtyDaysFromNow);
     }, [inventory]);
+
+    const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
+    const staff = useMemo(() => users.filter(u => u.role !== 'student' && u.role !== 'parent' && u.role !== 'reseller'), [users]);
 
     return (
         <BaseDashboard 
@@ -684,7 +726,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 )}
             </div>
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
-                <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">
+                <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1 no-scrollbar">
                     {[
                         { id: 'dashboard', label: 'Dashboard' },
                         { id: 'inventory', label: 'Inventory' },
@@ -692,6 +734,9 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         ...(isCountyManaged ? [{ id: 'shipments', label: 'County Shipments', count: pendingShipments.length }] : []),
                         { id: 'history', label: 'History' },
                         { id: 'suppliers', label: 'Suppliers' },
+                        { id: 'students', label: 'Students', count: students.length },
+                        { id: 'departments', label: 'Departments', count: departments.length },
+                        { id: 'staff', label: 'Staff', count: staff.length },
                         { id: 'reports', label: 'Reports' }
                     ].map(tab => (
                         <button
@@ -701,7 +746,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         >
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
-                                <span className="bg-amber-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm animate-pulse">{tab.count}</span>
+                                <span className="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm">{tab.count}</span>
                             )}
                         </button>
                     ))}
@@ -1166,6 +1211,72 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {activeTab === 'students' && (
+                <UserManager
+                    currentUser={user}
+                    currentInstitution={props.currentInstitution}
+                    users={users}
+                    courses={courses || []}
+                    departments={departments || []}
+                    onLogAction={onLogAction}
+                    onAddUser={onAddUser}
+                    onEditUser={onEditUser as any}
+                    onDeleteUser={onDeleteUser!}
+                    onImportStudents={onImportStudents!}
+                    onImportUsers={async () => { }}
+                    smsConfig={smsConfig!}
+                    subjects={subjects || []}
+                    letterheadConfig={letterheadConfig!}
+                    logoUrl={logoUrl!}
+                    footerImageUrl={footerImageUrl!}
+                    onSendSms={onSendSms}
+                    showOnly="student"
+                    allocations={[]}
+                    onWithdrawRequest={() => Promise.resolve()}
+                    onDeleteParent={() => { }}
+                    companyDetails={companyDetails}
+                    onAddTransaction={onAddTransaction}
+                />
+            )}
+
+            {activeTab === 'departments' && (
+                <DepartmentManager
+                    departments={departments || []}
+                    onAddDepartment={onAddDepartment as any}
+                    onUpdateDepartment={onUpdateDepartment as any}
+                    onDeleteDepartment={onDeleteDepartment as any}
+                    currentInstitution={props.currentInstitution}
+                />
+            )}
+
+            {activeTab === 'staff' && (
+                <UserManager
+                    currentUser={user}
+                    currentInstitution={props.currentInstitution}
+                    users={users}
+                    courses={courses || []}
+                    departments={departments || []}
+                    onLogAction={onLogAction}
+                    onAddUser={onAddUser}
+                    onEditUser={onEditUser as any}
+                    onDeleteUser={onDeleteUser!}
+                    onImportStudents={onImportStudents!}
+                    onImportUsers={async () => { }}
+                    smsConfig={smsConfig!}
+                    subjects={subjects || []}
+                    letterheadConfig={letterheadConfig!}
+                    logoUrl={logoUrl!}
+                    footerImageUrl={footerImageUrl!}
+                    onSendSms={onSendSms}
+                    showOnly="staff"
+                    allocations={[]}
+                    onWithdrawRequest={() => Promise.resolve()}
+                    onDeleteParent={() => { }}
+                    companyDetails={companyDetails}
+                    onAddTransaction={onAddTransaction}
+                />
             )}
 
             {isAddModalOpen && (

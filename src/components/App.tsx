@@ -3109,6 +3109,25 @@ export const App: React.FC = () => {
                                         countyInventory={countyInventory.filter(i => i.targetInstitutionId === currentUser.institutionId)}
                                         onMarkInventoryReceived={onMarkInventoryReceived}
                                         onSwitchPerspective={setImpersonatedRole}
+                                        users={users}
+                                        departments={departments}
+                                        onAddUser={async (data) => { await apiService.registerUser({ ...data, id: generateUserId(), institutionId: currentUser!.institutionId }, activeInstitution?.name); loadData(); }}
+                                        onEditUser={onEditUser}
+                                        onDeleteUser={onDeleteUser}
+                                        onAddDepartment={handleAddDepartment}
+                                        onUpdateDepartment={handleUpdateDepartment}
+                                        onDeleteDepartment={handleDeleteDepartment}
+                                        onImportStudents={onImportStudents}
+                                        smsConfig={(activeInstitution?.smsConfig || companyDetails.smsConfig) as any}
+                                        subjects={subjects}
+                                        courses={courses}
+                                        letterheadConfig={activeLetterheadConfig}
+                                        logoUrl={activeBranding.logoUrl}
+                                        footerImageUrl={activeFooterImageUrl}
+                                        onSendSms={async (r, m, config, units, instId) => { const res = await apiService.sendSms(r, m, config, units, instId || activeInstitution?.id); await handleLogAction(`Sent SMS to ${r}`); return res; }}
+                                        companyDetails={companyDetails}
+                                        onAddTransaction={apiService.onAddTransaction.bind(apiService)}
+                                        onLogAction={handleLogAction}
                                     />
                                 </ModuleAccessGuard>
                             ) : activeRole === 'librarian' ? (
