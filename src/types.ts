@@ -958,10 +958,14 @@ export interface Supplier {
     contactPerson: string;
     email: string;
     phone: string;
+    phoneNumber?: string;
     category: string;
     userId?: string;
+    status?: string;
+    rating?: number;
     suppliedItems?: { itemId: string; price: number }[];
     documents?: BusinessDocument[];
+    institutionId: string;
 }
 
 export interface Internship {

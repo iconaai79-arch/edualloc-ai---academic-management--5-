@@ -23,7 +23,15 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     },
     isOtpEnabled: false,
     customSmsPrice: '',
-    businessSubType: ''
+    businessSubType: '',
+    ncbaConfig: {
+      clientId: '',
+      clientSecret: '',
+      merchantId: '',
+      webhookSecret: '',
+      shortCode: '',
+      environment: 'sandbox' as 'sandbox' | 'production'
+    }
   });
 
   useEffect(() => {
@@ -40,7 +48,15 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         },
         isOtpEnabled: institution.isOtpEnabled ?? false,
         customSmsPrice: institution.customSmsPrice?.toString() || '',
-        businessSubType: institution.businessSubType || ''
+        businessSubType: institution.businessSubType || '',
+        ncbaConfig: {
+          clientId: institution.ncbaConfig?.clientId || '',
+          clientSecret: institution.ncbaConfig?.clientSecret || '',
+          merchantId: institution.ncbaConfig?.merchantId || '',
+          webhookSecret: institution.ncbaConfig?.webhookSecret || '',
+          shortCode: institution.ncbaConfig?.shortCode || '',
+          environment: institution.ncbaConfig?.environment || 'sandbox'
+        }
       });
     }
   }, [institution]);
@@ -75,7 +91,8 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       },
       isOtpEnabled: formData.isOtpEnabled,
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : undefined,
-      businessSubType: formData.businessSubType || undefined
+      businessSubType: formData.businessSubType || undefined,
+      ncbaConfig: formData.ncbaConfig
     };
     onSave(institution.id, saveData);
   };
@@ -266,27 +283,83 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     </div>
                     <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">NCBA Integration Node</h4>
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Tenant Callback URL</label>
-                    <div className="flex gap-2">
-                       <input
-                        type="text"
-                        readOnly
-                        value={`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`}
-                        className="form-input font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`);
-                          alert('Callback URL copied to clipboard');
-                        }}
-                        className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors"
-                      >
-                        Copy
-                      </button>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Internal DB ID</p>
+                        <p className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 truncate">{institution.id}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Secret Registry Code</p>
+                        <p className="text-[10px] font-mono font-bold text-indigo-600 truncate">{institution.institution_code || institution.institutionCode || 'N/A'}</p>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 italic leading-relaxed">Give this specific URL to NCBA for STK Push and QR Code notifications for this tenant.</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">OAuth Client ID</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.clientId}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientId: e.target.value } })}
+                          className="form-input text-[10px] h-10"
+                          placeholder="NCBA Client ID"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Client Secret</label>
+                        <input
+                          type="password"
+                          value={formData.ncbaConfig.clientSecret}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, clientSecret: e.target.value } })}
+                          className="form-input text-[10px] h-10"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Merchant ID</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.merchantId}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, merchantId: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="Merchant ID"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Short Code</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.shortCode}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, shortCode: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="e.g. 123456"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Tenant Callback URL</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`}
+                          className="form-input font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed h-10 flex-1"
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=${institution.id}`);
+                            alert('Callback URL copied to clipboard');
+                          }}
+                          className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold uppercase hover:bg-slate-50 transition-colors"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-400 italic leading-relaxed">Required for STK Push and QR Code notifications.</p>
+                    </div>
                   </div>
                 </div>
               </div>

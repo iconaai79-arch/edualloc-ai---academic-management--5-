@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS institutions (
     is_otp_enabled BOOLEAN DEFAULT FALSE,
     business_sub_type TEXT,
     marketplace_enabled BOOLEAN DEFAULT FALSE,
-    listing_quota INTEGER DEFAULT 0
+    listing_quota INTEGER DEFAULT 0,
+    ncba_config JSONB
 );
 
 CREATE TABLE IF NOT EXISTS counties (
@@ -498,6 +499,8 @@ CREATE TABLE IF NOT EXISTS inventory (
     unit TEXT,
     reorder_level INTEGER DEFAULT 10,
     location TEXT,
+    item_type TEXT,
+    expiry_date DATE,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
 );
@@ -522,6 +525,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     email TEXT,
     phone TEXT,
     category TEXT,
+    status TEXT DEFAULT 'Active',
+    rating INTEGER DEFAULT 5,
     user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     supplied_items JSONB DEFAULT '[]'::jsonb,
     documents JSONB DEFAULT '[]'::jsonb,

@@ -3074,7 +3074,23 @@ export const App: React.FC = () => {
                                         inventory={inventory}
                                         suppliers={suppliers}
                                         stockTransactions={stockTransactions}
-                                        onAddItem={async (item) => { await apiService.saveModuleRecord('inventory', { ...item, id: `inv_${Date.now()}`, institutionId: currentUser.institutionId, lastUpdated: new Date().toISOString() }); loadData(); }}
+                                        onAddItem={async (item) => { 
+                                            await apiService.saveModuleRecord('inventory', { 
+                                                ...item, 
+                                                id: `inv_${Date.now()}`, 
+                                                institutionId: currentUser.institutionId, 
+                                                lastUpdated: new Date().toISOString() 
+                                            }); 
+                                            loadData(); 
+                                        }}
+                                        onAddSupplier={async (supplier) => {
+                                            await apiService.saveModuleRecord('suppliers', {
+                                                ...supplier,
+                                                id: `sup_${Date.now()}`,
+                                                institutionId: currentUser.institutionId
+                                            });
+                                            loadData();
+                                        }}
                                         onAddStoreTransaction={async (transaction) => {
                                             const item = inventory.find(i => i.id === transaction.itemId);
                                             if (item) {

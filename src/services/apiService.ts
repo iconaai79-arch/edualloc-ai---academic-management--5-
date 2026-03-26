@@ -232,9 +232,9 @@ export const apiService = {
         if (!_supabase) {
             const localInsts = ls.get('institutions');
             if (localInsts.length > 0) {
-                return { success: true, status: 'online', dbName: 'Local Browser Storage', message: 'Running in Local Storage mode.', timestamp };
+                return { success: true, status: 'online', dbName: 'Local Browser Storage', message: 'Running in Local Storage mode.', timestamp: timestampStr };
             }
-            return { success: true, status: 'offline', message: 'No cloud link. Local storage active.', dbName: 'Local Storage', timestamp };
+            return { success: true, status: 'offline', message: 'No cloud link. Local storage active.', dbName: 'Local Storage', timestamp: timestampStr };
         }
 
         try {
@@ -665,8 +665,12 @@ export const apiService = {
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return this.fetchModuleRecords('institutions', institutionId); },
     async saveInstitution(inst: Institution): Promise<void> { 
-        const { countyId, ...rest } = inst;
-        await this.saveModuleRecord('institutions', { ...rest, county_id: countyId }); 
+        const { countyId, ncbaConfig, ...rest } = inst;
+        await this.saveModuleRecord('institutions', { 
+            ...rest, 
+            county_id: countyId,
+            ncba_config: ncbaConfig 
+        }); 
     },
     async fetchUsers(institutionId?: string): Promise<User[]> { return this.fetchModuleRecords('users', institutionId); },
     async saveUser(user: Partial<User>): Promise<void> { 

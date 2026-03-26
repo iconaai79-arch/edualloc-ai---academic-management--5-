@@ -2630,7 +2630,11 @@ Please change it after login.`;
                                                     </div>
                                                     <div>
                                                         <h4 className="text-2xl font-black uppercase tracking-tight">Global NCBA Gateway</h4>
-                                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Master configuration for NCBA Direct Settlement & B2B/B2C Integrations</p>
+                                                        <div className="flex gap-4 mt-1">
+                                                            <p className="text-[10px] font-black text-teal-600 uppercase tracking-widest bg-teal-50 px-2 py-0.5 rounded">ID: SYSTEM</p>
+                                                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded">Code: SYS-ADMIN</p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Master configuration for NCBA Direct Settlement</p>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -2732,12 +2736,12 @@ Please change it after login.`;
                                                             <input 
                                                                 type="text" 
                                                                 readOnly 
-                                                                value={`${window.location.origin}/api/ncba-callback`}
+                                                                value={`${window.location.origin}/api/ncba-callback?institutionId=SYSTEM`}
                                                                 className="form-input h-12 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 border-dashed"
                                                             />
                                                             <button 
                                                                 onClick={() => {
-                                                                    navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback`);
+                                                                    navigator.clipboard.writeText(`${window.location.origin}/api/ncba-callback?institutionId=SYSTEM`);
                                                                     alert('Platform Callback URL copied');
                                                                 }}
                                                                 className="px-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all shadow-sm"

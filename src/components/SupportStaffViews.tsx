@@ -37,6 +37,7 @@ import { TransactionForm } from './TransactionForm';
 import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { SecurityGatePassView } from './SecurityGatePassView';
 import { TransportOnboardingView } from './TransportOnboardingView';
+import { SupplierForm } from './retail/SupplierForm';
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
@@ -68,7 +69,8 @@ export interface SupportStaffViewProps {
     inventory?: InventoryItem[];
     stockTransactions?: StockTransaction[];
     suppliers?: Supplier[];
-    onAddItem?: (item: Omit<InventoryItem, 'id' | 'institutionId' | 'lastUpdated'>) => void;
+    onAddItem?: (item: Omit<InventoryItem, 'id' | 'lastUpdated' | 'institutionId'>) => Promise<void>;
+    onAddSupplier?: (supplier: Omit<Supplier, 'id' | 'institutionId'>) => Promise<void>;
     onAddItems?: (items: Omit<InventoryItem, 'id' | 'institutionId'>[]) => void;
     onAddStoreTransaction?: (item: InventoryItem, type: 'Restock' | 'Dispatch' | 'Adjustment' | 'Issue', quantity: number, party: string, verificationMethod: string, signature: string | null) => void;
     transactions?: MpesaTransaction[];
@@ -645,11 +647,13 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         onAddStoreTransaction, 
         countyInventory = [], 
         onMarkInventoryReceived,
-        onSwitchPerspective
+        onSwitchPerspective,
+        onAddSupplier
     } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports'>('dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
     const isCountyManaged = Boolean(props.currentInstitution?.countyId);
 
     const pendingShipments = useMemo(() => countyInventory.filter(i => i.status === 'in_transit'), [countyInventory]);
@@ -974,7 +978,13 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                             <h3 className="text-xl font-black uppercase tracking-tight">Support Network Registry</h3>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verified Institutional Vendors & Suppliers</p>
                         </div>
-                        <button className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6">New Vendor</button>
+                        <button 
+                            onClick={() => setIsAddSupplierModalOpen(true)}
+                            className="btn-primary text-[10px] uppercase font-black tracking-widest h-10 px-6 flex items-center gap-2"
+                        >
+                            <PlusIcon className="w-4 h-4" />
+                            New Vendor
+                        </button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1161,8 +1171,8 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
             {isAddModalOpen && (
                 <StoreItemForm
                     onClose={() => setIsAddModalOpen(false)}
-                    onSave={(item) => {
-                        onAddItem?.(item);
+                    onSave={async (item) => {
+                        await onAddItem?.(item);
                         setIsAddModalOpen(false);
                     }}
                 />
@@ -1177,6 +1187,16 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     }}
                     countyId="INSTITUTIONAL"
                     institutions={props.currentInstitution ? [props.currentInstitution] : []}
+                />
+            )}
+
+            {isAddSupplierModalOpen && (
+                <SupplierForm
+                    onSave={async (data) => {
+                        await onAddSupplier?.(data);
+                        setIsAddSupplierModalOpen(false);
+                    }}
+                    onClose={() => setIsAddSupplierModalOpen(false)}
                 />
             )}
         </BaseDashboard>

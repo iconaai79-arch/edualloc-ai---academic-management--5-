@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import * as crypto from 'crypto';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = () => {
@@ -29,16 +30,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
 
     console.log('--- NCBA Callback Received ---');
+    const signature = req.headers['x-ncba-signature'] as string;
+    const institutionId = req.query.institutionId as string;
+    
     console.log('Query:', JSON.stringify(req.query));
+    console.log('Signature:', signature);
     console.log('Body:', JSON.stringify(req.body));
     
     const body = req.body;
-    const institutionId = req.query.institutionId as string;
     const supabase = getSupabase();
 
     if (!supabase) return res.status(503).json({ error: 'Database context missing' });
 
     try {
+        // --- 0. Security Verification ---
+        let webhookSecret = '';
+
+        if (institutionId === 'SYSTEM') {
+            webhookSecret = process.env.NCBA_WEBHOOK_SECRET || '';
+        } else if (institutionId) {
+            const { data: inst } = await supabase
+                .from('institutions')
+                .select('ncba_config')
+                .eq('id', institutionId)
+                .single();
+            
+            if (inst?.ncba_config) {
+                webhookSecret = (inst.ncba_config as any).webhook_secret || '';
+            }
+        }
+
+        if (webhookSecret && signature) {
+            const computedHmac = crypto
+                .createHmac('sha256', webhookSecret)
+                .update(JSON.stringify(body))
+                .digest('hex');
+            
+            if (computedHmac !== signature.toLowerCase()) {
+                console.warn(`[NCBA Security] Signature mismatch for Institution: ${institutionId}`);
+                // return res.status(401).json({ ResultCode: 1, ResultDesc: 'Invalid Signature' });
+                // Note: For now we log and continue to avoid absolute lockouts during transition, 
+                // but in production this should be a hard 401.
+            } else {
+                console.log(`[NCBA Security] Signature Verified for Institution: ${institutionId}`);
+            }
+        } else if (webhookSecret) {
+            console.warn(`[NCBA Security] Missing signature for protected institution: ${institutionId}`);
+            // return res.status(401).json({ ResultCode: 1, ResultDesc: 'Missing Signature' });
+        }
         // Standard NCBA 2024 Payload mapping
         const transactionId = body.TransactionID || body.CheckoutRequestID || body.ReferenceID;
         const resultCode = String(body.ResultCode || body.status_code || '');
