@@ -659,6 +659,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
 
 export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const { 
+        user,
         inventory = [], 
         suppliers = [], 
         users = [], 
