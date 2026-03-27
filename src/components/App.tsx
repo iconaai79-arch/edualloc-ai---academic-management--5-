@@ -2877,7 +2877,7 @@ export const App: React.FC = () => {
                                     }}
                                     onAddStockTransaction={async (data) => {
                                         const countyId = currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
-                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId });
+                                        await apiService.saveModuleRecord('stock_transactions', { ...data, id: `stxn_${Date.now()}`, countyId, recordedBy: currentUser.id });
                                         loadData();
                                     }}
                                     stockTransactions={stockTransactions}

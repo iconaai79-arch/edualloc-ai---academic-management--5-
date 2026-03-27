@@ -9,6 +9,7 @@ import { apiService } from '../services/apiService';
 
 interface StoreIssuanceManagerProps {
     institutionId: string;
+    currentUserId: string;
     inventory: InventoryItem[];
     users: User[];
     departments?: Department[];
@@ -18,6 +19,7 @@ interface StoreIssuanceManagerProps {
 
 export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
     institutionId,
+    currentUserId,
     inventory,
     users,
     departments = [],
@@ -134,7 +136,7 @@ export const StoreIssuanceManager: React.FC<StoreIssuanceManagerProps> = ({
                 recipientOrSupplier: recipientType === 'person' ? (user?.name || 'Unknown Person') : (dept?.name || 'Kitchen'),
                 recipientId: newIssuance.userId,
                 date: new Date().toISOString(),
-                recordedBy: 'Store Keeper',
+                recordedBy: currentUserId,
                 institutionId,
                 signature: signatureUrl,
                 verificationMethod: 'Digital Signature'

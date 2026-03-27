@@ -1139,19 +1139,6 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 </div>
             )}
 
-            {activeTab === 'issuance' && (
-                <div className="animate-fade-in-up">
-                    <StoreIssuanceManager
-                        institutionId={props.user.institutionId}
-                        inventory={inventory}
-                        users={users}
-                        departments={props.departments || []}
-                        onLogAction={props.onLogAction || (async () => { })}
-                        onDataChange={() => { }} 
-                    />
-                </div>
-            )}
-
             {activeTab === 'reports' && (
                 <div className="space-y-8 animate-fade-in-up">
                     {/* Sub-tab Navigation */}
