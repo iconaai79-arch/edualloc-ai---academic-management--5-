@@ -46,7 +46,7 @@ import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { SecurityGatePassView } from './SecurityGatePassView';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { SupplierForm } from './retail/SupplierForm';
-import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri } from '../services/pdfService';
+import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
