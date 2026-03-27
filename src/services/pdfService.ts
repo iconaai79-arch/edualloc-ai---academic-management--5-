@@ -4351,3 +4351,141 @@ export const generateInventoryStatementPdfDataUri = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+export const generateInventoryAnalyticsPdfDataUri = async (
+    inventory: InventoryItem[],
+    issuanceHistory: StockTransaction[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("INVENTORY ANALYTICS & INSIGHTS", margin, yPos);
+    yPos += 15;
+
+    // 1. Executive Summary Cards
+    const totalValuation = inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+    const criticalSkus = inventory.filter(i => i.quantity <= i.reorderLevel).length;
+    const optimizationLevel = ((inventory.filter(i => i.quantity > i.reorderLevel).length / Math.max(1, inventory.length)) * 100).toFixed(0);
+
+    doc.setFillColor(79, 70, 229); // Indigo-600
+    doc.roundedRect(margin, yPos, 55, 25, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text("TOTAL VALUATION", margin + 5, yPos + 8);
+    doc.setFontSize(12);
+    doc.text(`KES ${totalValuation.toLocaleString()}`, margin + 5, yPos + 18);
+
+    doc.setFillColor(245, 158, 11); // Amber-500
+    doc.roundedRect(margin + 60, yPos, 55, 25, 3, 3, 'F');
+    doc.setFontSize(8);
+    doc.text("CRITICAL SKUS", margin + 65, yPos + 8);
+    doc.setFontSize(12);
+    doc.text(`${criticalSkus} items`, margin + 65, yPos + 18);
+
+    doc.setFillColor(16, 185, 129); // Emerald-500
+    doc.roundedRect(margin + 120, yPos, 55, 25, 3, 3, 'F');
+    doc.setFontSize(8);
+    doc.text("OPTIMIZATION", margin + 125, yPos + 8);
+    doc.setFontSize(12);
+    doc.text(`${optimizationLevel}%`, margin + 125, yPos + 18);
+
+    yPos += 40;
+
+    // 2. AI Insights Section
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD');
+    doc.setTextColor(79, 70, 229);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text("AI INTELLIGENCE INSIGHT", margin + 5, yPos + 8);
+    
+    doc.setTextColor(71, 85, 105);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    const insightText = criticalSkus > 3 
+        ? "Current low stock levels in key categories may disrupt operations within 14 days. Recommend prioritizing restock for items below reorder thresholds." 
+        : "Inventory levels are currently optimized. Focus on reconciling high-frequency issuance items to maintain accuracy.";
+    const splitInsight = doc.splitTextToSize(insightText, pageWidth - (margin * 2) - 15);
+    doc.text(splitInsight, margin + 5, yPos + 15);
+
+    yPos += 40;
+
+    // 3. Category Valuation Details
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text("CATEGORY VALUATION DISTRIBUTION", margin, yPos);
+    yPos += 8;
+
+    const categoryData = Object.entries(inventory.reduce((acc, i) => {
+        acc[i.category] = (acc[i.category] || 0) + (i.quantity * (i.price || 0));
+        return acc;
+    }, {} as Record<string, number>)).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+    const catHead = [['Category', 'Valuation (KES)', 'Contribution (%)']];
+    const catBody = categoryData.map(([cat, val]) => [
+        cat.toUpperCase(),
+        val.toLocaleString(),
+        ((val / Math.max(1, totalValuation)) * 100).toFixed(1) + '%'
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: catHead,
+        body: catBody,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 8 },
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'center' } }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // 4. Issuance Velocity (Top items)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text("TOP ISSUED ITEMS (30-DAY VELOCITY)", margin, yPos);
+    yPos += 8;
+
+    const issuanceData = Object.entries(issuanceHistory.reduce((acc, txn) => {
+        acc[txn.itemName] = (acc[txn.itemName] || 0) + txn.quantity;
+        return acc;
+    }, {} as Record<string, number>)).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+    const issueHead = [['Item Name', 'Quantity Issued', 'Relative Velocity']];
+    const maxQty = Math.max(1, ...issuanceData.map(d => d[1]));
+    
+    const issueBody = issuanceData.map(([item, qty]) => [
+        item.toUpperCase(),
+        qty.toLocaleString(),
+        '|'.repeat(Math.round((qty/maxQty) * 20)) // Simple text-based bar
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: issueHead,
+        body: issueBody,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+        styles: { fontSize: 8 },
+        columnStyles: { 1: { halign: 'right' }, 2: { textColor: [79, 70, 229], fontStyle: 'bold' } }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

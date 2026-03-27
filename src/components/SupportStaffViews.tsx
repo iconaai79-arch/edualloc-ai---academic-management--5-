@@ -700,6 +700,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
     const [registrySearch, setRegistrySearch] = useState('');
     const [registryCategory, setRegistryCategory] = useState('');
     const [issuanceSearch, setIssuanceSearch] = useState('');
+    const [issuanceSubTab, setIssuanceSubTab] = useState<'all' | 'staff' | 'student'>('all');
     const [issuanceStartDate, setIssuanceStartDate] = useState('');
     const [issuanceEndDate, setIssuanceEndDate] = useState('');
     const [statementSearch, setStatementSearch] = useState('');
@@ -1408,11 +1409,16 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                 <button
                                     onClick={async () => {
                                         const filteredTxns = issuanceHistory.filter(t => {
+                                            const recipient = users.find(u => u.id === t.recipientId);
+                                            const matchesRole = issuanceSubTab === 'all' || 
+                                                               (issuanceSubTab === 'staff' && recipient?.role !== 'student') || 
+                                                               (issuanceSubTab === 'student' && recipient?.role === 'student');
+                                            
                                             const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(issuanceSearch.toLowerCase()) || 
                                                                 t.itemName.toLowerCase().includes(issuanceSearch.toLowerCase());
                                             const matchesStart = !issuanceStartDate || new Date(t.date) >= new Date(issuanceStartDate);
                                             const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
-                                            return matchesSearch && matchesStart && matchesEnd;
+                                            return matchesRole && matchesSearch && matchesStart && matchesEnd;
                                         }).map(t => {
                                             const recipient = users.find(u => u.id === t.recipientId);
                                             const course = courses.find(c => c.id === recipient?.courseId);
@@ -1437,6 +1443,23 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                 </button>
                             </div>
 
+                            {/* Sub-tabs for Staff / Student */}
+                            <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-2xl w-fit mb-6">
+                                {(['all', 'staff', 'student'] as const).map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setIssuanceSubTab(tab)}
+                                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            issuanceSubTab === tab
+                                                ? 'bg-white text-indigo-600 shadow-sm'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {tab === 'all' ? 'All Issuances' : tab === 'staff' ? 'Staff Members' : 'Students'}
+                                    </button>
+                                ))}
+                            </div>
+
                             <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
@@ -1452,15 +1475,36 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {issuanceHistory
-                                                .filter(t => {
+                                            {(() => {
+                                                const filtered = issuanceHistory.filter(t => {
+                                                    const recipient = users.find(u => u.id === t.recipientId);
+                                                    const matchesRole = issuanceSubTab === 'all' || 
+                                                                       (issuanceSubTab === 'staff' && recipient?.role !== 'student') || 
+                                                                       (issuanceSubTab === 'student' && recipient?.role === 'student');
+                                                    
                                                     const matchesSearch = t.recipientOrSupplier?.toLowerCase().includes(issuanceSearch.toLowerCase()) || 
                                                                         t.itemName.toLowerCase().includes(issuanceSearch.toLowerCase());
                                                     const matchesStart = !issuanceStartDate || new Date(t.date) >= new Date(issuanceStartDate);
                                                     const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
-                                                    return matchesSearch && matchesStart && matchesEnd;
-                                                })
-                                                .map(t => {
+                                                    return matchesRole && matchesSearch && matchesStart && matchesEnd;
+                                                });
+
+                                                if (filtered.length === 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td colSpan={7} className="px-6 py-12 text-center">
+                                                                <div className="flex flex-col items-center gap-3">
+                                                                    <div className="p-4 bg-slate-50 rounded-full">
+                                                                        <PackageIcon className="w-8 h-8 text-slate-300" />
+                                                                    </div>
+                                                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">No matching issuances found</p>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
+                                                return filtered.map(t => {
                                                     const recipient = users.find(u => u.id === t.recipientId);
                                                     const course = courses.find(c => c.id === recipient?.courseId);
                                                     const level = course?.levels.find(l => l.id === recipient?.courseLevelId);
@@ -1605,6 +1649,25 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
 
                     {activeReportTab === 'analytics' && (
                         <div className="space-y-8 animate-fade-in-up">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-widest">Inventory Intelligence</h3>
+                                <button
+                                    onClick={async () => {
+                                        const dataUri = await generateInventoryAnalyticsPdfDataUri(
+                                            inventory,
+                                            issuanceHistory,
+                                            props.currentInstitution!,
+                                            letterheadConfig!,
+                                            footerImageUrl!
+                                        );
+                                        setPdfUrl(dataUri);
+                                    }}
+                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Preview Analytics PDF
+                                </button>
+                            </div>
+
                             {/* Advanced Insights Row */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
