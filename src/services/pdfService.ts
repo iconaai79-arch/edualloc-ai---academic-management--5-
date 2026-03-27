@@ -4266,12 +4266,14 @@ export const generateIssuanceReportPdfDataUri = async (
     doc.text("INVENTORY ISSUANCE REPORT", margin, yPos);
     yPos += 10;
 
-    const head = [['Recipient', 'Item', 'Qty', 'Type', 'Date']];
+    const head = [['Recipient', 'ID', 'Class', 'Item', 'Qty', 'Signature', 'Date']];
     const body = (transactions || []).map(t => [
         t.recipientOrSupplier || 'N/A',
+        (t as any).recipientDisplayId || (t.recipientId ? t.recipientId.substring(0, 8) : 'N/A'),
+        (t as any).recipientClass || 'N/A',
         t.itemName,
         t.quantity,
-        t.type,
+        '', // Placeholder for signature image
         new Date(t.date).toLocaleDateString()
     ]);
 
@@ -4281,7 +4283,25 @@ export const generateIssuanceReportPdfDataUri = async (
         body,
         theme: 'striped',
         headStyles: { fillColor: [45, 55, 72], textColor: 255 },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7, cellPadding: 2, minCellHeight: 12 },
+        columnStyles: {
+            5: { cellWidth: 20 } // Signature column width
+        },
+        didDrawCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 5) {
+                const txn = transactions[data.row.index];
+                if (txn.signature) {
+                    try {
+                        const imgSize = 8;
+                        const x = data.cell.x + (data.cell.width - imgSize) / 2;
+                        const y = data.cell.y + (data.cell.height - imgSize) / 2;
+                        doc.addImage(txn.signature, 'PNG', x, y, imgSize, imgSize);
+                    } catch (e) {
+                        console.error('Error adding signature to PDF:', e);
+                    }
+                }
+            }
+        }
     });
 
     setupPdfFooter(doc, footerImg);

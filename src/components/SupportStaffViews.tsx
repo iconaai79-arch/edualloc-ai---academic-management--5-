@@ -1413,9 +1413,18 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                             const matchesStart = !issuanceStartDate || new Date(t.date) >= new Date(issuanceStartDate);
                                             const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
                                             return matchesSearch && matchesStart && matchesEnd;
+                                        }).map(t => {
+                                            const recipient = users.find(u => u.id === t.recipientId);
+                                            const course = courses.find(c => c.id === recipient?.courseId);
+                                            const level = course?.levels.find(l => l.id === recipient?.courseLevelId);
+                                            return {
+                                                ...t,
+                                                recipientClass: level ? `${course?.shortName || course?.name} ${level.name}` : 'N/A',
+                                                recipientDisplayId: recipient?.staffId || t.recipientId?.substring(0, 8) || 'N/A'
+                                            };
                                         });
                                         const dataUri = await generateIssuanceReportPdfDataUri(
-                                            filteredTxns,
+                                            filteredTxns as any,
                                             props.currentInstitution!,
                                             letterheadConfig!,
                                             footerImageUrl!
@@ -1434,8 +1443,11 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                         <thead className="bg-slate-50 dark:bg-slate-900/50">
                                             <tr className="border-b border-slate-100 dark:border-slate-800">
                                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">ID</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Class</th>
                                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item Issued</th>
                                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Signature</th>
                                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Date</th>
                                             </tr>
                                         </thead>
@@ -1448,14 +1460,30 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                     const matchesEnd = !issuanceEndDate || new Date(t.date) <= new Date(issuanceEndDate);
                                                     return matchesSearch && matchesStart && matchesEnd;
                                                 })
-                                                .map(t => (
-                                                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-5 font-black text-slate-900 dark:text-white uppercase text-xs">{t.recipientOrSupplier}</td>
-                                                        <td className="px-6 py-5 font-bold text-slate-600 dark:text-slate-400 text-xs">{t.itemName}</td>
-                                                        <td className="px-6 py-5 text-center font-mono font-black text-indigo-600">{t.quantity}</td>
-                                                        <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
-                                                    </tr>
-                                                ))}
+                                                .map(t => {
+                                                    const recipient = users.find(u => u.id === t.recipientId);
+                                                    const course = courses.find(c => c.id === recipient?.courseId);
+                                                    const level = course?.levels.find(l => l.id === recipient?.courseLevelId);
+                                                    const className = level ? `${course?.shortName || course?.name} ${level.name}` : 'N/A';
+
+                                                    return (
+                                                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="px-6 py-5 font-black text-slate-900 dark:text-white uppercase text-xs">{t.recipientOrSupplier}</td>
+                                                            <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{recipient?.staffId || t.recipientId?.substring(0, 8) || 'N/A'}</td>
+                                                            <td className="px-6 py-5 font-bold text-slate-400 text-[10px] uppercase">{className}</td>
+                                                            <td className="px-6 py-5 font-bold text-slate-600 dark:text-slate-400 text-xs">{t.itemName}</td>
+                                                            <td className="px-6 py-5 text-center font-mono font-black text-indigo-600">{t.quantity}</td>
+                                                            <td className="px-6 py-5 text-center">
+                                                                {t.signature ? (
+                                                                    <img src={t.signature} alt="Sign" className="h-6 w-auto mx-auto border border-slate-100 rounded bg-white shadow-sm" />
+                                                                ) : (
+                                                                    <span className="text-[8px] text-slate-300 font-black uppercase">None</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                         </tbody>
                                     </table>
                                 </div>
