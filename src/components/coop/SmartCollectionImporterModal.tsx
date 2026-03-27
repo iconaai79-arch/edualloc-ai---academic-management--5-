@@ -109,6 +109,44 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
         setFieldMapping(prev => ({ ...prev, [field]: value }));
     };
 
+    const parseUniversalDate = (s: string): Date | null => {
+        if (!s) return null;
+        
+        // Clean the string
+        const clean = s.trim();
+        if (!clean) return null;
+
+        // Try standard JS parsing first
+        let d = new Date(clean);
+        if (!isNaN(d.getTime())) {
+            // Check if it's potentially dd/mm/yyyy interpreted as mm/dd/yyyy
+            // If the day part is > 12, standard JS might fail or flip it.
+            // But usually standard JS only accepts ISO or US formats.
+        }
+
+        // Try DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+        const dmy = clean.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+        if (dmy) {
+            const day = parseInt(dmy[1]);
+            const month = parseInt(dmy[2]) - 1;
+            const year = parseInt(dmy[3]);
+            const testD = new Date(year, month, day);
+            if (!isNaN(testD.getTime())) return testD;
+        }
+
+        // Try YYYY/MM/DD or YYYY-MM-DD
+        const ymd = clean.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+        if (ymd) {
+            const year = parseInt(ymd[1]);
+            const month = parseInt(ymd[2]) - 1;
+            const day = parseInt(ymd[3]);
+            const testD = new Date(year, month, day);
+            if (!isNaN(testD.getTime())) return testD;
+        }
+
+        return !isNaN(d.getTime()) ? d : null;
+    };
+
     const handleConfirmMapping = () => {
         // Check if at least one farmer identifer is mapped
         if (!fieldMapping.farmerName && !fieldMapping.farmerAccountNumber && !fieldMapping.farmerPhoneNumber && !fieldMapping.farmerMemberId) {
@@ -195,8 +233,8 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                     // but usually Excel serials for 2024 are ~45000
                     d = new Date((mDate - 25569) * 86400 * 1000);
                 } else {
-                    // Try parsing as string
-                    d = new Date(String(mDate));
+                    // Try parsing as string with universal detection
+                    d = parseUniversalDate(String(mDate));
                 }
                 
                 if (d && !isNaN(d.getTime())) {
