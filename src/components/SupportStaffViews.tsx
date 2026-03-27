@@ -1147,7 +1147,8 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         departments={departments}
                         institutionId={props.user.institutionId}
                         currentUserId={props.user.id}
-                        onIssuanceComplete={() => {
+                        onLogAction={props.onLogAction}
+                        onDataChange={() => {
                             loadData();
                             setActiveTab('inventory');
                         }}
