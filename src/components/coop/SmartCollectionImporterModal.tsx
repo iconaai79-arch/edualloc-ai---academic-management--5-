@@ -36,6 +36,7 @@ interface SmartCollectionImporterModalProps {
     farmers: CoopFarmer[];
     currentInstitution: Institution;
     currentUser: User;
+    isAutoConfirm?: boolean;
 }
 
 export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModalProps> = ({
@@ -43,7 +44,8 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
     onImport,
     farmers,
     currentInstitution,
-    currentUser
+    currentUser,
+    isAutoConfirm = false
 }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);

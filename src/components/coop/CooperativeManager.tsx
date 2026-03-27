@@ -238,9 +238,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const filteredCollections = useMemo(() => {
         return collections.filter(c => {
             if (!c.collectionDate) return false;
-            // Handle both YYYY-MM-DD and other formats
+            // Handle both YYYY-MM-DD and other formats using UTC to avoid timezone shifts
             const date = new Date(c.collectionDate);
-            const matchesDate = date.getMonth() === filterMonth && date.getFullYear() === filterYear;
+            if (isNaN(date.getTime())) return false;
+            
+            const matchesDate = (date.getUTCMonth() === filterMonth || date.getMonth() === filterMonth) && 
+                               (date.getUTCFullYear() === filterYear || date.getFullYear() === filterYear);
+            
             const matchesSearch = !searchTerm || 
                 getFarmerName(c.farmerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -2560,8 +2564,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 const farmerCollections = collections.filter(c => 
                                                     c.farmerId === farmer.id && 
                                                     c.factoryConfirmed && 
-                                                    new Date(c.collectionDate).getMonth() === filterMonth &&
-                                                    new Date(c.collectionDate).getFullYear() === filterYear
+                                                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
+                                                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
                                                 );
                                                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                                                 const gross = totalQty * payoutRate;
@@ -2569,14 +2573,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 const advances = expenses.filter(ex => 
                                                     ex.farmerId === farmer.id && 
                                                     ex.category.toLowerCase().includes('advance') &&
-                                                    new Date(ex.date).getMonth() === filterMonth &&
-                                                    new Date(ex.date).getFullYear() === filterYear
+                                                    new Date(ex.date).getUTCMonth() === filterMonth &&
+                                                    new Date(ex.date).getUTCFullYear() === filterYear
                                                 ).reduce((s, ex) => s + ex.amount, 0);
 
                                                 const deductions = sales.filter(s => 
                                                     s.farmerId === farmer.id && 
-                                                    new Date(s.saleDate).getMonth() === filterMonth &&
-                                                    new Date(s.saleDate).getFullYear() === filterYear
+                                                    new Date(s.saleDate).getUTCMonth() === filterMonth &&
+                                                    new Date(s.saleDate).getUTCFullYear() === filterYear
                                                 ).reduce((acc, sa) => acc + sa.amount, 0);
 
                                                 const net = gross - advances - deductions;
@@ -2606,9 +2610,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </tbody>
                                     </table>
                                     {farmers.filter(farmer => {
-                                        const c = collections.some(col => col.farmerId === farmer.id && col.factoryConfirmed && new Date(col.collectionDate).getMonth() === filterMonth && new Date(col.collectionDate).getFullYear() === filterYear);
-                                        const e = expenses.some(ex => ex.farmerId === farmer.id && ex.category.toLowerCase().includes('advance') && new Date(ex.date).getMonth() === filterMonth && new Date(ex.date).getFullYear() === filterYear);
-                                        const s = sales.some(sa => sa.farmerId === farmer.id && new Date(sa.saleDate).getMonth() === filterMonth && new Date(sa.saleDate).getFullYear() === filterYear);
+                                        const c = collections.some(col => col.farmerId === farmer.id && col.factoryConfirmed && (new Date(col.collectionDate).getUTCMonth() === filterMonth || new Date(col.collectionDate).getMonth() === filterMonth) && (new Date(col.collectionDate).getUTCFullYear() === filterYear || new Date(col.collectionDate).getFullYear() === filterYear));
+                                        const e = expenses.some(ex => ex.farmerId === farmer.id && ex.category.toLowerCase().includes('advance') && (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) && (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear));
+                                        const s = sales.some(sa => sa.farmerId === farmer.id && (new Date(sa.saleDate).getUTCMonth() === filterMonth || new Date(sa.saleDate).getMonth() === filterMonth) && (new Date(sa.saleDate).getUTCFullYear() === filterYear || new Date(sa.saleDate).getFullYear() === filterYear));
                                         return c || e || s;
                                     }).length === 0 && (
                                         <div className="py-12 text-center border-t border-slate-50 dark:border-slate-800">
@@ -2853,6 +2857,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     farmers={farmers}
                     currentInstitution={currentInstitution}
                     currentUser={currentUser}
+                    isAutoConfirm={true}
                 />
             )}
             {editingFarmer && (
