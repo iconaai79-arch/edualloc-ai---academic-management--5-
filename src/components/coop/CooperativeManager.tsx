@@ -367,8 +367,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 const farmerCollections = collections.filter(c => 
                     c.farmerId === farmer.id && 
                     c.factoryConfirmed && 
-                    new Date(c.collectionDate).getMonth() === filterMonth &&
-                    new Date(c.collectionDate).getFullYear() === filterYear
+                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
+                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
                 );
                 
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
@@ -377,14 +377,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 const advances = expenses.filter(ex => 
                     ex.farmerId === farmer.id && 
                     ex.category.toLowerCase().includes('advance') &&
-                    new Date(ex.date).getMonth() === filterMonth &&
-                    new Date(ex.date).getFullYear() === filterYear
+                    (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) &&
+                    (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear)
                 ).reduce((s, ex) => s + ex.amount, 0);
 
                 const agrovetDeduction = sales.filter(s => 
                     s.farmerId === farmer.id && 
-                    new Date(s.saleDate).getMonth() === filterMonth &&
-                    new Date(s.saleDate).getFullYear() === filterYear
+                    (new Date(s.saleDate).getUTCMonth() === filterMonth || new Date(s.saleDate).getMonth() === filterMonth) &&
+                    (new Date(s.saleDate).getUTCFullYear() === filterYear || new Date(s.saleDate).getFullYear() === filterYear)
                 ).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - agrovetDeduction;
@@ -431,8 +431,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 const farmerCollections = collections.filter(c => 
                     c.farmerId === farmer.id && 
                     c.factoryConfirmed && 
-                    new Date(c.collectionDate).getMonth() === filterMonth &&
-                    new Date(c.collectionDate).getFullYear() === filterYear
+                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
+                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
                 );
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                 const gross = totalQty * payoutRate;
@@ -440,14 +440,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 const advances = expenses.filter(ex => 
                     ex.farmerId === farmer.id && 
                     ex.category.toLowerCase().includes('advance') &&
-                    new Date(ex.date).getMonth() === filterMonth &&
-                    new Date(ex.date).getFullYear() === filterYear
+                    (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) &&
+                    (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear)
                 ).reduce((s, ex) => s + ex.amount, 0);
 
                 const deductions = sales.filter(s => 
                     s.farmerId === farmer.id && 
-                    new Date(s.saleDate).getMonth() === filterMonth &&
-                    new Date(s.saleDate).getFullYear() === filterYear
+                    (new Date(s.saleDate).getUTCMonth() === filterMonth || new Date(s.saleDate).getMonth() === filterMonth) &&
+                    (new Date(s.saleDate).getUTCFullYear() === filterYear || new Date(s.saleDate).getFullYear() === filterYear)
                 ).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - deductions;
