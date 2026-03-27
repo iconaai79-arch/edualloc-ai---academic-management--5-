@@ -76,10 +76,21 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
 
                 if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty or has no headers.");
 
-                const headers = jsonHeaders[0].filter((h: any) => h != null && h !== '');
+                const headers = jsonHeaders[0].map((h: any) => String(h || '').trim()).filter(h => h !== '');
                 setFileHeaders(headers);
 
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                // Get all rows, then slice to skip header row
+                const allData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const rows = allData.slice(1);
+                
+                // Convert array rows to objects using trimmed headers
+                const jsonData = rows.map(row => {
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        obj[h] = row[i];
+                    });
+                    return obj;
+                });
                 setRawData(jsonData);
 
                 // Use AI mapping
@@ -120,7 +131,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 id: generateId('coll'),
                 institutionId: currentInstitution.id,
                 status: 'pending',
-                collectionDate: new Date().toISOString(),
+                collectionDate: '',
                 recordedBy: currentUser.id,
                 notified: false,
                 factoryConfirmed: isAutoConfirm,
@@ -169,25 +180,35 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
             }
 
             // Date
-            const mDate = fieldMapping.collectionDate ? row[fieldMapping.collectionDate] : null;
-            if (mDate) {
+            const mDateKey = fieldMapping.collectionDate;
+            const mDate = mDateKey ? row[mDateKey] : null;
+            
+            if (mDate !== null && mDate !== undefined && String(mDate).trim() !== '') {
                 // Handle Date objects (from cellDates: true), Excel date serials, or strings
                 let d: Date | null = null;
+                
                 if (mDate instanceof Date) {
                     d = mDate;
                 } else if (typeof mDate === 'number') {
                     // Excel serial date conversion (25569 is Jan 1, 1970)
+                    // If the number is too small (e.g. 1-100), it might be a day of the month error, 
+                    // but usually Excel serials for 2024 are ~45000
                     d = new Date((mDate - 25569) * 86400 * 1000);
-                } else if (typeof mDate === 'string' && mDate.trim().length > 0) {
-                    d = new Date(mDate);
+                } else {
+                    // Try parsing as string
+                    d = new Date(String(mDate));
                 }
                 
                 if (d && !isNaN(d.getTime())) {
                     parsed.collectionDate = d.toISOString().split('T')[0];
                 } else {
+                    // Critical failure to parse mapped date
+                    errors.push("Invalid Date Format");
                     parsed.collectionDate = new Date().toISOString().split('T')[0];
                 }
             } else {
+                // Date is required but missing
+                errors.push("Date is missing");
                 parsed.collectionDate = new Date().toISOString().split('T')[0];
             }
 
