@@ -46,7 +46,7 @@ import { ItemQrCodeModal } from './ItemQrCodeModal';
 import { SecurityGatePassView } from './SecurityGatePassView';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { SupplierForm } from './retail/SupplierForm';
-import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri } from '../services/pdfService';
+import { downloadInvoicePdf, downloadReceiptPdf, generateInventoryRegistryPdfDataUri, generateIssuanceReportPdfDataUri, generateInventoryStatementPdfDataUri, generateInventoryAnalyticsPdfDataUri, generateInventorySummaryPdfDataUri } from '../services/pdfService';
 import { TimetableGrid } from './TimetableGrid';
 import { StudentLeaveOutManager } from './StudentLeaveOutManager';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
@@ -1244,7 +1244,25 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     </div>
 
                     {activeReportTab === 'summary' && (
-                        <div className="space-y-8">
+                        <div className="space-y-8 animate-fade-in-up">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-widest">Executive Overview</h3>
+                                <button
+                                    onClick={async () => {
+                                        const dataUri = await generateInventorySummaryPdfDataUri(
+                                            inventory,
+                                            issuanceHistory,
+                                            props.currentInstitution!,
+                                            letterheadConfig!,
+                                            footerImageUrl!
+                                        );
+                                        setPdfUrl(dataUri);
+                                    }}
+                                    className="px-6 py-3 bg-indigo-600 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Preview Summary PDF
+                                </button>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                                     <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2">Stock Health</h4>

@@ -4489,3 +4489,88 @@ export const generateInventoryAnalyticsPdfDataUri = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+export const generateInventorySummaryPdfDataUri = async (
+    inventory: InventoryItem[],
+    issuanceHistory: StockTransaction[],
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("INVENTORY EXECUTIVE SUMMARY", margin, yPos);
+    yPos += 15;
+
+    // 1. Executive Summary Cards
+    const healthyItems = inventory.filter(i => i.quantity > i.reorderLevel).length;
+    const criticalItems = inventory.filter(i => i.quantity <= i.reorderLevel).length;
+    const totalTransactions = issuanceHistory.length;
+
+    doc.setFillColor(79, 70, 229); // Indigo-600
+    doc.roundedRect(margin, yPos, 55, 25, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text("STOCK HEALTH", margin + 5, yPos + 8);
+    doc.setFontSize(14);
+    doc.text(`${healthyItems}/${inventory.length}`, margin + 5, yPos + 18);
+
+    doc.setFillColor(225, 29, 72); // Rose-600
+    doc.roundedRect(margin + 60, yPos, 55, 25, 3, 3, 'F');
+    doc.setFontSize(8);
+    doc.text("CRITICAL ALERTS", margin + 65, yPos + 8);
+    doc.setFontSize(14);
+    doc.text(`${criticalItems} items`, margin + 65, yPos + 18);
+
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.roundedRect(margin + 120, yPos, 55, 25, 3, 3, 'F');
+    doc.setFontSize(8);
+    doc.text("TOTAL ISSUANCES", margin + 125, yPos + 8);
+    doc.setFontSize(14);
+    doc.text(`${totalTransactions}`, margin + 125, yPos + 18);
+
+    yPos += 40;
+
+    // 2. Recent Distributions Table
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text("RECENT DISTRIBUTIONS (TOP 10)", margin, yPos);
+    yPos += 8;
+
+    const tableHead = [['Recipient', 'Item', 'Qty', 'Date']];
+    const tableBody = issuanceHistory.slice(0, 10).map(t => [
+        t.recipientOrSupplier?.toUpperCase() || 'N/A',
+        t.itemName.toUpperCase(),
+        t.quantity.toString(),
+        new Date(t.date).toLocaleDateString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: tableHead,
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8, textColor: [71, 85, 105] },
+        columnStyles: {
+            2: { halign: 'center' },
+            3: { halign: 'right' }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
