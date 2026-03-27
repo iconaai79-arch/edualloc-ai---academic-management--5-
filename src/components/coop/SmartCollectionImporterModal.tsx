@@ -18,7 +18,7 @@ import { CircleCheckIcon, UserIcon as UserIconAlt } from '../icons';
 
 type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 
-const REQUIRED_FIELDS: CollectionMappingField[] = ['quantity', 'unit', 'productType'];
+const REQUIRED_FIELDS: CollectionMappingField[] = ['quantity', 'unit', 'productType', 'collectionDate'];
 const ALL_MAPPING_FIELDS: CollectionMappingField[] = [
     'farmerName', 'farmerAccountNumber', 'farmerPhoneNumber', 'farmerMemberId', 'collectionDate', 'productType', 'quantity', 'unit', 'qualityGrade'
 ];
@@ -69,7 +69,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
         reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonHeaders: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
@@ -171,18 +171,21 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
             // Date
             const mDate = fieldMapping.collectionDate ? row[fieldMapping.collectionDate] : null;
             if (mDate) {
-                // Handle Excel date serials or strings
-                let d: Date;
-                if (typeof mDate === 'number') {
-                    d = new Date((mDate - (25567 + 1)) * 86400 * 1000);
-                } else {
+                // Handle Date objects (from cellDates: true), Excel date serials, or strings
+                let d: Date | null = null;
+                if (mDate instanceof Date) {
+                    d = mDate;
+                } else if (typeof mDate === 'number') {
+                    // Excel serial date conversion (25569 is Jan 1, 1970)
+                    d = new Date((mDate - 25569) * 86400 * 1000);
+                } else if (typeof mDate === 'string' && mDate.trim().length > 0) {
                     d = new Date(mDate);
                 }
                 
-                if (isNaN(d.getTime())) {
-                    parsed.collectionDate = new Date().toISOString().split('T')[0];
-                } else {
+                if (d && !isNaN(d.getTime())) {
                     parsed.collectionDate = d.toISOString().split('T')[0];
+                } else {
+                    parsed.collectionDate = new Date().toISOString().split('T')[0];
                 }
             } else {
                 parsed.collectionDate = new Date().toISOString().split('T')[0];

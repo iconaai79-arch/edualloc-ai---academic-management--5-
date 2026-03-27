@@ -9,19 +9,39 @@ interface PdfPreviewModalProps {
 }
 
 export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, filename }) => {
+    const [displayUrl, setDisplayUrl] = React.useState<string>(url);
+
     useEffect(() => {
+        let activeUrl = url;
+        let blobUrl: string | null = null;
+
+        if (url.startsWith('data:application/pdf;base64,')) {
+            try {
+                const base64 = url.split(',')[1];
+                const binary = atob(base64);
+                const array = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    array[i] = binary.charCodeAt(i);
+                }
+                const blob = new Blob([array], { type: 'application/pdf' });
+                blobUrl = URL.createObjectURL(blob);
+                activeUrl = blobUrl;
+                setDisplayUrl(blobUrl);
+            } catch (e) {
+                console.error("Failed to convert data URI to blob:", e);
+            }
+        } else {
+            setDisplayUrl(url);
+        }
+
         return () => {
-            // Only revoke if we created it locally. 
-            // If it's passed from parent, parent should manage it, 
-            // but often it's generated right before opening the modal.
-            // For safety, we keep the original logic but be mindful.
-            // if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
         };
     }, [url]);
 
     const handleDownload = () => {
         const link = document.createElement('a');
-        link.href = url;
+        link.href = displayUrl;
         link.download = filename || `Export_${Date.now()}.pdf`;
         link.click();
     };
@@ -48,7 +68,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
                 </div>
                 <div className="flex-grow bg-slate-100 dark:bg-slate-950 p-4">
                     <iframe
-                        src={`${url}#toolbar=1&navpanes=0&scrollbar=1`}
+                        src={`${displayUrl}#toolbar=1&navpanes=0&scrollbar=1`}
                         className="w-full h-full rounded-2xl shadow-inner border border-slate-200 dark:border-slate-800 bg-white"
                         title="PDF Preview"
                     />
