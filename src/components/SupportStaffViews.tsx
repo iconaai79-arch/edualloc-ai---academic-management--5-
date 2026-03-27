@@ -20,6 +20,8 @@ import {
     LockClosedIcon,
     MpesaIcon,
     SparklesIcon,
+    TrendingUpIcon,
+    ArrowTrendingUpIcon,
     CameraIcon,
     CalendarDaysIcon,
     PhoneIcon,
@@ -689,7 +691,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         onLogAction
     } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports' | 'students' | 'departments' | 'staff'>('dashboard');
-    const [activeReportTab, setActiveReportTab] = useState<'summary' | 'registry' | 'issuance' | 'statements'>('summary');
+    const [activeReportTab, setActiveReportTab] = useState<'summary' | 'registry' | 'issuance' | 'statements' | 'analytics'>('summary');
 
     // Reporting Filters
     const [registrySearch, setRegistrySearch] = useState('');
@@ -1229,6 +1231,12 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         >
                             History Statements
                         </button>
+                        <button
+                            onClick={() => setActiveReportTab('analytics')}
+                            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeReportTab === 'analytics' ? 'bg-white dark:bg-slate-800 shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Analytics & Insights
+                        </button>
                     </div>
 
                     {activeReportTab === 'summary' && (
@@ -1559,6 +1567,160 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                 ))}
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeReportTab === 'analytics' && (
+                        <div className="space-y-8 animate-fade-in-up">
+                            {/* Advanced Insights Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+                                    <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all"></div>
+                                    <div className="relative z-10">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                                <TrendingUpIcon className="w-5 h-5 text-white" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Value Distribution</span>
+                                        </div>
+                                        <h4 className="text-3xl font-black mb-2">
+                                            KES {inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0).toLocaleString()}
+                                        </h4>
+                                        <p className="text-[10px] font-bold opacity-70 uppercase tracking-tight">Total Estimated Stock Valuation</p>
+                                        <div className="mt-6 pt-6 border-t border-white/10 flex items-center justify-between">
+                                            <span className="text-[9px] font-black uppercase">Top Category</span>
+                                            <span className="px-3 py-1 bg-white/20 rounded-lg text-[9px] font-black uppercase">
+                                                {Object.entries(inventory.reduce((acc, i) => {
+                                                    acc[i.category] = (acc[i.category] || 0) + (i.quantity * (i.price || 0));
+                                                    return acc;
+                                                }, {} as Record<string, number>)).sort((a,b) => b[1]-a[1])[0]?.[0] || 'N/A'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-xl">
+                                            <ExclamationTriangleIcon className="w-5 h-5 text-amber-600" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Inventory Health</span>
+                                    </div>
+                                    <div className="flex items-end gap-3 mb-2">
+                                        <span className="text-3xl font-black text-slate-900 dark:text-white">
+                                            {inventory.filter(i => i.quantity <= i.reorderLevel).length}
+                                        </span>
+                                        <span className="text-xs font-bold text-rose-600 mb-1">Critical SKUs</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-4">
+                                        <div 
+                                            className="bg-rose-500 h-full rounded-full" 
+                                            style={{ width: `${(inventory.filter(i => i.quantity <= i.reorderLevel).length / Math.max(1, inventory.length)) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">
+                                        {((inventory.filter(i => i.quantity > i.reorderLevel).length / Math.max(1, inventory.length)) * 100).toFixed(0)}% Stock Optimization Level
+                                    </p>
+                                </div>
+
+                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-6">
+                                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl">
+                                            <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">AI Insight</span>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed italic">
+                                            "{inventory.filter(i => i.quantity <= i.reorderLevel).length > 3 
+                                                ? "Current low stock levels in key categories may disrupt operations within 14 days. Recommend prioritizing restock for items below reorder thresholds." 
+                                                : "Inventory levels are currently optimized. Focus on reconciling high-frequency issuance items to maintain accuracy."}"
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[8px] font-black uppercase">Optimization</span>
+                                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[8px] font-black uppercase">Predictive</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Graphical Representation Row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* Stock Value by Category - Bar Chart */}
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Stock Value by Category</h4>
+                                        <ChartBarIcon className="w-5 h-5 text-slate-300" />
+                                    </div>
+                                    <div className="space-y-6">
+                                        {Object.entries(inventory.reduce((acc, i) => {
+                                            acc[i.category] = (acc[i.category] || 0) + (i.quantity * (i.price || 0));
+                                            return acc;
+                                        }, {} as Record<string, number>))
+                                        .sort((a,b) => b[1]-a[1])
+                                        .slice(0, 6)
+                                        .map(([cat, val]) => {
+                                            const total = inventory.reduce((sum, i) => sum + (i.quantity * (i.price || 0)), 0);
+                                            const percentage = (val / Math.max(1, total)) * 100;
+                                            return (
+                                                <div key={cat} className="space-y-2">
+                                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-tight">
+                                                        <span className="text-slate-600 dark:text-slate-400">{cat}</span>
+                                                        <span className="text-indigo-600">KES {val.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-50 dark:bg-slate-900/50 h-3 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="bg-indigo-500 h-full rounded-full transition-all duration-1000" 
+                                                            style={{ width: `${percentage}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Top Issued Items - Horizontal Bar Chart */}
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Top 5 Most Issued Items</h4>
+                                        <ArrowTrendingUpIcon className="w-5 h-5 text-slate-300" />
+                                    </div>
+                                    <div className="space-y-6">
+                                        {Object.entries(issuanceHistory.reduce((acc, txn) => {
+                                            acc[txn.itemName] = (acc[txn.itemName] || 0) + txn.quantity;
+                                            return acc;
+                                        }, {} as Record<string, number>))
+                                        .sort((a,b) => b[1]-a[1])
+                                        .slice(0, 5)
+                                        .map(([item, qty], idx) => {
+                                            const maxQty = Math.max(...Object.values(issuanceHistory.reduce((acc, txn) => {
+                                                acc[txn.itemName] = (acc[txn.itemName] || 0) + txn.quantity;
+                                                return acc;
+                                            }, {} as Record<string, number>)));
+                                            const percentage = (qty / maxQty) * 100;
+                                            return (
+                                                <div key={item} className="flex items-center gap-4">
+                                                    <div className="w-24 text-right">
+                                                        <p className="text-[9px] font-black uppercase text-slate-400 truncate">{item}</p>
+                                                    </div>
+                                                    <div className="flex-1 bg-slate-50 dark:bg-slate-900/50 h-6 rounded-lg overflow-hidden relative">
+                                                        <div 
+                                                            className={`h-full opacity-20 ${idx === 0 ? 'bg-indigo-500' : 'bg-slate-400'}`}
+                                                            style={{ width: `${percentage}%` }}
+                                                        ></div>
+                                                        <div className="absolute inset-0 flex items-center px-3">
+                                                            <span className={`text-[10px] font-black ${idx === 0 ? 'text-indigo-600' : 'text-slate-600 dark:text-slate-400'}`}>
+                                                                {qty} Units Issued
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         </div>
