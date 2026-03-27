@@ -18,7 +18,7 @@ import { CircleCheckIcon, UserIcon as UserIconAlt } from '../icons';
 
 type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 
-const REQUIRED_FIELDS: CollectionMappingField[] = ['quantity', 'unit', 'productType', 'collectionDate'];
+const REQUIRED_FIELDS: CollectionMappingField[] = ['quantity', 'unit', 'productType', 'collectionDate', 'farmerMemberId'];
 const ALL_MAPPING_FIELDS: CollectionMappingField[] = [
     'farmerName', 'farmerAccountNumber', 'farmerPhoneNumber', 'farmerMemberId', 'collectionDate', 'productType', 'quantity', 'unit', 'qualityGrade'
 ];
@@ -185,10 +185,13 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
             const mPhone = fieldMapping.farmerPhoneNumber ? String(row[fieldMapping.farmerPhoneNumber as string] || '').trim().toLowerCase() : null;
             const mMemberId = fieldMapping.farmerMemberId ? String(row[fieldMapping.farmerMemberId as string] || '').trim().toLowerCase() : null;
 
-            if (mMemberId && farmersByMemberId.has(mMemberId)) farmerId = farmersByMemberId.get(mMemberId);
-            else if (mAcc && farmersByAcc.has(mAcc)) farmerId = farmersByAcc.get(mAcc);
-            else if (mPhone && farmersByPhone.has(mPhone)) farmerId = farmersByPhone.get(mPhone);
-            else if (mName && farmersByName.has(mName)) farmerId = farmersByName.get(mName);
+            if (mMemberId && farmersByMemberId.has(mMemberId)) {
+                farmerId = farmersByMemberId.get(mMemberId);
+            } else if (mMemberId) {
+                errors.push(`Member ID "${mMemberId}" not found`);
+            } else {
+                errors.push("Member ID is missing");
+            }
 
             if (!farmerId) {
                 errors.push("Farmer not found");
