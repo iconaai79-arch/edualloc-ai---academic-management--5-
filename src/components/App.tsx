@@ -3128,6 +3128,7 @@ export const App: React.FC = () => {
                                         companyDetails={companyDetails}
                                         onAddTransaction={apiService.onAddTransaction.bind(apiService)}
                                         onLogAction={handleLogAction}
+                                        onRefreshData={() => loadData()}
                                     />
                                 </ModuleAccessGuard>
                             ) : activeRole === 'librarian' ? (

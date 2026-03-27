@@ -133,6 +133,7 @@ export interface SupportStaffViewProps {
     onAddUser?: (data: any) => Promise<void>;
     onEditUser?: (user: User) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
+    onAddDepartment?: (data: any) => Promise<void>;
     onUpdateDepartment?: (id: string, data: any) => Promise<void>;
     onDeleteDepartment?: (id: string) => Promise<void>;
     onImportStudents?: (students: any[]) => Promise<void>;
@@ -142,6 +143,7 @@ export interface SupportStaffViewProps {
     footerImageUrl?: string | null;
     onSendSms?: (recipient: string, message: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onAddTransaction?: (data: any, items: any[]) => Promise<any>;
+    onRefreshData?: () => Promise<void>;
 }
 
 
@@ -688,7 +690,8 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
         onSendSms,
         companyDetails,
         onAddTransaction,
-        onLogAction
+        onLogAction,
+        onRefreshData
     } = props;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'history' | 'suppliers' | 'shipments' | 'issuance' | 'reports' | 'students' | 'departments' | 'staff'>('dashboard');
     const [activeReportTab, setActiveReportTab] = useState<'summary' | 'registry' | 'issuance' | 'statements' | 'analytics'>('summary');
@@ -1149,9 +1152,9 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                         departments={departments}
                         institutionId={props.user.institutionId}
                         currentUserId={props.user.id}
-                        onLogAction={props.onLogAction}
+                        onLogAction={props.onLogAction || (async () => {})}
                         onDataChange={() => {
-                            loadData();
+                            onRefreshData?.();
                             setActiveTab('inventory');
                         }}
                     />
