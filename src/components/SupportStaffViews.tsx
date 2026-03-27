@@ -1527,7 +1527,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                             <td className="px-6 py-5 text-right font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
                                                         </tr>
                                                     );
-                                                })}
+                                                })})()}
                                         </tbody>
                                     </table>
                                 </div>
