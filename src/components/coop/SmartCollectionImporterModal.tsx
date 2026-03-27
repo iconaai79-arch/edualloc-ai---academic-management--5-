@@ -56,7 +56,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
     const [errorMessage, setErrorMessage] = useState('');
     const [rawData, setRawData] = useState<any[]>([]);
     const [importProgress, setImportProgress] = useState(0);
-    const [isAutoConfirm, setIsAutoConfirm] = useState(false);
+    const [autoConfirm, setAutoConfirm] = useState(isAutoConfirm);
 
     const farmersByName = useMemo(() => new Map(farmers.map(f => [f.name.toLowerCase().trim(), f.id])), [farmers]);
     const farmersByAcc = useMemo(() => new Map(farmers.map(f => [String(f.accountNumber || '').toLowerCase().trim(), f.id])), [farmers]);
@@ -174,8 +174,8 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 collectionDate: '',
                 recordedBy: currentUser.id,
                 notified: false,
-                factoryConfirmed: isAutoConfirm,
-                finalQuantity: isAutoConfirm ? Number(row[fieldMapping.quantity as string]) : undefined
+                factoryConfirmed: autoConfirm,
+                finalQuantity: autoConfirm ? Number(row[fieldMapping.quantity as string]) : undefined
             };
 
             // Resolve Farmer
@@ -389,8 +389,8 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                     <div className="relative">
                                         <input 
                                             type="checkbox" 
-                                            checked={isAutoConfirm}
-                                            onChange={(e) => setIsAutoConfirm(e.target.checked)}
+                                            checked={autoConfirm}
+                                            onChange={(e) => setAutoConfirm(e.target.checked)}
                                             className="peer sr-only"
                                         />
                                         <div className="w-10 h-5 bg-slate-300 rounded-full peer-checked:bg-emerald-500 transition-colors shadow-inner"></div>
