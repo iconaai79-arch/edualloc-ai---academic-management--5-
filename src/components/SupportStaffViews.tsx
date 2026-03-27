@@ -1139,6 +1139,67 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                 </div>
             )}
 
+            {activeTab === 'issuance' && (
+                <div className="animate-fade-in-up">
+                    <StoreIssuanceManager
+                        inventory={inventory}
+                        users={users}
+                        departments={departments}
+                        institutionId={props.user.institutionId}
+                        currentUserId={props.user.id}
+                        onIssuanceComplete={() => {
+                            loadData();
+                            setActiveTab('inventory');
+                        }}
+                    />
+                </div>
+            )}
+
+            {activeTab === 'history' && (
+                <div className="space-y-6 animate-fade-in-up">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-black uppercase tracking-tight">Full Transaction Audit Log</h3>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Qty</th>
+                                        <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Recipient/Supplier</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {[...(stockTransactions || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
+                                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-5 font-bold text-slate-400 text-[10px]">{new Date(t.date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-5">
+                                                <p className="font-black text-slate-900 dark:text-white uppercase text-xs">{t.itemName}</p>
+                                            </td>
+                                            <td className="px-6 py-5">
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                    t.type === 'Restock' ? 'bg-emerald-50 text-emerald-600' :
+                                                    t.type === 'Issue' ? 'bg-indigo-50 text-indigo-600' :
+                                                    t.type === 'Adjustment' ? 'bg-amber-50 text-amber-600' :
+                                                    'bg-slate-50 text-slate-600'
+                                                }`}>
+                                                    {t.type}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-5 text-center font-mono font-black text-slate-900 dark:text-white">{t.quantity}</td>
+                                            <td className="px-6 py-5 text-right font-black text-slate-600 dark:text-slate-400 uppercase text-xs">{t.recipientOrSupplier}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {activeTab === 'reports' && (
                 <div className="space-y-8 animate-fade-in-up">
                     {/* Sub-tab Navigation */}
