@@ -2490,23 +2490,35 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-500/20">
                                         <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Net Cash Position</p>
                                         <h4 className="text-3xl font-black tracking-tighter">
-                                            KES {(income.reduce((s, i) => s + i.amount, 0) - expenses.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                                            KES {(income.filter(i => {
+                                                const d = new Date(i.date).toISOString().split('T')[0];
+                                                return d >= startDate && d <= endDate;
+                                            }).reduce((s, i) => s + i.amount, 0) - expenses.filter(e => {
+                                                const d = new Date(e.date).toISOString().split('T')[0];
+                                                return d >= startDate && d <= endDate;
+                                            }).reduce((s, e) => s + e.amount, 0)).toLocaleString()}
                                         </h4>
                                         <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-white/10 w-fit px-3 py-1.5 rounded-full">
-                                            Cashbook Balance
+                                            Period Balance
                                         </div>
                                     </div>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Receivables</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Period Income</p>
                                         <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                            KES {income.reduce((s, i) => s + i.amount, 0).toLocaleString()}
+                                            KES {income.filter(i => {
+                                                const d = new Date(i.date).toISOString().split('T')[0];
+                                                return d >= startDate && d <= endDate;
+                                            }).reduce((s, i) => s + i.amount, 0).toLocaleString()}
                                         </h4>
                                         <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-2">+ Gross Income</p>
                                     </div>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Total Payables</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Period Expenses</p>
                                         <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                            KES {expenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                                            KES {expenses.filter(e => {
+                                                const d = new Date(e.date).toISOString().split('T')[0];
+                                                return d >= startDate && d <= endDate;
+                                            }).reduce((s, e) => s + e.amount, 0).toLocaleString()}
                                         </h4>
                                         <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2">- Operating Expenses</p>
                                     </div>
@@ -2521,8 +2533,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </h3>
                                         <div className="space-y-6">
                                             {['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(prod => {
-                                                const prodTotal = collections.filter(c => c.productType === prod && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0);
-                                                const maxProd = Math.max(...['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(p => collections.filter(c => c.productType === p && c.factoryConfirmed).reduce((s, c) => s + Number(c.finalQuantity), 0)), 1);
+                                                const prodTotal = collections.filter(c => {
+                                                    if (!c.collectionDate || !c.factoryConfirmed || c.productType !== prod) return false;
+                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
+                                                    return date >= startDate && date <= endDate;
+                                                }).reduce((s, c) => s + Number(c.finalQuantity), 0);
+                                                const maxProd = Math.max(...['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(p => collections.filter(c => {
+                                                    if (!c.collectionDate || !c.factoryConfirmed || c.productType !== p) return false;
+                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
+                                                    return date >= startDate && date <= endDate;
+                                                }).reduce((s, c) => s + Number(c.finalQuantity), 0)), 1);
                                                 const percentage = (prodTotal / maxProd) * 100;
                                                 
                                                 return (
