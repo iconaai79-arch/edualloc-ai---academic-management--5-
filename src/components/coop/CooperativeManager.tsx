@@ -170,8 +170,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
-    const [filterMonth, setFilterMonth] = useState<number>(new Date().getMonth());
-    const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
+    const [startDate, setStartDate] = useState<string>(() => {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState<string>(() => {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
@@ -225,7 +231,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     React.useEffect(() => {
         setSelectedCollections([]);
-    }, [filterMonth, filterYear]);
+    }, [startDate, endDate]);
 
 
 
@@ -238,19 +244,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const filteredCollections = useMemo(() => {
         return collections.filter(c => {
             if (!c.collectionDate) return false;
-            // Handle both YYYY-MM-DD and other formats using UTC to avoid timezone shifts
-            const date = new Date(c.collectionDate);
-            if (isNaN(date.getTime())) return false;
+            const date = new Date(c.collectionDate).toISOString().split('T')[0];
             
-            const matchesDate = (date.getUTCMonth() === filterMonth || date.getMonth() === filterMonth) && 
-                               (date.getUTCFullYear() === filterYear || date.getFullYear() === filterYear);
+            const matchesDate = date >= startDate && date <= endDate;
             
             const matchesSearch = !searchTerm || 
                 getFarmerName(c.farmerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
             return matchesDate && matchesSearch;
         }).sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime());
-    }, [collections, filterMonth, filterYear, searchTerm, farmers]);
+    }, [collections, startDate, endDate, searchTerm, farmers]);
 
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
@@ -333,7 +336,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             alert("No pending records to confirm for the selected month.");
             return;
         }
-        if (!confirm(`Confirm ALL ${pending.length} pending intake records for ${new Date(filterYear, filterMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}?`)) return;
+        if (!confirm(`Confirm ALL ${pending.length} pending intake records for the period ${startDate} to ${endDate}?`)) return;
 
         setIsProcessing(true);
         try {
@@ -352,40 +355,41 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const handleGeneratePayoutDrafts = async () => {
         if (!onAddPayouts) return;
-        if (!confirm(`Generate draft payouts for all farmers for ${filterMonth + 1}/${filterYear}?`)) return;
+        if (!confirm(`Generate draft payouts for all farmers for the period ${startDate} to ${endDate}?`)) return;
 
         setIsProcessing(true);
         try {
             const drafts: any[] = [];
-            const payoutMonth = `${filterYear}-${String(filterMonth + 1).padStart(2, '0')}-01`;
+            const startD = new Date(startDate);
+            const payoutMonth = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-01`;
 
             for (const farmer of farmers) {
                 // Check if draft already exists
                 const exists = payouts.find(p => p.farmerId === farmer.id && p.payoutMonth === payoutMonth);
                 if (exists) continue;
 
-                const farmerCollections = collections.filter(c => 
-                    c.farmerId === farmer.id && 
-                    c.factoryConfirmed && 
-                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
-                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
-                );
+                const farmerCollections = collections.filter(c => {
+                    if (!c.collectionDate || !c.factoryConfirmed) return false;
+                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
+                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                });
                 
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                 const gross = totalQty * payoutRate;
                 
-                const advances = expenses.filter(ex => 
-                    ex.farmerId === farmer.id && 
-                    ex.category.toLowerCase().includes('advance') &&
-                    (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) &&
-                    (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear)
-                ).reduce((s, ex) => s + ex.amount, 0);
+                const advances = expenses.filter(ex => {
+                    if (!ex.date) return false;
+                    const date = new Date(ex.date).toISOString().split('T')[0];
+                    return ex.farmerId === farmer.id && 
+                           ex.category.toLowerCase().includes('advance') &&
+                           date >= startDate && date <= endDate;
+                }).reduce((s, ex) => s + ex.amount, 0);
 
-                const agrovetDeduction = sales.filter(s => 
-                    s.farmerId === farmer.id && 
-                    (new Date(s.saleDate).getUTCMonth() === filterMonth || new Date(s.saleDate).getMonth() === filterMonth) &&
-                    (new Date(s.saleDate).getUTCFullYear() === filterYear || new Date(s.saleDate).getFullYear() === filterYear)
-                ).reduce((acc, sa) => acc + sa.amount, 0);
+                const agrovetDeduction = sales.filter(s => {
+                    if (!s.saleDate) return false;
+                    const date = new Date(s.saleDate).toISOString().split('T')[0];
+                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                }).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - agrovetDeduction;
 
@@ -424,31 +428,33 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     const handleSettlementPreview = async () => {
         try {
+            const startD = new Date(startDate);
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthName = monthNames[filterMonth];
+            const monthName = monthNames[startD.getMonth()];
+            const year = startD.getFullYear();
             
             const settlementData = farmers.map(farmer => {
-                const farmerCollections = collections.filter(c => 
-                    c.farmerId === farmer.id && 
-                    c.factoryConfirmed && 
-                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
-                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
-                );
+                const farmerCollections = collections.filter(c => {
+                    if (!c.collectionDate || !c.factoryConfirmed) return false;
+                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
+                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                });
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                 const gross = totalQty * payoutRate;
                 
-                const advances = expenses.filter(ex => 
-                    ex.farmerId === farmer.id && 
-                    ex.category.toLowerCase().includes('advance') &&
-                    (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) &&
-                    (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear)
-                ).reduce((s, ex) => s + ex.amount, 0);
+                const advances = expenses.filter(ex => {
+                    if (!ex.date) return false;
+                    const date = new Date(ex.date).toISOString().split('T')[0];
+                    return ex.farmerId === farmer.id && 
+                           ex.category.toLowerCase().includes('advance') &&
+                           date >= startDate && date <= endDate;
+                }).reduce((s, ex) => s + ex.amount, 0);
 
-                const deductions = sales.filter(s => 
-                    s.farmerId === farmer.id && 
-                    (new Date(s.saleDate).getUTCMonth() === filterMonth || new Date(s.saleDate).getMonth() === filterMonth) &&
-                    (new Date(s.saleDate).getUTCFullYear() === filterYear || new Date(s.saleDate).getFullYear() === filterYear)
-                ).reduce((acc, sa) => acc + sa.amount, 0);
+                const deductions = sales.filter(s => {
+                    if (!s.saleDate) return false;
+                    const date = new Date(s.saleDate).toISOString().split('T')[0];
+                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                }).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - deductions;
                 return { name: farmer.name, phone: farmer.phone, totalQty, gross, advances, deductions, net };
@@ -459,7 +465,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             const dataUri = await pdfService.generateCoopSettlementSchedulePdf(
                 settlementData, 
                 monthName, 
-                filterYear, 
+                year, 
                 totalNet, 
                 currentInstitution || {} as any, 
                 undefined, 
@@ -468,7 +474,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             
             const link = document.createElement('a');
             link.href = dataUri;
-            link.download = `Settlement_Schedule_${monthName}_${filterYear}.pdf`;
+            link.download = `Settlement_Schedule_${startDate}_to_${endDate}.pdf`;
             link.click();
         } catch (err) {
             console.error(err);
@@ -492,8 +498,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     }, [inventory, searchTerm]);
     
     const getFilteredPayouts = () => {
-        const payoutMonth = `${filterYear}-${String(filterMonth + 1).padStart(2, '0')}-01`;
-        return payouts.filter(p => p.payoutMonth === payoutMonth);
+        return payouts.filter(p => {
+            if (!p.payoutMonth) return false;
+            return p.payoutMonth >= startDate && p.payoutMonth <= endDate;
+        });
     };
 
     const stats = useMemo(() => {
@@ -1335,31 +1343,50 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             <div className="animate-fade-in">
                                 <div className="flex items-center justify-between mb-8">
                                     <div>
-                                        <h2 className="text-xl font-black tracking-tighter uppercase">Monthly Payout Processing</h2>
+                                        <h2 className="text-xl font-black tracking-tighter uppercase">Payout Processing</h2>
                                         <div className="flex items-center gap-4 mt-1">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                                 {selectedPayouts.length} Payouts selected
                                             </p>
-                                            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                                                <select 
-                                                    value={filterMonth} 
-                                                    onChange={e => setFilterMonth(Number(e.target.value))}
-                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
-                                                >
-                                                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                                                        <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
-                                                    ))}
-                                                </select>
-                                                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
-                                                <select 
-                                                    value={filterYear} 
-                                                    onChange={e => setFilterYear(Number(e.target.value))}
-                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
-                                                >
-                                                    {[2024, 2025, 2026].map(y => (
-                                                        <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
-                                                    ))}
-                                                </select>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                    <input 
+                                                        type="date" 
+                                                        value={startDate}
+                                                        onChange={e => setStartDate(e.target.value)}
+                                                        className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                    />
+                                                    <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={endDate}
+                                                        onChange={e => setEndDate(e.target.value)}
+                                                        className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={() => {
+                                                            const d = new Date();
+                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                        }}
+                                                        className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+                                                    >
+                                                        This Month
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const d = new Date();
+                                                            d.setMonth(d.getMonth() - 1);
+                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                        }}
+                                                        className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+                                                    >
+                                                        Last Month
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1487,26 +1514,45 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                                 {filteredCollections.filter(c => !c.factoryConfirmed).length} Pending Records
                                             </p>
-                                            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                                                <select 
-                                                    value={filterMonth} 
-                                                    onChange={e => setFilterMonth(Number(e.target.value))}
-                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
-                                                >
-                                                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                                                        <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
-                                                    ))}
-                                                </select>
-                                                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
-                                                <select 
-                                                    value={filterYear} 
-                                                    onChange={e => setFilterYear(Number(e.target.value))}
-                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
-                                                >
-                                                    {[2024, 2025, 2026].map(y => (
-                                                        <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
-                                                    ))}
-                                                </select>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                    <input 
+                                                        type="date" 
+                                                        value={startDate}
+                                                        onChange={e => setStartDate(e.target.value)}
+                                                        className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                    />
+                                                    <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                                                    <input 
+                                                        type="date" 
+                                                        value={endDate}
+                                                        onChange={e => setEndDate(e.target.value)}
+                                                        className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-1 dark:text-white cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={() => {
+                                                            const d = new Date();
+                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                        }}
+                                                        className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+                                                    >
+                                                        This Month
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const d = new Date();
+                                                            d.setMonth(d.getMonth() - 1);
+                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                        }}
+                                                        className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
+                                                    >
+                                                        Last Month
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2508,25 +2554,45 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monthly Settlement Summary</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-4">
-                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-2">
-                                            <select 
-                                                value={filterMonth} 
-                                                onChange={e => setFilterMonth(Number(e.target.value))}
-                                                className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
-                                            >
-                                                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                                                    <option key={i} value={i} className="dark:bg-slate-800">{m}</option>
-                                                ))}
-                                            </select>
-                                            <select 
-                                                value={filterYear} 
-                                                onChange={e => setFilterYear(Number(e.target.value))}
-                                                className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
-                                            >
-                                                {[2024, 2025, 2026].map(y => (
-                                                    <option key={y} value={y} className="dark:bg-slate-800">{y}</option>
-                                                ))}
-                                            </select>
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-2 border border-slate-100 dark:border-slate-700/50">
+                                                <input 
+                                                    type="date" 
+                                                    value={startDate}
+                                                    onChange={e => setStartDate(e.target.value)}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
+                                                />
+                                                <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
+                                                <input 
+                                                    type="date" 
+                                                    value={endDate}
+                                                    onChange={e => setEndDate(e.target.value)}
+                                                    className="bg-transparent text-[10px] font-black uppercase tracking-widest outline-none border-none p-2 dark:text-white"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button 
+                                                    onClick={() => {
+                                                        const d = new Date();
+                                                        setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                        setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                    }}
+                                                    className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                                                >
+                                                    This Month
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        const d = new Date();
+                                                        d.setMonth(d.getMonth() - 1);
+                                                        setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                                                        setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                    }}
+                                                    className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                                                >
+                                                    Last Month
+                                                </button>
+                                            </div>
                                         </div>
                                         <button 
                                             onClick={handleSettlementPreview}
@@ -2561,27 +2627,27 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                                             {farmers.map(farmer => {
-                                                const farmerCollections = collections.filter(c => 
-                                                    c.farmerId === farmer.id && 
-                                                    c.factoryConfirmed && 
-                                                    (new Date(c.collectionDate).getUTCMonth() === filterMonth || new Date(c.collectionDate).getMonth() === filterMonth) &&
-                                                    (new Date(c.collectionDate).getUTCFullYear() === filterYear || new Date(c.collectionDate).getFullYear() === filterYear)
-                                                );
+                                                const farmerCollections = collections.filter(c => {
+                                                    if (!c.collectionDate || !c.factoryConfirmed) return false;
+                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
+                                                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                                });
                                                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                                                 const gross = totalQty * payoutRate;
                                                 
-                                                const advances = expenses.filter(ex => 
-                                                    ex.farmerId === farmer.id && 
-                                                    ex.category.toLowerCase().includes('advance') &&
-                                                    new Date(ex.date).getUTCMonth() === filterMonth &&
-                                                    new Date(ex.date).getUTCFullYear() === filterYear
-                                                ).reduce((s, ex) => s + ex.amount, 0);
+                                                const advances = expenses.filter(ex => {
+                                                    if (!ex.date) return false;
+                                                    const date = new Date(ex.date).toISOString().split('T')[0];
+                                                    return ex.farmerId === farmer.id && 
+                                                           ex.category.toLowerCase().includes('advance') &&
+                                                           date >= startDate && date <= endDate;
+                                                }).reduce((s, ex) => s + ex.amount, 0);
 
-                                                const deductions = sales.filter(s => 
-                                                    s.farmerId === farmer.id && 
-                                                    new Date(s.saleDate).getUTCMonth() === filterMonth &&
-                                                    new Date(s.saleDate).getUTCFullYear() === filterYear
-                                                ).reduce((acc, sa) => acc + sa.amount, 0);
+                                                const deductions = sales.filter(s => {
+                                                    if (!s.saleDate) return false;
+                                                    const date = new Date(s.saleDate).toISOString().split('T')[0];
+                                                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                                }).reduce((acc, sa) => acc + sa.amount, 0);
 
                                                 const net = gross - advances - deductions;
 
@@ -2610,9 +2676,23 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </tbody>
                                     </table>
                                     {farmers.filter(farmer => {
-                                        const c = collections.some(col => col.farmerId === farmer.id && col.factoryConfirmed && (new Date(col.collectionDate).getUTCMonth() === filterMonth || new Date(col.collectionDate).getMonth() === filterMonth) && (new Date(col.collectionDate).getUTCFullYear() === filterYear || new Date(col.collectionDate).getFullYear() === filterYear));
-                                        const e = expenses.some(ex => ex.farmerId === farmer.id && ex.category.toLowerCase().includes('advance') && (new Date(ex.date).getUTCMonth() === filterMonth || new Date(ex.date).getMonth() === filterMonth) && (new Date(ex.date).getUTCFullYear() === filterYear || new Date(ex.date).getFullYear() === filterYear));
-                                        const s = sales.some(sa => sa.farmerId === farmer.id && (new Date(sa.saleDate).getUTCMonth() === filterMonth || new Date(sa.saleDate).getMonth() === filterMonth) && (new Date(sa.saleDate).getUTCFullYear() === filterYear || new Date(sa.saleDate).getFullYear() === filterYear));
+                                        const c = collections.some(col => {
+                                            if (!col.collectionDate || !col.factoryConfirmed) return false;
+                                            const date = new Date(col.collectionDate).toISOString().split('T')[0];
+                                            return col.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                        });
+                                        const e = expenses.some(ex => {
+                                            if (!ex.date) return false;
+                                            const date = new Date(ex.date).toISOString().split('T')[0];
+                                            return ex.farmerId === farmer.id && 
+                                                   ex.category.toLowerCase().includes('advance') &&
+                                                   date >= startDate && date <= endDate;
+                                        });
+                                        const s = sales.some(sa => {
+                                            if (!sa.saleDate) return false;
+                                            const date = new Date(sa.saleDate).toISOString().split('T')[0];
+                                            return sa.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                        });
                                         return c || e || s;
                                     }).length === 0 && (
                                         <div className="py-12 text-center border-t border-slate-50 dark:border-slate-800">
