@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Building, 
   Users, 
   Stethoscope, 
   ShoppingCart, 
   Car, 
-  Truck, 
   GraduationCap, 
   ArrowRight,
   ShieldCheck,
@@ -14,26 +13,44 @@ import {
   Smartphone
 } from 'lucide-react';
 import './MarketingLanding.css';
+import { apiService } from '../../services/apiService';
+import { CompanyDetails } from '../../types';
 
 interface ModuleProps {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
+  imageUrl?: string;
   title: string;
   description: string;
-  advantages: string[];
+  advantages?: string[];
+  link?: string;
 }
 
-const ModuleCard: React.FC<ModuleProps> = ({ icon, title, description, advantages }) => (
-  <div className="module-card animate-in">
-    <div className="module-icon">
-      {icon}
+const ModuleCard: React.FC<ModuleProps> = ({ icon, imageUrl, title, description, advantages, link }) => (
+  <div 
+    className={`module-card animate-in ${link ? 'cursor-pointer hover:border-indigo-500/50' : ''}`}
+    onClick={() => {
+        if (link) {
+            if (link.startsWith('http')) window.open(link, '_blank');
+            else window.location.hash = link;
+        }
+    }}
+  >
+    <div className="module-icon overflow-hidden">
+      {imageUrl ? (
+        <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+      ) : (
+        icon || <Zap className="w-6 h-6" />
+      )}
     </div>
     <h3 className="module-title">{title}</h3>
     <p className="module-desc">{description}</p>
-    <div className="module-advantages">
-      {advantages.map((adv, i) => (
-        <span key={i} className="advantage-tag">{adv}</span>
-      ))}
-    </div>
+    {advantages && advantages.length > 0 && (
+      <div className="module-advantages">
+        {advantages.map((adv, i) => (
+          <span key={i} className="advantage-tag">{adv}</span>
+        ))}
+      </div>
+    )}
   </div>
 );
 
@@ -44,11 +61,24 @@ interface MarketingLandingPageProps {
 }
 
 export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
-  onOpenStore,
   onLogin,
   onBookDemo
 }) => {
-  const modules = [
+  const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const details = await apiService.fetchCompanySettings();
+        setCompanyDetails(details);
+      } catch (err) {
+        console.error("Landing Page: Failed to load company details", err);
+      }
+    };
+    loadData();
+  }, []);
+
+  const staticModules = [
     {
       icon: <Building className="w-8 h-8" />,
       title: "Property Hub",
@@ -87,6 +117,17 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
     }
   ];
 
+  const showcaseItems = companyDetails?.showcaseConfig?.items || [];
+  const displayModules = showcaseItems.length > 0 
+    ? showcaseItems.map(item => ({
+        imageUrl: item.imageUrl,
+        title: item.title,
+        description: item.description,
+        advantages: item.category ? [item.category] : [],
+        link: item.link
+      }))
+    : staticModules;
+
   return (
     <div className="marketing-container">
       <div className="marketing-mesh"></div>
@@ -98,7 +139,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
               <Zap className="w-6 h-6" />
             </div>
-            <span className="text-xl font-black tracking-tighter">EduAI <span className="text-indigo-400">OS</span></span>
+            <span className="text-xl font-black tracking-tighter">{companyDetails?.name || 'EduAI'} <span className="text-indigo-400">OS</span></span>
           </div>
           <div className="hidden md:flex gap-8 text-[10px] font-black uppercase tracking-widest text-slate-400">
             <a href="#showcase" className="hover:text-white transition-colors">Solutions</a>
@@ -106,9 +147,10 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             <a href="#tutorials" className="hover:text-white transition-colors">Tutorials</a>
           </div>
           <button onClick={onLogin} className="cta-button cta-primary px-6 py-3 rounded-xl">
-            Get Started
+            {companyDetails?.showcaseConfig?.showLoginLink ? 'Sign In' : 'Get Started'}
           </button>
         </nav>
+/* ... (same as before) ... */
 
         {/* Hero */}
         <section className="marketing-section hero-section animate-in">
@@ -143,7 +185,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           </div>
           
           <div className="showcase-grid">
-            {modules.map((mod, i) => (
+            {displayModules.map((mod: any, i: number) => (
               <ModuleCard key={i} {...mod} />
             ))}
           </div>

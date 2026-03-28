@@ -30,6 +30,8 @@ import { ProcurementManager } from './ProcurementManager';
 import { CooperativeManager } from './coop/CooperativeManager';
 import { CarServiceView } from './carservice/CarServiceView';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
+import { ChurchDashboard } from './church/ChurchDashboard';
+import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
 import {
     ClipboardListIcon,
@@ -318,7 +320,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     } = props;
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church'>('dashboard');
 
     const [timetableSubTab, setTimetableSubTab] = useState<'wizard' | 'scheduler' | 'calendar' | 'subjects' | 'registry'>('wizard');
     const [isDirectAssignOpen, setIsDirectAssignOpen] = useState(false);
@@ -356,10 +358,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                 setActiveTab('sacco');
             } else if (role === 'mechanic_admin' || (isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic'))) {
                 setActiveTab('car_service');
+            } else if (isChurch || role === 'church_admin') {
+                setActiveTab('church');
             }
             setHasSetDefaultTab(true);
         }
-    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution]);
+    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution, isChurch]);
 
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
@@ -372,6 +376,10 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
     const isRetailAgency = useMemo(() => {
         return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
+    }, [props.currentInstitution]);
+
+    const isChurch = useMemo(() => {
+        return props.currentInstitution?.institutionType === 'Church';
     }, [props.currentInstitution]);
 
     const isModuleActive = useCallback((moduleId: string) => {
@@ -408,6 +416,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
             { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
+            { id: 'church', label: 'Church', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -469,6 +478,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             if (tab.id === 'sacco') return institutionType === 'SACCO' || businessSubType === 'SACCO';
             if (tab.id === 'agrovet') return institutionType === 'Agrovet' || businessSubType === 'Agrovet';
             if (tab.id === 'car_service') return isBusiness && (businessSubType === 'Car Service' || businessSubType === 'Mechanic');
+            if (tab.id === 'church') return isChurch;
 
             return true;
         });
@@ -1102,6 +1112,14 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         onLogAction={props.onLogAction!}
                         onDataChange={() => props.onAddUser && props.onAddUser({})} // Dummy trigger for refresh if needed
                     />
+                )}
+
+                {activeTab === 'church' && isChurch && (
+                    <div className="animate-fade-in-up">
+                        <ChurchDenominationProvider church={props.currentInstitution!}>
+                            <ChurchDashboard />
+                        </ChurchDenominationProvider>
+                    </div>
                 )}
 
                 {activeTab === 'reports' && !isCoop && (

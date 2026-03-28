@@ -400,6 +400,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [resettingPasswordFor, setResettingPasswordFor] = useState<Institution | null>(null);
     const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+    // Showcase Item Management State
+    const [editingShowcaseItem, setEditingShowcaseItem] = useState<ShowcaseItem | null>(null);
+    const [isShowcaseItemModalOpen, setIsShowcaseItemModalOpen] = useState(false);
+    const [isUploadingShowcaseImage, setIsUploadingShowcaseImage] = useState(false);
+
     // Commission Disbursement State
     const [disburseReseller, setDisburseReseller] = useState<Institution | null>(null);
     const [disbursementAmount, setDisbursementAmount] = useState(0);
@@ -479,7 +484,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         chatEnabled: companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
         marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
-        showcaseConfig: companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true },
+        showcaseConfig: companyDetails?.showcaseConfig || { 
+            enabled: true, 
+            showLoginLink: true,
+            cpanelUploadUrl: '',
+            cpanelSecret: '',
+            items: []
+        },
         ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
     });
 
@@ -507,7 +518,13 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 chatEnabled: companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
                 marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
-                showcaseConfig: companyDetails.showcaseConfig || { enabled: true, showLoginLink: true },
+                showcaseConfig: companyDetails.showcaseConfig || { 
+                    enabled: true, 
+                    showLoginLink: true,
+                    cpanelUploadUrl: '',
+                    cpanelSecret: '',
+                    items: []
+                },
                 ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
@@ -550,6 +567,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 await props.onUpdateCompanyDetails({
                     ...companyDetails,
                     ...localCompanyInfo,
+                    showcaseConfig: localCompanyInfo.showcaseConfig,
                     smsConfig: localSmsConfig,
                     emailConfig: localEmailConfig,
                     mpesaConfig: localMpesaConfig,
@@ -600,6 +618,37 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         } finally {
             setIsTesting(false);
         }
+    };
+
+    const handleAddShowcaseItem = () => {
+        setEditingShowcaseItem({ id: `si_${Date.now()}`, title: '', description: '', imageUrl: '', link: '', category: '' });
+        setIsShowcaseItemModalOpen(true);
+    };
+
+    const handleSaveShowcaseItem = (item: ShowcaseItem) => {
+        const currentItems = localCompanyInfo.showcaseConfig?.items || [];
+        const index = currentItems.findIndex(i => i.id === item.id);
+        let updatedItems;
+        if (index >= 0) {
+            updatedItems = [...currentItems];
+            updatedItems[index] = item;
+        } else {
+            updatedItems = [...currentItems, item];
+        }
+        setLocalCompanyInfo({
+            ...localCompanyInfo,
+            showcaseConfig: { ...localCompanyInfo.showcaseConfig, items: updatedItems } as any
+        });
+        setIsShowcaseItemModalOpen(false);
+        setEditingShowcaseItem(null);
+    };
+
+    const handleDeleteShowcaseItem = (id: string) => {
+        const updatedItems = (localCompanyInfo.showcaseConfig?.items || []).filter(i => i.id !== id);
+        setLocalCompanyInfo({
+            ...localCompanyInfo,
+            showcaseConfig: { ...localCompanyInfo.showcaseConfig, items: updatedItems } as any
+        });
     };
 
     const handleTestEmail = async () => {
@@ -1303,6 +1352,7 @@ Please change it after login.`;
                                                     <option value="Broadcaster">Broadcaster</option>
                                                     <option value="Reseller">Reseller Agency</option>
                                                     <option value="HIS">Health Information System (HIS)</option>
+                                                    <option value="Church">Church / Religious Institution</option>
                                                 </select>
                                             </div>
                                             <div>
@@ -1334,6 +1384,22 @@ Please change it after login.`;
                                                         <option value="Hardware">Hardware Store</option>
                                                         <option value="Pharmacy">Pharmacy / Chemist</option>
                                                         <option value="General">General Retail / Business</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {newInstData.institutionType === 'Church' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 underline underline-offset-4">Church Tradition (Denomination)</label>
+                                                    <select
+                                                        value={newInstData.businessSubType || ''}
+                                                        onChange={e => setNewInstData({ ...newInstData, businessSubType: e.target.value as any })}
+                                                        className="form-select border-2 border-indigo-200 font-black text-indigo-900 shadow-sm"
+                                                        required
+                                                    >
+                                                        <option value="">-- Select Tradition --</option>
+                                                        <option value="Catholic">Catholic (Sacramental/SCC)</option>
+                                                        <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
+                                                        <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
                                                     </select>
                                                 </div>
                                             )}
@@ -3006,6 +3072,102 @@ Please change it after login.`;
                                         </div>
                                     </div>
 
+                                    <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-amber-50 dark:bg-amber-900/30 rounded-lg">
+                                                <CommandLineIcon className="w-5 h-5 text-amber-600" />
+                                            </div>
+                                            <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight font-black">cPanel Storage Configuration</h4>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Bridge URL (upload_showcase.php)</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="https://yourdomain.com/api/upload_showcase.php"
+                                                    value={localCompanyInfo.showcaseConfig?.cpanelUploadUrl || ''}
+                                                    onChange={(e) => setLocalCompanyInfo({
+                                                        ...localCompanyInfo,
+                                                        showcaseConfig: { ...localCompanyInfo.showcaseConfig, cpanelUploadUrl: e.target.value } as any
+                                                    })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-12 px-4 text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Secret Auth Token</label>
+                                                <input 
+                                                    type="password" 
+                                                    placeholder="Enter your secure token"
+                                                    value={localCompanyInfo.showcaseConfig?.cpanelSecret || ''}
+                                                    onChange={(e) => setLocalCompanyInfo({
+                                                        ...localCompanyInfo,
+                                                        showcaseConfig: { ...localCompanyInfo.showcaseConfig, cpanelSecret: e.target.value } as any
+                                                    })}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-12 px-4 text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
+                                                    <SparklesIcon className="w-5 h-5 text-emerald-600" />
+                                                </div>
+                                                <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight font-black">Showcase Item Manager</h4>
+                                            </div>
+                                            <button 
+                                                onClick={handleAddShowcaseItem}
+                                                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200/50 dark:shadow-none"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                                Add Item
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {(localCompanyInfo.showcaseConfig?.items || []).map((item: ShowcaseItem) => (
+                                                <div key={item.id} className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden hover:shadow-xl transition-all duration-300">
+                                                    <div className="h-32 bg-slate-100 dark:bg-slate-800 relative">
+                                                        {item.imageUrl ? (
+                                                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="flex items-center justify-center h-full text-slate-400">
+                                                                <EyeIcon className="w-8 h-8 opacity-20" />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={() => { setEditingShowcaseItem(item); setIsShowcaseItemModalOpen(true); }}
+                                                                className="p-1.5 bg-white/90 dark:bg-slate-800/90 rounded-lg shadow-sm hover:text-indigo-600"
+                                                            >
+                                                                <Cog8ToothIcon className="w-4 h-4" />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => { if(confirm('Delete this item?')) handleDeleteShowcaseItem(item.id); }}
+                                                                className="p-1.5 bg-white/90 dark:bg-slate-800/90 rounded-lg shadow-sm hover:text-rose-600"
+                                                            >
+                                                                <XIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4">
+                                                        <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate lg:whitespace-normal">{item.title || 'Untitled Item'}</h5>
+                                                        <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{item.description || 'No description provided.'}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(localCompanyInfo.showcaseConfig?.items || []).length === 0 && (
+                                                <div className="col-span-full py-12 flex flex-col items-center justify-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-[2.5rem] bg-slate-50/50 dark:bg-slate-900/20">
+                                                    <SparklesIcon className="w-12 h-12 text-slate-300 mb-3" />
+                                                    <p className="text-xs font-medium text-slate-400">No showcase items configured yet.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     <div className="pt-6 border-t flex justify-end">
                                         <button
                                             onClick={handleSaveGlobalConfigs}
@@ -3861,6 +4023,136 @@ Please change it after login.`;
                                 ) : (
                                     'Reset Password Now'
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isShowcaseItemModalOpen && editingShowcaseItem && (
+                <div className="fixed inset-0 bg-slate-900/60 z-[400] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsShowcaseItemModalOpen(false)}>
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/50 dark:bg-emerald-900/10">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-500 rounded-xl">
+                                    <SparklesIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-emerald-900 dark:text-emerald-200">Showcase Item</h3>
+                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Dynamic Marketing Content</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsShowcaseItemModalOpen(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-8 space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Item Title</label>
+                                <input 
+                                    type="text" 
+                                    value={editingShowcaseItem.title}
+                                    onChange={(e) => setEditingShowcaseItem({ ...editingShowcaseItem, title: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-12 px-4 text-xs font-medium focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                    placeholder="e.g. Smart Agriculture"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Description</label>
+                                <textarea 
+                                    value={editingShowcaseItem.description}
+                                    onChange={(e) => setEditingShowcaseItem({ ...editingShowcaseItem, description: e.target.value })}
+                                    className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-xs font-medium focus:ring-2 focus:ring-emerald-500 shadow-sm min-h-[80px]"
+                                    placeholder="Briefly describe what this module does..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingShowcaseItem.category || ''}
+                                        onChange={(e) => setEditingShowcaseItem({ ...editingShowcaseItem, category: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-11 px-4 text-xs font-medium focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                        placeholder="e.g. Coop"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Action Link (Optional)</label>
+                                    <input 
+                                        type="text" 
+                                        value={editingShowcaseItem.link || ''}
+                                        onChange={(e) => setEditingShowcaseItem({ ...editingShowcaseItem, link: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-11 px-4 text-xs font-medium focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                        placeholder="e.g. /marketplace"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Item Image (cPanel Storage)</label>
+                                <div className="flex flex-col gap-3">
+                                    {editingShowcaseItem.imageUrl && (
+                                        <div className="w-full h-32 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 group relative">
+                                            <img src={editingShowcaseItem.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                            <button 
+                                                onClick={() => setEditingShowcaseItem({ ...editingShowcaseItem, imageUrl: '' })}
+                                                className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
+                                            >
+                                                <XIcon className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-3">
+                                        <input 
+                                            type="text" 
+                                            value={editingShowcaseItem.imageUrl}
+                                            onChange={(e) => setEditingShowcaseItem({ ...editingShowcaseItem, imageUrl: e.target.value })}
+                                            className="flex-1 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl h-11 px-4 text-[10px] font-medium focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                            placeholder="Paste URL or upload..."
+                                        />
+                                        <div className="relative">
+                                            <input 
+                                                type="file" 
+                                                id="showcase-img-upload-modal" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    if (!localCompanyInfo.showcaseConfig?.cpanelUploadUrl) return alert("Please configure the cPanel Bridge URL first in your showcase settings.");
+                                                    
+                                                    setIsUploadingShowcaseImage(true);
+                                                    const publicUrl = await apiService.uploadToShowcaseCpanel(
+                                                        file, 
+                                                        localCompanyInfo.showcaseConfig.cpanelUploadUrl, 
+                                                        localCompanyInfo.showcaseConfig.cpanelSecret || ''
+                                                    );
+                                                    setIsUploadingShowcaseImage(false);
+                                                    
+                                                    if (publicUrl) {
+                                                        setEditingShowcaseItem({ ...editingShowcaseItem, imageUrl: publicUrl });
+                                                    }
+                                                }}
+                                            />
+                                            <label 
+                                                htmlFor="showcase-img-upload-modal"
+                                                className={`flex items-center justify-center px-4 h-11 rounded-2xl text-[10px] font-bold uppercase tracking-widest cursor-pointer transition-all ${isUploadingShowcaseImage ? 'bg-slate-200 text-slate-400' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                            >
+                                                <ArrowUpTrayIcon className={`w-4 h-4 mr-2 ${isUploadingShowcaseImage ? 'animate-bounce' : ''}`} />
+                                                {isUploadingShowcaseImage ? 'Uploading…' : 'Upload'}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 font-medium px-1 italic">The image will be stored on your cPanel server if configurations are correct.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
+                            <button onClick={() => setIsShowcaseItemModalOpen(false)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button 
+                                onClick={() => handleSaveShowcaseItem(editingShowcaseItem)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-100/50 dark:shadow-none transition-all"
+                            >
+                                Confirm Item
                             </button>
                         </div>
                     </div>

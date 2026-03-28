@@ -169,7 +169,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
-    const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
+    const [payoutRate, setPayoutRate] = useState<number>(currentInstitution?.coopSettings?.payoutRate || 50);
     
     const formatDateString = (date: Date) => {
         const y = date.getFullYear();
@@ -2881,6 +2881,69 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                         <h2 className="text-xl font-black tracking-tighter uppercase">Portal Configuration</h2>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manage branding, institution profile and system settings</p>
                     </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+                        <div className="lg:col-span-2 bg-indigo-600 rounded-[3rem] p-10 text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-3xl rounded-full -mr-32 -mt-32 transition-transform duration-700 group-hover:scale-150"></div>
+                             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                 <div>
+                                     <h3 className="text-2xl font-black tracking-tighter uppercase mb-2">Payout Configuration</h3>
+                                     <p className="text-[11px] font-bold text-indigo-100 uppercase tracking-widest opacity-80 mb-6">Set the global price per production unit (KES)</p>
+                                     <div className="flex items-center gap-4">
+                                         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
+                                            <input 
+                                                type="number" 
+                                                value={payoutRate} 
+                                                onChange={e => setPayoutRate(Number(e.target.value))}
+                                                className="bg-transparent text-2xl font-black outline-none border-none w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            />
+                                            <span className="ml-2 font-bold opacity-60">KES / Unit</span>
+                                         </div>
+                                         <button 
+                                            onClick={async () => {
+                                                if (onUpdateInstitution && currentInstitution) {
+                                                    await onUpdateInstitution(currentInstitution.id, {
+                                                        coopSettings: {
+                                                            ...currentInstitution.coopSettings,
+                                                            payoutRate
+                                                        }
+                                                    });
+                                                    onLogAction?.(`Updated global payout rate to KES ${payoutRate}`);
+                                                }
+                                            }}
+                                            className="bg-white text-indigo-600 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+                                         >
+                                             Save Rate
+                                         </button>
+                                     </div>
+                                 </div>
+                                 <div className="md:border-l border-white/20 md:pl-8">
+                                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-4">Historical Rate Tracker</p>
+                                     <div className="space-y-3">
+                                         <div className="flex justify-between items-center gap-6">
+                                             <span className="text-[10px] font-bold uppercase">Current Price</span>
+                                             <span className="font-black">KES {currentInstitution?.coopSettings?.payoutRate || 50}</span>
+                                         </div>
+                                         <div className="flex justify-between items-center gap-6">
+                                             <span className="text-[10px] font-bold uppercase">Last Change</span>
+                                             <span className="font-black">{currentInstitution?.coopSettings?.payoutRate ? 'Recently' : 'Initial'}</span>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-center">
+                             <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 mb-6">
+                                 <AlertIcon className="w-8 h-8" />
+                             </div>
+                             <h4 className="text-lg font-black tracking-tighter uppercase mb-2">Billing Impact</h4>
+                             <p className="text-xs text-slate-500 font-medium leading-relaxed uppercase tracking-tight">
+                                Changing the payout rate will affect all DRAFT payouts. Approved or Paid records remain locked to their original rates.
+                             </p>
+                        </div>
+                    </div>
+
                     <SettingsManager
                         currentUser={currentUser}
                         currentInstitution={currentInstitution}

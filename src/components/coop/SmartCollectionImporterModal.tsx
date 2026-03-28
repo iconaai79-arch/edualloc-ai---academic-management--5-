@@ -182,8 +182,11 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 recordedBy: currentUser.id,
                 notified: false,
                 factoryConfirmed: autoConfirm,
-                finalQuantity: autoConfirm ? Number(row[fieldMapping.quantity as string]) : undefined
+                finalQuantity: autoConfirm ? Number(row[fieldMapping.quantity as string]) : undefined,
+                _estimatedPayout: 0
             };
+
+            const rate = currentInstitution.coopSettings?.payoutRate || 50;
 
             // Resolve Farmer
             let farmerId: string | undefined;
@@ -215,6 +218,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 errors.push("Invalid Quantity");
             } else {
                 parsed.quantity = Number(mQty);
+                parsed._estimatedPayout = parsed.quantity * rate;
             }
 
             // Unit
@@ -363,22 +367,30 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                 </button>
                             </div>
                             
-                            <label className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl p-12 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    accept=".xlsx, .xls, .csv" 
-                                    onChange={(e) => {
-                                        if (e.target.files && e.target.files[0]) {
-                                            handleFileSelect(e.target.files[0]);
-                                        }
-                                    }} 
-                                />
-                                <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-500/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs"><UserIconAlt className="w-4 h-4" /></div>
+                            <label className="relative group block">
+                                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2.5rem] blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
+                                <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-16 flex flex-col items-center justify-center text-center cursor-pointer bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl hover:border-indigo-400 dark:hover:border-indigo-500 transition-all group overflow-hidden">
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        accept=".xlsx, .xls, .csv" 
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                handleFileSelect(e.target.files[0]);
+                                            }
+                                        }} 
+                                    />
+                                    <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-500/10 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                                        <UploadCloud className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tighter">Drop your manifest here</h3>
+                                    <p className="text-sm font-medium text-slate-500 uppercase tracking-widest text-[10px]">Excel or CSV manifests up to 10MB</p>
+                                    
+                                    <div className="mt-8 flex items-center gap-4">
+                                        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">Fast Analysis</div>
+                                        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">AI Mapping</div>
+                                    </div>
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Click or Drag file to upload</h3>
-                                <p className="text-sm text-slate-500">Supports .xlsx, .xls, .csv up to 10MB</p>
                             </label>
                         </div>
                     )}
@@ -490,6 +502,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><UserIconAlt className="w-3 h-3 inline mr-1"/> Farmer</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><Calendar className="w-3 h-3 inline mr-1"/> Date</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500"><Scale className="w-3 h-3 inline mr-1"/> Qty</th>
+                                            <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Est. Payout</th>
                                             <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-500">Issues</th>
                                         </tr>
                                     </thead>
@@ -512,11 +525,14 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                                                 <td className="p-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">
                                                     {row.parsedData.quantity} <span className="text-[10px] text-slate-400 font-normal uppercase">{row.parsedData.unit}</span>
                                                 </td>
+                                                <td className="p-4 text-sm font-black text-slate-900 dark:text-white">
+                                                    {(row.parsedData as any)._estimatedPayout ? `KES ${(row.parsedData as any)._estimatedPayout.toLocaleString()}` : '-'}
+                                                </td>
                                                 <td className="p-4">
                                                     {!row.isValid ? (
                                                         <div className="flex flex-wrap gap-1">
                                                             {row.errors.map((e, i) => (
-                                                                <span key={i} className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{e}</span>
+                                                                  <span key={i} className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{e}</span>
                                                             ))}
                                                         </div>
                                                     ) : (

@@ -35,6 +35,8 @@ import { FarmerPortal } from './coop/FarmerPortal';
 import { RiderPortal } from './coop/RiderPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import ResellerDashboard from './ResellerDashboard';
+import { ChurchDashboard } from './church/ChurchDashboard';
+import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
 
@@ -60,7 +62,8 @@ import type {
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
-    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome
+    RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
+    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay
 } from '../types';
 import { XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, SparklesIcon } from './icons/index';
 
@@ -2818,6 +2821,10 @@ export const App: React.FC = () => {
                                     transactions={transactions}
                                     invoices={invoices}
                                 />
+                            ) : (activeRole === 'church_admin' || activeRole === 'church_member') ? (
+                                <ChurchDenominationProvider church={activeInstitution!}>
+                                    <ChurchDashboard />
+                                </ChurchDenominationProvider>
                             ) : (activeRole === 'county_admin' || activeRole?.startsWith('county_')) ? (
                                 <CountyAdminView
                                     currentUser={currentUser}
@@ -3227,10 +3234,12 @@ export const App: React.FC = () => {
                             ) : activeRole === 'farmer' ? (
                                 <FarmerPortal
                                     currentUser={currentUser}
-                                    collections={coopCollections}
-                                    saccoAccounts={saccoAccounts}
-                                    payouts={coopPayouts}
-                                    agrovetSales={coopAgrovetSales}
+                                    collections={coopCollections.filter(c => c.farmerId === currentUser.id || c.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
+                                    saccoAccounts={saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
+                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId).map(a => a.id).includes(t.accountId))}
+                                    payouts={coopPayouts.filter(p => p.farmerId === currentUser.id || p.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
+                                    agrovetSales={coopAgrovetSales.filter(s => s.farmerId === currentUser.id || s.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
+                                    agrovetInventory={coopAgrovetInventory}
                                     notifications={notifications.filter(n => n.userId === currentUser.id || n.institutionId === currentUser.institutionId)}
                                     onLogout={handleLogout}
                                 />
@@ -3238,8 +3247,9 @@ export const App: React.FC = () => {
                                 <RiderPortal
                                     currentUser={currentUser}
                                     rider={coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)}
-                                    collections={coopCollections}
-                                    saccoAccounts={saccoAccounts}
+                                    collections={coopCollections.filter(c => c.riderId === currentUser.riderId || c.riderId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
+                                    saccoAccounts={saccoAccounts.filter(a => a.memberId === currentUser.riderId || a.memberId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
+                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.memberId === currentUser.riderId || a.memberId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id).map(a => a.id).includes(t.accountId))}
                                     payouts={coopPayouts}
                                     onLogout={handleLogout}
                                 />

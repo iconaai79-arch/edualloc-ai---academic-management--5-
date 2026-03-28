@@ -446,6 +446,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Cooperative">Cooperative / Agriculture</option>
                                                 <option value="Business">Business</option>
                                                 <option value="Reseller">Reseller</option>
+                                                <option value="Church">Church / Religious Institution</option>
                                             </select>
                                             {regData.institutionType === 'Business' && (
                                                 <div className="mt-3 animate-fade-in">
@@ -467,6 +468,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                         <option value="Retail Shop">Retail Shop</option>
                                                         <option value="Retail Agency">Retail Agency</option>
                                                         <option value="Law Firm">Law Firm</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {regData.institutionType === 'Church' && (
+                                                <div className="animate-fade-in-up">
+                                                    <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1 select-none">Select Church Tradition</label>
+                                                    <select
+                                                        className={inputClasses + " border-2 border-indigo-200"}
+                                                        value={regData.businessSubType || ''}
+                                                        onChange={e => setRegData({ ...regData, businessSubType: e.target.value as any })}
+                                                        required
+                                                    >
+                                                        <option value="">-- Choose Tradition --</option>
+                                                        <option value="Catholic">Catholic (Sacramental/SCC)</option>
+                                                        <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
+                                                        <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
                                                     </select>
                                                 </div>
                                             )}

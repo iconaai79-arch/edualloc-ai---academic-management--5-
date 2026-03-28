@@ -12,7 +12,8 @@ import type {
     BoardingHouse, BoardingRoom, BoardingBed, BedAllocation, BoardingCheckIn, BoardingCheckOut, BoardingMaintenanceLog,
     Vehicle, TransportOnboarding, VehicleLog, TransportBill, SmsLog, AppNotification,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, SecurityAlert,
-    CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState
+    CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
+    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -387,6 +388,36 @@ export const apiService = {
         } catch (err: any) {
             console.error("Upload Service Exception:", err);
             alert(`Upload Service Exception: ${err.message || 'Unknown error'}`);
+            return null;
+        }
+    },
+    async uploadToShowcaseCpanel(file: File, cpanelUrl: string, secretToken: string): Promise<string | null> {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await fetch(cpanelUrl, {
+                method: 'POST',
+                headers: {
+                    'X-Showcase-Token': secretToken
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result.status === 'success' && result.url) {
+                return result.url;
+            } else {
+                throw new Error(result.message || 'Upload failed on server.');
+            }
+        } catch (err: any) {
+            console.error("[cPanel Storage] Upload error:", err);
+            alert(`cPanel Upload Error: ${err.message}`);
             return null;
         }
     },
@@ -1674,5 +1705,41 @@ export const apiService = {
             count: ids.length,
             timestamp: new Date().toISOString()
         };
+    },
+    async fetchChurchSacraments(institutionId?: string): Promise<ChurchSacrament[]> {
+        return this.fetchModuleRecords('church_sacraments', institutionId);
+    },
+    async saveChurchSacrament(data: Partial<ChurchSacrament>): Promise<void> {
+        await this.saveModuleRecord('church_sacraments', data);
+    },
+    async fetchChurchMassIntentions(institutionId?: string): Promise<ChurchMassIntention[]> {
+        return this.fetchModuleRecords('church_mass_intentions', institutionId);
+    },
+    async saveChurchMassIntention(data: Partial<ChurchMassIntention>): Promise<void> {
+        await this.saveModuleRecord('church_mass_intentions', data);
+    },
+    async fetchChurchCellGroups(institutionId?: string): Promise<ChurchCellGroup[]> {
+        return this.fetchModuleRecords('church_cell_groups', institutionId);
+    },
+    async saveChurchCellGroup(data: Partial<ChurchCellGroup>): Promise<void> {
+        await this.saveModuleRecord('church_cell_groups', data);
+    },
+    async fetchChurchFollowUps(institutionId?: string): Promise<ChurchFollowUp[]> {
+        return this.fetchModuleRecords('church_follow_ups', institutionId);
+    },
+    async saveChurchFollowUp(data: Partial<ChurchFollowUp>): Promise<void> {
+        await this.saveModuleRecord('church_follow_ups', data);
+    },
+    async fetchChurchFastingPeriods(institutionId?: string): Promise<ChurchFastingPeriod[]> {
+        return this.fetchModuleRecords('church_fasting_periods', institutionId);
+    },
+    async saveChurchFastingPeriod(data: Partial<ChurchFastingPeriod>): Promise<void> {
+        await this.saveModuleRecord('church_fasting_periods', data);
+    },
+    async fetchChurchSaintDays(institutionId?: string): Promise<ChurchSaintDay[]> {
+        return this.fetchModuleRecords('church_saint_days', institutionId);
+    },
+    async saveChurchSaintDay(data: Partial<ChurchSaintDay>): Promise<void> {
+        await this.saveModuleRecord('church_saint_days', data);
     }
 };

@@ -6,6 +6,8 @@ import {
     SaccoAccount, 
     CoopMonthlyPayout, 
     CoopAgrovetSales,
+    CoopAgrovetInventory,
+    SaccoTransaction,
     AppNotification
 } from '../../types';
 import { 
@@ -29,8 +31,10 @@ interface FarmerPortalProps {
     currentUser: User;
     collections: CoopCollection[];
     saccoAccounts: SaccoAccount[];
+    saccoTransactions: SaccoTransaction[];
     payouts: CoopMonthlyPayout[];
     agrovetSales: CoopAgrovetSales[];
+    agrovetInventory: CoopAgrovetInventory[];
     notifications?: AppNotification[];
     onLogout: () => void;
 }
@@ -39,8 +43,10 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     currentUser,
     collections = [],
     saccoAccounts = [],
+    saccoTransactions = [],
     payouts = [],
     agrovetSales = [],
+    agrovetInventory = [],
     notifications = [],
     onLogout
 }) => {
@@ -293,10 +299,22 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                 )}
 
                 {activeTab === 'sacco' && (
-                    <div className="animate-fade-in space-y-8">
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">SACCO Transactions</h3>
+                    <div className="animate-fade-in space-y-10">
+                        <div className="flex justify-between items-end px-2">
+                             <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Financial Overview</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">SACCO Accounts</h3>
+                             </div>
+                             <div className="flex gap-4">
+                                <button className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                    Apply for Loan
+                                </button>
+                                <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 dark:shadow-none">
+                                    Request Advance
+                                </button>
+                             </div>
                         </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                              {saccoAccounts.map(acc => (
                                  <div key={acc.id} className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
@@ -306,11 +324,174 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{acc.accountType} ACCOUNT</p>
                                      <h4 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {acc.balance.toLocaleString()}</h4>
                                      <div className="flex gap-4">
-                                         <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest rounded-full">Interest: 8.5% p.a</span>
-                                         <span className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status}</span>
+                                         <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest rounded-full">{acc.status}</span>
                                      </div>
                                  </div>
                              ))}
+                        </div>
+
+                        <div className="space-y-6">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Transaction History</h3>
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                            <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                            <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                                            <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Reference</th>
+                                            <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                        {saccoTransactions.map(txn => (
+                                            <tr key={txn.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="py-4 px-8 text-sm font-bold text-slate-700 dark:text-slate-300">{txn.transactionDate}</td>
+                                                <td className="py-4 px-8">
+                                                    <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-full ${
+                                                        txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                                                    }`}>
+                                                        {txn.transactionType}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-8 text-sm font-medium text-slate-600 dark:text-slate-400">{txn.reference || 'N/A'}</td>
+                                                <td className={`py-4 px-8 text-sm font-black ${
+                                                    txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? 'text-emerald-600' : 'text-red-600'
+                                                }`}>
+                                                    {txn.transactionType === 'deposit' || txn.transactionType === 'dividend' ? '+' : '-'} {txn.amount.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {saccoTransactions.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No transaction history found</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'agrovet' && (
+                    <div className="animate-fade-in space-y-10">
+                        <div className="flex justify-between items-end px-2">
+                             <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Store Credit & Supplies</p>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Agrovet Purchases</h3>
+                             </div>
+                             <div className="bg-indigo-50 dark:bg-indigo-900/40 px-6 py-4 rounded-[2rem] border border-indigo-100 dark:border-indigo-800">
+                                 <p className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">Total Credit Limit</p>
+                                 <p className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES 50,000</p>
+                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                            <div className="lg:col-span-2 space-y-6">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Recent Sales</h3>
+                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                                                <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                                                <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Item</th>
+                                                <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Qty</th>
+                                                <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Total</th>
+                                                <th className="py-5 px-8 text-[9px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                            {agrovetSales.map(sale => (
+                                                <tr key={sale.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                    <td className="py-4 px-8 text-sm font-bold text-slate-700 dark:text-slate-300">{sale.saleDate}</td>
+                                                    <td className="py-4 px-8 text-sm font-medium text-slate-600 dark:text-slate-400">
+                                                        {agrovetInventory.find(i => i.id === sale.itemId)?.itemName || 'Product'}
+                                                    </td>
+                                                    <td className="py-4 px-8 text-sm font-black text-slate-900 dark:text-white">{sale.quantity}</td>
+                                                    <td className="py-4 px-8 text-sm font-black text-slate-900 dark:text-white">KES {sale.amount.toLocaleString()}</td>
+                                                    <td className="py-4 px-8">
+                                                        <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-full ${
+                                                            sale.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
+                                                            sale.paymentStatus === 'credit' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
+                                                        }`}>
+                                                            {sale.paymentStatus}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {agrovetSales.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">No purchase history</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Store Highlights</h3>
+                                <div className="space-y-4">
+                                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Savings</p>
+                                        <h4 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter">KES 12,450</h4>
+                                        <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest mt-1">Saved on member discounts</p>
+                                    </div>
+                                    <button className="w-full bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 dark:shadow-none flex items-center justify-between group transition-all hover:bg-indigo-700">
+                                        <div className="text-left">
+                                            <p className="text-[11px] font-black uppercase tracking-tighter">Browse Store</p>
+                                            <p className="text-[9px] text-indigo-200 font-bold uppercase tracking-widest">Digital Catalog</p>
+                                        </div>
+                                        <TrendingUp className="w-6 h-6 text-indigo-300" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'statements' && (
+                    <div className="animate-fade-in space-y-10">
+                        <div className="px-2">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Earnings Reports</p>
+                             <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Production Statements</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {payouts.map(payout => (
+                                <div key={payout.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+                                     <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                     <div className="flex items-center justify-between mb-8">
+                                         <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center">
+                                             <FileText className="w-6 h-6 text-slate-400" />
+                                         </div>
+                                         <span className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full ${
+                                             payout.status === 'paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                         }`}>{payout.status}</span>
+                                     </div>
+                                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{payout.payoutMonth}</p>
+                                     <h4 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter mb-4">KES {payout.netPayout.toLocaleString()}</h4>
+                                     
+                                     <div className="pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                                         <button className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline flex items-center gap-2">
+                                             <FileText className="w-4 h-4" />
+                                             Full Breakdown
+                                         </button>
+                                         <button className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">
+                                             PDF
+                                         </button>
+                                     </div>
+                                </div>
+                            ))}
+                            {payouts.length === 0 && (
+                                <div className="col-span-full py-24 bg-white dark:bg-slate-900 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-300 mb-6">
+                                        <FileText className="w-10 h-10" />
+                                    </div>
+                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-2">No Statements Found</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Your monthly production reports will appear here</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

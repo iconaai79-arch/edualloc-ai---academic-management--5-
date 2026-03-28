@@ -162,6 +162,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <option>Business</option>
                       <option>Broadcaster</option>
                       <option>HIS</option>
+                      <option>Church</option>
                     </select>
                   </div>
                   {formData.institutionType === 'Business' && (
@@ -182,6 +183,22 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                         <option value="Hardware">Hardware Store</option>
                         <option value="Pharmacy">Pharmacy / Chemist</option>
                         <option value="General">General Retail / Business</option>
+                      </select>
+                    </div>
+                  {formData.institutionType === 'Church' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Church Tradition (Denomination)</label>
+                      <select
+                        name="businessSubType"
+                        value={formData.businessSubType}
+                        onChange={handleChange}
+                        className="form-select border-2 border-indigo-200"
+                        required
+                      >
+                        <option value="">-- Select Tradition --</option>
+                        <option value="Catholic">Catholic (Sacramental/SCC)</option>
+                        <option value="Protestant">Protestant (Evangelical/Cell Groups)</option>
+                        <option value="Orthodox">Orthodox (Holy Mysteries/Fasting Calendar)</option>
                       </select>
                     </div>
                   )}

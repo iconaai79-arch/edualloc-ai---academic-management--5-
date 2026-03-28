@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member';
 
 export interface DemoRequest {
     id: string;
@@ -113,12 +113,21 @@ export interface County {
     website?: string;
 }
 
+export interface CoopSettings {
+    payoutRate?: number;
+    milkPrice?: number;
+    teaPrice?: number;
+    coffeePrice?: number;
+    advanceLimit?: number;
+    farmerSmsBillingEnabled?: boolean;
+}
+
 export interface Institution {
     id: string;
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
@@ -159,6 +168,7 @@ export interface Institution {
     ncbaConfig?: NcbaConfig;
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
+    coopSettings?: CoopSettings;
 }
 
 export interface NcbaConfig {
@@ -504,6 +514,15 @@ export interface IntasendConfig {
     environment?: 'sandbox' | 'test' | 'production';
 }
 
+export interface ShowcaseItem {
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    link?: string;
+    category?: string;
+}
+
 export interface CompanyDetails {
     name: string;
     address: string;
@@ -518,6 +537,9 @@ export interface CompanyDetails {
     showcaseConfig?: {
         enabled: boolean;
         showLoginLink?: boolean;
+        cpanelUploadUrl?: string;
+        cpanelSecret?: string;
+        items?: ShowcaseItem[];
     };
     footerImageUrl?: string | null;
     applicationTitle?: string;
@@ -2942,4 +2964,72 @@ export interface CoopIncome {
     amount: number;
     date: string;
     recordedBy: string;
+}
+
+export type ChurchDenomination = 'Catholic' | 'Protestant' | 'Orthodox' | 'Evangelical' | 'Anglican' | 'Other';
+
+export interface ChurchSacrament {
+    id: string;
+    institutionId: string;
+    memberId: string;
+    sacramentType: 'Baptism' | 'First Communion' | 'Confirmation' | 'Marriage' | 'Holy Orders' | 'Anointing of the Sick';
+    date: string;
+    officiantName: string;
+    godParents?: string[];
+    venue?: string;
+    certificateNumber?: string;
+    notes?: string;
+}
+
+export interface ChurchMassIntention {
+    id: string;
+    institutionId: string;
+    bookedBy: string;
+    intentionDate: string;
+    timeSlot?: string;
+    intention: string; // e.g., "Thanksgiving", "Healing for Mary", "For the Deceased"
+    amountPaid: number;
+    status: 'booked' | 'celebrated' | 'cancelled';
+    recordedAt: string;
+}
+
+export interface ChurchCellGroup {
+    id: string;
+    institutionId: string;
+    name: string;
+    leaderId: string;
+    location: string;
+    meetingDay: string;
+    meetingTime: string;
+    memberIds: string[];
+    category?: 'Youth' | 'Men' | 'Women' | 'General';
+}
+
+export interface ChurchFollowUp {
+    id: string;
+    institutionId: string;
+    visitorId: string;
+    assignedTo: string; // Deacon/Leader ID
+    status: 'pending' | 'in_progress' | 'converted' | 'lost';
+    notes: string;
+    lastContactDate?: string;
+    nextFollowUpDate?: string;
+}
+
+export interface ChurchFastingPeriod {
+    id: string;
+    institutionId: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    rules?: string;
+}
+
+export interface ChurchSaintDay {
+    id: string;
+    institutionId: string;
+    saintName: string;
+    celebrationDate: string; // MM-DD
+    liturgicalColor: 'White' | 'Green' | 'Purple' | 'Red';
+    description?: string;
 }
