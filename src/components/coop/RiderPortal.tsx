@@ -57,9 +57,11 @@ export const RiderPortal: React.FC<RiderPortalProps> = ({
             totalQty,
             saccoBalance,
             lastMonthDeliveries: myDeliveries.filter(c => {
-                const date = new Date(c.collectionDate);
+                if (!c.collectionDate) return false;
                 const now = new Date();
-                return date.getMonth() === (now.getMonth() - 1 === -1 ? 11 : now.getMonth() - 1);
+                const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const compareStr = lastMonth.toISOString().substring(0, 7); // YYYY-MM
+                return c.collectionDate.substring(0, 7) === compareStr;
             }).length
         };
     }, [myDeliveries, saccoAccounts]);

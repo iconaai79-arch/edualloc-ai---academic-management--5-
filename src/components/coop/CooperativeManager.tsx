@@ -170,13 +170,21 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
     const [payoutRate, setPayoutRate] = useState<number>(50); // Default rate KES 50 per Unit
+    
+    const formatDateString = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
     const [startDate, setStartDate] = useState<string>(() => {
         const d = new Date();
-        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+        return formatDateString(new Date(d.getFullYear(), d.getMonth(), 1));
     });
     const [endDate, setEndDate] = useState<string>(() => {
         const d = new Date();
-        return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+        return formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0));
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
@@ -192,17 +200,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isAddingRider, setIsAddingRider] = useState(false);
     const [newInventory, setNewInventory] = useState<any>({});
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
-        saleDate: new Date().toISOString().split('T')[0],
+        saleDate: formatDateString(new Date()),
         paymentStatus: 'cash'
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
-        joinedAt: new Date().toISOString().split('T')[0]
+        joinedAt: formatDateString(new Date())
     });
     const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
-        collectionDate: new Date().toISOString().split('T')[0],
+        collectionDate: formatDateString(new Date()),
         productType: 'milk',
         unit: 'kgs',
         factoryConfirmed: false,
@@ -244,9 +252,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const filteredCollections = useMemo(() => {
         return collections.filter(c => {
             if (!c.collectionDate) return false;
-            const date = new Date(c.collectionDate).toISOString().split('T')[0];
+            // Use substring for robust local day comparison (avoids timezone shifts)
+            const dateStr = c.collectionDate.substring(0, 10);
             
-            const matchesDate = date >= startDate && date <= endDate;
+            const matchesDate = dateStr >= startDate && dateStr <= endDate;
             
             const matchesSearch = !searchTerm || 
                 getFarmerName(c.farmerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -270,7 +279,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 institutionId: currentInstitution?.id || ''
             });
             setIsAddingFarmer(false);
-            setNewFarmer({ status: 'active', joinedAt: new Date().toISOString().split('T')[0] });
+            setNewFarmer({ status: 'active', joinedAt: formatDateString(new Date()) });
         } catch (err) {
             console.error(err);
             alert("Failed to save farmer record");
@@ -295,7 +304,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             });
             setIsLoggingCollection(false);
             setNewCollection({
-                collectionDate: new Date().toISOString().split('T')[0],
+                collectionDate: formatDateString(new Date()),
                 productType: 'milk',
                 unit: 'kgs',
                 factoryConfirmed: false,
@@ -370,8 +379,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
                 const farmerCollections = collections.filter(c => {
                     if (!c.collectionDate || !c.factoryConfirmed) return false;
-                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
-                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                    const dateStr = c.collectionDate.substring(0, 10);
+                    return c.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                 });
                 
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
@@ -379,16 +388,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                 
                 const advances = expenses.filter(ex => {
                     if (!ex.date) return false;
-                    const date = new Date(ex.date).toISOString().split('T')[0];
+                    const dateStr = ex.date.substring(0, 10);
                     return ex.farmerId === farmer.id && 
                            ex.category.toLowerCase().includes('advance') &&
-                           date >= startDate && date <= endDate;
+                           dateStr >= startDate && dateStr <= endDate;
                 }).reduce((s, ex) => s + ex.amount, 0);
 
                 const agrovetDeduction = sales.filter(s => {
                     if (!s.saleDate) return false;
-                    const date = new Date(s.saleDate).toISOString().split('T')[0];
-                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                    const dateStr = s.saleDate.substring(0, 10);
+                    return s.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                 }).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - agrovetDeduction;
@@ -436,24 +445,24 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             const settlementData = farmers.map(farmer => {
                 const farmerCollections = collections.filter(c => {
                     if (!c.collectionDate || !c.factoryConfirmed) return false;
-                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
-                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                    const dateStr = c.collectionDate.substring(0, 10);
+                    return c.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                 });
                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                 const gross = totalQty * payoutRate;
                 
                 const advances = expenses.filter(ex => {
                     if (!ex.date) return false;
-                    const date = new Date(ex.date).toISOString().split('T')[0];
+                    const dateStr = ex.date.substring(0, 10);
                     return ex.farmerId === farmer.id && 
                            ex.category.toLowerCase().includes('advance') &&
-                           date >= startDate && date <= endDate;
+                           dateStr >= startDate && dateStr <= endDate;
                 }).reduce((s, ex) => s + ex.amount, 0);
 
                 const deductions = sales.filter(s => {
                     if (!s.saleDate) return false;
-                    const date = new Date(s.saleDate).toISOString().split('T')[0];
-                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                    const dateStr = s.saleDate.substring(0, 10);
+                    return s.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                 }).reduce((acc, sa) => acc + sa.amount, 0);
 
                 const net = gross - advances - deductions;
@@ -500,13 +509,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const getFilteredPayouts = () => {
         return payouts.filter(p => {
             if (!p.payoutMonth) return false;
-            return p.payoutMonth >= startDate && p.payoutMonth <= endDate;
+            // Payout month is YYYY-MM-01, compare with truncated ranges
+            return p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate;
         });
     };
 
     const stats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const todayCollections = collections.filter(c => c.collectionDate === today);
+        const today = formatDateString(new Date());
+        const todayCollections = collections.filter(c => c.collectionDate && c.collectionDate.substring(0, 10) === today);
         const todayQty = todayCollections.reduce((sum, c) => sum + Number(c.quantity), 0);
         const totalSaccoAssets = saccoAccounts.reduce((sum, a) => sum + a.balance, 0);
         const totalPayouts = payouts.reduce((sum, p) => sum + p.netPayout, 0);
@@ -590,7 +600,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             }
             setIsRecordingSale(false);
             setNewSale({
-                saleDate: new Date().toISOString().split('T')[0],
+                saleDate: formatDateString(new Date()),
                 paymentStatus: 'cash'
             });
             if (onLogAction) await onLogAction(`Recorded sale for farmer ${newSale.farmerId}`);
@@ -1368,8 +1378,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <button 
                                                         onClick={() => {
                                                             const d = new Date();
-                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                            setStartDate(formatDateString(new Date(d.getFullYear(), d.getMonth(), 1)));
+                                                            setEndDate(formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
                                                         }}
                                                         className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
                                                     >
@@ -1379,8 +1389,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         onClick={() => {
                                                             const d = new Date();
                                                             d.setMonth(d.getMonth() - 1);
-                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                            setStartDate(formatDateString(new Date(d.getFullYear(), d.getMonth(), 1)));
+                                                            setEndDate(formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
                                                         }}
                                                         className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
                                                     >
@@ -1534,8 +1544,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <button 
                                                         onClick={() => {
                                                             const d = new Date();
-                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                            setStartDate(formatDateString(new Date(d.getFullYear(), d.getMonth(), 1)));
+                                                            setEndDate(formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
                                                         }}
                                                         className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
                                                     >
@@ -1545,8 +1555,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         onClick={() => {
                                                             const d = new Date();
                                                             d.setMonth(d.getMonth() - 1);
-                                                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
-                                                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]);
+                                                            setStartDate(formatDateString(new Date(d.getFullYear(), d.getMonth(), 1)));
+                                                            setEndDate(formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0)));
                                                         }}
                                                         className="text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors"
                                                     >
@@ -2491,10 +2501,10 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Net Cash Position</p>
                                         <h4 className="text-3xl font-black tracking-tighter">
                                             KES {(income.filter(i => {
-                                                const d = new Date(i.date).toISOString().split('T')[0];
+                                                const d = i.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
                                             }).reduce((s, i) => s + i.amount, 0) - expenses.filter(e => {
-                                                const d = new Date(e.date).toISOString().split('T')[0];
+                                                const d = e.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
                                             }).reduce((s, e) => s + e.amount, 0)).toLocaleString()}
                                         </h4>
@@ -2506,7 +2516,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Period Income</p>
                                         <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
                                             KES {income.filter(i => {
-                                                const d = new Date(i.date).toISOString().split('T')[0];
+                                                const d = i.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
                                             }).reduce((s, i) => s + i.amount, 0).toLocaleString()}
                                         </h4>
@@ -2516,7 +2526,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Period Expenses</p>
                                         <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
                                             KES {expenses.filter(e => {
-                                                const d = new Date(e.date).toISOString().split('T')[0];
+                                                const d = e.date.substring(0, 10);
                                                 return d >= startDate && d <= endDate;
                                             }).reduce((s, e) => s + e.amount, 0).toLocaleString()}
                                         </h4>
@@ -2535,13 +2545,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             {['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(prod => {
                                                 const prodTotal = collections.filter(c => {
                                                     if (!c.collectionDate || !c.factoryConfirmed || c.productType !== prod) return false;
-                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
-                                                    return date >= startDate && date <= endDate;
+                                                    const dateStr = c.collectionDate.substring(0, 10);
+                                                    return dateStr >= startDate && dateStr <= endDate;
                                                 }).reduce((s, c) => s + Number(c.finalQuantity), 0);
                                                 const maxProd = Math.max(...['Milk', 'Coffee', 'Tea', 'Pyrethrum'].map(p => collections.filter(c => {
                                                     if (!c.collectionDate || !c.factoryConfirmed || c.productType !== p) return false;
-                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
-                                                    return date >= startDate && date <= endDate;
+                                                    const dateStr = c.collectionDate.substring(0, 10);
+                                                    return dateStr >= startDate && dateStr <= endDate;
                                                 }).reduce((s, c) => s + Number(c.finalQuantity), 0)), 1);
                                                 const percentage = (prodTotal / maxProd) * 100;
                                                 
@@ -2649,24 +2659,24 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             {farmers.map(farmer => {
                                                 const farmerCollections = collections.filter(c => {
                                                     if (!c.collectionDate || !c.factoryConfirmed) return false;
-                                                    const date = new Date(c.collectionDate).toISOString().split('T')[0];
-                                                    return c.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                                    const dateStr = c.collectionDate.substring(0, 10);
+                                                    return c.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                                                 });
                                                 const totalQty = farmerCollections.reduce((s, c) => s + Number(c.finalQuantity), 0);
                                                 const gross = totalQty * payoutRate;
                                                 
                                                 const advances = expenses.filter(ex => {
                                                     if (!ex.date) return false;
-                                                    const date = new Date(ex.date).toISOString().split('T')[0];
+                                                    const dateStr = ex.date.substring(0, 10);
                                                     return ex.farmerId === farmer.id && 
                                                            ex.category.toLowerCase().includes('advance') &&
-                                                           date >= startDate && date <= endDate;
+                                                           dateStr >= startDate && dateStr <= endDate;
                                                 }).reduce((s, ex) => s + ex.amount, 0);
 
                                                 const deductions = sales.filter(s => {
                                                     if (!s.saleDate) return false;
-                                                    const date = new Date(s.saleDate).toISOString().split('T')[0];
-                                                    return s.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                                    const dateStr = s.saleDate.substring(0, 10);
+                                                    return s.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                                                 }).reduce((acc, sa) => acc + sa.amount, 0);
 
                                                 const net = gross - advances - deductions;
@@ -2698,20 +2708,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     {farmers.filter(farmer => {
                                         const c = collections.some(col => {
                                             if (!col.collectionDate || !col.factoryConfirmed) return false;
-                                            const date = new Date(col.collectionDate).toISOString().split('T')[0];
-                                            return col.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                            const dateStr = col.collectionDate.substring(0, 10);
+                                            return col.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                                         });
                                         const e = expenses.some(ex => {
                                             if (!ex.date) return false;
-                                            const date = new Date(ex.date).toISOString().split('T')[0];
+                                            const dateStr = ex.date.substring(0, 10);
                                             return ex.farmerId === farmer.id && 
                                                    ex.category.toLowerCase().includes('advance') &&
-                                                   date >= startDate && date <= endDate;
+                                                   dateStr >= startDate && dateStr <= endDate;
                                         });
                                         const s = sales.some(sa => {
                                             if (!sa.saleDate) return false;
-                                            const date = new Date(sa.saleDate).toISOString().split('T')[0];
-                                            return sa.farmerId === farmer.id && date >= startDate && date <= endDate;
+                                            const dateStr = sa.saleDate.substring(0, 10);
+                                            return sa.farmerId === farmer.id && dateStr >= startDate && dateStr <= endDate;
                                         });
                                         return c || e || s;
                                     }).length === 0 && (

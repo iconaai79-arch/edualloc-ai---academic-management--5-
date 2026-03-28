@@ -78,7 +78,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
 
                 if (jsonHeaders.length < 1) throw new Error("Spreadsheet is empty or has no headers.");
 
-                const headers = jsonHeaders[0].map((h: any) => String(h || '').trim()).filter(h => h !== '');
+                const headers = jsonHeaders[0].map((h: any) => String(h || '').trim()).filter((h: any) => h !== '');
                 setFileHeaders(headers);
 
                 // Get all rows, then slice to skip header row
@@ -88,7 +88,7 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 // Convert array rows to objects using trimmed headers
                 const jsonData = rows.map(row => {
                     const obj: any = {};
-                    headers.forEach((h, i) => {
+                    headers.forEach((h: string, i: number) => {
                         obj[h] = row[i];
                     });
                     return obj;
@@ -109,6 +109,13 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
 
     const handleMappingChange = (field: CollectionMappingField, value: string | null) => {
         setFieldMapping(prev => ({ ...prev, [field]: value }));
+    };
+
+    const formatDateString = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     };
 
     const parseUniversalDate = (s: string): Date | null => {
@@ -243,16 +250,16 @@ export const SmartCollectionImporterModal: React.FC<SmartCollectionImporterModal
                 }
                 
                 if (d && !isNaN(d.getTime())) {
-                    parsed.collectionDate = d.toISOString().split('T')[0];
+                    parsed.collectionDate = formatDateString(d);
                 } else {
                     // Critical failure to parse mapped date
                     errors.push("Invalid Date Format");
-                    parsed.collectionDate = new Date().toISOString().split('T')[0];
+                    parsed.collectionDate = formatDateString(new Date());
                 }
             } else {
                 // Date is required but missing
                 errors.push("Date is missing");
-                parsed.collectionDate = new Date().toISOString().split('T')[0];
+                parsed.collectionDate = formatDateString(new Date());
             }
 
             // Optional
