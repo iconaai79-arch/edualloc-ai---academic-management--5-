@@ -27,7 +27,8 @@ interface LoginViewProps {
     onParentRequestOtp: (phone: string) => { success: boolean; message: string };
     onParentVerifyOtp: (phone: string, code: string) => { success: boolean; message: string };
     companyDetails: CompanyDetails;
-    onForgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+    onForgotPassword: (identifier: string, method: 'email' | 'phone') => Promise<{ success: boolean; message: string }>;
+    onVerifyResetOtp?: (phone: string, code: string) => Promise<{ success: boolean; message: string; resetToken?: string }>;
     onResetPassword?: (token: string, pass: string) => Promise<{ success: boolean; message: string }>;
 }
 
@@ -36,8 +37,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
     onVerifyOtp, onResendOtp
 }) => {
-    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
+    const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
     const [identifier, setIdentifier] = useState('');
+    const [recoveryMethod, setRecoveryMethod] = useState<'email' | 'phone'>('email');
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [recoveryStep, setRecoveryStep] = useState<'request' | 'verify' | 'reset'>('request');
+    const [resetToken, setResetToken] = useState<string | null>(null);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
@@ -122,21 +127,67 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const cleanEmail = identifier.trim().toLowerCase();
-        if (!cleanEmail) {
-            setError("Please enter your registered email address.");
+        
+        if (recoveryMethod === 'email') {
+            const cleanEmail = identifier.trim().toLowerCase();
+            if (!cleanEmail) {
+                setError("Please enter your registered email address.");
+                return;
+            }
+            setIsSubmitting(true);
+            try {
+                const res = await onForgotPassword(cleanEmail, 'email');
+                if (res.success) {
+                    setView('reset_sent');
+                } else {
+                    setError(res.message);
+                }
+            } catch (err: any) {
+                setError(err.message || "Recovery failure.");
+            } finally {
+                setIsSubmitting(false);
+            }
+        } else {
+            const cleanPhone = phoneNumber.trim();
+            if (!cleanPhone) {
+                setError("Please enter your registered phone number.");
+                return;
+            }
+            setIsSubmitting(true);
+            try {
+                const res = await onForgotPassword(cleanPhone, 'phone');
+                if (res.success) {
+                    setView('recovery_otp');
+                } else {
+                    setError(res.message);
+                }
+            } catch (err: any) {
+                setError(err.message || "Recovery failure.");
+            } finally {
+                setIsSubmitting(false);
+            }
+        }
+    };
+
+    const handleVerifyResetOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (!otpCode) {
+            setError("Please enter the verification code sent to your phone.");
             return;
         }
         setIsSubmitting(true);
         try {
-            const res = await onForgotPassword(cleanEmail);
-            if (res.success) {
-                setView('reset_sent');
+            if (!onVerifyResetOtp) throw new Error("OTP verification not available.");
+            const res = await onVerifyResetOtp(phoneNumber, otpCode);
+            if (res.success && res.resetToken) {
+                setResetToken(res.resetToken);
+                setView('reset_password');
             } else {
-                setError(res.message);
+                setError(res.message || "Invalid or expired code.");
             }
         } catch (err: any) {
-            setError(err.message || "Recovery failure.");
+            setError(err.message || "Verification failed.");
         } finally {
             setIsSubmitting(false);
         }
@@ -156,7 +207,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
         setIsSubmitting(true);
         try {
-            const token = new URLSearchParams(window.location.search).get('resetToken');
+            const token = resetToken || new URLSearchParams(window.location.search).get('resetToken');
             if (!token) throw new Error("Missing reset token.");
 
             const res = await onResetPassword?.(token, password);
@@ -340,20 +391,95 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         <div className="animate-fade-in-up space-y-6">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tighter">Recover Access</h3>
-                                <p className="text-sm text-slate-500 mt-1">We'll send a reset link to your email.</p>
+                                <p className="text-sm text-slate-500 mt-1">Choose your preferred recovery method.</p>
                             </div>
+
+                            <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setRecoveryMethod('email')} 
+                                    className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${recoveryMethod === 'email' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Email Address
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setRecoveryMethod('phone')} 
+                                    className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${recoveryMethod === 'phone' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    Phone Number
+                                </button>
+                            </div>
+
                             <form onSubmit={handleForgotPassword} className="space-y-5">
-                                <div>
-                                    <label className={labelClasses}>Official Email</label>
-                                    <div className="relative">
-                                        <PaperAirplaneIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400 rotate-45" />
-                                        <input type="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className={`${inputClasses} pl-12`} placeholder="name@institution.edu" required autoFocus />
+                                {recoveryMethod === 'email' ? (
+                                    <div>
+                                        <label className={labelClasses}>Official Email</label>
+                                        <div className="relative">
+                                            <PaperAirplaneIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400 rotate-45" />
+                                            <input type="email" value={identifier} onChange={e => setIdentifier(e.target.value)} className={`${inputClasses} pl-12`} placeholder="name@institution.edu" required autoFocus />
+                                        </div>
                                     </div>
-                                </div>
+                                ) : (
+                                    <div>
+                                        <label className={labelClasses}>Registered Phone</label>
+                                        <div className="relative">
+                                            <PhoneIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                            <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className={`${inputClasses} pl-12`} placeholder="07xx xxx xxx" required autoFocus />
+                                        </div>
+                                    </div>
+                                )}
                                 <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                    {isSubmitting ? 'Syncing...' : 'Send Recovery Link'}
+                                    {isSubmitting ? 'Syncing...' : recoveryMethod === 'email' ? 'Send Recovery Link' : 'Request Reset OTP'}
                                 </button>
                                 <button type="button" onClick={() => setView('login')} className="w-full text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2 transition-colors">Return to Login</button>
+                            </form>
+                        </div>
+                    )}
+
+                    {view === 'recovery_otp' && (
+                        <div className="animate-fade-in-up space-y-6">
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                    <ShieldExclamationIcon className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tighter">Verify Reset Code</h3>
+                                <p className="text-sm text-slate-500 mt-1">Check your phone <span className="font-bold text-slate-700 dark:text-slate-300">{phoneNumber}</span> for a recovery code.</p>
+                            </div>
+                            <form onSubmit={handleVerifyResetOtp} className="space-y-6">
+                                <div>
+                                    <label className={labelClasses}>Verification Code</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={otpCode}
+                                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').substring(0, 6))}
+                                            className={`${inputClasses} text-center text-3xl font-black tracking-[0.5em] caret-blue-600`}
+                                            placeholder="······"
+                                            required
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all">
+                                    Verify Recovery Code
+                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotPassword}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700"
+                                    >
+                                        Resend Code
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setView('forgot_password')}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2"
+                                    >
+                                        Change Phone Number
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     )}

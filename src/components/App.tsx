@@ -2000,7 +2000,8 @@ export const App: React.FC = () => {
             } catch (e: any) { return { success: false, message: 'Registration failed: ' + e.message }; }
         },
         onStudentRegister: async () => ({ success: true, message: '' }),
-        onForgotPassword: async (email: string) => apiService.resetPassword(email),
+        onForgotPassword: async (identifier: string, method: 'email' | 'phone') => apiService.resetPassword(identifier, method),
+        onVerifyResetOtp: async (phone: string, code: string) => apiService.verifyResetOtp(phone, code),
         onResetPassword: async (token: string, pass: string) => apiService.resetPasswordWithToken(token, pass)
     };
 

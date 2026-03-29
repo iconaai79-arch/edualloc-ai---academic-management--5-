@@ -259,13 +259,17 @@ export const apiService = {
             return { ...errRes, timestamp: new Date().toISOString() };
         }
     },
-    async resetPassword(email: string): Promise<{ success: boolean; message: string }> {
+    async resetPassword(identifier: string, type: 'email' | 'phone' = 'email'): Promise<{ success: boolean; message: string }> {
         if (!_supabase) return { success: false, message: "Server connection required." };
         try {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'forgotPassword', recipient: email })
+                body: JSON.stringify({ 
+                    action: 'forgotPassword', 
+                    recipient: identifier,
+                    method: type 
+                })
             });
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
@@ -277,10 +281,29 @@ export const apiService = {
             if (!response.ok || !result.success) {
                 return { success: false, message: result.message || "Account verification failed." };
             }
-            return { success: true, message: "Recovery email dispatched." };
+            return { success: true, message: type === 'email' ? "Recovery email dispatched." : "Verification code sent to your phone." };
         } catch (e: any) {
             console.error("Reset password recovery failed", e);
             return { success: false, message: e.message || "Connection failure during verification." };
+        }
+    },
+    async verifyResetOtp(phone: string, code: string): Promise<{ success: boolean; message: string; resetToken?: string }> {
+        if (!_supabase) return { success: false, message: "Server connection required." };
+        try {
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'verifyResetOtp', phone, code })
+            });
+            const result = await response.json();
+            return { 
+                success: response.ok && result.success, 
+                message: result.message,
+                resetToken: result.resetToken 
+            };
+        } catch (e: any) {
+            console.error("OTP verification failed:", e);
+            return { success: false, message: "Connection failure." };
         }
     },
     async resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
