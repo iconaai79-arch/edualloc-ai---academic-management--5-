@@ -397,7 +397,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
 
     const isModuleActive = useCallback((moduleId: string) => {
-        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || m.module_id === moduleId);
+        const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
         if (!state) return false;
         if (state.status === 'active') return true;
         if (state.status === 'trial') {
@@ -544,14 +544,20 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             return ['retail_agent', 'customer'].includes(opt.role);
         }
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'mechanic_admin', 'retail_agent', 'driver', 'customer', 'church_admin'].includes(opt.role);
+            const isSuperAdmin = props.currentUser?.role === 'super_admin';
+            const excluded = ['agrovet_admin', 'property_admin', 'carwash_admin', 'mechanic_admin', 'retail_agent', 'driver', 'customer', 'church_admin'];
+            if (isSuperAdmin) {
+                return !excluded.filter(e => e !== 'church_admin').includes(opt.role);
+            }
+            return !excluded.includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
             const filtered = !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer'].includes(opt.role);
             
             // Further restrict church_admin to only Church institutions
             if (opt.role === 'church_admin') {
-                return isChurch && filtered;
+                const isSuperAdmin = props.currentUser?.role === 'super_admin';
+                return (isChurch || isSuperAdmin) && filtered;
             }
             
             return filtered;

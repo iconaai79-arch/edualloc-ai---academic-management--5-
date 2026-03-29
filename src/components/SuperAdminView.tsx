@@ -1004,13 +1004,14 @@ Please change it after login.`;
             return instType === 'HIS';
         }
 
-        // Only show Church perspective for Church institutions
+        // Show Church perspective for Church institutions OR for Super Admin simulation
         if (opt.role === 'church_admin') {
-            return isChurch;
+            return true; // Super Admins should always see all simulation options
         }
 
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'church_admin'].includes(opt.role);
+            // Super Admins should always see the Church System for simulation
+            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider'].includes(opt.role);
         }
 
         if (instType === 'Cooperative') {
