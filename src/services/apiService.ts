@@ -1372,13 +1372,13 @@ export const apiService = {
         try {
             // 1. Update the request status
             const request = await this.saveModuleRecord('institution_extension_requests', { id: requestId, status });
-            if (!request) throw new Error("Request not found or failed to update");
+            if (!request || !request.id) throw new Error("Request not found or failed to update");
 
             // 2. If approved, extend the institution's trial
-            if (status === 'approved' && request) {
-                const insts = await this.fetchModuleRecords<any>('institutions', (request as any).institutionId);
+            if (status === 'approved' && request.institutionId) {
+                const insts = await this.fetchModuleRecords<any>('institutions', request.institutionId);
                 const inst = insts[0];
-                if (!inst) throw new Error("Institution not found");
+                if (!inst) throw new Error("Institution not found for the given request");
 
                 // Calculate new expiry date
                 const currentExpiry = inst.trialEndsAt ? new Date(inst.trialEndsAt) : new Date();
