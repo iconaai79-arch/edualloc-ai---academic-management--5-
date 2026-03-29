@@ -1370,9 +1370,18 @@ export const apiService = {
     async fetchExtensionRequests(instId?: string): Promise<ExtensionRequest[]> { return this.fetchModuleRecords('institution_extension_requests', instId); },
     async updateExtensionRequestStatus(requestId: string, status: 'approved' | 'rejected', extensionDays: number = 14): Promise<void> {
         try {
-            // 1. Update the request status
-            const request = await this.saveModuleRecord('institution_extension_requests', { id: requestId, status });
-            if (!request || !request.id) throw new Error("Request not found or failed to update");
+            // 1. Fetch current request to preserve mandatory fields (requester_id, institution_id, etc.)
+            const existingRequests = await this.fetchModuleRecords<ExtensionRequest>('institution_extension_requests', undefined, undefined, { filter: { id: requestId } });
+            const currentRequest = existingRequests[0];
+            if (!currentRequest) throw new Error("Extension request not found");
+
+            // 2. Update the request status and add resolved metadata
+            const request = await this.saveModuleRecord('institution_extension_requests', { 
+                ...currentRequest, 
+                status,
+                resolved_at: new Date().toISOString()
+            });
+            if (!request || !request.id) throw new Error("Failed to update extension request status");
 
             // 2. If approved, extend the institution's trial
             if (status === 'approved' && request.institutionId) {
