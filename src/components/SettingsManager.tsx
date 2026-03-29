@@ -18,39 +18,37 @@ import { GradingSystemManager } from './GradingSystemManager';
 import { SubscriptionManager } from './SubscriptionManager';
 import { supabase } from '../lib/supabase';
 import { apiService } from '../services/apiService';
-import {
-    PrinterIcon,
-    MapPinIcon,
-    ArrowTrendingUpIcon,
-    CalendarDaysIcon,
-    ClipboardListIcon,
-    BuildingOfficeIcon,
-    ChatBubbleBottomCenterTextIcon,
-    CheckIcon,
-    XIcon,
-    PlusIcon,
-    CreditCardIcon,
-    SparklesIcon,
-    Cog8ToothIcon,
-    ExclamationTriangleIcon,
-    CheckCircleIcon,
-    InformationCircleIcon,
-    ClockIcon,
-    BookOpenIcon,
-    AcademicCapIcon,
-    ShieldIcon,
-    MpesaIcon,
-    ArrowsRightLeftIcon,
-    CurrencyIcon,
-    RectangleStackIcon,
-    ArrowUpTrayIcon,
-    EyeIcon,
-    DocumentArrowDownIcon,
-    CommandLineIcon,
-    EnvelopeIcon,
-    PhoneIcon,
-    PaperAirplaneIcon
-} from './icons/index';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { MpesaIcon } from './icons/MpesaIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { CommandLineIcon } from './icons/CommandLineIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 import { SubjectManager } from './SubjectManager';
 import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';
@@ -58,7 +56,7 @@ import { BuildingManager } from './BuildingManager';
 import { AcademicLevelManager } from './AcademicLevelManager';
 import { DatabaseSettings } from './DatabaseSettings';
 import { UserManager } from './UserManager';
-import { UserGroupIcon } from './icons/index';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 
 interface SettingsManagerProps {
     currentUser: User;
