@@ -58,6 +58,8 @@ import { BeakerIcon } from './icons/BeakerIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { BedIcon } from './icons/BedIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { TruckIcon } from './icons/TruckIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
@@ -398,6 +400,15 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [tenantModulePricing, setTenantModulePricing] = useState<Record<string, { monthly?: number; yearly?: number }>>({});
     const [tenantSmsAdjustment, setTenantSmsAdjustment] = useState<{ amount: number; reason: string }>({ amount: 0, reason: '' });
     const [isSavingTenantConfig, setIsSavingTenantConfig] = useState(false);
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+
+    const handleScroll = (direction: 'left' | 'right') => {
+        if (scrollRef.current) {
+            const { scrollLeft, clientWidth } = scrollRef.current;
+            const scrollTo = direction === 'left' ? scrollLeft - clientWidth / 2 : scrollLeft + clientWidth / 2;
+            scrollRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
+        }
+    };
     const [resettingPasswordFor, setResettingPasswordFor] = useState<Institution | null>(null);
     const [isResettingPassword, setIsResettingPassword] = useState(false);
 
@@ -980,18 +991,26 @@ Please change it after login.`;
         { role: 'coop_chairman', label: 'Coop Chairman (Approvals)', icon: <CheckCircleIcon className="w-5 h-5 text-indigo-600" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'farmer', label: 'Farmer Portal', icon: <UserGroupIcon className="w-5 h-5 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'rider', label: 'Rider Portal', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
+        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
         const instType = selectedTenantForPerspective?.institutionType;
+        const subType = selectedTenantForPerspective?.businessSubType;
         const isEdu = ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(instType || '');
+        const isChurch = instType === 'Church' || subType === 'Church';
         
         // Only show Health System perspective for HIS institutions
         if (opt.role === 'his_admin') {
             return instType === 'HIS';
         }
 
+        // Only show Church perspective for Church institutions
+        if (opt.role === 'church_admin') {
+            return isChurch;
+        }
+
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider'].includes(opt.role);
+            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'cooperative_manager', 'coop_chairman', 'farmer', 'rider', 'church_admin'].includes(opt.role);
         }
 
         if (instType === 'Cooperative') {
@@ -3387,38 +3406,59 @@ Please change it after login.`;
                             </div>
                             <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
-                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {perspectiveOptions.filter(o => !o.isService).map(opt => (
-                                <button
-                                    key={opt.role}
-                                    onClick={() => {
-                                        props.onSwitchPerspective?.(opt.role as Role);
-                                        setIsPerspectiveModalOpen(false);
-                                    }}
-                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm transition-transform group-hover:scale-110">
-                                        {opt.icon}
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
-                                </button>
-                            ))}
-                            {/* Added return button */}
-                            {props.isImpersonating && (
+                        <div className="relative group/modal">
+                            <div 
+                                ref={scrollRef}
+                                className="p-8 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
+                            >
+                                {perspectiveOptions.filter(o => !o.isService).map(opt => (
+                                    <button
+                                        key={opt.role}
+                                        onClick={() => {
+                                            props.onSwitchPerspective?.(opt.role as Role);
+                                            setIsPerspectiveModalOpen(false);
+                                        }}
+                                        className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color}`}
+                                    >
+                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
+                                            {opt.icon}
+                                        </div>
+                                        <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button 
+                                onClick={() => handleScroll('left')}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-xl border border-slate-100 dark:border-slate-700 opacity-0 group-hover/modal:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
+                            >
+                                <ChevronRightIcon className="w-6 h-6 rotate-180" />
+                            </button>
+                            <button 
+                                onClick={() => handleScroll('right')}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-xl border border-slate-100 dark:border-slate-700 opacity-0 group-hover/modal:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
+                            >
+                                <ChevronRightIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {/* Added return button - separate for prominence */}
+                        {props.isImpersonating && (
+                            <div className="px-8 pb-8">
                                 <button
                                     onClick={() => {
                                         props.onSwitchPerspective?.(null as any);
                                         setIsPerspectiveModalOpen(false);
                                     }}
-                                    className="flex items-center gap-4 p-5 rounded-3xl border-2 border-red-200 bg-red-50 text-red-700 transition-all text-left group hover:border-red-500 col-span-full"
+                                    className="w-full flex items-center justify-center gap-4 p-5 rounded-3xl border-2 border-red-200 bg-red-50 text-red-700 transition-all group hover:border-red-500"
                                 >
                                     <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
                                         <ArrowRightOnRectangleIcon className="w-6 h-6 text-red-600" />
                                     </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">Return to Admin</span>
+                                    <span className="font-black text-sm uppercase tracking-tight">Return to Global Admin</span>
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

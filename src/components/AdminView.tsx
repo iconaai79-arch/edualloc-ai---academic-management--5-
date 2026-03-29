@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import type {
     User, Department, Subject, Building, Room, AllocationRequest,
     TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig, TransportVehicle, TransportOnboarding, VehicleLog,
@@ -15,22 +15,23 @@ import type {
     Submission, UserUpdateData, County, Assignment, RetailExpense, RetailStore, RetailInventoryItem, Supplier,
     CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome
 } from '../types';
-import { UserManager } from './UserManager';
-import { TimetableGenerator } from './TimetableGenerator';
-import { SettingsManager } from './SettingsManager';
-import { SubjectManager } from './SubjectManager';
-import { CourseManager } from './CourseManager';
-import { InteractionsManager } from './InteractionsManager';
-import { CommunicationsManager } from './CommunicationsManager';
-import { ReportsDashboard } from './ReportsDashboard';
-import { StudentLeaveOutManager } from './StudentLeaveOutManager';
-import { SubscriptionManager } from './SubscriptionManager';
-import { RetailManager } from './retail/RetailManager';
-import { ProcurementManager } from './ProcurementManager';
-import { CooperativeManager } from './coop/CooperativeManager';
-import { CarServiceView } from './carservice/CarServiceView';
+const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
+const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
+const SettingsManager = lazy(() => import('./SettingsManager').then(m => ({ default: m.SettingsManager })));
+const SubjectManager = lazy(() => import('./SubjectManager').then(m => ({ default: m.SubjectManager })));
+const CourseManager = lazy(() => import('./CourseManager').then(m => ({ default: m.CourseManager })));
+const InteractionsManager = lazy(() => import('./InteractionsManager').then(m => ({ default: m.InteractionsManager })));
+const CommunicationsManager = lazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
+const ReportsDashboard = lazy(() => import('./ReportsDashboard').then(m => ({ default: m.ReportsDashboard })));
+const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
+const SubscriptionManager = lazy(() => import('./SubscriptionManager').then(m => ({ default: m.SubscriptionManager })));
+const RetailManager = lazy(() => import('./retail/RetailManager').then(m => ({ default: m.RetailManager })));
+const ProcurementManager = lazy(() => import('./ProcurementManager').then(m => ({ default: m.ProcurementManager })));
+const CooperativeManager = lazy(() => import('./coop/CooperativeManager').then(m => ({ default: m.CooperativeManager })));
+const CarServiceView = lazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
+const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
+
 import { ModuleAccessGuard } from './ModuleAccessGuard';
-import { ChurchDashboard } from './church/ChurchDashboard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
@@ -57,6 +58,9 @@ import { PlusIcon } from './icons/PlusIcon';
 import { BedIcon } from './icons/BedIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
 import { MapPinIcon } from './icons/MapPinIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { TruckIcon } from './icons/TruckIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
@@ -64,16 +68,16 @@ import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
 import { StoreIcon } from './icons/StoreIcon';
 import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 
-import { DirectAssignModal } from './DirectAssignModal';
-import { AcademicYearManager } from './AcademicYearManager';
-import { TimetablesView } from './TimetablesView';
+const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
+const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
+const TimetablesView = lazy(() => import('./TimetablesView').then(m => ({ default: m.TimetablesView })));
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUBTYPES } from '../constants';
-import { EditInstitutionModal } from './EditInstitutionModal';
-import { TimetableWizard } from './TimetableWizard';
-import { TransportManager } from './TransportManager';
+const EditInstitutionModal = lazy(() => import('./EditInstitutionModal').then(m => ({ default: m.EditInstitutionModal })));
+const TimetableWizard = lazy(() => import('./TimetableWizard').then(m => ({ default: m.TimetableWizard })));
+const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
 import { apiService } from '../services/apiService';
-import { RetailReportsDashboard } from './retail/RetailReportsDashboard';
-import { ExternalModuleView } from './ExternalModuleView';
+const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboard').then(m => ({ default: m.RetailReportsDashboard })));
+const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 
 export interface AdminViewProps {
     currentUser: User;
@@ -317,6 +321,15 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         coopExpenses = [], coopIncome = [],
         onActivateModuleTrial
     } = props;
+    const scrollRef = React.useRef<HTMLDivElement>(null);
+
+    const handleScroll = (direction: 'left' | 'right') => {
+        if (scrollRef.current) {
+            const { scrollLeft, clientWidth } = scrollRef.current;
+            const scrollTo = direction === 'left' ? scrollLeft - clientWidth / 2 : scrollLeft + clientWidth / 2;
+            scrollRef.current.scrollTo({ left: scrollTo, behavior: 'smooth' });
+        }
+    };
 
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'comms' | 'settings' | 'reports' | 'transport' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church'>('dashboard');
@@ -332,6 +345,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     const institutionType = props.currentInstitution?.institutionType;
     const businessSubType = props.currentInstitution?.businessSubType;
     const isBusiness = institutionType === 'Business';
+
+    const isEdu = useMemo(() => {
+        const type = props.currentInstitution?.institutionType;
+        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
+    }, [props.currentInstitution]);
+
+    const isSchool = useMemo(() => {
+        return props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+    }, [props.currentInstitution]);
+
+    const isRetailAgency = useMemo(() => {
+        return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
+    }, [props.currentInstitution]);
+
+    const isChurch = useMemo(() => {
+        return props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.businessSubType === 'Church';
+    }, [props.currentInstitution]);
+
     const isCoop = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
@@ -364,22 +395,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         }
     }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution, isChurch]);
 
-    const isEdu = useMemo(() => {
-        const type = props.currentInstitution?.institutionType;
-        return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
-    }, [props.currentInstitution]);
-
-    const isSchool = useMemo(() => {
-        return props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
-    }, [props.currentInstitution]);
-
-    const isRetailAgency = useMemo(() => {
-        return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
-    }, [props.currentInstitution]);
-
-    const isChurch = useMemo(() => {
-        return props.currentInstitution?.institutionType === 'Church';
-    }, [props.currentInstitution]);
 
     const isModuleActive = useCallback((moduleId: string) => {
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || m.module_id === moduleId);
@@ -522,16 +537,24 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
         { role: 'coop_admin', label: 'Cooperative Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
         { role: 'sacco_officer', label: 'SACCO Module', icon: <CreditCardIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
-        { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' }
+        { role: 'customer', label: 'Customer Portal', icon: <SearchIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
+        { role: 'church_admin', label: 'Church System', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' }
     ].filter(opt => {
         if (isRetailAgency) {
             return ['retail_agent', 'customer'].includes(opt.role);
         }
         if (isEdu) {
-            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'mechanic_admin', 'retail_agent', 'driver', 'customer'].includes(opt.role);
+            return !['agrovet_admin', 'property_admin', 'carwash_admin', 'mechanic_admin', 'retail_agent', 'driver', 'customer', 'church_admin'].includes(opt.role);
         } else {
             // Non-educational: Hide educational portal perspectives
-            return !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer'].includes(opt.role);
+            const filtered = !['parent', 'student', 'lecturer', 'librarian', 'boarding_master', 'transport_assistant', 'retail_agent', 'driver', 'customer'].includes(opt.role);
+            
+            // Further restrict church_admin to only Church institutions
+            if (opt.role === 'church_admin') {
+                return isChurch && filtered;
+            }
+            
+            return filtered;
         }
     });
 
@@ -563,6 +586,12 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             </div>
 
             <main className="animate-fade-in">
+                <Suspense fallback={
+                    <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-white/50 dark:bg-slate-800/50 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-700 animate-pulse">
+                        <ArrowPathIcon className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Synchronizing Perspective Hub...</p>
+                    </div>
+                }>
                 {activeTab === 'dashboard' && !isCoop && (
                     <div className="space-y-6">
                         {isEdu && stats.totalActionable > 0 && (
@@ -1017,6 +1046,18 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                     return null;
                 })()}
 
+                {activeTab === 'church' && (
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[60vh] flex flex-col items-center justify-center text-center animate-fade-in-up">
+                        <SparklesIcon className="w-16 h-16 text-indigo-600 mb-4 animate-pulse" />
+                        <h2 className="text-2xl font-black uppercase tracking-tighter mb-2">Church Excellence Hub</h2>
+                        <p className="text-slate-500 max-w-md">The unified system for spiritual leadership. Manage tithes/offerings, Small Christian Communities (SCC), liturgical calendars, and member welfare in one secure platform.</p>
+                        <div className="mt-8 flex gap-3">
+                            <div className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-[10px] font-black uppercase tracking-widest text-indigo-600">Alms & Payouts</div>
+                            <div className="px-6 py-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-[10px] font-black uppercase tracking-widest text-indigo-600">Member Registry</div>
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === 'car_service' && (
                     <CarServiceView
                         currentUser={props.currentUser}
@@ -1145,6 +1186,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                         )}
                     </div>
                 )}
+                </Suspense>
             </main>
 
             {isDirectAssignOpen && (
@@ -1168,22 +1210,40 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                             </div>
                             <button onClick={() => setIsPerspectiveModalOpen(false)} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"><XIcon className="w-6 h-6" /></button>
                         </div>
-                        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {perspectiveOptions.map(opt => (
-                                <button
-                                    key={opt.role}
-                                    onClick={() => {
-                                        props.onSwitchPerspective?.(opt.role as Role);
-                                        setIsPerspectiveModalOpen(false);
-                                    }}
-                                    className={`flex items-center gap-4 p-5 rounded-3xl border-2 border-transparent transition-all text-left group hover:border-indigo-500 ${opt.color}`}
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm transition-transform group-hover:scale-110">
-                                        {opt.icon}
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight">{opt.label}</span>
-                                </button>
-                            ))}
+                        <div className="relative group/modal">
+                            <div 
+                                ref={scrollRef}
+                                className="p-8 flex gap-4 overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
+                            >
+                                {perspectiveOptions.map(opt => (
+                                    <button
+                                        key={opt.role}
+                                        onClick={() => {
+                                            props.onSwitchPerspective?.(opt.role as Role);
+                                            setIsPerspectiveModalOpen(false);
+                                        }}
+                                        className={`flex-none w-[200px] flex flex-col items-center justify-center gap-4 p-8 rounded-[3rem] border-2 border-transparent transition-all group hover:border-indigo-500 snap-center shadow-sm ${opt.color}`}
+                                    >
+                                        <div className="p-4 bg-white dark:bg-slate-800 rounded-[1.5rem] shadow-sm transition-transform group-hover:scale-110">
+                                            {opt.icon}
+                                        </div>
+                                        <span className="font-black text-[11px] uppercase tracking-widest text-center">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button 
+                                onClick={() => handleScroll('left')}
+                                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-xl border border-slate-100 dark:border-slate-700 opacity-0 group-hover/modal:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
+                            >
+                                <ChevronRightIcon className="w-6 h-6 rotate-180" />
+                            </button>
+                            <button 
+                                onClick={() => handleScroll('right')}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-xl border border-slate-100 dark:border-slate-700 opacity-0 group-hover/modal:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
+                            >
+                                <ChevronRightIcon className="w-6 h-6" />
+                            </button>
                         </div>
                     </div>
                 </div>
