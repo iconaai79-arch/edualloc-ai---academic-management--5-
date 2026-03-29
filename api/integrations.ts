@@ -64,6 +64,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return digits;
     };
 
+    const getPhoneVariants = (p: string): string[] => {
+        if (!p) return [];
+        const normalized = normalizePhone(p);
+        const rawDigits = p.replace(/[^\d]/g, '');
+        const variants = new Set([p, rawDigits, normalized]);
+
+        if (normalized.startsWith('254') && normalized.length === 12) {
+            const base = normalized.substring(3);
+            variants.add('0' + base);
+            variants.add(base);
+            variants.add('+' + normalized);
+        }
+
+        return Array.from(variants).filter(v => v.length > 0);
+    };
+
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -499,11 +515,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const method = getParam('method') || 'email';
             
             if (method === 'phone') {
-                const phone = normalizePhone(recipient);
+                const phoneVariants = getPhoneVariants(recipient);
+                const phone = phoneVariants[0]; // Primary normalized variant
+                const orClauses = phoneVariants.map(v => `phone_number.eq.${v}`).join(',');
+                
+                console.log(`[Forgot Password] Phone lookup for: ${recipient}. Variants: ${phoneVariants.join(', ')}`);
+
                 const { data: targetUser } = await supabase
                     .from('users')
                     .select('*')
-                    .or(`phone_number.eq.${phone},phone_number.eq.${recipient}`)
+                    .or(orClauses)
                     .maybeSingle();
 
                 if (!targetUser) return res.status(404).json({ success: false, message: 'No registered account found with this phone number.' });
@@ -696,15 +717,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'verifyResetOtp') {
-            const phone = normalizePhone(recipient);
+            const phoneVariants = getPhoneVariants(recipient);
+            const orClauses = phoneVariants.map(v => `phone_number.eq.${v}`).join(',');
             const otpCode = message; // Front-end sends the code in the 'message' field
 
-            if (!phone || !otpCode) return res.status(400).json({ success: false, message: 'Missing phone number or verification code.' });
+            if (!recipient || !otpCode) return res.status(400).json({ success: false, message: 'Missing phone number or verification code.' });
+
+            console.log(`[Verify Reset OTP] Looking for phone variants: ${phoneVariants.join(', ')} with code: ${otpCode}`);
 
             const { data: targetUser } = await supabase
                 .from('users')
                 .select('*')
-                .or(`phone_number.eq.${phone},phone_number.eq.${recipient}`)
+                .or(orClauses)
                 .eq('reset_otp', otpCode)
                 .gt('reset_otp_expires', new Date().toISOString())
                 .maybeSingle();
