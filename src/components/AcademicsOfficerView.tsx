@@ -7,7 +7,17 @@ import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { SettingsManager } from './SettingsManager';
-import { ClipboardListIcon, Cog8ToothIcon, PrinterIcon, DocumentArrowDownIcon, CalendarDaysIcon, BookOpenIcon, CheckCircleIcon, SparklesIcon, CommandLineIcon, BeakerIcon } from './icons/index';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CommandLineIcon } from './icons/CommandLineIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+
 import { generateStandardExamTimetable } from '../utils/examUtils';
 import { TimetableWizard } from './TimetableWizard';
 

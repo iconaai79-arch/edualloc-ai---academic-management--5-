@@ -4,10 +4,15 @@ import {
     Institution, AppNotification
 } from '../types';
 import { apiService } from '../services/apiService';
-import {
-    HomeIcon, CreditCardIcon, WrenchIcon, FileTextIcon,
-    BellIcon, UserIcon, ArrowRightOnRectangleIcon, ArrowRightIcon
-} from './icons/index';
+import { HomeIcon } from './icons/HomeIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { WrenchIcon } from './icons/WrenchIcon';
+import { FileTextIcon } from './icons/FileTextIcon';
+import { BellIcon } from './icons/BellIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+
 import { NotificationBell } from './NotificationBell';
 
 interface TenantPortalViewProps {

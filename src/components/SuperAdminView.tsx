@@ -19,52 +19,51 @@ import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';
 import { BuildingManager } from './BuildingManager';
 import { SettingsManager } from './SettingsManager';
-import {
-    CheckCircleIcon,
-    ChatBubbleBottomCenterTextIcon,
-    ChatBubbleLeftRightIcon,
-    ClipboardListIcon,
-    ChartPieIcon,
-    BuildingOfficeIcon,
-    UserGroupIcon,
-    RectangleStackIcon,
-    Cog8ToothIcon,
-    CheckIcon,
-    ShieldIcon,
-    SparklesIcon,
-    MagnifyingGlassIcon,
-    ArrowPathIcon,
-    ClockIcon,
-    CreditCardIcon,
-    InformationCircleIcon,
-    XIcon,
-    ArchiveBoxIcon,
-    PrinterIcon,
-    ArrowUpTrayIcon,
-    EyeIcon,
-    DocumentArrowDownIcon,
-    CommandLineIcon,
-    MpesaIcon,
-    CurrencyIcon,
-    PaperAirplaneIcon,
-    LockClosedIcon,
-    EnvelopeIcon,
-    AcademicCapIcon,
-    MapPinIcon,
-    BookOpenIcon,
-    UserIcon,
-    ChartBarIcon,
-    ExclamationTriangleIcon,
-    BeakerIcon,
-    PlusIcon,
-    BedIcon,
-    ArrowRightOnRectangleIcon,
-    HomeIcon,
-    TruckIcon,
-    ShoppingCartIcon,
-    BanknotesIcon,
-    ArrowTrendingUpIcon
-} from './icons/index';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { CommandLineIcon } from './icons/CommandLineIcon';
+import { MpesaIcon } from './icons/MpesaIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { LockClosedIcon } from './icons/LockClosedIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { BedIcon } from './icons/BedIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
+import { BanknotesIcon } from './icons/BanknotesIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
 import { apiService } from '../services/apiService';

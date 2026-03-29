@@ -33,38 +33,37 @@ import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { ChurchDashboard } from './church/ChurchDashboard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 
-import {
-    ClipboardListIcon,
-    UserGroupIcon,
-    CalendarDaysIcon,
-    Cog8ToothIcon,
-    ChartPieIcon,
-    ArrowsRightLeftIcon,
-    ChatBubbleBottomCenterTextIcon,
-    BookOpenIcon,
-    ChartBarIcon,
-    SparklesIcon,
-    AcademicCapIcon,
-    EyeIcon,
-    ShieldIcon,
-    ArchiveBoxIcon,
-    CurrencyIcon,
-    UserIcon,
-    XIcon,
-    ArrowPathIcon,
-    ExclamationTriangleIcon,
-    BeakerIcon,
-    PlusIcon,
-    BedIcon,
-    CreditCardIcon,
-    MapPinIcon,
-    HomeIcon,
-    TruckIcon,
-    UserPlusIcon,
-    MagnifyingGlassIcon as SearchIcon,
-    StoreIcon,
-    ShoppingBagIcon
-} from './icons/index';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { UserIcon } from './icons/UserIcon';
+import { XIcon } from './icons/XIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { BedIcon } from './icons/BedIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
+import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
+import { StoreIcon } from './icons/StoreIcon';
+import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
+
 import { DirectAssignModal } from './DirectAssignModal';
 import { AcademicYearManager } from './AcademicYearManager';
 import { TimetablesView } from './TimetablesView';

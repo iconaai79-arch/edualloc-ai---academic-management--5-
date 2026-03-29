@@ -9,23 +9,36 @@ import type {
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
-import {
-    PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
-    CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
-    DocumentArrowDownIcon, BuildingOfficeIcon, UserIcon, BookOpenIcon, PencilIcon,
-    MagnifyingGlassIcon,
-    ArchiveBoxIcon,
-    ArrowPathIcon,
-    ChatBubbleLeftRightIcon,
-    PhoneIcon, QrCodeIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserIcon } from './icons/UserIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { ClockIcon } from './icons/ClockIcon';
+
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { apiService } from '../services/apiService';
 import { generateMemberQrCodesPdf } from '../services/pdfService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';
 import { TimeOffRequestModal } from './TimeOffRequestModal';
-import { ClockIcon } from './icons/index';
+
+
 
 import * as XLSX from 'xlsx';
 

@@ -65,7 +65,12 @@ import type {
     RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay
 } from '../types';
-import { XIcon, ShieldExclamationIcon, ArrowRightOnRectangleIcon, ArrowPathIcon, SparklesIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+
 
 const SystemPulseLoader: React.FC<{ message: string; onRetry?: () => void; status?: string }> = ({ message, onRetry, status }) => (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">

@@ -12,11 +12,18 @@ import { DeallocationModal } from './DeallocationModal';
 import { ChangeRequestModal } from './ChangeRequestModal';
 import { LecturerDashboard } from './LecturerDashboard';
 import { TimetableGrid } from './TimetableGrid';
-import {
-    CalendarPlusIcon, ArrowsRightLeftIcon, MagnifyingGlassIcon,
-    BookOpenIcon, ClockIcon, CheckIcon, XIcon, CheckCircleIcon,
-    ExclamationTriangleIcon, ArchiveBoxIcon, UserGroupIcon
-} from './icons/index';
+import { CalendarPlusIcon } from './icons/CalendarPlusIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+
 
 interface LecturerViewProps {
     user: User;
