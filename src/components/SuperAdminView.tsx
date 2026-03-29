@@ -561,6 +561,25 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         }
     };
 
+    const generateGlobalNcbaCredentials = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const generateRandomString = (length: number) => {
+            const array = new Uint32Array(length);
+            window.crypto.getRandomValues(array);
+            return Array.from(array).map(x => chars[x % chars.length]).join('');
+        };
+
+        setLocalCompanyInfo({
+            ...localCompanyInfo,
+            ncbaConfig: {
+                ...localCompanyInfo.ncbaConfig,
+                callbackUsername: `sys_${generateRandomString(6)}`,
+                callbackSecret: generateRandomString(32),
+                notificationApiKey: `sys_key_${generateRandomString(24)}`
+            } as any
+        });
+    };
+
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
         try {
@@ -2816,6 +2835,51 @@ Please change it after login.`;
                                                             <option value="production">Live Production</option>
                                                         </select>
                                                     </div>
+
+                                                    <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                                                        <div className="flex items-center justify-between">
+                                                            <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Platform Callback Authentication</label>
+                                                            <button 
+                                                                onClick={generateGlobalNcbaCredentials}
+                                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-900/10 px-4 py-1.5 rounded-xl transition-all border border-indigo-100 dark:border-indigo-950 shadow-sm"
+                                                            >
+                                                                Generate Perspective Keys
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Callback Username</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={localCompanyInfo.ncbaConfig?.callbackUsername || ''} 
+                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackUsername: e.target.value } as any })}
+                                                                    className="form-input h-10 font-mono text-xs" 
+                                                                    placeholder="sys_xxxx"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Callback Secret Key</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={localCompanyInfo.ncbaConfig?.callbackSecret || ''} 
+                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, callbackSecret: e.target.value } as any })}
+                                                                    className="form-input h-10 font-mono text-xs" 
+                                                                    placeholder="Long global secret"
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2 space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Notification API Key (Optional)</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={localCompanyInfo.ncbaConfig?.notificationApiKey || ''} 
+                                                                    onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, notificationApiKey: e.target.value } as any })}
+                                                                    className="form-input h-10 font-mono text-xs" 
+                                                                    placeholder="sys_key_xxxx"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                     <div className="md:col-span-2 space-y-2 mt-4">
                                                         <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Standard Platform Callback URL (Required)</label>
                                                         <div className="flex gap-2">
@@ -2835,7 +2899,7 @@ Please change it after login.`;
                                                                 Copy
                                                             </button>
                                                         </div>
-                                                        <p className="text-[10px] text-slate-400 italic">This is the standardized NCBA 2024 compliance endpoint for settlement and administrative payments.</p>
+                                                        <p className="text-[10px] text-slate-400 italic">This is the standardized NCBA 2024 compliance endpoint for settlement. NCBA should use the **Callback Username** and **Callback Secret** as Basic Auth credentials.</p>
                                                     </div>
                                                 </div>
                                             </div>
