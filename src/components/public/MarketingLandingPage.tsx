@@ -150,7 +150,6 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
             {companyDetails?.showcaseConfig?.showLoginLink ? 'Sign In' : 'Get Started'}
           </button>
         </nav>
-/* ... (same as before) ... */
 
         {/* Hero */}
         <section className="marketing-section hero-section animate-in">

@@ -181,6 +181,8 @@ export interface NcbaConfig {
     webhookSecret?: string;
     shortCode?: string;
     environment?: 'sandbox' | 'production';
+    headers?: { name: string; value: string }[];
+    params?: { name: string; value: string }[];
 }
 
 

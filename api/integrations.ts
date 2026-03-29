@@ -770,18 +770,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // 2024 Spec: POST /payments/api/v1/stk-push/initiate
             const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/api/v1/stk-push/initiate`, {
                 method: 'POST',
-                headers: {
+                headers: mergeHeaders({
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+                }, ncbaConfig.headers),
+                body: JSON.stringify(mergeParams({
                     TelephoneNo: normalizePhoneNCBA(phone),
                     Amount: String(amount),
                     PayBillNo: ncbaConfig.paybill || '880100',
                     AccountNo: ncbaConfig.accountNumber,
                     Network: 'Safaricom', // Default as per spec examples
                     TransactionType: 'CustomerPayBillOnline'
-                })
+                }, ncbaConfig.params))
             });
             return await res.json();
         };
@@ -791,14 +791,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // 2024 Spec: POST /payments/api/v1/qr/generate
             const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/api/v1/qr/generate`, {
                 method: 'POST',
-                headers: {
+                headers: mergeHeaders({
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+                }, ncbaConfig.headers),
+                body: JSON.stringify(mergeParams({
                     till: ncbaConfig.accountNumber, // Till/Shortcode usually
                     amount: amount
-                })
+                }, ncbaConfig.params))
             });
             return await res.json();
         };
@@ -808,6 +808,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (p.startsWith('0')) p = '254' + p.substring(1);
             if (p.length === 9) p = '254' + p;
             return p; // Expected format: 254XXXXXXXXX
+        };
+
+        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
+            if (!customParams || customParams.length === 0) return base;
+            const extra = customParams.reduce((acc, p) => ({ ...acc, [p.name || '']: p.value }), {});
+            return { ...base, ...extra };
+        };
+
+        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
+            if (!customHeaders || customHeaders.length === 0) return base;
+            const extra = customHeaders.reduce((acc, h) => ({ ...acc, [h.name || '']: h.value }), {});
+            return { ...base, ...extra };
         };
 
         // Internal Helper for Reconciliation
@@ -1335,11 +1347,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // 2024 Spec: POST /payments/api/v1/stk-push/query
                 const resStatus = await fetchWithTimeout(`${inst.ncbaConfig.baseUrl}/payments/api/v1/stk-push/query`, {
                     method: 'POST',
-                    headers: { 
+                    headers: mergeHeaders({ 
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ TransactionID: checkoutRequestId })
+                    }, inst.ncbaConfig.headers),
+                    body: JSON.stringify(mergeParams({ TransactionID: checkoutRequestId }, inst.ncbaConfig.params))
                 });
                 if (resStatus.ok) {
                     const statusData = await resStatus.json() as any;

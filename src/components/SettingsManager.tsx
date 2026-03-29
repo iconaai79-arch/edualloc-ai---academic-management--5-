@@ -277,7 +277,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }
     );
     const [localInstNcbaConfig, setLocalInstNcbaConfig] = useState<NcbaConfig>(
-        props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' }
+        props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] }
     );
     const [localInstMpesaConfig, setLocalInstMpesaConfig] = useState<MpesaConfig>(
         props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' }
@@ -289,7 +289,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' });
+        setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] });
         setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || props.companyDetails?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
     }, [props.currentInstitution, props.companyDetails?.smsConfig, props.companyDetails?.mpesaConfig]);
     // Update local state when profile changes
@@ -490,7 +490,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         welcomeMessage: props.companyDetails?.chatAssistantConfig?.welcomeMessage || '',
         chatEnabled: props.companyDetails?.chatAssistantConfig?.enabled ?? true,
         enforceGlobalOtp: props.currentInstitution?.institutionType === 'Business' ? props.companyDetails?.enforceGlobalOtp ?? false : props.companyDetails?.enforceGlobalOtp ?? false,
-        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' },
+        ncbaConfig: (props.companyDetails as any)?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] },
         showcaseConfig: props.companyDetails?.showcaseConfig || { enabled: true, showLoginLink: true }
     });
 
@@ -519,7 +519,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 welcomeMessage: props.companyDetails.chatAssistantConfig?.welcomeMessage || '',
                 chatEnabled: props.companyDetails.chatAssistantConfig?.enabled ?? true,
                 enforceGlobalOtp: props.companyDetails.enforceGlobalOtp ?? false,
-                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox' },
+                ncbaConfig: (props.companyDetails as any).ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', environment: 'sandbox', headers: [], params: [] },
                 showcaseConfig: props.companyDetails.showcaseConfig || { enabled: true, showLoginLink: true }
             });
             setLocalSmsConfig(props.companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -1352,6 +1352,130 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         </select>
                                                     </div>
                                                 </div>
+
+                                                <div className="md:col-span-2 pt-4 border-t border-teal-100/50 dark:border-teal-900/20">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom HTTP Headers</label>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setLocalCompanyInfo(prev => ({ 
+                                                                    ...prev, 
+                                                                    ncbaConfig: { 
+                                                                        ...prev.ncbaConfig, 
+                                                                        headers: [...(prev.ncbaConfig?.headers || []), { name: '', value: '' }] 
+                                                                    } as any 
+                                                                }));
+                                                            }}
+                                                            className="text-[10px] font-black uppercase text-teal-600 flex items-center gap-1 hover:underline"
+                                                        >
+                                                            <PlusIcon className="w-3 h-3" /> Add Header
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {(localCompanyInfo.ncbaConfig?.headers || []).map((header: any, idx: number) => (
+                                                            <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={header.name} 
+                                                                    placeholder="Name (e.g. X-API-Key)"
+                                                                    onChange={(e) => {
+                                                                        const newHeaders = [...(localCompanyInfo.ncbaConfig?.headers || [])];
+                                                                        newHeaders[idx].name = e.target.value;
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                    }}
+                                                                    className="form-input text-xs font-mono h-12 bg-white dark:bg-slate-900" 
+                                                                />
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={header.value} 
+                                                                    placeholder="Value"
+                                                                    onChange={(e) => {
+                                                                        const newHeaders = [...(localCompanyInfo.ncbaConfig?.headers || [])];
+                                                                        newHeaders[idx].value = e.target.value;
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                    }}
+                                                                    className="form-input text-xs font-mono h-12 bg-white dark:bg-slate-900" 
+                                                                />
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        const newHeaders = (localCompanyInfo.ncbaConfig?.headers || []).filter((_: any, i: number) => i !== idx);
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, headers: newHeaders } as any });
+                                                                    }}
+                                                                    className="p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                                                >
+                                                                    <XIcon className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        {(localCompanyInfo.ncbaConfig?.headers || []).length === 0 && (
+                                                            <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom headers defined.</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="md:col-span-2 pt-4 border-t border-teal-100/50 dark:border-teal-900/20">
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom Parameters / Body</label>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setLocalCompanyInfo(prev => ({ 
+                                                                    ...prev, 
+                                                                    ncbaConfig: { 
+                                                                        ...prev.ncbaConfig, 
+                                                                        params: [...(prev.ncbaConfig?.params || []), { name: '', value: '' }] 
+                                                                    } as any 
+                                                                }));
+                                                            }}
+                                                            className="text-[10px] font-black uppercase text-teal-600 flex items-center gap-1 hover:underline"
+                                                        >
+                                                            <PlusIcon className="w-3 h-3" /> Add Parameter
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {(localCompanyInfo.ncbaConfig?.params || []).map((param: any, idx: number) => (
+                                                            <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={param.name} 
+                                                                    placeholder="Key"
+                                                                    onChange={(e) => {
+                                                                        const newParams = [...(localCompanyInfo.ncbaConfig?.params || [])];
+                                                                        newParams[idx].name = e.target.value;
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                    }}
+                                                                    className="form-input text-xs font-mono h-12 bg-white dark:bg-slate-900" 
+                                                                />
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={param.value} 
+                                                                    placeholder="Value"
+                                                                    onChange={(e) => {
+                                                                        const newParams = [...(localCompanyInfo.ncbaConfig?.params || [])];
+                                                                        newParams[idx].value = e.target.value;
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                    }}
+                                                                    className="form-input text-xs font-mono h-12 bg-white dark:bg-slate-900" 
+                                                                />
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        const newParams = (localCompanyInfo.ncbaConfig?.params || []).filter((_: any, i: number) => i !== idx);
+                                                                        setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, params: newParams } as any });
+                                                                    }}
+                                                                    className="p-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                                                >
+                                                                    <XIcon className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        {(localCompanyInfo.ncbaConfig?.params || []).length === 0 && (
+                                                            <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom parameters defined.</p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div className="flex flex-col sm:flex-row justify-between items-center gap-6 p-6 bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-teal-100 dark:border-teal-800/30">
@@ -1639,6 +1763,110 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <option value="sandbox">Sandbox / Testing</option>
                                                 <option value="production">Live Production</option>
                                             </select>
+                                        </div>
+
+                                        <div className="md:col-span-2 pt-4">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom HTTP Headers</label>
+                                                <button 
+                                                    onClick={() => setLocalInstNcbaConfig(prev => ({ ...prev, headers: [...(prev.headers || []), { name: '', value: '' }] }))}
+                                                    className="text-[10px] font-black uppercase text-teal-600 flex items-center gap-1 hover:underline"
+                                                >
+                                                    <PlusIcon className="w-3 h-3" /> Add Header
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(localInstNcbaConfig.headers || []).map((header, idx) => (
+                                                    <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                        <input 
+                                                            type="text" 
+                                                            value={header.name} 
+                                                            placeholder="Name (e.g. X-API-Key)"
+                                                            onChange={(e) => {
+                                                                const newHeaders = [...(localInstNcbaConfig.headers || [])];
+                                                                newHeaders[idx].name = e.target.value;
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, headers: newHeaders });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10" 
+                                                        />
+                                                        <input 
+                                                            type="text" 
+                                                            value={header.value} 
+                                                            placeholder="Value"
+                                                            onChange={(e) => {
+                                                                const newHeaders = [...(localInstNcbaConfig.headers || [])];
+                                                                newHeaders[idx].value = e.target.value;
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, headers: newHeaders });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10" 
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newHeaders = (localInstNcbaConfig.headers || []).filter((_, i) => i !== idx);
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, headers: newHeaders });
+                                                            }}
+                                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(localInstNcbaConfig.headers || []).length === 0 && (
+                                                    <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom headers defined.</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="md:col-span-2 pt-2">
+                                            <div className="flex justify-between items-center mb-3">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest">Custom Parameters / Body</label>
+                                                <button 
+                                                    onClick={() => setLocalInstNcbaConfig(prev => ({ ...prev, params: [...(prev.params || []), { name: '', value: '' }] }))}
+                                                    className="text-[10px] font-black uppercase text-teal-600 flex items-center gap-1 hover:underline"
+                                                >
+                                                    <PlusIcon className="w-3 h-3" /> Add Parameter
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(localInstNcbaConfig.params || []).map((param, idx) => (
+                                                    <div key={idx} className="flex gap-2 items-center animate-fade-in">
+                                                        <input 
+                                                            type="text" 
+                                                            value={param.name} 
+                                                            placeholder="Key"
+                                                            onChange={(e) => {
+                                                                const newParams = [...(localInstNcbaConfig.params || [])];
+                                                                newParams[idx].name = e.target.value;
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, params: newParams });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10" 
+                                                        />
+                                                        <input 
+                                                            type="text" 
+                                                            value={param.value} 
+                                                            placeholder="Value"
+                                                            onChange={(e) => {
+                                                                const newParams = [...(localInstNcbaConfig.params || [])];
+                                                                newParams[idx].value = e.target.value;
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, params: newParams });
+                                                            }}
+                                                            className="form-input text-xs font-mono h-10" 
+                                                        />
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newParams = (localInstNcbaConfig.params || []).filter((_, i) => i !== idx);
+                                                                setLocalInstNcbaConfig({ ...localInstNcbaConfig, params: newParams });
+                                                            }}
+                                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(localInstNcbaConfig.params || []).length === 0 && (
+                                                    <p className="text-[10px] text-slate-400 uppercase font-medium italic py-2 ml-1">No custom parameters defined.</p>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="md:col-span-2 mt-4 p-4 bg-teal-50/50 dark:bg-teal-900/10 rounded-2xl border border-teal-100/50 dark:border-teal-900/20">
                                             <div className="flex items-center gap-2 mb-3">
