@@ -7,7 +7,7 @@ import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import { FunnelIcon as Filter } from '../icons/FunnelIcon';
 import { PhoneIcon as Phone } from '../icons/PhoneIcon';
 import { ChatBubbleBottomCenterTextIcon as MessageSquare } from '../icons/ChatBubbleBottomCenterTextIcon';
-import { ExclamationCircleIcon as AlertCircle } from '../icons/ExclamationCircleIcon';
+import { ExclamationIcon as AlertCircle } from '../icons/ExclamationIcon';
 import { ClockIcon as Clock } from '../icons/ClockIcon';
 import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
 import { UserIcon } from '../icons/UserIcon';
