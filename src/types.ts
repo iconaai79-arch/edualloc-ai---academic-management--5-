@@ -183,6 +183,9 @@ export interface NcbaConfig {
     environment?: 'sandbox' | 'production';
     headers?: { name: string; value: string }[];
     params?: { name: string; value: string }[];
+    callbackUsername?: string;
+    callbackSecret?: string;
+    notificationApiKey?: string;
 }
 
 
