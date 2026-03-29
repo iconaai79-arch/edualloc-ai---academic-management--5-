@@ -465,7 +465,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
             // Retail & Procurement tabs
             if (['retail', 'procurement'].includes(tab.id)) {
-                if (isEdu) return false;
+                if (isEdu || isChurch) return false;
                 if (isBusiness) {
                     return RETAIL_SUBTYPES.includes(businessSubType || '');
                 }
@@ -637,7 +637,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Total Students' : 'Total Congregation'}</h3>
                                         <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                            {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member')).length}
+                                            {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member' || u.role === 'visitor')).length}
                                         </p>
                                     </div>
                                 </>
@@ -692,7 +692,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
                                                 <CalendarDaysIcon className="w-6 h-6" />
                                             </div>
-                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : 'Academic Calendar'}</span>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isSchool ? 'School Calendar' : isChurch ? 'Liturgical Calendar' : 'Academic Calendar'}</span>
                                         </button>
                                         <button
                                             onClick={() => handleQuickAction('timetable', undefined, 'subjects')}
@@ -701,7 +701,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                             <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-amber-600 mb-4 group-hover:scale-110 transition-transform">
                                                 <BookOpenIcon className="w-6 h-6" />
                                             </div>
-                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Subjects</span>
+                                            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Ministries' : 'Subjects'}</span>
                                         </button>
                                     </>
                                 )}
