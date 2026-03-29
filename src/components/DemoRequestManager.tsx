@@ -1,19 +1,17 @@
 
 import React, { useState } from 'react';
 import { DemoRequest } from '../types';
-import { 
-    EnvelopeIcon, 
-    PhoneIcon, 
-    CalendarIcon, 
-    CheckCircleIcon, 
-    ClockIcon, 
-    UserIcon, 
-    ChevronRightIcon, 
-    ArrowPathIcon,
-    MagnifyingGlassIcon,
-    FunnelIcon,
-    ArrowUpTrayIcon
-} from './icons'; // Using standard icons from ./icons
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { FunnelIcon } from './icons/FunnelIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 
 interface DemoRequestManagerProps {
     requests: DemoRequest[];
@@ -27,9 +25,9 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
 
     const filteredRequests = requests.filter(req => {
         const matchesSearch = 
-            req.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            req.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             req.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            req.institutionName.toLowerCase().includes(searchQuery.toLowerCase());
+            req.institution.toLowerCase().includes(searchQuery.toLowerCase());
         
         const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
         
@@ -128,23 +126,23 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-100 dark:border-indigo-800">
-                                                {req.fullName.charAt(0)}
+                                                {req.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <div className="text-sm font-semibold text-gray-900 dark:text-white">{req.fullName}</div>
+                                                <div className="text-sm font-semibold text-gray-900 dark:text-white">{req.name}</div>
                                                 <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                                                     <EnvelopeIcon className="w-3 h-3" />
                                                     {req.email}
                                                 </div>
                                                 <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                                                     <PhoneIcon className="w-3 h-3" />
-                                                    {req.phoneNumber}
+                                                    {req.phone}
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="text-sm text-gray-900 dark:text-white font-medium">{req.institutionName}</div>
+                                        <div className="text-sm text-gray-900 dark:text-white font-medium">{req.institution}</div>
                                         <div className="text-xs text-gray-500 mt-1 line-clamp-1 italic">
                                             "{req.message || 'No additional details provided'}"
                                         </div>
