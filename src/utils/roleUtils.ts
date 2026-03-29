@@ -20,6 +20,8 @@ export const getAdminRoleForInstitution = (institution: Partial<Institution>): R
 
     if (type === 'HIS') return 'his_admin';
 
+    if (type === 'Church') return 'church_admin';
+
     // Default for Schools
     return 'head_teacher';
 };
@@ -71,6 +73,11 @@ export const getRolesForInstitution = (institution: Institution | null | undefin
     // HIS / Health Information System
     if (type === 'HIS') {
         return ['his_admin', 'academics_officer', 'security', 'info_desk', 'store'];
+    }
+
+    // Church System
+    if (type === 'Church') {
+        return ['church_admin', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'member', 'visitor', 'security'];
     }
 
     return ['admin', 'staff', 'customer'] as any[];
@@ -129,6 +136,21 @@ export const formatRoleDisplayName = (role: Role, institution?: Institution | nu
             case 'dos': case 'academics_officer': return 'DOS / Academics';
             case 'teacher': case 'lecturer': return 'Teacher';
             case 'boarding_master': return 'Boarding Manager';
+        }
+    }
+
+    // Church context
+    if (type === 'Church') {
+        switch (role) {
+            case 'church_admin': return 'Church Administrator';
+            case 'pastor': return 'Pastor / Reverend';
+            case 'deacon': return 'Deacon / Deaconess';
+            case 'elder': return 'Church Elder';
+            case 'treasurer': return 'Church Treasurer';
+            case 'secretary': return 'Church Secretary';
+            case 'worker': return 'Ministry Worker / Staff';
+            case 'member': case 'church_member': return 'Church Member';
+            case 'visitor': return 'First-time Visitor';
         }
     }
 

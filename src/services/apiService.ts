@@ -645,10 +645,34 @@ export const apiService = {
         }
     },
     async fetchNotifications(userId: string): Promise<AppNotification[]> {
-        return this.fetchModuleRecords('app_notifications', undefined, userId);
+        return this.fetchModuleRecords('app_notifications', undefined, undefined, {
+            filter: { user_id: userId },
+            order: 'timestamp.desc'
+        });
+    },
+    async createNotification(userId: string, message: string, type: string = 'info'): Promise<void> {
+        const notification: AppNotification = {
+            id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            userId,
+            message,
+            type,
+            isRead: false,
+            timestamp: new Date().toISOString()
+        };
+        await this.saveModuleRecord('app_notifications', notification);
     },
     async markNotificationAsRead(id: string): Promise<void> {
         await this.saveModuleRecord('app_notifications', { id, isRead: true } as any);
+    },
+    async notifySuperAdmins(message: string, type: string = 'info'): Promise<void> {
+        const admins = await this.fetchModuleRecords<User>('users', undefined, undefined, { 
+            filter: { role: 'super_admin' } 
+        });
+        if (admins && admins.length > 0) {
+            for (const admin of admins) {
+                await this.createNotification(admin.id, message, type);
+            }
+        }
     },
     async markAllNotificationsAsRead(userId: string): Promise<void> {
         if (!_supabase) {
@@ -1776,5 +1800,11 @@ export const apiService = {
     },
     async saveChurchSaintDay(data: Partial<ChurchSaintDay>): Promise<void> {
         await this.saveModuleRecord('church_saint_days', data);
+    },
+    async fetchDemoRequests(): Promise<DemoRequest[]> {
+        return this.fetchModuleRecords('demo_requests', undefined, undefined, { order: 'requested_at.desc' });
+    },
+    async updateDemoRequestStatus(id: string, status: DemoRequest['status']): Promise<void> {
+        await this.saveModuleRecord('demo_requests', { id, status });
     }
 };

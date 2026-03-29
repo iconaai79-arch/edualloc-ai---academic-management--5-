@@ -180,6 +180,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || ''), [props.currentInstitution]);
 
     const isSchool = props.currentInstitution?.institutionType === 'Primary' || props.currentInstitution?.institutionType === 'Secondary';
+    const isChurch = useMemo(() => props.currentInstitution?.institutionType === 'Church', [props.currentInstitution]);
     const isEdu = useMemo(() => {
         const type = props.currentInstitution?.institutionType;
         return ['Primary', 'Secondary', 'University', 'College', 'Institute', 'Polytechnic', 'ECD', 'International', 'TVET', 'Kindergarten'].includes(type || '');
@@ -660,9 +661,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             if (!isRetailAgency && isEdu && !isCoop) {
                 tabs.push({ id: 'timetable', label: 'Timetable Rules', icon: <ClockIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'calendar', label: 'Calendar', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> });
-                tabs.push({ id: 'subjects', label: 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
-                tabs.push({ id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'subjects', label: isChurch ? 'Ministries' : 'Subjects', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'courses', label: isChurch ? 'Programs / Groups' : (isSchool ? 'Grades' : 'Courses'), icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
                 tabs.push({ id: 'facilities', label: 'Facilities', icon: <BuildingOfficeIcon className="w-5 h-5 mr-2" /> });
+            }
+            if (isChurch) {
+                tabs.push({ id: 'courses', label: 'Programs / Groups', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'subjects', label: 'Ministries', icon: <BookOpenIcon className="w-5 h-5 mr-2" /> });
+                tabs.push({ id: 'staff', label: 'Workers & Clergy', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
             if (isCoop) {
                 tabs.push({ id: 'staff', label: 'Staff & Roles', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });

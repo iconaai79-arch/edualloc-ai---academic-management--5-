@@ -48,7 +48,11 @@ const calculateSmsParts = (msg: string) => {
 
 
 export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school' }) => {
-    const isRetailAgency = useMemo(() => RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || ''), [currentInstitution]);
+    const isRetailAgency = useMemo(() => {
+        if (currentInstitution?.institutionType === 'Church') return false;
+        return RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
+    }, [currentInstitution]);
+    const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
@@ -157,11 +161,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return user ? [user] : [];
             }
             case 'all_staff':
-                return moduleContext === 'school' ? baseUsers.filter(u => u.role !== 'student') : baseUsers.filter(u => String(u.role) !== 'customer');
+                return (moduleContext === 'school' || isChurch) ? baseUsers.filter(u => u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member') : baseUsers.filter(u => String(u.role) !== 'customer');
             case 'all_students':
-                return baseUsers.filter(u => u.role === 'student');
+                return baseUsers.filter(u => u.role === 'student' || u.role === 'member' || u.role === 'church_member');
             case 'all_customers':
-                return baseUsers.filter(u => String(u.role) === 'customer');
+                return baseUsers.filter(u => String(u.role) === 'customer' || (isChurch && u.role === 'visitor'));
             case 'department': {
                 if (!selectedId) return [];
                 // If HOD selects their dept, they get everyone in it
@@ -181,13 +185,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                 return baseUsers.filter(u => u.courseId === selectedId);
             }
             case 'all_retail_agents':
-                return baseUsers.filter(u => u.role === 'retail_agent' || (u.role as string) === 'agent');
+                return isChurch ? [] : baseUsers.filter(u => u.role === 'retail_agent' || (u.role as string) === 'agent');
             case 'all_field_agents':
-                return baseUsers.filter(u => u.role === 'field_agent');
+                return isChurch ? [] : baseUsers.filter(u => u.role === 'field_agent');
             case 'all_agents':
-                return baseUsers.filter(u => ['retail_agent', 'field_agent', 'agent'].includes(u.role as string));
+                return isChurch ? [] : baseUsers.filter(u => ['retail_agent', 'field_agent', 'agent'].includes(u.role as string));
             case 'all_leads':
-                return baseUsers.filter(u => u.role === 'lead');
+                return isChurch ? [] : baseUsers.filter(u => u.role === 'lead');
             case 'institution': {
                 if (!selectedId) return [];
                 const usersInInstitution = baseUsers.filter(u => u.institutionId === selectedId);

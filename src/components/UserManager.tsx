@@ -7,7 +7,7 @@ import type {
     CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem
 } from '../types';
 import { PayNowModal } from './PayNowModal';
-import { RETAIL_SUBTYPES } from '../constants';
+import { RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName } from '../utils/roleUtils';
 import { PlusIcon } from './icons/PlusIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
@@ -21,6 +21,7 @@ import { PrinterIcon } from './icons/PrinterIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { UserIcon } from './icons/UserIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
@@ -47,7 +48,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead'];
+
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];
@@ -190,6 +191,10 @@ const SmartUserImporterModal: React.FC<SmartUserImporterModalProps> = ({ onClose
         const type = currentInstitution?.institutionType;
         const subType = currentInstitution?.businessSubType?.toLowerCase() || '';
         return type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || subType.includes('coop') || subType.includes('sacco');
+    }, [currentInstitution]);
+
+    const isChurch = useMemo(() => {
+        return currentInstitution?.institutionType === 'Church';
     }, [currentInstitution]);
 
     const availableRolesForImport = useMemo(() => {
@@ -843,7 +848,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     } = props;
     const isRetailAgency = isRetailAgencyProp ?? RETAIL_SUBTYPES.includes(currentInstitution?.businessSubType || '');
 
-    const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer'>(showOnly || 'staff');
+    const [activeTab, setActiveTab] = useState<'staff' | 'student' | 'customer' | 'visitors'>(showOnly as any || 'staff');
+    const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isAdding, setIsAdding] = useState(isAddingProp);
 
     useEffect(() => {
@@ -908,14 +914,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     useEffect(() => {
         if (activeTab === 'staff') {
-            const defaultRole = isCoop ? 'cooperative_manager' : (isRetailAgency ? 'retail_agent' : 'teacher');
+            const defaultRole = isCoop ? 'cooperative_manager' : (isRetailAgency ? 'retail_agent' : (isChurch ? 'worker' : 'teacher'));
             setRoles([defaultRole as Role]);
         } else if (activeTab === 'customer') {
             setRoles(['customer']);
         } else {
-            setRoles(['student']);
+            setRoles(isChurch ? ['member'] as any : ['student']);
         }
-    }, [activeTab, isCoop, isRetailAgency]);
+    }, [activeTab, isCoop, isRetailAgency, isChurch]);
 
     const canManageUserRecords = useMemo(() => {
         if (!currentUser) return false;
@@ -939,7 +945,10 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             if (activeTab === 'customer') {
                 return u.role === 'customer' || u.role === 'lead';
             }
-            return u.role === 'student';
+            if (activeTab === 'visitors') {
+                return u.role === 'visitor';
+            }
+            return u.role === 'student' || u.role === 'member' || u.role === 'church_member';
         });
 
         // For Retail Agency, we only show specific roles in Staff tab
@@ -1037,11 +1046,15 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         };
 
         if (activeTab === 'staff') {
-            userData.departmentId = (isCoop || isRetailAgency) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
+            userData.departmentId = (isCoop || isRetailAgency || isChurch) ? undefined : ((currentUser?.role === 'hod' || currentUser?.role === 'dos' || currentUser?.role === 'tto') ? currentUser.departmentId : departmentId);
         }
- else {
+        else {
             userData.courseId = courseId;
             userData.courseLevelId = courseLevelId;
+            if (isChurch && !roles.includes('member') && !roles.includes('church_member')) {
+                userData.role = 'member';
+                userData.roles = ['member'];
+            }
         }
 
         const isStudentSave = activeTab === 'student';
@@ -1185,7 +1198,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
             {isAdding && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in-up">
-                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? (isCoop ? 'Staff Member' : 'Staff Member') : (activeTab === 'customer' ? 'Customer/Lead' : (isCoop ? 'Member/Farmer' : 'Student'))}</h4>
+                    <h4 className="font-bold text-lg mb-4">Register New {activeTab === 'staff' ? (isCoop ? 'Staff Member' : (isChurch ? 'Church Worker' : 'Staff Member')) : (activeTab === 'customer' ? (isChurch ? 'First-time Visitor' : 'Customer/Lead') : (isCoop ? 'Member/Farmer' : (isChurch ? 'Member' : 'Student')))}</h4>
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div>
@@ -1203,9 +1216,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">
-                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID'))}
+                                    {isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (isChurch ? (activeTab === 'staff' ? 'Worker ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID')))}
                                 </label>
-                                <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input w-full font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : (isCoop ? "e.g. MBR-001" : "EMP-001")} required />
+                                <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input w-full font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : (isCoop ? "e.g. MBR-001" : (isChurch ? "e.g. CH-2024-001" : "EMP-001"))} required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Gender</label>
@@ -1248,7 +1261,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </div>
-                                    {!isRetailAgency && !isCoop && (
+                                    {!isRetailAgency && !isCoop && !isChurch && (
                                         <div>
                                             <label className="block text-sm font-medium mb-1">Department</label>
                                             <select
@@ -1303,7 +1316,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {isSaving && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
-                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? 'Staff' : (activeTab === 'customer' ? 'Record' : 'Student')}`}
+                                {isSaving ? 'Processing...' : `Save ${activeTab === 'staff' ? (isChurch ? 'Worker' : 'Staff') : (activeTab === 'visitors' ? 'Visitor' : (activeTab === 'customer' ? 'Record' : (isChurch ? 'Member' : 'Student')))}`}
                             </button>
                         </div>
                     </form>
@@ -1319,29 +1332,29 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                         >
                             <span className="flex items-center gap-2">
                                 <UserGroupIcon className="w-4 h-4" />
-                                {isRetailAgency ? 'Staff/Agents' : (isCoop ? 'Cooperative Staff' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff'))}
+                                {isRetailAgency ? 'Staff/Agents' : (isCoop ? 'Cooperative Staff' : (isChurch ? 'Workers & Clergy' : (isSchool ? 'Teachers & Staff' : 'Faculty & Staff')))}
                             </span>
                         </button>
                     )}
-                    {((!isRetailAgency && isEdu) || isCoop) && (!showOnly || showOnly === 'student') && (
+                    {((!isRetailAgency && isEdu) || isCoop || isChurch) && (!showOnly || showOnly === 'student') && (
                         <button
                             onClick={() => setActiveTab('student')}
                             className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'student' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <span className="flex items-center gap-2">
                                 <AcademicCapIcon className="w-4 h-4" />
-                                {isCoop ? 'Members / Farmers' : (isSchool ? 'Students' : 'Learners')}
+                                {isCoop ? 'Members / Farmers' : (isChurch ? 'Congregation / Members' : (isSchool ? 'Students' : 'Learners'))}
                             </span>
                         </button>
                     )}
-                    {isRetailAgency && (!showOnly || showOnly === 'customer') && (
+                    {(isRetailAgency || isChurch) && (!showOnly || showOnly === 'customer') && (
                         <button
-                            onClick={() => setActiveTab('customer')}
-                            className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'customer' ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                            onClick={() => setActiveTab(isChurch ? 'visitors' : 'customer')}
+                            className={`px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${activeTab === (isChurch ? 'visitors' : 'customer') ? 'bg-white dark:bg-slate-600 text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             <span className="flex items-center gap-2">
-                                <UserIcon className="w-4 h-4" />
-                                Customers & Leads
+                                <UserPlusIcon className="w-4 h-4" />
+                                {isChurch ? 'Visitors & Guests' : 'Customers & Leads'}
                             </span>
                         </button>
                     )}
@@ -1355,7 +1368,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : (isCoop ? 'Search cooperative staff...' : 'Search faculty...')) : (isCoop ? 'Search members...' : 'Search students...')}
+                            placeholder={activeTab === 'staff' ? (isRetailAgency ? 'Search staff/agents...' : (isCoop ? 'Search cooperative staff...' : (isChurch ? 'Search workers & clergy...' : 'Search faculty...'))) : (isCoop ? 'Search members...' : (isChurch ? (activeTab === 'visitors' ? 'Search visitors...' : 'Search congregation...') : 'Search students...'))}
                             className="form-input w-full pl-10"
                         />
                         <div className="absolute left-3 top-3 text-slate-400">

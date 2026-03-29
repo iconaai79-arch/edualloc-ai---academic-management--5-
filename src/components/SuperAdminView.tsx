@@ -90,6 +90,8 @@ import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
+import { DemoRequestManager } from './DemoRequestManager';
+import { DemoRequest } from '../types';
 
 // Lazy-load major views to break circular dependencies and reduce initial chunk size
 const AdminView = React.lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
@@ -290,6 +292,8 @@ export interface SuperAdminViewProps {
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
     isImpersonating?: boolean;
     leaveOutRequests?: LeaveOutRequest[];
+    demoRequests: DemoRequest[];
+    onUpdateDemoStatus: (id: string, status: DemoRequest['status']) => Promise<void>;
 }
 
 export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminViewProps) => {
@@ -364,10 +368,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         footerImageUrl,
         onAddCounty,
         onUpdateCounty,
-        onDeleteCounty
+        onDeleteCounty,
+        demoRequests = [],
+        onUpdateDemoStatus
     } = props;
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'external_module' | 'interactions' | 'reports' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests'>('dashboard');
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links'>('list'); // Modified for Counties, Resellers & Business
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses'>('subjects');
 
@@ -922,6 +928,7 @@ Please change it after login.`;
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
+        { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
         { key: 'settings', label: 'Global Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
     ];
@@ -2094,6 +2101,15 @@ Please change it after login.`;
                 {activeTab === 'user_activity' && (
                     <div className="animate-fade-in-up">
                         <ActivityLogView activityLog={activityLog || []} />
+                    </div>
+                )}
+
+                {activeTab === 'demo_requests' && (
+                    <div className="animate-fade-in-up">
+                        <DemoRequestManager 
+                            requests={demoRequests} 
+                            onUpdateStatus={onUpdateDemoStatus} 
+                        />
                     </div>
                 )}
 

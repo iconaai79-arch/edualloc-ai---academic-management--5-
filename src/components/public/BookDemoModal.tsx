@@ -31,8 +31,11 @@ export const BookDemoModal: React.FC<BookDemoModalProps> = ({ onClose }) => {
         id: `demo_${Date.now()}`,
         ...formData,
         status: 'new',
-        requested_at: new Date().toISOString()
+        requestedAt: new Date().toISOString()
       });
+
+      // Notify Super Admins
+      await apiService.notifySuperAdmins(`New Demo Request from ${formData.name} (${formData.institution})`, 'guest_arrival');
       
       setIsSuccess(true);
       setTimeout(() => {

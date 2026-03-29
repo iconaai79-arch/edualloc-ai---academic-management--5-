@@ -432,6 +432,7 @@ export const App: React.FC = () => {
     const [coopPayouts, setCoopPayouts] = useState<CoopMonthlyPayout[]>([]);
     const [coopExpenses, setCoopExpenses] = useState<CoopExpense[]>([]);
     const [coopIncome, setCoopIncome] = useState<CoopIncome[]>([]);
+    const [demoRequests, setDemoRequests] = useState<DemoRequest[]>([]);
 
     const [isGeneratingDemoData, setIsGeneratingDemoData] = useState(false);
     const [demoDataGenerationProgress, setDemoDataGenerationProgress] = useState(0);
@@ -679,7 +680,12 @@ export const App: React.FC = () => {
                 const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser.institutionId || instId || '');
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
-            [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims] = await Promise.all([
+            
+                const demoLeadsPromise = currentUser.role === 'super_admin' 
+                    ? apiService.fetchDemoRequests().catch(() => []) 
+                    : Promise.resolve([]);
+
+                [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims, demoLeads] = await Promise.all([
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
                     apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
@@ -724,7 +730,7 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<TransportVehicle>('vehicles', effectiveInstId).catch(() => []),
+                    apiService.fetchVehicles(effectiveInstId).catch(() => []),
                     apiService.fetchTransportOnboarding(effectiveInstId).catch(() => []),
                     apiService.fetchVehicleLogs(effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstId).catch(() => []),
@@ -742,8 +748,9 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<CoopExpense>('coop_expenses', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopIncome>('coop_income', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', effectiveInstId).catch(() => []),
+                    demoLeadsPromise
                 ]);
-                console.log("[Data Refresh] Coop Data Snapshot:", { farmers: cFarmers.length, riders: cRiders.length, collections: cColls.length });
+                console.log("[Data Refresh] Hub Optimized");
 
                 if (insts && insts.length > 0) {
                     const finalInsts = insts.map(i => ({
@@ -752,6 +759,8 @@ export const App: React.FC = () => {
                     }));
                     setInstitutions(finalInsts);
                 }
+
+                if (demoLeads) setDemoRequests(demoLeads);
             }
 
 
@@ -805,6 +814,7 @@ export const App: React.FC = () => {
             setCafeOrders(cOrders || []);
             setRetailSales(rSales || []);
             setJobs(cwJobs || []);
+            setNotifications(notifs || []);
 
             setCoopFarmers(cFarmers || []);
             setCoopCollections(cColls || []);
@@ -1467,6 +1477,15 @@ export const App: React.FC = () => {
             alert("Inventory received and acknowledged.");
         }
     }, [countyInventory, loadData]);
+
+    const onUpdateDemoStatus = useCallback(async (id: string, status: DemoRequest['status']) => {
+        try {
+            await apiService.updateDemoRequestStatus(id, status);
+            setDemoRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+        } catch (e) {
+            console.error("Failed to update demo status:", e);
+        }
+    }, []);
 
     // --- Allocation Handlers ---
 
@@ -2609,6 +2628,8 @@ export const App: React.FC = () => {
                                     companyDetails={companyDetails}
                                     onUpdateCompanyDetails={async (d) => { await apiService.saveCompanySettings(d); loadData(); }}
                                     transactions={transactions}
+                                    demoRequests={demoRequests}
+                                    onUpdateDemoStatus={onUpdateDemoStatus}
                                     receipts={receipts}
                                     activityLog={activityLog}
                                     onImportUsers={onImportUsers}

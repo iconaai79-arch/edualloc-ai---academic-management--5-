@@ -71,7 +71,7 @@ import { ShoppingBagIcon } from './icons/ShoppingBagIcon';
 const DirectAssignModal = lazy(() => import('./DirectAssignModal').then(m => ({ default: m.DirectAssignModal })));
 const AcademicYearManager = lazy(() => import('./AcademicYearManager').then(m => ({ default: m.AcademicYearManager })));
 const TimetablesView = lazy(() => import('./TimetablesView').then(m => ({ default: m.TimetablesView })));
-import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUBTYPES } from '../constants';
+import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS, RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
 const EditInstitutionModal = lazy(() => import('./EditInstitutionModal').then(m => ({ default: m.EditInstitutionModal })));
 const TimetableWizard = lazy(() => import('./TimetableWizard').then(m => ({ default: m.TimetableWizard })));
 const TransportManager = lazy(() => import('./TransportManager').then(m => ({ default: m.TransportManager })));
@@ -356,6 +356,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
     }, [props.currentInstitution]);
 
     const isRetailAgency = useMemo(() => {
+        if (props.currentInstitution?.institutionType === 'Church') return false;
         return RETAIL_SUBTYPES.includes(props.currentInstitution?.businessSubType || '');
     }, [props.currentInstitution]);
 
@@ -417,7 +418,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-            { id: 'courses', label: isSchool ? 'Grades' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+            { id: 'courses', label: isSchool ? 'Grades' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             { id: 'retail', label: 'Retail & Agency', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
@@ -430,7 +431,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
             { id: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
             { id: 'sacco', label: 'SACCO', icon: <CreditCardIcon className="w-5 h-5 mr-2" /> },
             { id: 'agrovet', label: 'Agrovet', icon: <BeakerIcon className="w-5 h-5 mr-2" /> },
-            { id: 'church', label: 'Church', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
+            { id: 'church', label: 'Church System', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         ];
 
@@ -622,21 +623,21 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Active Faculty' : 'Active Staff'}</h3>
+                                <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Active Faculty' : isChurch ? 'Active Workers' : 'Active Staff'}</h3>
                                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                    {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin').length}
+                                    {(props.users || []).filter(u => u && u.role !== 'student' && u.role !== 'super_admin' && u.role !== 'member' && u.role !== 'church_member').length}
                                 </p>
                             </div>
-                            {isEdu && (
+                            {(isEdu || isChurch) && (
                                 <>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Registry Load</h3>
+                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Registry Load' : 'Ministerial Registry'}</h3>
                                         <p className="text-4xl font-black text-indigo-600 tracking-tighter">{(props.allocations || []).length}</p>
                                     </div>
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Total Students</h3>
+                                        <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isEdu ? 'Total Students' : 'Total Congregation'}</h3>
                                         <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                            {(props.users || []).filter(u => u && u.role === 'student').length}
+                                            {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member')).length}
                                         </p>
                                     </div>
                                 </>
@@ -673,15 +674,15 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                         <p className="text-[10px] text-slate-400 uppercase mt-1">View module accounts</p>
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => handleQuickAction('users')}
-                                    className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
-                                >
-                                    <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-                                        <UserGroupIcon className="w-6 h-6" />
-                                    </div>
-                                    <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">Staff Hub</span>
-                                </button>
+                                    <button
+                                        onClick={() => handleQuickAction('users')}
+                                        className="flex flex-col items-start p-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-800 hover:border-indigo-300 transition-all group text-left"
+                                    >
+                                        <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                                            <UserGroupIcon className="w-6 h-6" />
+                                        </div>
+                                        <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white">{isChurch ? 'Workers Hub' : 'Staff Hub'}</span>
+                                    </button>
                                 {isEdu && (
                                     <>
                                         <button

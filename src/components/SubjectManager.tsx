@@ -95,6 +95,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     const [isBulkStructureOpen, setIsBulkStructureOpen] = useState(false);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isChurch = currentInstitution?.institutionType === 'Church';
 
     const visibleDepartments = useMemo(() => {
         if (currentUser.role === 'tto' && currentUser.departmentId) return departments.filter(d => d.id === currentUser.departmentId);
@@ -137,8 +138,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div>
-                    <h3 className="text-2xl font-black uppercase tracking-tighter">Academic Subjects</h3>
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Curriculum Registry Control</p>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">{isChurch ? 'Ministries' : 'Academic Subjects'}</h3>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">{isChurch ? 'Ministry Registry Control' : 'Curriculum Registry Control'}</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 min-w-fit">
@@ -182,7 +183,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                             }}
                             className="btn-primary h-11 flex items-center gap-2 px-8 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100"
                         >
-                            <PlusIcon className="w-5 h-5" /> New Subject
+                            <PlusIcon className="w-5 h-5" /> New {isChurch ? 'Ministry' : 'Subject'}
                         </button>
                     )}
                 </div>
@@ -220,7 +221,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     <thead className="bg-slate-50 dark:bg-slate-900/50">
                         <tr>
                             <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">ID Code</th>
-                            <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Subject Title</th>
+                            <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">{isChurch ? 'Ministry Name' : 'Subject Title'}</th>
                             <th className="px-8 py-5 text-left text-[10px] font-black text-slate-500 uppercase tracking-widest">Instruction Matrix</th>
                             <th className="px-8 py-5 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
                         </tr>

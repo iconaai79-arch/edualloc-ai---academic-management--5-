@@ -367,11 +367,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [previewPdfFilename, setPreviewPdfFilename] = useState<string | null>(null);
 
     const isSchool = currentInstitution?.institutionType === 'Primary' || currentInstitution?.institutionType === 'Secondary';
+    const isChurch = currentInstitution?.institutionType === 'Church';
     const isPrimary = currentInstitution?.institutionType === 'Primary';
     const isSecondary = currentInstitution?.institutionType === 'Secondary';
-    const courseLabel = isSchool ? 'Grade' : 'Course';
-    const streamOrLevelLabel = isSchool ? 'Stream' : 'Level';
-    const streamOrLevelLabelPlural = isSchool ? 'Streams' : 'Levels';
+    const courseLabel = isChurch ? 'Program' : (isSchool ? 'Grade' : 'Course');
+    const streamOrLevelLabel = isChurch ? 'Group' : (isSchool ? 'Stream' : 'Level');
+    const streamOrLevelLabelPlural = isChurch ? 'Groups' : (isSchool ? 'Streams' : 'Levels');
 
     const visibleDepartments = useMemo(() => {
         if (currentUser?.role === 'tto' && currentUser?.departmentId) return (departments || []).filter(d => d.id === currentUser.departmentId);
@@ -1094,14 +1095,14 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             <div className="flex flex-wrap gap-4 justify-between items-center bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                 <div>
                     <h3 className="text-2xl font-black uppercase tracking-tighter">{courseLabel} Registry</h3>
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Institutional Academic Map</p>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">{isChurch ? 'Institutional Administration Map' : 'Institutional Academic Map'}</p>
                 </div>
                 <div className="flex space-x-2 bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
                     <button
                         onClick={() => setManagerTab('courses')}
                         className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${managerTab === 'courses' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
-                        Active {isSchool ? 'Grades' : 'Courses'}
+                        Active {isChurch ? 'Programs' : (isSchool ? 'Grades' : 'Courses')}
                     </button>
                     <button
                         onClick={() => setManagerTab('streams')}
@@ -1113,13 +1114,13 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         onClick={() => setManagerTab('pathways')}
                         className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${managerTab === 'pathways' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
-                        Pathways
+                        {isChurch ? 'Option Blocks' : 'Pathways'}
                     </button>
                     <button
                         onClick={() => setManagerTab('lessons')}
                         className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${managerTab === 'lessons' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-lg' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
-                        Registry
+                        {isChurch ? 'Assignments' : 'Lessons'}
                     </button>
                 </div>
 
