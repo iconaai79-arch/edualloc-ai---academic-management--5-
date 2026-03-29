@@ -1,15 +1,13 @@
 
 import React, { useState } from 'react';
-import {
-    Receipt as ReceiptIcon,
-    Plus as PlusIcon,
-    Search as SearchIcon,
-    Filter as FilterIcon,
-    Calendar as CalendarIcon,
-    Store as StoreIcon,
-    Banknote as BanknoteIcon,
-    Tag as TagIcon
-} from 'lucide-react';
+import { DocumentTextIcon as ReceiptIcon } from '../icons/DocumentTextIcon';
+import { PlusIcon as PlusIcon } from '../icons/PlusIcon';
+import { MagnifyingGlassIcon as SearchIcon } from '../icons/MagnifyingGlassIcon';
+import { FunnelIcon as FilterIcon } from '../icons/FunnelIcon';
+import { CalendarDaysIcon as CalendarIcon } from '../icons/CalendarDaysIcon';
+import { StoreIcon as StoreIcon } from '../icons/StoreIcon';
+import { BanknotesIcon as BanknoteIcon } from '../icons/BanknotesIcon';
+import { TagIcon as TagIcon } from '../icons/TagIcon';
 import { RetailExpense, RetailStore, User } from '../../types';
 
 interface RetailExpensesProps {

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X as XIcon } from 'lucide-react';
+import { XIcon as XIcon } from '../icons/XIcon';
 import { Supplier } from '../../types';
 
 interface SupplierFormProps {

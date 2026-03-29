@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailCommissionLedger as CommissionType, User, RetailInventoryItem } from '../../types';
-import { HandCoins, Banknote, Calendar, User as UserIcon, Tag, AlertCircle, Search, Filter, ArrowUpRight } from 'lucide-react';
+import { CurrencyIcon as HandCoins } from '../icons/CurrencyIcon';
+import { BanknotesIcon as Banknote } from '../icons/BanknotesIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { TagIcon as Tag } from '../icons/TagIcon';
+import { ExclamationIcon as AlertCircle } from '../icons/ExclamationIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { FunnelIcon as Filter } from '../icons/FunnelIcon';
+import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { ClockIcon as Clock } from '../icons/ClockIcon';
 
 
 interface RetailCommissionLedgerProps {
@@ -241,5 +250,3 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
     );
 }
 
-// Fixed missing icon Clock which was used in stats but not exported/imported correctly
-const Clock = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>;

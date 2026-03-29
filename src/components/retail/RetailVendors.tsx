@@ -1,18 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-    Plus as PlusIcon, 
-    Search as SearchIcon, 
-    Building as BuildingIcon, 
-    Mail as MailIcon, 
-    Phone as PhoneIcon, 
-    User as UserIcon,
-    Trash as TrashIcon,
-    Pencil as EditIcon,
-    X as XIcon,
-    ShieldCheck as ShieldIcon,
-    ArrowRight as ArrowRightIcon
-} from 'lucide-react';
+import { PlusIcon } from '../icons/PlusIcon';
+import { MagnifyingGlassIcon as SearchIcon } from '../icons/MagnifyingGlassIcon';
+import { BuildingOfficeIcon as BuildingIcon } from '../icons/BuildingOfficeIcon';
+import { EnvelopeIcon as MailIcon } from '../icons/EnvelopeIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { PencilIcon as EditIcon } from '../icons/PencilIcon';
+import { XIcon } from '../icons/XIcon';
+import { ShieldCheckIcon as ShieldIcon } from '../icons/ShieldCheckIcon';
+import { ArrowRightIcon } from '../icons/ArrowRightIcon';
 import { Supplier } from '../../types';
 import { apiService } from '../../services/apiService';
 

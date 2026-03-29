@@ -2,25 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { RetailInventoryItem, RetailSale, RetailCommissionLedger, User, RetailStore, MpesaConfig, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
 import * as pdfService from '../../services/pdfService';
-import {
-    LayoutDashboard,
-    TrendingUp,
-    PackageSearch,
-    Users,
-    DollarSign,
-    ShoppingCart,
-    AlertTriangle,
-    BarChart3,
-    ArrowUpRight,
-    ArrowDownRight,
-    FileText,
-    Calendar,
-    Search,
-    Eye,
-    Mail,
-    Filter,
-    Store as StoreIcon
-} from 'lucide-react';
+import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
+import { ArrowTrendingUpIcon as TrendingUp } from '../icons/ArrowTrendingUpIcon';
+import { DocumentMagnifyingGlassIcon as PackageSearch } from '../icons/DocumentMagnifyingGlassIcon';
+import { UsersIcon as Users } from '../icons/UsersIcon';
+import { CurrencyIcon as DollarSign } from '../icons/CurrencyIcon';
+import { ShoppingCartIcon as ShoppingCart } from '../icons/ShoppingCartIcon';
+import { ExclamationTriangleIcon as AlertTriangle } from '../icons/ExclamationTriangleIcon';
+import { BarChart3Icon as BarChart3 } from '../icons/BarChart3Icon';
+import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
+import { ArrowDownRightIcon as ArrowDownRight } from '../icons/ArrowDownRightIcon';
+import { FileTextIcon as FileText } from '../icons/FileTextIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { EyeIcon as Eye } from '../icons/EyeIcon';
+import { EnvelopeIcon as Mail } from '../icons/EnvelopeIcon';
+import { FunnelIcon as Filter } from '../icons/FunnelIcon';
+import { StoreIcon as StoreIcon } from '../icons/StoreIcon';
 
 interface RetailReportsDashboardProps {
     institutionId: string;
@@ -42,13 +40,15 @@ export function RetailReportsDashboard({ institutionId, users }: RetailReportsDa
         const fetchReportData = async () => {
             setIsLoading(true);
             try {
-                const [salesData, invData, commData, storesData, instData] = await Promise.all([
+                const [salesData, invData, commData, storesData, insts] = await Promise.all([
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
                     apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
                     apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId),
                     apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                    apiService.fetchInstitutionById(institutionId)
+                    apiService.fetchInstitutions(institutionId)
                 ]);
+
+                const instData = insts[0] || null;
 
                 // Sort sales by newest first for better processing
                 setSales(salesData.sort((a: RetailSale, b: RetailSale) => {

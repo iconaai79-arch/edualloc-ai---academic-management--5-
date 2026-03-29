@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { RetailWishlist } from '../../types';
 import { apiService } from '../../services/apiService';
-import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, Clock, MapPin, User as UserIcon, Banknote, X, Plus } from 'lucide-react';
+import { TargetIcon as Target } from '../icons/TargetIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { FunnelIcon as Filter } from '../icons/FunnelIcon';
+import { PhoneIcon as Phone } from '../icons/PhoneIcon';
+import { ChatBubbleBottomCenterTextIcon as MessageSquare } from '../icons/ChatBubbleBottomCenterTextIcon';
+import { ExclamationCircleIcon as AlertCircle } from '../icons/ExclamationCircleIcon';
+import { ClockIcon as Clock } from '../icons/ClockIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { BanknotesIcon as Banknote } from '../icons/BanknotesIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
 
 
@@ -454,4 +465,3 @@ export function WishlistManager({ institutionId }: WishlistManagerProps) {
     );
 }
 
-const ArrowRight = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>;
