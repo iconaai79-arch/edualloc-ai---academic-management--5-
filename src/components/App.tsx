@@ -675,7 +675,7 @@ export const App: React.FC = () => {
             
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser.institutionId);
-                const effectiveInstId = activeInst?.id || currentUser.institutionId || instId || '';
+                const effectiveInstId = currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser.institutionId || instId || '');
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
             [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims] = await Promise.all([
