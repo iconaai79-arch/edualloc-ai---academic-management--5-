@@ -60,6 +60,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isResending, setIsResending] = useState(false);
     const [generatedCreds, setGeneratedCreds] = useState<{ email: string; password: string } | null>(null);
     const [isRegistering, setIsRegistering] = useState(false);
     const [otpCode, setOtpCode] = useState('');
@@ -137,8 +138,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
         }
     };
 
-    const handleForgotPassword = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleForgotPassword = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         setError('');
         
         if (recoveryMethod === 'email') {
@@ -166,11 +167,21 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 setError("Please enter your registered phone number.");
                 return;
             }
-            setIsSubmitting(true);
+            
+            // Handle both initial submit and resend
+            const isResend = view === 'recovery_otp';
+            if (isResend) setIsResending(true);
+            else setIsSubmitting(true);
+
             try {
                 const res = await onForgotPassword(cleanPhone, 'phone');
                 if (res.success) {
-                    setView('recovery_otp');
+                    if (isResend) {
+                        alert("A new verification code has been sent to your phone.");
+                        setOtpCode(''); // Clear old code
+                    } else {
+                        setView('recovery_otp');
+                    }
                 } else {
                     setError(res.message);
                 }
@@ -178,6 +189,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 setError(err.message || "Recovery failure.");
             } finally {
                 setIsSubmitting(false);
+                setIsResending(false);
             }
         }
     };
@@ -480,10 +492,16 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                 <div className="flex flex-col gap-2">
                                     <button
                                         type="button"
-                                        onClick={handleForgotPassword}
-                                        className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700"
+                                        disabled={isResending}
+                                        onClick={() => handleForgotPassword()}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 disabled:opacity-50 flex items-center gap-2"
                                     >
-                                        Resend Code
+                                        {isResending ? (
+                                            <>
+                                                <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                                Resending...
+                                            </>
+                                        ) : "Resend Code"}
                                     </button>
                                     <button
                                         type="button"
@@ -491,6 +509,13 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                         className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-2"
                                     >
                                         Change Phone Number
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setView('login')}
+                                        className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:opacity-80 py-1"
+                                    >
+                                        Return to Login
                                     </button>
                                 </div>
                             </form>

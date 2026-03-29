@@ -293,7 +293,7 @@ export const apiService = {
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'verifyResetOtp', phone, code })
+                body: JSON.stringify({ action: 'verifyResetOtp', recipient: phone, message: code })
             });
             const result = await response.json();
             return { 

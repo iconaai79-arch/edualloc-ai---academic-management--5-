@@ -717,11 +717,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'verifyResetOtp') {
-            const phoneVariants = getPhoneVariants(recipient);
-            const orClauses = phoneVariants.map(v => `phone_number.eq.${v}`).join(',');
-            const otpCode = message; // Front-end sends the code in the 'message' field
+            const phone = getParam('phone') || getParam('recipient');
+            const otpCode = getParam('code') || getParam('message');
+            
+            if (!phone || !otpCode) return res.status(400).json({ success: false, message: 'Missing phone number or verification code.' });
 
-            if (!recipient || !otpCode) return res.status(400).json({ success: false, message: 'Missing phone number or verification code.' });
+            const phoneVariants = getPhoneVariants(phone);
+            const orClauses = phoneVariants.map(v => `phone_number.eq.${v}`).join(',');
 
             console.log(`[Verify Reset OTP] Looking for phone variants: ${phoneVariants.join(', ')} with code: ${otpCode}`);
 
