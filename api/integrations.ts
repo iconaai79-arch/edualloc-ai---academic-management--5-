@@ -133,7 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks & Recovery)
-        if (!user && (action === 'forgotPassword' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook')) {
+        if (!user && (action === 'forgotPassword' || action === 'verifyResetOtp' || action === 'resetPasswordWithToken' || action === 'sendEmail' || action === 'sendSms' || action === 'mpesa-callback' || action === 'ncbaWebhook')) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
             // For callbacks, we allow the bypass directly
@@ -496,6 +496,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (action === 'forgotPassword') {
+            const method = getParam('method') || 'email';
+            
+            if (method === 'phone') {
+                const phone = normalizePhone(recipient);
+                const { data: targetUser } = await supabase
+                    .from('users')
+                    .select('*')
+                    .or(`phone_number.eq.${phone},phone_number.eq.${recipient}`)
+                    .maybeSingle();
+
+                if (!targetUser) return res.status(404).json({ success: false, message: 'No registered account found with this phone number.' });
+
+                // Generate a 6-digit numeric OTP
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                const expires = new Date(Date.now() + 600000).toISOString(); // 10 minutes
+
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({ reset_otp: otp, reset_otp_expires: expires })
+                    .eq('id', targetUser.id);
+
+                if (updateError) return res.status(500).json({ success: false, message: 'Failed to generate recovery code.' });
+
+                // Send OTP via SMS
+                const smsConfig = settings.sms_config;
+                if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS gateway not configured for password recovery.' });
+
+                const otpMessage = `Your EduAi Password Reset Code is: ${otp}. Valid for 10 minutes.`;
+                
+                // Re-using SMS dispatch logic (simplified for this specific context)
+                const provider = smsConfig.provider || 'Zettatel';
+                const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                
+                const finalParams: Record<string, string> = {
+                    userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId || '',
+                    password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password || '',
+                    mobile: phone,
+                    msg: otpMessage,
+                    senderid: smsConfig.fromNumber || provider,
+                    msgType: 'text',
+                    output: 'json'
+                };
+
+                const urlParams = new URLSearchParams(finalParams);
+                try {
+                    await fetchWithTimeout(`${baseUrl}?${urlParams.toString()}`, { method: 'GET' });
+                    return res.status(200).json({ success: true, message: 'Verification code sent to your phone.' });
+                } catch (e: any) {
+                    return res.status(502).json({ success: false, message: 'Verification code generated but SMS delivery failed.', hint: e.message });
+                }
+            }
+
+            // Default Email Recovery
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
             if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
@@ -554,7 +607,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 html: recoveryBody.replace(/\n/g, '<br>').replace(resetLink, `<a href="${resetLink}">${resetLink}</a>`)
             });
 
-
             console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);
 
             // NEW: Dispatch recovery link via SMS if phone number is available
@@ -596,14 +648,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const urlParams = new URLSearchParams(finalParams);
                         const method = smsConfig.method || 'GET';
                         const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
-                        const maskedUrl = dispatchUrl.replace(/password=[^&]*/, 'password=********').replace(/userid=[^&]*/, 'userid=********');
-
                         const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
                         if (method === 'POST') fetchOptions.body = urlParams.toString();
 
-                        console.log(`[Forgot Password] Attempted Gateway: ${provider}. Dispatching to ${phone}. URL: ${maskedUrl}`);
-
-                        // We MUST await here in a serverless environment to ensure dispatch completes
                         const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
                         const smsResultText = await smsRes.text();
                         console.log(`[Forgot Password] SMS Gateway Response: ${smsResultText.substring(0, 100)}`);
@@ -646,6 +693,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             return res.status(200).json({ success: true, message: 'Password updated successfully. You can now log in.' });
+        }
+
+        if (action === 'verifyResetOtp') {
+            const phone = normalizePhone(recipient);
+            const otpCode = message; // Front-end sends the code in the 'message' field
+
+            if (!phone || !otpCode) return res.status(400).json({ success: false, message: 'Missing phone number or verification code.' });
+
+            const { data: targetUser } = await supabase
+                .from('users')
+                .select('*')
+                .or(`phone_number.eq.${phone},phone_number.eq.${recipient}`)
+                .eq('reset_otp', otpCode)
+                .gt('reset_otp_expires', new Date().toISOString())
+                .maybeSingle();
+
+            if (!targetUser) return res.status(400).json({ success: false, message: 'Invalid or expired verification code.' });
+
+            // On successful OTP verification, generate a reset token
+            const resetToken = randomBytes(32).toString('hex');
+            const tokenExpires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+
+            await supabase
+                .from('users')
+                .update({ 
+                    reset_token: resetToken, 
+                    reset_token_expires: tokenExpires,
+                    reset_otp: null, // Consume the OTP
+                    reset_otp_expires: null
+                })
+                .eq('id', targetUser.id);
+
+            return res.status(200).json({ success: true, resetToken });
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
