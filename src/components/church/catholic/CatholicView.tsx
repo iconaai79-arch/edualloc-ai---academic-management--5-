@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ChurchSacrament, ChurchMassIntention, ChurchCellGroup } from '../../../types';
-import { Cross, Users, Heart, Calendar, Plus, BookOpen, Clock, FileText, UserPlus, Shield, Sparkles, Filter, ChevronRight, Download } from 'lucide-react';
+import { CrossIcon as Cross } from '../../icons/CrossIcon';
+import { UserGroupIcon as Users } from '../../icons/UserGroupIcon';
+import { HeartIcon as Heart } from '../../icons/HeartIcon';
+import { CalendarDaysIcon as Calendar } from '../../icons/CalendarDaysIcon';
+import { PlusIcon as Plus } from '../../icons/PlusIcon';
+import { BookOpenIcon as BookOpen } from '../../icons/BookOpenIcon';
+import { ClockIcon as Clock } from '../../icons/ClockIcon';
+import { DocumentTextIcon as FileText } from '../../icons/DocumentTextIcon';
+import { UserPlusIcon as UserPlus } from '../../icons/UserPlusIcon';
+import { ShieldCheckIcon as Shield } from '../../icons/ShieldCheckIcon';
+import { SparklesIcon as Sparkles } from '../../icons/SparklesIcon';
+import { FunnelIcon as Filter } from '../../icons/FunnelIcon';
+import { ChevronRightIcon as ChevronRight } from '../../icons/ChevronRightIcon';
+import { DownloadIcon as Download } from '../../icons/DownloadIcon';
 import { useChurch } from '../ChurchDenominationProvider';
 import { apiService } from '../../../services/apiService';
 
@@ -115,7 +128,7 @@ const SacramentsPanel: React.FC<{ records: ChurchSacrament[] }> = ({ records }) 
             </div>
             <div className="space-y-4">
                 {records.length > 0 ? records.map(record => (
-                    <SacramentRow key={record.id} name={record.recipientName} type={record.type} date={new Date(record.celebratedAt).toLocaleDateString()} status="Confirmed" />
+                    <SacramentRow key={record.id} name={record.memberId} type={record.sacramentType} date={new Date(record.date).toLocaleDateString()} status="Confirmed" />
                 )) : (
                     <>
                         <SacramentRow name="Dominic Otieno" type="Baptism" date="2024-03-20" status="Confirmed" />
@@ -181,7 +194,7 @@ const JumuiaPanel: React.FC<{ groups: ChurchCellGroup[] }> = ({ groups }) => (
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {groups.length > 0 ? groups.map(group => (
-                <JumuiaCard key={group.id} name={group.name} members={group.membersCount || 18} leader={group.leaderName} nextMeeting={group.meetingDay} />
+                <JumuiaCard key={group.id} name={group.name} members={group.memberIds?.length || 18} leader={group.leaderId} nextMeeting={group.meetingDay} />
             )) : (
                 <>
                     <JumuiaCard name="St. Jude Jumuia" members={18} leader="Mrs. Monica Gakuo" nextMeeting="Every Monday 5:00 PM" />
@@ -229,7 +242,7 @@ const IntentionsPanel: React.FC<{ intentions: ChurchMassIntention[] }> = ({ inte
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800 italic font-medium text-slate-600 dark:text-slate-400">
                     {intentions.length > 0 ? intentions.map(int => (
-                         <IntentionRow key={int.id} date={new Date(int.celebratedAt).toLocaleDateString()} details={int.details} status={int.status} amount="N/A" />
+                         <IntentionRow key={int.id} date={new Date(int.intentionDate).toLocaleDateString()} details={int.intention} status={int.status} amount="N/A" />
                     )) : (
                         <>
                             <IntentionRow date="Mar 20, 2024" details="Thanksgiving for Mercy's Success" status="Booked" amount="KES 1,000" />

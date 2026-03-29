@@ -15,7 +15,18 @@ import { RetailCommissionLedger } from './RetailCommissionLedger';
 import { RetailVendors } from './RetailVendors';
 import { CafeMenuManager } from '../hybrid/CafeMenuManager';
 import { RetailInventoryItem, RetailStore, User, RetailExpense, Requisition } from '../../types';
-import { LayoutDashboard, Store, Smartphone, Target, ArrowRightLeft, HandCoins, Receipt, FileText, Package, Truck, Coffee, Building as BuildingIcon } from 'lucide-react';
+import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
+import { StoreIcon as Store } from '../icons/StoreIcon';
+import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
+import { TargetIcon as Target } from '../icons/TargetIcon';
+import { ArrowsRightLeftIcon as ArrowRightLeft } from '../icons/ArrowsRightLeftIcon';
+import { BanknotesIcon as HandCoins } from '../icons/BanknotesIcon';
+import { DocumentTextIcon as Receipt } from '../icons/DocumentTextIcon';
+import { FileTextIcon as FileText } from '../icons/FileTextIcon';
+import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { CoffeeIcon as Coffee } from '../icons/CoffeeIcon';
+import { BuildingOfficeIcon as BuildingIcon } from '../icons/BuildingOfficeIcon';
 
 interface RetailManagerProps {
     institutionId: string;

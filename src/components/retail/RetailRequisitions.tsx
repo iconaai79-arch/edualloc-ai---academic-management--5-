@@ -1,20 +1,20 @@
 
 import React, { useState } from 'react';
-import {
-    FileText as FileIcon,
-    Plus as PlusIcon,
-    Search as SearchIcon,
-    Clock as ClockIcon,
-    XCircle as XCircleIcon,
-    Package as PackageIcon,
-    Trash as TrashIcon
-} from 'lucide-react';
+import { DocumentTextIcon as FileIcon } from '../icons/DocumentTextIcon';
+import { PlusIcon as PlusIcon } from '../icons/PlusIcon';
+import { MagnifyingGlassIcon as SearchIcon } from '../icons/MagnifyingGlassIcon';
+import { ClockIcon as ClockIcon } from '../icons/ClockIcon';
+import { XCircleIcon as XCircleIcon } from '../icons/XCircleIcon';
+import { ArchiveBoxIcon as PackageIcon } from '../icons/ArchiveBoxIcon';
+import { TrashIcon as TrashIcon } from '../icons/TrashIcon';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
 
 import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
 import { generateLpoPdf } from '../../services/pdfService';
 import { apiService } from '../../services/apiService';
-import { Mail as MailIcon, Printer as PrinterIcon, ExternalLink as ExternalLinkIcon } from 'lucide-react';
+import { EnvelopeIcon as MailIcon } from '../icons/EnvelopeIcon';
+import { PrinterIcon as PrinterIcon } from '../icons/PrinterIcon';
+import { ArrowUpRightIcon as ExternalLinkIcon } from '../icons/ArrowUpRightIcon';
 import { getInstitutionEmailConfig } from '../../services/emailService';
 
 interface RetailRequisitionsProps {

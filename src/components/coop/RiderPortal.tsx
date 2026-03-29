@@ -8,19 +8,17 @@ import {
     CoopMonthlyPayout,
     SaccoTransaction
 } from '../../types';
-import { 
-    LayoutDashboard, 
-    Truck, 
-    Wallet, 
-    FileText, 
-    Bell,
-    LogOut,
-    TrendingUp,
-    ChevronRight,
-    ArrowUpRight,
-    CreditCard,
-    Calendar
-} from 'lucide-react';
+import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { WalletIcon as Wallet } from '../icons/WalletIcon';
+import { FileTextIcon as FileText } from '../icons/FileTextIcon';
+import { BellIcon as Bell } from '../icons/BellIcon';
+import { ArrowRightOnRectangleIcon as LogOut } from '../icons/ArrowRightOnRectangleIcon';
+import { TrendingUpIcon as TrendingUp } from '../icons/TrendingUpIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
+import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
 import { CheckCircleIcon as CircleCheck } from '../icons/CheckCircleIcon';
 
 interface RiderPortalProps {

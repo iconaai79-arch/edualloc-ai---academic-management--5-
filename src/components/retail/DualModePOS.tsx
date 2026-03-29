@@ -4,7 +4,23 @@ import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
 
-import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CreditCard, Printer, Coffee, Zap } from 'lucide-react';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { ShoppingCartIcon as ShoppingCart } from '../icons/ShoppingCartIcon';
+import { UserIcon as UserIcon } from '../icons/UserIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { CalculatorIcon as Calculator } from '../icons/CalculatorIcon';
+import { CurrencyIcon as DollarSign } from '../icons/CurrencyIcon';
+import { TagIcon as Tag } from '../icons/TagIcon';
+import { BanknotesIcon as HandCoins } from '../icons/BanknotesIcon';
+import { ExclamationTriangleIcon as AlertCircle } from '../icons/ExclamationTriangleIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
+import { StoreIcon as Store } from '../icons/StoreIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
+import { PrinterIcon as Printer } from '../icons/PrinterIcon';
+import { CoffeeIcon as Coffee } from '../icons/CoffeeIcon';
+import { ZapIcon as Zap } from '../icons/ZapIcon';
+import { TargetIcon as Target } from '../icons/TargetIcon';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -795,6 +811,3 @@ export function DualModePOS({ institutionId, currentUser }: DualModePOSProps) {
         </div>
     );
 }
-
-// Inline missing icon
-const Target = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>;

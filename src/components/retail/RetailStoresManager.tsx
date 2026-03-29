@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStore, MpesaConfig } from '../../types';
-import { Store, Truck, Plus, Search, MapPin, XCircle, MoreVertical, Pencil, Trash, CreditCard } from 'lucide-react';
+import { StoreIcon as Store } from '../icons/StoreIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { XCircleIcon as XCircle } from '../icons/XCircleIcon';
+import { MoreVerticalIcon as MoreVertical } from '../icons/MoreVerticalIcon';
+import { PencilIcon as Pencil } from '../icons/PencilIcon';
+import { TrashIcon as Trash } from '../icons/TrashIcon';
+import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 
 interface RetailStoresManagerProps {

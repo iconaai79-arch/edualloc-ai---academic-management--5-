@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ChurchSacrament, ChurchFastingPeriod, ChurchSaintDay } from '../../../types';
-import { Cross, Users, Heart, Calendar, Plus, BookOpen, Clock, FileText, ShieldCheck, Sun, Moon, Sparkles, Filter, ChevronRight, Info } from 'lucide-react';
+import { CrossIcon as Cross } from '../../icons/CrossIcon';
+import { UserGroupIcon as Users } from '../../icons/UserGroupIcon';
+import { HeartIcon as Heart } from '../../icons/HeartIcon';
+import { CalendarDaysIcon as Calendar } from '../../icons/CalendarDaysIcon';
+import { PlusIcon as Plus } from '../../icons/PlusIcon';
+import { BookOpenIcon as BookOpen } from '../../icons/BookOpenIcon';
+import { ClockIcon as Clock } from '../../icons/ClockIcon';
+import { DocumentTextIcon as FileText } from '../../icons/DocumentTextIcon';
+import { CheckBadgeIcon as ShieldCheck } from '../../icons/CheckBadgeIcon';
+import { SunIcon as Sun } from '../../icons/SunIcon';
+import { MoonIcon as Moon } from '../../icons/MoonIcon';
+import { SparklesIcon as Sparkles } from '../../icons/SparklesIcon';
+import { FunnelIcon as Filter } from '../../icons/FunnelIcon';
+import { ChevronRightIcon as ChevronRight } from '../../icons/ChevronRightIcon';
+import { InformationCircleIcon as Info } from '../../icons/InformationCircleIcon';
 import { useChurch } from '../ChurchDenominationProvider';
 import { apiService } from '../../../services/apiService';
 
@@ -113,7 +127,7 @@ const MysteriesPanel: React.FC<{ mysteries: ChurchSacrament[] }> = ({ mysteries 
             </div>
             <div className="space-y-4">
                 {mysteries.length > 0 ? mysteries.map(m => (
-                    <MysteryRow key={m.id} name={m.recipientName} type={m.type} date={new Date(m.celebratedAt).toLocaleDateString()} officiant={m.celebrantName} />
+                    <MysteryRow key={m.id} name={m.memberId} type={m.sacramentType} date={new Date(m.date).toLocaleDateString()} officiant={m.officiantName} />
                 )) : (
                     <>
                         <MysteryRow name="Athanasius Mwangi" type="Baptism & Chrismation" date="2024-03-20" officiant="Fr. Seraphim" />
@@ -189,7 +203,7 @@ const FastingPanel: React.FC<{ fasts: ChurchFastingPeriod[] }> = ({ fasts }) => 
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {fasts.length > 0 ? fasts.map(f => (
-                <FastingCard key={f.id} name={f.name} period={`${f.startDate} - ${f.endDate}`} level={f.strictnessLevel} description={f.description} />
+                <FastingCard key={f.id} name={f.name} period={`${f.startDate} - ${f.endDate}`} level="Moderate" description={f.rules} />
             )) : (
                 <>
                     <FastingCard name="Apostles Fast" period="June 24 - July 12" level="Moderate" description="Following the Sunday of All Saints" />
@@ -219,7 +233,7 @@ const SaintsPanel: React.FC<{ saints: ChurchSaintDay[] }> = ({ saints }) => (
                 </div>
                 <div className="space-y-4">
                     {saints.length > 0 ? saints.map(s => (
-                        <SaintRow key={s.id} name={s.name} date={s.date} color="Amber" description={s.description} />
+                        <SaintRow key={s.id} name={s.saintName} date={s.celebrationDate} color={s.liturgicalColor} description={s.description || ''} />
                     )) : (
                         <>
                             <SaintRow name="St. Mary of Egypt" date="Mar 20" color="Purple" description="Ascetic who lived in Jordan desert. Example of repentance." />

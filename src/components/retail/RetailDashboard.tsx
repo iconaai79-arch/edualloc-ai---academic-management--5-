@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStore, RetailInventoryItem, RetailStockTransfer, RetailWishlist } from '../../types';
-import { Package, Store, MapPin, Truck, Smartphone, History, DollarSign, Target, Plus, AlertCircle, RefreshCw, HandCoins, Users } from 'lucide-react';
+import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
+import { StoreIcon as Store } from '../icons/StoreIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
+import { ClockIcon as History } from '../icons/ClockIcon';
+import { CurrencyIcon as DollarSign } from '../icons/CurrencyIcon';
+import { TargetIcon as Target } from '../icons/TargetIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
+import { ExclamationTriangleIcon as AlertCircle } from '../icons/ExclamationTriangleIcon';
+import { ArrowPathIcon as RefreshCw } from '../icons/ArrowPathIcon';
+import { BanknotesIcon as HandCoins } from '../icons/BanknotesIcon';
+import { UsersIcon as Users } from '../icons/UsersIcon';
+import { ArrowRightIcon as ArrowRight } from '../icons/ArrowRightIcon';
+import { ArrowsRightLeftIcon as ArrowRightLeft } from '../icons/ArrowsRightLeftIcon';
+import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
 
 interface RetailDashboardProps {
     institutionId: string;
@@ -176,7 +191,10 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
                                 KES {stats.totalInventoryValue.toLocaleString()}
                             </h3>
                             <p className="text-[10px] font-bold text-indigo-400 mt-4 uppercase tracking-widest flex items-center gap-2">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
+                                <span className="flex relative w-2 h-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                                </span>
                                 Live Stock Valuation
                             </p>
                         </div>
@@ -318,7 +336,3 @@ export function RetailDashboard({ institutionId, onNavigate }: RetailDashboardPr
         </div>
     );
 }
-
-const ArrowRight = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>;
-const ArrowRightLeft = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m16 3 4 4-4 4" /><path d="M20 7H4" /><path d="m8 21-4-4 4-4" /><path d="M4 17h16" /></svg>;
-const Globe = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>;

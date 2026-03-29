@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ChurchCellGroup, ChurchFollowUp } from '../../../types';
-import { Users, UserPlus, Heart, Calendar, Plus, MessageSquare, Music, Search, ArrowRight, CheckCircle, TrendingUp, Filter, MoreVertical, Share2, Download } from 'lucide-react';
+import { UserGroupIcon as Users } from '../../icons/UserGroupIcon';
+import { UserPlusIcon as UserPlus } from '../../icons/UserPlusIcon';
+import { HeartIcon as Heart } from '../../icons/HeartIcon';
+import { CalendarDaysIcon as Calendar } from '../../icons/CalendarDaysIcon';
+import { PlusIcon as Plus } from '../../icons/PlusIcon';
+import { ChatBubbleLeftRightIcon as MessageSquare } from '../../icons/ChatBubbleLeftRightIcon';
+import { MusicalNoteIcon as Music } from '../../icons/MusicalNoteIcon';
+import { MagnifyingGlassIcon as Search } from '../../icons/MagnifyingGlassIcon';
+import { ArrowRightIcon as ArrowRight } from '../../icons/ArrowRightIcon';
+import { CheckCircleIcon as CheckCircle } from '../../icons/CheckCircleIcon';
+import { ArrowTrendingUpIcon as TrendingUp } from '../../icons/ArrowTrendingUpIcon';
+import { FunnelIcon as Filter } from '../../icons/FunnelIcon';
+import { MoreVerticalIcon as MoreVertical } from '../../icons/MoreVerticalIcon';
+import { ShareIcon as Share2 } from '../../icons/ShareIcon';
+import { DownloadIcon as Download } from '../../icons/DownloadIcon';
 import { useChurch } from '../ChurchDenominationProvider';
 import { apiService } from '../../../services/apiService';
 
@@ -123,7 +137,7 @@ const CellsPanel: React.FC<{ groups: ChurchCellGroup[] }> = ({ groups }) => (
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {groups.length > 0 ? groups.map(group => (
-                <CellCard key={group.id} name={group.name} location={group.location} members={group.membersCount || 0} leader={group.leaderName} day={group.meetingDay} />
+                <CellCard key={group.id} name={group.name} location={group.location} members={group.memberIds?.length || 0} leader={group.leaderId} day={group.meetingDay} />
             )) : (
                 <>
                     <CellCard name="Grace Fellowship" location="Westlands" members={12} leader="David & Sarah" day="Wednesdays 6 PM" />
@@ -155,9 +169,9 @@ const FollowUpPanel: React.FC<{ followUps: ChurchFollowUp[] }> = ({ followUps })
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <PipelineStage label="New Visitors" count={followUps.filter(f => f.status === 'Pending').length || 12} color="bg-blue-500" trend="+4 this week" />
-                    <PipelineStage label="In Contact" count={followUps.filter(f => f.status === 'In Progress').length || 8} color="bg-orange-500" trend="Active" />
-                    <PipelineStage label="Integrated" count={followUps.filter(f => f.status === 'Completed').length || 42} color="bg-emerald-500" trend="85% Rate" />
+                    <PipelineStage label="New Visitors" count={followUps.filter(f => f.status === 'pending').length || 12} color="bg-blue-500" trend="+4 this week" />
+                    <PipelineStage label="In Contact" count={followUps.filter(f => f.status === 'in_progress').length || 8} color="bg-orange-500" trend="Active" />
+                    <PipelineStage label="Integrated" count={followUps.filter(f => f.status === 'converted').length || 42} color="bg-emerald-500" trend="85% Rate" />
                 </div>
             </div>
 
@@ -175,7 +189,7 @@ const FollowUpPanel: React.FC<{ followUps: ChurchFollowUp[] }> = ({ followUps })
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-slate-800">
                     {followUps.length > 0 ? followUps.map(follow => (
-                        <FollowUpRow key={follow.id} name={follow.personName} date={new Date(follow.visitedAt).toLocaleDateString()} status={follow.status} agent={follow.assignedAgentId} />
+                        <FollowUpRow key={follow.id} name={follow.visitorId} date={new Date().toLocaleDateString()} status={follow.status} agent={follow.assignedTo} />
                     )) : (
                         <>
                             <FollowUpRow name="Alice Johnson" date="Mar 24, 2024" status="In Progress" agent="Deacon Paul" />

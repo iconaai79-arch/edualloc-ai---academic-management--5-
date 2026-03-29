@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStockTransfer, RetailStore, RetailInventoryItem, RetailStockTransferItem, User } from '../../types';
-import { Truck, ArrowRight, Plus, Clock, AlertCircle, Search, MapPin, Package, X, ChevronRight } from 'lucide-react';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { ArrowRightIcon as ArrowRight } from '../icons/ArrowRightIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
+import { ClockIcon as Clock } from '../icons/ClockIcon';
+import { ExclamationTriangleIcon as AlertCircle } from '../icons/ExclamationTriangleIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
 
 
@@ -423,6 +432,3 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
         </div>
     );
 }
-
-// Inline missing icon
-const Globe = ({ className }: any) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>;

@@ -10,22 +10,20 @@ import {
     SaccoTransaction,
     AppNotification
 } from '../../types';
-import { 
-    LayoutDashboard, 
-    ClipboardList, 
-    Wallet, 
-    FileText, 
-    ShoppingBag,
-    Bell,
-    Settings,
-    LogOut,
-    TrendingUp,
-    Droplets,
-    ChevronRight,
-    ArrowUpRight,
-    CreditCard,
-    MessageSquare
-} from 'lucide-react';
+import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
+import { ClipboardListIcon as ClipboardList } from '../icons/ClipboardListIcon';
+import { WalletIcon as Wallet } from '../icons/WalletIcon';
+import { FileTextIcon as FileText } from '../icons/FileTextIcon';
+import { ShoppingBagIcon as ShoppingBag } from '../icons/ShoppingBagIcon';
+import { BellIcon as Bell } from '../icons/BellIcon';
+import { SettingsIcon as Settings } from '../icons/SettingsIcon';
+import { ArrowRightOnRectangleIcon as LogOut } from '../icons/ArrowRightOnRectangleIcon';
+import { TrendingUpIcon as TrendingUp } from '../icons/TrendingUpIcon';
+import { DropletsIcon as Droplets } from '../icons/DropletsIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
+import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
+import { ChatBubbleLeftRightIcon as MessageSquare } from '../icons/ChatBubbleLeftRightIcon';
 
 interface FarmerPortalProps {
     currentUser: User;
@@ -55,12 +53,12 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     const stats = useMemo(() => {
         const totalQty = collections.reduce((sum, c) => sum + Number(c.quantity), 0);
         const saccoBalance = saccoAccounts.reduce((sum, a) => sum + Number(a.balance), 0);
-        const latestPayout = payouts.sort((a, b) => b.monthYear.localeCompare(a.monthYear))[0];
+        const latestPayout = payouts.sort((a, b) => b.payoutMonth.localeCompare(a.payoutMonth))[0];
         
         return {
             totalQty,
             saccoBalance,
-            lastMonthNet: latestPayout ? latestPayout.netAmount : 0,
+            lastMonthNet: latestPayout ? latestPayout.netPayout : 0,
             pendingCredit: agrovetSales.filter(s => s.paymentStatus === 'credit').reduce((sum, s) => sum + s.amount, 0)
         };
     }, [collections, saccoAccounts, payouts, agrovetSales]);
@@ -515,9 +513,9 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{n.title}</h4>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{n.type}</h4>
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                        {new Date(n.createdAt).toLocaleDateString()}
+                                                        {new Date(n.timestamp).toLocaleDateString()}
                                                     </span>
                                                 </div>
                                                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{n.message}</p>

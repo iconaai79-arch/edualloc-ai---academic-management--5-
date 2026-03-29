@@ -1,23 +1,21 @@
 
 import React, { useState } from 'react';
-import {
-    ShoppingBag as ShoppingBagIcon,
-    Plus as PlusIcon,
-    FileText as FileIcon,
-    Truck as TruckIcon,
-    Clock as ClockIcon,
-    Printer as PrinterIcon,
-    Mail as MailIcon,
-    User as UserIcon,
-    Building as BuildingIcon,
-    MoreVertical as MoreVerticalIcon,
-    Eye as EyeIcon,
-    ArrowRight as ArrowRightIcon,
-    FileSearch as FileSearchIcon,
-    Search as SearchIcon,
-    Trash as TrashIcon,
-    XCircle as XCircleIcon
-} from 'lucide-react';
+import { ShoppingBagIcon as ShoppingBagIcon } from './icons/ShoppingBagIcon';
+import { PlusIcon as PlusIcon } from './icons/PlusIcon';
+import { DocumentTextIcon as FileIcon } from './icons/DocumentTextIcon';
+import { TruckIcon as TruckIcon } from './icons/TruckIcon';
+import { ClockIcon as ClockIcon } from './icons/ClockIcon';
+import { PrinterIcon as PrinterIcon } from './icons/PrinterIcon';
+import { EnvelopeIcon as MailIcon } from './icons/EnvelopeIcon';
+import { UserIcon as UserIcon } from './icons/UserIcon';
+import { BuildingOfficeIcon as BuildingIcon } from './icons/BuildingOfficeIcon';
+import { MoreVerticalIcon as MoreVerticalIcon } from './icons/MoreVerticalIcon';
+import { EyeIcon as EyeIcon } from './icons/EyeIcon';
+import { ArrowRightIcon as ArrowRightIcon } from './icons/ArrowRightIcon';
+import { DocumentMagnifyingGlassIcon as FileSearchIcon } from './icons/DocumentMagnifyingGlassIcon';
+import { MagnifyingGlassIcon as SearchIcon } from './icons/MagnifyingGlassIcon';
+import { TrashIcon as TrashIcon } from './icons/TrashIcon';
+import { XCircleIcon as XCircleIcon } from './icons/XCircleIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';

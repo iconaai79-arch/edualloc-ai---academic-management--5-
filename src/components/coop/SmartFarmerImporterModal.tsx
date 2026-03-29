@@ -2,16 +2,14 @@ import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { CoopFarmer, Institution, User } from '../../types';
 import { generateId } from '../../utils/idGenerator';
-import { 
-    X, 
-    UploadCloud, 
-    FileSpreadsheet, 
-    ChevronRight, 
-    AlertTriangle,
-    Search,
-    Download,
-    AlertCircle
-} from 'lucide-react';
+import { XIcon as X } from '../icons/XIcon';
+import { ArrowUpTrayIcon as UploadCloud } from '../icons/ArrowUpTrayIcon';
+import { DocumentTextIcon as FileSpreadsheet } from '../icons/DocumentTextIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { ExclamationTriangleIcon as AlertTriangle } from '../icons/ExclamationTriangleIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { DownloadIcon as Download } from '../icons/DownloadIcon';
+import { InformationCircleIcon as AlertCircle } from '../icons/InformationCircleIcon';
 import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
 
 

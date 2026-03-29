@@ -3,7 +3,12 @@ import { useChurch } from './ChurchDenominationProvider';
 import { CatholicView } from './catholic/CatholicView';
 import { ProtestantView } from './protestant/ProtestantView';
 import { OrthodoxView } from './orthodox/OrthodoxView';
-import { Users, Calendar, MessageSquare, ShieldCheck, Heart, UserPlus } from 'lucide-react';
+import { UsersIcon as Users } from '../icons/UsersIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
+import { ChatBubbleLeftRightIcon as MessageSquare } from '../icons/ChatBubbleLeftRightIcon';
+import { ShieldIcon as ShieldCheck } from '../icons/ShieldIcon';
+import { HeartIcon as Heart } from '../icons/HeartIcon';
+import { UserPlusIcon as UserPlus } from '../icons/UserPlusIcon';
 
 export const ChurchDashboard: React.FC = () => {
     const { denomination, currentChurch } = useChurch();

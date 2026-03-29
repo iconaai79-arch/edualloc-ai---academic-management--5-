@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { RetailInventoryItem, RetailStore } from '../../types';
-import {
-    Package,
-    Plus,
-    Search,
-    Pencil,
-    Trash,
-    AlertTriangle,
-    Tag,
-    Layers,
-    Banknote,
-    X,
-    Image as ImageIcon,
-    Upload
-} from 'lucide-react';
+import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
+import { PlusIcon as Plus } from '../icons/PlusIcon';
+import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
+import { PencilIcon as Pencil } from '../icons/PencilIcon';
+import { TrashIcon as Trash } from '../icons/TrashIcon';
+import { AlertTriangleIcon as AlertTriangle } from '../icons/AlertTriangleIcon';
+import { TagIcon as Tag } from '../icons/TagIcon';
+import { RectangleStackIcon as Layers } from '../icons/RectangleStackIcon';
+import { BanknotesIcon as Banknote } from '../icons/BanknotesIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { ImageIcon } from '../icons/ImageIcon';
+import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';

@@ -3,17 +3,15 @@ import * as XLSX from 'xlsx';
 import { CoopCollection, CoopFarmer, Institution, User } from '../../types';
 import { generateId } from '../../utils/idGenerator';
 import { analyzeCollectionSpreadsheet } from '../../services/geminiService';
-import { 
-    X, 
-    UploadCloud, 
-    FileSpreadsheet, 
-    ChevronRight, 
-    Download,
-    Calendar,
-    Scale,
-    AlertTriangle,
-    AlertCircle
-} from 'lucide-react';
+import { XIcon as X } from '../icons/XIcon';
+import { ArrowUpTrayIcon as UploadCloud } from '../icons/ArrowUpTrayIcon';
+import { DocumentTextIcon as FileSpreadsheet } from '../icons/DocumentTextIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { DownloadIcon as Download } from '../icons/DownloadIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
+import { ScaleIcon as Scale } from '../icons/ScaleIcon';
+import { ExclamationTriangleIcon as AlertTriangle } from '../icons/ExclamationTriangleIcon';
+import { InformationCircleIcon as AlertCircle } from '../icons/InformationCircleIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { UserIcon as UserIconAlt } from '../icons/UserIcon';
 

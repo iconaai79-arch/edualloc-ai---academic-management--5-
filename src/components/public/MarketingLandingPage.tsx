@@ -1,17 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Building, 
-  Users, 
-  Stethoscope, 
-  ShoppingCart, 
-  Car, 
-  GraduationCap, 
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  Globe,
-  Smartphone
-} from 'lucide-react';
+import { BuildingOfficeIcon as Building } from '../icons/BuildingOfficeIcon';
+import { UserGroupIcon as Users } from '../icons/UserGroupIcon';
+import { StethoscopeIcon as Stethoscope } from '../icons/StethoscopeIcon';
+import { ShoppingCartIcon as ShoppingCart } from '../icons/ShoppingCartIcon';
+import { CarIcon as Car } from '../icons/CarIcon';
+import { AcademicCapIcon as GraduationCap } from '../icons/AcademicCapIcon';
+import { ArrowRightIcon as ArrowRight } from '../icons/ArrowRightIcon';
+import { ShieldCheckIcon as ShieldCheck } from '../icons/ShieldCheckIcon';
+import { ZapIcon as Zap } from '../icons/ZapIcon';
+import { GlobeAltIcon as Globe } from '../icons/GlobeAltIcon';
+import { PhoneIcon as Smartphone } from '../icons/PhoneIcon';
 import './MarketingLanding.css';
 import { apiService } from '../../services/apiService';
 import { CompanyDetails } from '../../types';
