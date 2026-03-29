@@ -363,6 +363,7 @@ export const App: React.FC = () => {
     const [appInitializing, setAppInitializing] = useState(true);
     const [loadStatus, setLoadStatus] = useState<string>("");
     const [loadError, setLoadError] = useState<string>("");
+    const [isTransitioning, setIsTransitioning] = useState(false);
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
@@ -1207,54 +1208,62 @@ export const App: React.FC = () => {
 
 
     const onLoginAsAdmin = (institutionId: string, initialRole?: Role | null) => {
-        const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller'];
-        let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
+        setIsTransitioning(true);
+        setTimeout(() => {
+            const adminRoles = ['admin', 'head_teacher', 'dos', 'deputy', 'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'carwash_admin', 'transport_admin', 'reseller'];
+            let admin = users.find(u => u.institutionId === institutionId && adminRoles.includes(u.role));
 
-        if (!admin) {
-            console.warn(`Strict admin lookup failed for institution ${institutionId}.Falling back to any user.`);
-            admin = users.find(u => u.institutionId === institutionId);
-        }
-
-        if (!admin) {
-            console.warn(`No users found for institution ${institutionId}.Creating temporary admin session.`);
-            const targetInstitution = institutions.find(i => i.id === institutionId);
-            const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : 'admin';
-
-            admin = {
-                id: `temp_admin_${institutionId}`,
-                name: 'System Admin (Fallback)',
-                email: 'admin@system.local',
-                phoneNumber: '',
-                role: fallbackRole,
-                institutionId: institutionId,
-                expertise: ['Administration']
-            };
-        }
-
-        if (admin) {
-            // If the current user is a super admin, save them as the original session
-            if (currentUser?.role === 'super_admin') {
-                setOriginalSuperAdminSession(currentUser);
-                localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
+            if (!admin) {
+                console.warn(`Strict admin lookup failed for institution ${institutionId}. Falling back to any user.`);
+                admin = users.find(u => u.institutionId === institutionId);
             }
 
-            const impersonatedUser = { ...admin, isImpersonated: true };
-            setCurrentUser(impersonatedUser);
-            apiService.storeSession(impersonatedUser);
-            setImpersonatedRole(initialRole || null);
-        } else {
-            console.warn(`Admin lookup failed for institution ${institutionId}.Available users: `, users.filter(u => u.institutionId === institutionId));
-            alert("No admin account found for this institution.");
-        }
+            if (!admin) {
+                console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
+                const targetInstitution = institutions.find(i => i.id === institutionId);
+                const fallbackRole = targetInstitution?.institutionType === 'Reseller' ? 'reseller' : 'admin';
+
+                admin = {
+                    id: `temp_admin_${institutionId}`,
+                    name: 'System Admin (Fallback)',
+                    email: 'admin@system.local',
+                    phoneNumber: '',
+                    role: fallbackRole,
+                    institutionId: institutionId,
+                    expertise: ['Administration']
+                };
+            }
+
+            if (admin) {
+                if (currentUser?.role === 'super_admin') {
+                    setOriginalSuperAdminSession(currentUser);
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
+                }
+
+                const impersonatedUser = { ...admin, isImpersonated: true };
+                setCurrentUser(impersonatedUser);
+                apiService.storeSession(impersonatedUser);
+                setImpersonatedRole(initialRole || null);
+            } else {
+                console.warn(`Admin lookup failed for institution ${institutionId}. Available users: `, users.filter(u => u.institutionId === institutionId));
+                alert("No admin account found for this institution.");
+            }
+            setIsTransitioning(false);
+        }, 100);
     };
 
     const onRestoreSuperAdminSession = () => {
         if (originalSuperAdminSession) {
-            setCurrentUser(originalSuperAdminSession);
-            apiService.storeSession(originalSuperAdminSession);
-            setOriginalSuperAdminSession(null);
-            localStorage.removeItem('eduai_super_admin_session');
-            loadData(true);
+            setIsTransitioning(true);
+            setTimeout(() => {
+                setCurrentUser(originalSuperAdminSession);
+                apiService.storeSession(originalSuperAdminSession);
+                setOriginalSuperAdminSession(null);
+                setImpersonatedRole(null);
+                localStorage.removeItem('eduai_super_admin_session');
+                loadData(true);
+                setIsTransitioning(false);
+            }, 100);
         }
     };
 
@@ -2080,10 +2089,10 @@ export const App: React.FC = () => {
         };
     }, [activeRole, activeCounty, activeInstitution, companyDetails]);
 
-    if (appInitializing) return (
+    if (appInitializing || isTransitioning) return (
         <SystemPulseLoader 
-            message={loadError ? "System Handshake Compromised" : "Establishing secure cloud registry link..."} 
-            status={loadError || loadStatus || "Synchronizing Neural Buffers..."} 
+            message={isTransitioning ? "Establishing secure perspective link..." : (loadError ? "System Handshake Compromised" : "Establishing secure cloud registry link...")} 
+            status={isTransitioning ? "Synchronizing Session Buffers..." : (loadError || loadStatus || "Synchronizing Neural Buffers...")} 
             onRetry={loadError ? () => loadData(true) : undefined} 
         />
     );

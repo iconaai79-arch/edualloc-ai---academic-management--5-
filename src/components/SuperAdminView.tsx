@@ -76,12 +76,7 @@ import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../
 import { WallPosterView } from './WallPosterView';
 import { TenantInvoiceManager } from './TenantInvoiceManager';
 import { DirectAssignModal } from './DirectAssignModal';
-import { LecturerView } from './LecturerView';
-import { StudentView } from './StudentView';
-import { AcademicsOfficerView } from './AcademicsOfficerView';
-import { AdminView } from './AdminView';
 import { ProfileModal } from './ProfileModal';
-import { LoginView } from './LoginView';
 import { PublicAppointmentView } from './PublicAppointmentView';
 import { GuestFeedbackView } from './GuestFeedbackView';
 import { ChatBot } from './ChatBot';
@@ -93,6 +88,13 @@ import { CountyManager } from './CountyManager';
 import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { ExternalModuleView } from './ExternalModuleView';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
+
+// Lazy-load major views to break circular dependencies and reduce initial chunk size
+const AdminView = React.lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
+const LecturerView = React.lazy(() => import('./LecturerView').then(m => ({ default: m.LecturerView })));
+const StudentView = React.lazy(() => import('./StudentView').then(m => ({ default: m.StudentView })));
+const AcademicsOfficerView = React.lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
+const LoginView = React.lazy(() => import('./LoginView').then(m => ({ default: m.LoginView })));
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -984,72 +986,91 @@ Please change it after login.`;
     const isAdminCatchAll = ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy'].includes(activeRole || '');
 
     // Render logic moved from App.tsx into component to reuse for perspective switching
+    // Wrapped in Suspense to handle lazy loading
     if (activeRole === 'student') {
-        return <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />;
+        return (
+            <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <StudentView user={currentUser} users={users} courses={courses} subjects={subjects} rooms={rooms} enrollmentRequests={enrollmentRequests} generatedTimetable={generatedTimetable} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} timetableSettings={timetableSettings!} studentCheckIns={props.studentCheckIns!} onStudentLessonCheckIn={props.onAddTransaction as any} letterheadConfig={letterheadConfig!} footerImageUrl={footerImageUrl} logoUrl={logoUrl} buildings={buildings} onAddParent={props.onAddParent as any} onDeleteParent={props.onDeleteParent as any} departments={departments} onSubmitEnrollmentRequest={async (sids: string[], sig: string | null) => { }} assignments={assignments} submissions={submissions} onAddSubmission={async (d: any) => { await apiService.saveModuleRecord('submissions', { ...d, id: `subm_${Date.now()}`, institutionId: currentUser.institutionId }); }} lessonRatings={lessonRatings} onAddLessonRating={() => { }} onRateLesson={() => { }} onAddFeedback={() => { }} feedbackSubmissions={feedbackSubmissions} studentAbsenceRequests={studentAbsenceRequests} onSubmitStudentAbsenceRequest={() => { }} finalTimetableUrl={finalTimetableUrl} taAssignments={props.onUpdateFeeStructures as any} userTasks={userTasks} onAddTask={() => { }} onUpdateTask={() => { }} onDeleteTask={() => { }} currentInstitution={currentInstitution!} assessments={assessments} assessmentMarks={assessmentMarks} studentAttendances={studentAttendances || []} />
+            </React.Suspense>
+        );
     }
 
     if (activeRole === 'academics_officer') {
-        return <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} />;
+        return (
+            <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <AcademicsOfficerView currentUser={currentUser} subjects={subjects} onUpdateSubject={props.onUpdateSubject as any} courses={courses} onUpdateCourse={props.onUpdateCourse} users={users} rooms={rooms} onUpdateRoom={props.onUpdateRoom} onDeleteRoom={props.onDeleteRoom} onAddRoom={props.onAddRoom} departments={departments} onAddDepartment={props.onAddDepartment} onUpdateDepartment={props.onUpdateDepartment} onDeleteDepartment={props.onDeleteDepartment} onImportDepartments={props.onImportDepartments} activeAcademicYear={activeAcademicYear} activeSemester={activeSemester} onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(currentUser!.institutionId, ay, sem, entries)} examTimetable={examTimetable} getSubjectById={props.getSubjectById || ((id: string) => undefined)} getLecturerById={props.getLecturerById || ((id: string) => undefined)} getRoomById={props.getRoomById || ((id: string) => undefined)} courseSizes={courseSizes} academicYears={academicYears} semesters={semesters} timetableSettings={timetableSettings!} buildings={buildings} onUpdateBuilding={props.onUpdateBuilding} onDeleteBuilding={props.onDeleteBuilding} onAddBuilding={props.onAddBuilding} academicLevels={academicLevels} letterheadConfig={letterheadConfig} logoUrl={logoUrl} footerImageUrl={footerImageUrl} emailConfig={emailConfig} onSaveEmailConfig={props.onSaveEmailConfig as any} onSendTestEmail={props.onSendTestEmail as any} currentInstitution={currentInstitution} examTimetableSettings={examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS} onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any} onAddAcademicYear={props.onAddAcademicYear} onUpdateAcademicYear={props.onUpdateAcademicYear} onDeleteAcademicYear={props.onDeleteAcademicYear} onAddSemester={props.onAddSemester} onUpdateSemester={props.onUpdateSemester} onDeleteSemester={props.onDeleteSemester} onSaveTimetableSettings={props.onSaveTimetableSettings} onImportRooms={props.onImportRooms} smsConfig={smsConfig} themeColor={themeColor} allocations={allocations} timeOffRequests={timeOffRequests} lessonRatings={lessonRatings} />
+            </React.Suspense>
+        );
     }
 
     if (activeRole === 'parent') {
         return (
-            <ParentView
-                user={currentUser}
-                users={users}
-                courses={courses}
-                studentAttendances={studentAttendances}
-                generatedTimetable={generatedTimetable}
-                subjects={subjects}
-                getSubjectById={props.getSubjectById || ((id: string) => undefined)}
-                getLecturerById={props.getLecturerById || ((id: string) => undefined)}
-                getRoomById={props.getRoomById || ((id: string) => undefined)}
-                timetableSettings={timetableSettings!}
-                buildings={buildings}
-                studentCheckIns={studentCheckIns}
-                leaveOutRequests={props.leaveOutRequests || []}
-                onUpdateLeaveOut={async (id, data) => {
-                    const req = (props.leaveOutRequests || []).find(r => r.id === id);
-                    if (req) {
-                        await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
-                        if (props.onLogAction) await props.onLogAction(`Updated leave out request ${id}`);
-                    }
-                }}
-            />
+            <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <ParentView
+                    user={currentUser}
+                    users={users}
+                    courses={courses}
+                    studentAttendances={studentAttendances}
+                    generatedTimetable={generatedTimetable}
+                    subjects={subjects}
+                    getSubjectById={props.getSubjectById || ((id: string) => undefined)}
+                    getLecturerById={props.getLecturerById || ((id: string) => undefined)}
+                    getRoomById={props.getRoomById || ((id: string) => undefined)}
+                    timetableSettings={timetableSettings!}
+                    buildings={buildings}
+                    studentCheckIns={studentCheckIns}
+                    leaveOutRequests={props.leaveOutRequests || []}
+                    onUpdateLeaveOut={async (id, data) => {
+                        const req = (props.leaveOutRequests || []).find(r => r.id === id);
+                        if (req) {
+                            await apiService.saveModuleRecord('leave_out_requests', { ...req, ...data, updatedAt: new Date().toISOString() });
+                            if (props.onLogAction) await props.onLogAction(`Updated leave out request ${id}`);
+                        }
+                    }}
+                />
+            </React.Suspense>
         );
     }
 
-    if (isAdminCatchAll) {
-        return <AdminView
-            {...props}
-            requests={requests || []}
-            enrollmentRequests={enrollmentRequests}
-            onUpdateRequest={props.onUpdateRequest}
-            onWithdrawRequest={props.onWithdrawRequest}
-            onAddUser={props.onAddUser || (async () => { })}
-            onEditUser={props.onEditUser || (async () => { })}
-            onDeleteUser={props.onDeleteUser || (async () => { })}
-            onImportUsers={props.onImportUsers || (async () => { })}
-            onImportStudents={props.onImportStudents || (async () => { })}
-            onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
-            onExamTimetableGenerated={props.onExamTimetableGenerated || (async () => { })}
-        />;
+    if (activeRole && isAdminCatchAll) {
+        return (
+            <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <AdminView
+                    {...props}
+                    requests={requests || []}
+                    enrollmentRequests={enrollmentRequests}
+                    onUpdateRequest={props.onUpdateRequest}
+                    onWithdrawRequest={props.onWithdrawRequest}
+                    onAddUser={props.onAddUser || (async () => { })}
+                    onEditUser={props.onEditUser || (async () => { })}
+                    onDeleteUser={props.onDeleteUser || (async () => { })}
+                    onImportUsers={props.onImportUsers || (async () => { })}
+                    onImportStudents={props.onImportStudents || (async () => { })}
+                    onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
+                    onExamTimetableGenerated={props.onExamTimetableGenerated || (async () => { })}
+                />
+            </React.Suspense>
+        );
     }
 
     if (activeRole === 'lecturer' || activeRole === 'teacher') {
-        return <LecturerView
-            {...(props as any)}
-            assignments={assignments}
-            submissions={submissions}
-            onAddAssignment={props.onAddAssignment as any}
-            onDeleteAssignment={props.onDeleteAssignment as any}
-            onUpdateSubmission={props.onUpdateSubmission as any}
-            assessments={assessments}
-            assessmentMarks={assessmentMarks}
-            onAddAssessment={props.onAddAssessment as any}
-            onDeleteAssessment={props.onDeleteAssessment as any}
-            onSaveAssessmentMarks={props.onSaveAssessmentMarks as any}
-        />;
+        return (
+            <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
+                <LecturerView
+                    {...(props as any)}
+                    assignments={assignments}
+                    submissions={submissions}
+                    onAddAssignment={props.onAddAssignment as any}
+                    onDeleteAssignment={props.onDeleteAssignment as any}
+                    onUpdateSubmission={props.onUpdateSubmission as any}
+                    assessments={assessments}
+                    assessmentMarks={assessmentMarks}
+                    onAddAssessment={props.onAddAssessment as any}
+                    onDeleteAssessment={props.onDeleteAssessment as any}
+                    onSaveAssessmentMarks={props.onSaveAssessmentMarks as any}
+                />
+            </React.Suspense>
+        );
     }
 
     // Super Admin View (Default Fallback)
