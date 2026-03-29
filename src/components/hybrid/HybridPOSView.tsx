@@ -1,10 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import type { User, Institution, CarWashJob, RetailSale, RetailSaleItem, RetailInventoryItem, CafeMenuItem, CafeOrder } from '../../types';
 import { apiService } from '../../services/apiService';
-import {
-    ClockIcon, PlusIcon, ShoppingCartIcon, CheckCircleIcon,
-    CurrencyIcon, ArchiveBoxIcon, XIcon
-} from '../icons';
+import { ClockIcon } from '../icons/ClockIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { ShoppingCartIcon } from '../icons/ShoppingCartIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { CurrencyIcon } from '../icons/CurrencyIcon';
+import { ArchiveBoxIcon } from '../icons/ArchiveBoxIcon';
+import { XIcon } from '../icons/XIcon';
+
 
 interface HybridPOSViewProps {
     currentUser: User;

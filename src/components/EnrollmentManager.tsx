@@ -1,7 +1,10 @@
 
 import React, { useMemo } from 'react';
 import type { EnrollmentRequest, User, Subject } from '../types';
-import { ClockIcon, CheckIcon, XIcon } from './icons';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+
 
 interface EnrollmentManagerProps {
     requests: EnrollmentRequest[];

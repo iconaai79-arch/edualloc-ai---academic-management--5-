@@ -6,12 +6,11 @@ import { FeedbackManager } from './FeedbackManager';
 import { LecturerRatingReport } from './LecturerRatingReport';
 import { EnrollmentManager } from './EnrollmentManager';
 import { StudentAbsenceRequestManager } from './StudentAbsenceRequestManager';
-import {
-    ChatBubbleBottomCenterTextIcon,
-    StarIcon,
-    AcademicCapIcon,
-    ClipboardListIcon,
-} from './icons';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { StarIcon } from './icons/StarIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+
 
 interface StudentInteractionManagerProps {
     feedbackSubmissions: FeedbackSubmission[];

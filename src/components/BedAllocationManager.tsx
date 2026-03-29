@@ -3,12 +3,22 @@ import {
     User, Institution, BoardingHouse, BoardingBed,
     BedAllocation, BedAllocationWithDetails
 } from '../types';
-import {
-    UsersIcon, SearchIcon, PlusIcon, XIcon, CheckCircleIcon,
-    ArrowRightIcon, FilterIcon, HomeIcon, BedIcon,
-    ChevronRightIcon, GridIcon, ListIcon, InformationCircleIcon,
-    ArrowPathIcon, TrendingUpIcon
-} from './icons';
+import { UsersIcon } from './icons/UsersIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { FilterIcon } from './icons/FilterIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { BedIcon } from './icons/BedIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { GridIcon } from './icons/GridIcon';
+import { ListIcon } from './icons/ListIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+
 import { apiService } from '../services/apiService';
 
 interface BedAllocationManagerProps {

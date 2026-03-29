@@ -1,15 +1,14 @@
 
 import React, { useMemo } from 'react';
 import type { Institution, ActivityLog, User, MpesaTransaction } from '../types';
-import {
-    ChartBarIcon,
-    BuildingOfficeIcon,
-    UserGroupIcon,
-    CurrencyIcon,
-    ClockIcon,
-    ExclamationTriangleIcon,
-    CheckCircleIcon
-} from './icons/index';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+
 
 interface SuperAdminReportsProps {
     institutions: Institution[];

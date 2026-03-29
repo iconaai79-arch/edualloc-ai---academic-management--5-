@@ -2,7 +2,12 @@
 import React, { useMemo, useState } from 'react';
 import type { Room, Building, LetterheadConfig } from '../types';
 import { calculateDistance } from '../utils/locationUtils';
-import { MapIcon, MapPinIcon, ClockIcon, EyeIcon, PrinterIcon } from './icons';
+import { MapIcon } from './icons/MapIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+
 import { generateRoomDistanceReportPdf, generateRoomProximityReportPdf } from '../services/pdfService';
 
 interface RoomDistanceReportProps {

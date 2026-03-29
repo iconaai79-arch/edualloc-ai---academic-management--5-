@@ -14,7 +14,7 @@ import {
     Image as ImageIcon,
     Upload
 } from 'lucide-react';
-import { CheckCircleIcon as CheckCircle } from '../icons/index';
+import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 

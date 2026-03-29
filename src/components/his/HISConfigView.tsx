@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { 
-    Cog8ToothIcon as SettingsIcon,
-    SparklesIcon,
-    UsersIcon, 
-    PencilIcon,
-    PlusIcon,
-} from '../icons/index';
+import { Cog8ToothIcon as SettingsIcon } from '../icons/Cog8ToothIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { PlusIcon } from '../icons/PlusIcon';
 import { HISStaff } from '../../types';
 import { GlobeAltIcon, PhotoIcon } from './HealthIcons';
 

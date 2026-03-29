@@ -1,10 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import {
-    TruckIcon, UserIcon, CreditCardIcon, ChatBubbleLeftRightIcon,
-    CheckCircleIcon, XCircleIcon, CurrencyIcon, CalendarDaysIcon,
-    ArrowPathIcon, PhoneIcon, MapPinIcon, PlusIcon, FileTextIcon
-} from './icons';
+import { TruckIcon } from './icons/TruckIcon';
+import { UserIcon } from './icons/UserIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { FileTextIcon } from './icons/FileTextIcon';
+
 import type { TransportVehicle, TransportOnboarding, User, Institution, TransportBill } from '../types';
 import { TransportOnboardingView } from './TransportOnboardingView';
 import { apiService } from '../services/apiService';

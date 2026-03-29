@@ -1,7 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, GradeDefinition, GradingSystem } from '../types';
-import { PlusIcon, XIcon, CheckIcon, AcademicCapIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+
 import { DEFAULT_GRADING_SYSTEMS } from '../constants';
 
 interface GradingSystemManagerProps {

@@ -1,7 +1,14 @@
 
 import React, { useMemo } from 'react';
 import type { TimetableEntry, StudentAttendance, User, Subject } from '../types';
-import { ChartBarIcon, TrendingUpIcon, ArrowTrendingUpIcon, CheckCircleIcon, ExclamationTriangleIcon, CalendarDaysIcon, ClockIcon } from './icons';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ClockIcon } from './icons/ClockIcon';
+
 
 interface AttendanceAnalyticsProps {
     timetable: TimetableEntry[];

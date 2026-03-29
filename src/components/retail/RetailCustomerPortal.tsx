@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import {
-    WalletIcon as Wallet,
-    SmartphoneIcon as Smartphone, StarIcon as Star, ClockIcon as Clock, MapPinIcon as MapPin, PackageIcon as Package, FileTextIcon as FileText, ShoppingCartIcon as ShoppingCart, UserIcon as UserIconAlt, XIcon as X, ChevronRightIcon as ChevronRight, SearchIcon as Search,
-    CircleCheckIcon, GiftIcon as Gift, CalendarDaysIcon as Calendar, CreditCardIcon as CreditCard, HistoryIcon as History, ZapIcon as Zap, DownloadIcon as Download, PlayCircleIcon as PlayCircle, ArrowUpRightIcon as ArrowUpRight
-} from '../icons';
+import { WalletIcon as Wallet } from '../icons/WalletIcon';
+import { SmartphoneIcon as Smartphone } from '../icons/SmartphoneIcon';
+import { StarIcon as Star } from '../icons/StarIcon';
+import { ClockIcon as Clock } from '../icons/ClockIcon';
+import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
+import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
+
+import { FileTextIcon as FileText } from '../icons/FileTextIcon';
+import { ShoppingCartIcon as ShoppingCart } from '../icons/ShoppingCartIcon';
+import { UserIcon as UserIconAlt } from '../icons/UserIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
+import { SearchIcon as Search } from '../icons/SearchIcon';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { GiftIcon as Gift } from '../icons/GiftIcon';
+import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
+import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
+import { ArrowPathIcon as History } from '../icons/ArrowPathIcon';
+import { ZapIcon as Zap } from '../icons/ZapIcon';
+import { DownloadIcon as Download } from '../icons/DownloadIcon';
+import { PlayCircleIcon as PlayCircle } from '../icons/PlayCircleIcon';
+import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
+
 import { User, ServiceBooking, Institution, RetailSale } from '../../types';
 import { apiService } from '../../services/apiService';
 

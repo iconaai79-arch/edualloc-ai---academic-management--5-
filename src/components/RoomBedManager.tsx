@@ -3,11 +3,18 @@ import {
     User, Institution, BoardingHouse, BoardingRoom, BoardingBed,
     RoomType, RoomStatus, BedStatus, BedCondition, BoardingRoomWithBeds
 } from '../types';
-import {
-    PlusIcon, Edit2Icon, Trash2Icon, BedIcon, XIcon,
-    ChevronRightIcon, GridIcon, ListIcon, TrashIcon, CheckCircleIcon,
-    HomeIcon, InformationCircleIcon
-} from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { BedIcon } from './icons/BedIcon';
+import { XIcon } from './icons/XIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { GridIcon } from './icons/GridIcon';
+import { ListIcon } from './icons/ListIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+
 import { apiService } from '../services/apiService';
 
 interface RoomBedManagerProps {
@@ -421,13 +428,13 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                                                 onClick={(e) => { e.stopPropagation(); handleOpenRoomModal(room); }}
                                                 className={`p-2.5 rounded-xl transition-colors ${selectedRoomId === room.id ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-50 text-slate-400 hover:text-indigo-600'}`}
                                             >
-                                                <Edit2Icon className="w-4 h-4" />
+                                                <PencilIcon className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); }}
                                                 className={`p-2.5 rounded-xl transition-colors ${selectedRoomId === room.id ? 'bg-white/10 text-white hover:bg-rose-500' : 'bg-slate-50 text-slate-400 hover:text-rose-600'}`}
                                             >
-                                                <Trash2Icon className="w-4 h-4" />
+                                                <TrashIcon className="w-4 h-4" />
                                             </button>
                                             <ChevronRightIcon className={`w-6 h-6 ml-1 ${selectedRoomId === room.id ? 'text-white' : 'text-slate-200'}`} />
                                         </div>
@@ -489,13 +496,13 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
                                                         onClick={() => handleOpenBedModal(bed)}
                                                         className="p-2 bg-slate-50 dark:bg-slate-900 text-slate-300 hover:text-indigo-600 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                                     >
-                                                        <Edit2Icon className="w-3.5 h-3.5" />
+                                                        <PencilIcon className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteBed(bed)}
                                                         className="p-2 bg-slate-50 dark:bg-slate-900 text-slate-300 hover:text-rose-600 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                                     >
-                                                        <Trash2Icon className="w-3.5 h-3.5" />
+                                                        <TrashIcon className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>

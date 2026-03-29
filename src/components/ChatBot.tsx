@@ -1,7 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { getChatResponse } from '../services/geminiService';
-import { XIcon, SparklesIcon, PaperAirplaneIcon, ChatBubbleBottomCenterTextIcon } from './icons';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+
 
 import { Institution } from '../types';
 

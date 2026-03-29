@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    ClockIcon, 
-    ArrowPathIcon,
-    CalendarDaysIcon as CalendarIcon,
-    UserIcon,
-    SparklesIcon,
-    MapPinIcon,
-    ClipboardListIcon as HistoryIcon
-} from '../icons/index';
+import { ClockIcon } from '../icons/ClockIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { CalendarDaysIcon as CalendarIcon } from '../icons/CalendarDaysIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { MapPinIcon } from '../icons/MapPinIcon';
+import { ClipboardListIcon as HistoryIcon } from '../icons/ClipboardListIcon';
 
 import { HISStaffAttendance } from '../../types';
 import { apiService } from '../../services/apiService';

@@ -4,7 +4,9 @@ import type { TimetableEntry, Subject, User, Room, Course, TimetableSettings, Ac
 import { generatePastelColor } from '../utils/colorUtils';
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { getInitials } from '../utils/stringUtils';
-import { RectangleStackIcon, ArrowsRightLeftIcon } from './icons';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+
 
 interface MasterCourseTimetableGridProps {
     entries: TimetableEntry[];

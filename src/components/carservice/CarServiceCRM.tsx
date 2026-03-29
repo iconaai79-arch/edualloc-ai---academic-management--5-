@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import type { User } from '../../types';
-import { UsersIcon, SearchIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, PhoneIcon } from '../icons';
+import { UsersIcon } from '../icons/UsersIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ChatBubbleLeftRightIcon } from '../icons/ChatBubbleLeftRightIcon';
+import { EnvelopeIcon } from '../icons/EnvelopeIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+
 
 interface CarServiceCRMProps {
     users: User[];

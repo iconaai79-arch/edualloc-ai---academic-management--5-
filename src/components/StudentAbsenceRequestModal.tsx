@@ -1,7 +1,14 @@
 
 import React, { useState, useRef } from 'react';
 import type { StudentAbsenceRequest } from '../types';
-import { XIcon, CalendarDaysIcon, ClockIcon, ClipboardListIcon, DocumentArrowDownIcon, SparklesIcon, CheckCircleIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+
 
 interface StudentAbsenceRequestModalProps {
     onClose: () => void;

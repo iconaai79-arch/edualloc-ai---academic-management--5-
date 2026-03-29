@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { XIcon, SparklesIcon, ClockIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ClockIcon } from '../icons/ClockIcon';
 import { HeartIcon, ActivityIcon } from './HealthIcons';
 
 interface UpdateVitalsModalProps {

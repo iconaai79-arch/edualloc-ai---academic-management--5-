@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import type { User, Course, Department, LetterheadConfig, Institution } from '../types';
-import { PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 import { generateStudentContactListPdf } from '../services/pdfService';
 
 interface StudentContactListProps {

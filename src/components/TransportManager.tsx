@@ -1,10 +1,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-    TruckIcon, PlusIcon, PencilIcon, TrashIcon,
-    QrCodeIcon, UserIcon, CheckIcon, XIcon,
-    MagnifyingGlassIcon, UserPlusIcon
-} from './icons';
+import { TruckIcon } from './icons/TruckIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { UserIcon } from './icons/UserIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
+
 import type { TransportVehicle, User, Institution, UserUpdateData } from '../types';
 import { apiService } from '../services/apiService';
 

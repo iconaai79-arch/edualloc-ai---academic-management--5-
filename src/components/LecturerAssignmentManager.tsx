@@ -2,7 +2,10 @@ import React, { useState, useRef, useMemo } from 'react';
 import type { Assignment, Submission, Subject, User, SubmissionStatus } from '../types';
 import { apiService } from '../services/apiService';
 // Added XIcon to the imports
-import { PlusIcon, DocumentArrowDownIcon, XIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { XIcon } from './icons/XIcon';
+
 import { Tooltip } from './Tooltip';
 
 interface LecturerAssignmentManagerProps {

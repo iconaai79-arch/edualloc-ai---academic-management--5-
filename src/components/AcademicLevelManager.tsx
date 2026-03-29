@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { AcademicLevel, Institution } from '../types';
-import { CheckIcon, XIcon, PlusIcon } from './icons';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+
 
 interface AcademicLevelManagerProps {
     academicLevels: AcademicLevel[];

@@ -1,7 +1,29 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { Course, Department, Subject, User, CourseLevel, AcademicLevel, LetterheadConfig, Institution, Room, AllocationRequest, Priority, ScheduleProfile, TimetableConstraint, TimetableConstraintType, TimetableSettings, TimetableEntry, LessonStructure } from '../types';
-import { PlusIcon, XIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, SparklesIcon, AcademicCapIcon, ClipboardListIcon, CheckCircleIcon, MagnifyingGlassIcon, PencilIcon, ArchiveBoxIcon, BookOpenIcon, UserIcon, RectangleStackIcon, ArrowUpTrayIcon, ClockIcon, ArrowsRightLeftIcon, ListIcon, TrashIcon, ChartBarIcon, EyeIcon } from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { UserIcon } from './icons/UserIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { ListIcon } from './icons/ListIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 import { analyzeCourseSpreadsheet } from '../services/geminiService';
 import { ManageLessonsModal } from './ManageLessonsModal';
 import { CourseProgressReport } from './CourseProgressReport';

@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import type { SecurityAlert, User } from '../types';
-import { ExclamationTriangleIcon, CheckIcon, PlusIcon, XIcon } from './icons';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+
 
 interface SecurityAlertManagerProps {
     alerts: SecurityAlert[];

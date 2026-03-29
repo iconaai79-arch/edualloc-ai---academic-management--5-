@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import type { UserTask } from '../types';
-import { PlusIcon, XIcon, CheckCircleIcon, CheckIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { CheckIcon } from './icons/CheckIcon';
+
 
 interface MyTasksProps {
     tasks: UserTask[];

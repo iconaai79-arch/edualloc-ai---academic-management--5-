@@ -1,7 +1,17 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Department, Subject, TimetableSettings, LessonStructure, LetterheadConfig, Room, Building, Course, Institution, TimetableConstraint, TimetableConstraintType, User } from '../types';
-import { PlusIcon, XIcon, SparklesIcon, CheckCircleIcon, MagnifyingGlassIcon, BookOpenIcon, ArrowUpTrayIcon, InformationCircleIcon, ArrowsRightLeftIcon, ClockIcon } from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { ClockIcon } from './icons/ClockIcon';
+
 import { SmartSubjectImporterModal } from './SmartSubjectImporterModal';
 import { generatePastelColor } from '../utils/colorUtils';
 import { EditSubjectModal } from './EditSubjectModal';

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { TimetableEntry, User, Subject, Room } from '../types';
-import { XIcon } from './icons';
+import { XIcon } from './icons/XIcon';
+
 
 interface ShareLessonModalProps {
   lesson: TimetableEntry;

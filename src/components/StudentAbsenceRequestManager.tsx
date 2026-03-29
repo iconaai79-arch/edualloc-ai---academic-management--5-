@@ -1,7 +1,9 @@
 
 import React, { useMemo } from 'react';
 import type { StudentAbsenceRequest, StudentAbsenceRequestStatus, User, Course } from '../types';
-import { CheckIcon, XIcon } from './icons';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+
 
 interface StudentAbsenceRequestManagerProps {
     requests: StudentAbsenceRequest[];

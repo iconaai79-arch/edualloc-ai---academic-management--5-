@@ -1,7 +1,15 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, Book, LibraryTransaction } from '../types';
-import { BookOpenIcon, ClipboardListIcon, ClockIcon, CheckCircleIcon, PlusIcon, XIcon, UserIcon, ArrowTrendingUpIcon } from './icons';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+
 
 interface LibrarianViewProps {
     user: User;

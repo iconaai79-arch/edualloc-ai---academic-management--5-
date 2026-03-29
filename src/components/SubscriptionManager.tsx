@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Institution, CompanyDetails, MpesaTransaction, TransactionStatus, Invoice, Receipt, InvoiceItem, ExtensionRequest, SmsConfig } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { MpesaIcon } from './icons/MpesaIcon';
-import { SparklesIcon } from './icons';
+import { SparklesIcon } from './icons/SparklesIcon';
+
 import { downloadInvoicePdf, downloadReceiptPdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';
 

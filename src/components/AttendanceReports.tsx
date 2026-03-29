@@ -1,7 +1,13 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, Subject, Department, Course, TimetableEntry, LetterheadConfig, StudentAttendance, Institution } from '../types';
-import { CheckIcon, XIcon, ClockIcon, PrinterIcon, DocumentArrowDownIcon, EyeIcon } from './icons';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 
 // Let TypeScript know that these are global variables from the script tags
 declare var jspdf: any;

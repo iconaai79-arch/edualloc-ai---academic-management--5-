@@ -3,7 +3,18 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import type { User, Course, CourseLevel, TimetableEntry, Subject, Room, TimetableSettings, EnrollmentRequest, Department, LetterheadConfig, Assignment, Submission, LessonRating, FeedbackSubmission, StudentAbsenceRequest, ExamTimetableEntry, Building, Semester, TaAssignment, UserTask, Institution, Assessment, AssessmentMark } from '../types';
 import { TimetableGrid } from './TimetableGrid';
 import { SubjectCard } from './SubjectCard';
-import { ClockIcon, CheckIcon, XIcon, EyeOffIcon, UserIcon, EyeIcon, CheckCircleIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon, CalendarDaysIcon } from './icons';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { EyeOffIcon } from './icons/EyeOffIcon';
+import { UserIcon } from './icons/UserIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+
 import { StudentDashboard } from './StudentDashboard';
 import { StudentAssignmentManager } from './StudentAssignmentManager';
 import { RatingModal } from './RatingModal';

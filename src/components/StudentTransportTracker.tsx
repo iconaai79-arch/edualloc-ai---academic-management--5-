@@ -1,9 +1,12 @@
 
 import React from 'react';
-import {
-    TruckIcon, MapPinIcon, CheckCircleIcon,
-    ClockIcon, PhoneIcon, UserIcon
-} from './icons';
+import { TruckIcon } from './icons/TruckIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { UserIcon } from './icons/UserIcon';
+
 import type { TransportVehicle, TransportOnboarding, User } from '../types';
 
 interface StudentTransportTrackerProps {

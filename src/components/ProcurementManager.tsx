@@ -18,7 +18,8 @@ import {
     Trash as TrashIcon,
     XCircle as XCircleIcon
 } from 'lucide-react';
-import { CircleCheckIcon as CheckCircleIcon } from './icons';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+
 import { Requisition, RetailStore, RetailInventoryItem, RetailExpense, Supplier, Institution, CompanyDetails } from '../types';
 import { generateLpoPdf } from '../services/pdfService';
 

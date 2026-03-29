@@ -3,13 +3,33 @@ import {
     User, Institution, BedAllocationWithDetails,
     BoardingCheckIn, BoardingCheckOut, ClearanceStatus
 } from '../types';
-import {
-    PlusIcon, Edit2Icon, Trash2Icon, BedIcon, XIcon,
-    ChevronRightIcon, GridIcon, ListIcon, TrashIcon, CheckCircleIcon,
-    HomeIcon, InformationCircleIcon, ArrowPathIcon, CalendarDaysIcon,
-    ShieldIcon, AlertTriangleIcon, SearchIcon, ClockIcon, UserIcon, ArrowRightOnRectangleIcon as DepartureIcon, ArrowTrendingUpIcon as ArrivalIcon,
-    CameraIcon, UploadIcon, ClipboardListIcon, XCircleIcon, ArrowRightIcon
-} from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { Edit2Icon } from './icons/Edit2Icon';
+import { Trash2Icon } from './icons/Trash2Icon';
+import { BedIcon } from './icons/BedIcon';
+import { XIcon } from './icons/XIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { GridIcon } from './icons/GridIcon';
+import { ListIcon } from './icons/ListIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowRightOnRectangleIcon as DepartureIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ArrowTrendingUpIcon as ArrivalIcon } from './icons/ArrowTrendingUpIcon';
+import { CameraIcon } from './icons/CameraIcon';
+import { UploadIcon } from './icons/UploadIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+
 import { apiService } from '../services/apiService';
 
 interface CheckInOutManagerProps {

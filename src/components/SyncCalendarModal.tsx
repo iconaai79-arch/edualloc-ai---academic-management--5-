@@ -1,7 +1,9 @@
 
 import React, { useState } from 'react';
 import type { TimetableEntry, User, Semester, Subject, Room, Building } from '../types';
-import { XIcon, DocumentArrowDownIcon } from './icons';
+import { XIcon } from './icons/XIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 import { generateIcsContent } from '../utils/calendarUtils';
 
 interface SyncCalendarModalProps {

@@ -6,7 +6,12 @@ import { RequestManager } from './RequestManager';
 import { AbsenceRequestManager } from './AbsenceRequestManager';
 import { ContractModal } from './ContractModal';
 import { generateContractPdf } from '../services/pdfService';
-import { CheckIcon, XIcon, ClockIcon, PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 
 interface LecturerInteractionManagerProps {
     requests: AllocationRequest[];

@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { XIcon, SparklesIcon, CalendarDaysIcon, ClockIcon, UsersIcon, SearchIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { SearchIcon } from '../icons/SearchIcon';
 
 interface AddAppointmentModalProps {
     isOpen: boolean;

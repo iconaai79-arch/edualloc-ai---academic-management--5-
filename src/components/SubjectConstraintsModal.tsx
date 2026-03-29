@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import type { Subject, TimetableSettings, TimetableConstraint } from '../types';
-import { XIcon, PlusIcon, ClockIcon, CalendarDaysIcon, InformationCircleIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+
 
 interface SubjectConstraintsModalProps {
     subject: Subject;

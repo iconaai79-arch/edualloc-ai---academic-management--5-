@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import type { PracticeTeacherAssignment, User } from '../types';
-import { PlusIcon, XIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+
 
 interface TeachingPracticeManagerProps {
     assignments: PracticeTeacherAssignment[];

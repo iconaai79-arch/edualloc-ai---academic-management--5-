@@ -1,9 +1,12 @@
 import React from 'react';
 import type { Vehicle, RepairOrder } from '../../types';
-import {
-    WrenchIcon, CurrencyIcon, UserGroupIcon,
-    ArrowTrendingUpIcon, ClockIcon, CheckCircleIcon
-} from '../icons';
+import { WrenchIcon } from '../icons/WrenchIcon';
+import { CurrencyIcon } from '../icons/CurrencyIcon';
+import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { ArrowTrendingUpIcon } from '../icons/ArrowTrendingUpIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+
 
 interface CarServiceDashboardProps {
     vehicles: Vehicle[];

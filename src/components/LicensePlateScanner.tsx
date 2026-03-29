@@ -2,7 +2,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import Tesseract from 'tesseract.js';
-import { XIcon, CameraIcon, ArrowPathIcon, CheckCircleIcon } from './icons';
+import { XIcon } from './icons/XIcon';
+import { CameraIcon } from './icons/CameraIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+
 
 interface LicensePlateScannerProps {
     onPlateDetected: (plate: string) => void;

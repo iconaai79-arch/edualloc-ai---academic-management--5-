@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import type { ActivityLog } from '../types';
-import { ClipboardListIcon, MagnifyingGlassIcon } from './icons';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+
 
 const formatTimestamp = (timestamp: string): string => {
     return new Date(timestamp).toLocaleString(undefined, {

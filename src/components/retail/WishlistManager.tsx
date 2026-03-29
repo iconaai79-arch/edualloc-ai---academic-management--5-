@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import { RetailWishlist } from '../../types';
 import { apiService } from '../../services/apiService';
 import { Target, Search, Filter, Phone, MessageSquare, AlertCircle, Clock, MapPin, User as UserIcon, Banknote, X, Plus } from 'lucide-react';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
 
 interface WishlistManagerProps {
     institutionId: string;

@@ -1,7 +1,18 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Department, Institution } from '../types';
-import { PlusIcon, XIcon, CheckIcon, SparklesIcon, ArrowUpTrayIcon, CheckCircleIcon, ArrowPathIcon, MagnifyingGlassIcon, PencilIcon, PrinterIcon, DocumentArrowDownIcon } from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 import { analyzeDepartmentSpreadsheet } from '../services/geminiService';
 
 import * as XLSX from 'xlsx';

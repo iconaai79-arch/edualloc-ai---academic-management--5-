@@ -1,14 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import type { User, Supplier, Requisition, InventoryItem, BusinessDocument } from '../types';
-import { 
-    ClipboardListIcon, 
-    CurrencyIcon, 
-    DocumentArrowDownIcon, 
-    CheckCircleIcon, 
-    XIcon, 
-    ClockIcon,
-    ArchiveBoxIcon
-} from './icons';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+
 
 interface SupplierViewProps {
     user: User;
@@ -193,7 +192,7 @@ export const SupplierView: React.FC<SupplierViewProps> = ({
                                             <h5 className="text-sm font-semibold mb-2">Items Requested:</h5>
                                             <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300">
                                                 {req.items.map((item, i) => (
-                                                    <li key={i}>{item.itemName} - {item.quantity} units @ KES {item.estimatedPrice}</li>
+                                                    <li key={i}>{item.name} - {item.quantity} units @ KES {item.unitCost}</li>
                                                 ))}
                                             </ul>
                                         </div>

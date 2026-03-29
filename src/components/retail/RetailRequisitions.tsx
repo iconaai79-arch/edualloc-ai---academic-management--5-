@@ -9,7 +9,8 @@ import {
     Package as PackageIcon,
     Trash as TrashIcon
 } from 'lucide-react';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
 import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
 import { generateLpoPdf } from '../../services/pdfService';
 import { apiService } from '../../services/apiService';

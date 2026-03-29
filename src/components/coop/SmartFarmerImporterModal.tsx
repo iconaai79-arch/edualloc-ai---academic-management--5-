@@ -12,7 +12,8 @@ import {
     Download,
     AlertCircle
 } from 'lucide-react';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
 
 type FarmerMappingField = 'name' | 'phone' | 'email' | 'accountNumber' | 'memberId' | 'kraPin' | 'nationalId' | 'location';
 const REQUIRED_FIELDS: FarmerMappingField[] = ['name', 'phone'];

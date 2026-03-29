@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import type { Vehicle } from '../../types';
-import { TruckIcon, SearchIcon, PlusIcon, PencilIcon } from '../icons';
+import { TruckIcon } from '../icons/TruckIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+
 
 interface VehicleManagerProps {
     vehicles: Vehicle[];
@@ -75,7 +79,7 @@ export const VehicleManager: React.FC<VehicleManagerProps> = ({ vehicles }) => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit Vehicle">
-                                            <PencilSquareIcon className="w-5 h-5" />
+                                            <PencilIcon className="w-5 h-5" />
                                         </button>
                                     </td>
                                 </tr>

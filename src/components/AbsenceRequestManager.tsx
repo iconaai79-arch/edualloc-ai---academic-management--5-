@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import type { AbsenceRequest, User, Subject, TimetableEntry, Role } from '../types';
-import { ClockIcon, CheckIcon, XIcon } from './icons';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+
 
 interface AbsenceRequestManagerProps {
     requests: AbsenceRequest[];

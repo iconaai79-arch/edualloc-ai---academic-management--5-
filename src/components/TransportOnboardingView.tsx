@@ -1,9 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import {
-    TruckIcon, UserIcon, CheckCircleIcon,
-    ArrowPathIcon, PhoneIcon, MapPinIcon
-} from './icons';
+import { TruckIcon } from './icons/TruckIcon';
+import { UserIcon } from './icons/UserIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+
 import type { TransportVehicle, TransportOnboarding, User, Institution } from '../types';
 
 interface TransportOnboardingViewProps {

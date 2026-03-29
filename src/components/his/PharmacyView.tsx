@@ -1,19 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    ArchiveBoxIcon, 
-    PlusIcon, 
-    SparklesIcon, 
-    SearchIcon, 
-    CheckCircleIcon, 
-    ClipboardListIcon,
-    CurrencyIcon,
-    ExclamationTriangleIcon,
-    BeakerIcon,
-    PencilIcon,
-    DocumentTextIcon,
-    ClockIcon,
-    UserIcon
-} from '../icons/index';
+import { ArchiveBoxIcon } from '../icons/ArchiveBoxIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
+import { CurrencyIcon } from '../icons/CurrencyIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { BeakerIcon } from '../icons/BeakerIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { UserIcon } from '../icons/UserIcon';
 import { apiService } from '../../services/apiService';
 
 import { 

@@ -1,7 +1,11 @@
 
 import React, { useMemo, useState } from 'react';
 import type { FeedbackSubmission, User } from '../types';
-import { EyeOffIcon, UserIcon, CheckCircleIcon, EyeIcon } from './icons';
+import { EyeOffIcon } from './icons/EyeOffIcon';
+import { UserIcon } from './icons/UserIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 import { ClockIcon } from './icons/ClockIcon';
 
 interface FeedbackManagerProps {

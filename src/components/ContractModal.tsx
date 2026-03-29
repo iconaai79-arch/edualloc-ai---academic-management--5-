@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { LecturerContract, User, Institution, LetterheadConfig } from '../types';
-import { XIcon, PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { XIcon } from './icons/XIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 import { generateContractPdf } from '../services/pdfService';
 
 interface ContractModalProps {

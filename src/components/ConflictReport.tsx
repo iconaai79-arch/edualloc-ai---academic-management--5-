@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Conflict, User, Room, Subject } from '../types';
-import { ExclamationTriangleIcon, CheckIcon } from './icons';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CheckIcon } from './icons/CheckIcon';
+
 
 interface ConflictReportProps {
     conflicts: Conflict[];

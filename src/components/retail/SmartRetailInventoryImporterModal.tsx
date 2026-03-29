@@ -1,7 +1,10 @@
 
 import React, { useState } from 'react';
 import { RetailInventoryItem } from '../../types';
-import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { analyzeRetailInventorySpreadsheet } from '../../services/geminiService';
 import * as XLSX from 'xlsx';
 

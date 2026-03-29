@@ -2,7 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import type { TimetableEntry, Room, RoomConflict, LetterheadConfig } from '../types';
 import { generateAdvisoryReportPdf } from '../services/pdfService';
-import { ExclamationIcon, CheckIcon, EyeIcon } from './icons';
+import { ExclamationIcon } from './icons/ExclamationIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 
 interface AdvisoryReportViewProps {
     generatedTimetable: TimetableEntry[];

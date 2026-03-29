@@ -1,7 +1,10 @@
 import React, { useState, useRef, useMemo } from 'react';
 import type { Assignment, Submission, Subject, User, SubmissionStatus } from '../types';
 import { apiService } from '../services/apiService';
-import { DocumentArrowDownIcon, PrinterIcon, CheckIcon } from './icons';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { CheckIcon } from './icons/CheckIcon';
+
 
 interface StudentAssignmentManagerProps {
     user: User;

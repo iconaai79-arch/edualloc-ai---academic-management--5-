@@ -1,6 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import type { County, User } from '../types';
-import { PlusIcon, PencilIcon, XIcon, MagnifyingGlassIcon, CheckIcon, MapPinIcon, PhoneIcon, EnvelopeIcon, UserIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { XIcon } from './icons/XIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { UserIcon } from './icons/UserIcon';
+
 
 interface CountyManagerProps {
     counties: County[];

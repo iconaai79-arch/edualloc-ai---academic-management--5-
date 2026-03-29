@@ -385,7 +385,7 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
     }
 };
 
-export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
+export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string, aiModelTier?: string): Promise<string> => {
     try {
         const response = await fetch('/api/ai', {
             method: 'POST',

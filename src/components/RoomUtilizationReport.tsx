@@ -2,7 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import type { Building, Room, TimetableEntry, TimetableSettings, LetterheadConfig } from '../types';
 import { timeToMinutes } from '../utils/timeUtils';
-import { PrinterIcon, DocumentArrowDownIcon, EyeIcon } from './icons';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 import { generateRoomUtilizationPdf } from '../services/pdfService';
 
 interface RoomUtilizationReportProps {

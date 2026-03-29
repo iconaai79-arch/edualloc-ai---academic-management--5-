@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import type { Institution } from '../types';
-import { CheckCircleIcon, MapIcon, MapPinIcon } from './icons';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { MapIcon } from './icons/MapIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+
 import { findLocationCoordinates } from '../services/geminiService';
 
 interface LocationSettingsProps {

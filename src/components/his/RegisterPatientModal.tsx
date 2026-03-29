@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { XIcon, UserIcon, PhoneIcon, PlusIcon, ArrowPathIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { UserIcon } from '../icons/UserIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
 import { HeartIcon, IdentificationIcon, ShieldCheckIcon, CalendarIcon } from './HealthIcons';
 import { HISPatient } from '../../types';
 

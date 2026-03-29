@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 /* FIXED: Renamed Attachment to Internship to match the type definition. */
 import type { User, Internship, Course, LetterheadConfig } from '../types';
-import { SparklesIcon, DocumentArrowDownIcon } from './icons';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 /* FIXED: Renamed generateAttachmentReport to generateInternshipReport. */
 import { generateInternshipReport } from '../services/geminiService';
 /* FIXED: Renamed generateAttachmentReportPdf to generateInternshipReportPdf. */

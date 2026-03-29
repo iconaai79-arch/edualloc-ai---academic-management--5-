@@ -1,25 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Building, Room, Institution, Subject, Course } from '../types';
-import {
-    PlusIcon,
-    XIcon,
-    PrinterIcon,
-    MapIcon,
-    ChevronDownIcon,
-    ChevronRightIcon,
-    MagnifyingGlassIcon,
-    BuildingOfficeIcon,
-    CheckIcon,
-    CheckCircleIcon,
-    ArrowPathIcon,
-    PencilIcon,
-    ArchiveBoxIcon,
-    ArrowUpTrayIcon,
-    SparklesIcon,
-    DocumentArrowDownIcon,
-    MapPinIcon,
-    UsersIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { MapIcon } from './icons/MapIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { UsersIcon } from './icons/UsersIcon';
+
 import { findLocationCoordinates } from '../services/geminiService';
 import { SmartRoomImporterModal } from './SmartRoomImporterModal';
 

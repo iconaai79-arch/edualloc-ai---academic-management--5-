@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, TimetableEntry, Subject, Room, Course, CourseLevel, TimetableSettings, LetterheadConfig, LessonRating, UserTask, Institution, StudentAttendance } from '../types';
-import { AcademicCapIcon, ArrowTrendingUpIcon, BellIcon, SunIcon, ClockInIcon, CheckIcon, PrinterIcon, DocumentArrowDownIcon, MapPinIcon, StarIcon, PaperAirplaneIcon, ClockIcon, InformationCircleIcon, UserIcon } from './icons';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { BellIcon } from './icons/BellIcon';
+import { SunIcon } from './icons/SunIcon';
+import { ClockInIcon } from './icons/ClockInIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { StarIcon } from './icons/StarIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { UserIcon } from './icons/UserIcon';
+
 import { TimetableGrid } from './TimetableGrid';
 import { generateStudentTimetablePdf } from '../services/pdfService';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';

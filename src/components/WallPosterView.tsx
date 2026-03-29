@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import type { User, Subject, Room, Course, TimetableEntry, TimetableSettings, Department, Institution, AcademicYear, Semester } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
 import { timeToMinutes, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
-import { PrinterIcon } from './icons';
+import { PrinterIcon } from './icons/PrinterIcon';
+
 
 interface WallPosterViewProps {
     generatedTimetable: TimetableEntry[];

@@ -1,7 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, TimetableEntry, TimetableSettings, Unavailability, Institution, Appointment } from '../types';
-import { UserIcon, CalendarDaysIcon, ClockIcon, CheckCircleIcon, XIcon, BuildingOfficeIcon, CheckIcon } from './icons';
+import { UserIcon } from './icons/UserIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { CheckIcon } from './icons/CheckIcon';
+
 import { timeToMinutes, minutesToTime } from '../utils/timeUtils';
 
 interface PublicAppointmentViewProps {

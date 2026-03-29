@@ -1,6 +1,7 @@
 import React from 'react';
 import type { User } from '../../types';
-import { ClipboardListIcon } from '../icons';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
+
 
 interface DigitalInspectionManagerProps {
 }

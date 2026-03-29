@@ -1,7 +1,10 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import type { User, Assessment, AssessmentMark, Subject, Course, AssessmentType } from '../types';
-import { PlusIcon, XIcon, CheckIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckIcon } from './icons/CheckIcon';
+
 
 interface AssessmentManagerProps {
     user: User;

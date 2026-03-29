@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStore, MpesaConfig } from '../../types';
 import { Store, Truck, Plus, Search, MapPin, XCircle, MoreVertical, Pencil, Trash, CreditCard } from 'lucide-react';
-import { CheckCircleIcon as CheckCircle } from '../icons/index';
+import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 
 interface RetailStoresManagerProps {
     institutionId: string;

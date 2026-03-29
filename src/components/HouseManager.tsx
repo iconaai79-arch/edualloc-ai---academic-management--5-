@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, BoardingHouse, BoardingHouseWithStats, HouseGender, HouseStatus } from '../types';
-import { HomeIcon, PlusIcon, Edit2Icon, Trash2Icon, UsersIcon, BedIcon, TrendingUpIcon, XIcon } from './icons';
+import { HomeIcon } from './icons/HomeIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { UsersIcon } from './icons/UsersIcon';
+import { BedIcon } from './icons/BedIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { XIcon } from './icons/XIcon';
+
 import { apiService } from '../services/apiService';
 
 interface HouseManagerProps {
@@ -296,14 +304,14 @@ const HouseManager: React.FC<HouseManagerProps> = ({
                                     onClick={() => handleOpenModal(house)}
                                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                                 >
-                                    <Edit2Icon className="w-4 h-4" />
+                                    <PencilIcon className="w-4 h-4" />
                                     Edit
                                 </button>
                                 <button
                                     onClick={() => handleDelete(house)}
                                     className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
                                 >
-                                    <Trash2Icon className="w-4 h-4" />
+                                    <TrashIcon className="w-4 h-4" />
                                     Delete
                                 </button>
                             </div>

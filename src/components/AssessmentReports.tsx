@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Assessment, AssessmentMark, Subject, Course, Department, LetterheadConfig, AssessmentType } from '../types';
-import { PrinterIcon, DocumentArrowDownIcon } from './icons';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+
 
 interface AssessmentReportsProps {
     currentUser: User;

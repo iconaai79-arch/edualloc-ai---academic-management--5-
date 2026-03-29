@@ -1,9 +1,12 @@
 
 import React, { useState } from 'react';
-import {
-    QrCodeIcon, SearchIcon, TruckIcon,
-    ArrowRightOnRectangleIcon, ClockIcon, CheckCircleIcon
-} from './icons';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+
 import type { TransportVehicle, VehicleLog, User, Institution } from '../types';
 
 interface SecurityGatePassViewProps {

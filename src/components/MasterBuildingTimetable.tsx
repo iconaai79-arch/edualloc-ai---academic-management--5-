@@ -4,7 +4,9 @@ import type { Building, Room, TimetableEntry, Subject, User, Course, TimetableSe
 import { timeToMinutes, generatePeriodLabels } from '../utils/timeUtils';
 import { generatePastelColor } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
-import { ChevronDownIcon, ChevronRightIcon } from './icons';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+
 
 interface MasterBuildingTimetableProps {
     buildings: Building[];

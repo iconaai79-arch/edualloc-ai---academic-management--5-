@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Institution, Vehicle, RepairOrder, ServiceJobItem, DigitalInspectionItem, MpesaTransaction, Invoice } from '../../types';
-import {
-    WrenchIcon, CalendarDaysIcon, ChartBarIcon, ClipboardListIcon,
-    MagnifyingGlassIcon, PlusIcon, PhoneIcon, ChatBubbleLeftRightIcon,
-    DocumentTextIcon, Cog8ToothIcon, EyeIcon, TruckIcon
-} from '../icons';
+import { WrenchIcon } from '../icons/WrenchIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
+import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { PhoneIcon } from '../icons/PhoneIcon';
+import { ChatBubbleLeftRightIcon } from '../icons/ChatBubbleLeftRightIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { TruckIcon } from '../icons/TruckIcon';
+
 import { CarServiceDashboard } from './CarServiceDashboard';
 import { RepairOrderManager } from './RepairOrderManager';
 import { DigitalInspectionManager } from './DigitalInspectionManager';

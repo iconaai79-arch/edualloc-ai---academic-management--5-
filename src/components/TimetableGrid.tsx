@@ -3,7 +3,8 @@ import React, { useMemo, useState } from 'react';
 import type { TimetableEntry, Subject, User, Room, TimetableSettings, Course } from '../types';
 import { generatePastelColor } from '../utils/colorUtils';
 import { GRID_TIME_STEP_MINUTES, timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
-import { ExclamationTriangleIcon } from './icons';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+
 import { getInitials } from '../utils/stringUtils';
 import { checkMoveValidity } from '../utils/conflictUtils';
 

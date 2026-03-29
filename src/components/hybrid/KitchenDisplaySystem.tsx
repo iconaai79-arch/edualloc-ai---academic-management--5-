@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import type { RetailSale, User, Institution, CafeOrder } from '../../types';
-import {
-    ClockIcon, CheckCircleIcon,
-    ArrowRightIcon
-} from '../icons';
+import { ClockIcon } from '../icons/ClockIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { ArrowRightIcon } from '../icons/ArrowRightIcon';
+
 
 interface KitchenDisplaySystemProps {
     retailSales?: RetailSale[];

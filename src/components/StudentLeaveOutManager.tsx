@@ -4,12 +4,23 @@ import {
     LeaveOutStatus, CompanyDetails, AcademicYear, Semester,
     Course, Department, AcademicLevel, LetterheadConfig
 } from '../types';
-import {
-    PlusIcon, SearchIcon, CheckCircleIcon, XCircleIcon,
-    PrinterIcon, FileTextIcon, HomeIcon, ShieldIcon,
-    EnvelopeIcon, ChatBubbleBottomCenterTextIcon, ArrowRightIcon, ArrowPathIcon,
-    XIcon, ClockIcon, UserIcon, CalendarDaysIcon
-} from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { FileTextIcon } from './icons/FileTextIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { XIcon } from './icons/XIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserIcon } from './icons/UserIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+
 
 import { apiService } from '../services/apiService';
 import { generateLeaveOutSheetPdf } from '../services/pdfService';

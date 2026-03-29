@@ -2,7 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import type { Subject, User, Room, TimetableEntry, AcademicYear, Semester, TimetableSettings, Course } from '../types';
 import { analyzeTimetableSpreadsheet } from '../services/geminiService';
-import { SparklesIcon, XIcon } from './icons';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { XIcon } from './icons/XIcon';
+
 import { minutesToTime, timeToMinutes } from '../utils/timeUtils';
 
 import * as XLSX from 'xlsx';

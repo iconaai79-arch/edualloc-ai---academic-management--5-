@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
-import { 
-    BedIcon, 
-    PlusIcon, 
-    ArrowPathIcon, 
-    SearchIcon,
-    ChevronRightIcon,
-    UsersIcon,
-    SparklesIcon,
-    BuildingOfficeIcon
-} from '../icons/index';
+import { BedIcon } from '../icons/BedIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { apiService } from '../../services/apiService';
 
 interface InpatientViewProps {

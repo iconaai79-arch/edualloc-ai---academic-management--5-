@@ -1,7 +1,11 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Invoice, Institution, InvoiceItem, CompanyDetails } from '../types';
-import { PlusIcon, XIcon, DocumentArrowDownIcon, BuildingOfficeIcon } from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+
 import { downloadInvoicePdf } from '../services/pdfService';
 
 interface TenantInvoiceManagerProps {

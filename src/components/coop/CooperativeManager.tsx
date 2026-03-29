@@ -1,31 +1,30 @@
 
 import React, { useState, useMemo } from 'react';
-import { 
-    UsersIcon, 
-    ClipboardListIcon as CollectionIcon, 
-    TruckIcon as LogisticsIcon, 
-    PieChartIcon as ReportsIcon,
-    PlusIcon,
-    SearchIcon,
-    FilterIcon,
-    ChevronRightIcon,
-    ShoppingCartIcon as StoreIcon,
-    CreditCardIcon as SaccoIcon,
-    BanknoteIcon as PayoutIcon,
-    SparklesIcon as FarmerIcon,
-    DollarSignIcon as FinanceIcon,
-    UserCheckIcon as ApprovalIcon,
-    FileTextIcon as StatementIcon,
-    MailIcon as EmailIcon,
-    SendIcon as SmsIcon,
-    EyeIcon,
-    ArrowUpRightIcon as ExportIcon,
-    Cog8ToothIcon as CogIcon,
-    InformationCircleIcon as AlertIcon,
-    UploadCloudIcon as UploadCloud,
-    XIcon as X,
-    CheckCircleIcon as SuccessIcon
-} from '../icons';
+import { UsersIcon } from '../icons/UsersIcon';
+import { ClipboardListIcon as CollectionIcon } from '../icons/ClipboardListIcon';
+import { TruckIcon as LogisticsIcon } from '../icons/TruckIcon';
+import { PieChartIcon as ReportsIcon } from '../icons/PieChartIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { FilterIcon } from '../icons/FilterIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { ShoppingCartIcon as StoreIcon } from '../icons/ShoppingCartIcon';
+import { CreditCardIcon as SaccoIcon } from '../icons/CreditCardIcon';
+import { BanknoteIcon as PayoutIcon } from '../icons/BanknoteIcon';
+import { SparklesIcon as FarmerIcon } from '../icons/SparklesIcon';
+import { DollarSignIcon as FinanceIcon } from '../icons/DollarSignIcon';
+import { UserCheckIcon as ApprovalIcon } from '../icons/UserCheckIcon';
+import { FileTextIcon as StatementIcon } from '../icons/FileTextIcon';
+import { MailIcon as EmailIcon } from '../icons/MailIcon';
+import { SendIcon as SmsIcon } from '../icons/SendIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { ArrowUpRightIcon as ExportIcon } from '../icons/ArrowUpRightIcon';
+import { Cog8ToothIcon as CogIcon } from '../icons/Cog8ToothIcon';
+import { InformationCircleIcon as AlertIcon } from '../icons/InformationCircleIcon';
+import { UploadCloudIcon as UploadCloud } from '../icons/UploadCloudIcon';
+import { XIcon as X } from '../icons/XIcon';
+import { CheckCircleIcon as SuccessIcon } from '../icons/CheckCircleIcon';
+
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
 import { SmartFarmerImporterModal } from './SmartFarmerImporterModal';

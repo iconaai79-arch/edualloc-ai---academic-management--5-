@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { CafeMenuItem } from '../../types';
-import { PlusIcon, TrashIcon, PencilIcon, XIcon, SearchIcon } from '../icons';
+import { PlusIcon } from '../icons/PlusIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { XIcon } from '../icons/XIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+
 
 interface CafeMenuManagerProps {
     institutionId: string;

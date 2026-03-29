@@ -1,7 +1,13 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { AcademicYear, Semester, ExamPeriod, Institution } from '../types';
-import { PlusIcon, CheckIcon, XIcon, Cog8ToothIcon, CheckCircleIcon, CalendarDaysIcon } from './icons';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+
 
 interface AcademicYearManagerProps {
     academicYears: AcademicYear[];

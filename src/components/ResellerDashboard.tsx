@@ -1,8 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest } from '../types';
 import { apiService } from '../services/apiService';
-import { BuildingOfficeIcon, UserGroupIcon, ChartBarIcon, ArrowRightOnRectangleIcon, PlusIcon, LockClosedIcon, CreditCardIcon, InformationCircleIcon, CurrencyIcon, ArrowRightIcon, ArrowPathIcon, EyeIcon, XIcon, ShieldIcon, MapPinIcon, BedIcon, ChatBubbleBottomCenterTextIcon, BookOpenIcon, AcademicCapIcon, UserIcon, BeakerIcon, HomeIcon, ArchiveBoxIcon } from './icons';
-import { SparklesIcon } from './icons';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { LockClosedIcon } from './icons/LockClosedIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { BanknotesIcon } from './icons/BanknotesIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { XIcon } from './icons/XIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { BedIcon } from './icons/BedIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { UserIcon } from './icons/UserIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+
 import { generateAlphanumericCode } from '../utils/stringUtils';
 import { generateId, generateUserId } from '../utils/idGenerator';
 
@@ -341,7 +364,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 border-l-4 border-l-indigo-500">
                         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
-                            <CurrencyIcon className="w-8 h-8" />
+                            <BanknotesIcon className="w-8 h-8" />
                         </div>
                         <div>
                             <p className="text-sm text-slate-500 font-medium">Total Earned</p>
@@ -483,7 +506,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                                                 </td>
                                                 <td className="py-4 px-6">
                                                     <div className="flex items-center gap-1 text-slate-600">
-                                                        <CurrencyIcon className="w-6 h-6 text-emerald-600 mb-2" />
+                                                        <BanknotesIcon className="w-6 h-6 text-emerald-600 mb-2" />
                                                         <span className="font-medium">{tenantUsers}</span>
                                                     </div>
                                                 </td>
@@ -562,7 +585,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
                     {commissionTransactions.length === 0 ? (
                         <div className="p-12 text-center text-slate-500">
-                            <CurrencyIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                            <BanknotesIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
                             <p className="text-lg font-medium text-slate-700">No earnings yet</p>
                             <p className="text-sm">When your clients make subscription payments, your commissions will appear here.</p>
                         </div>

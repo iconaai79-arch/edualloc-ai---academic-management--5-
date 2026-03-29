@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import type { Vehicle, RepairOrder, User, Institution } from '../../types';
-import {
-    WrenchIcon, PlusIcon, SearchIcon, PencilSquareIcon,
-    CurrencyDollarIcon, AdjustmentsHorizontalIcon, XIcon,
-    DocumentTextIcon, TrashIcon
-} from '../icons';
+import { WrenchIcon } from '../icons/WrenchIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { XIcon } from '../icons/XIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+
 
 interface RepairOrderManagerProps {
     vehicles: Vehicle[];

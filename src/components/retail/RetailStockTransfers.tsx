@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailStockTransfer, RetailStore, RetailInventoryItem, RetailStockTransferItem, User } from '../../types';
 import { Truck, ArrowRight, Plus, Clock, AlertCircle, Search, MapPin, Package, X, ChevronRight } from 'lucide-react';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
+
 
 interface RetailStockTransfersProps {
     institutionId: string;

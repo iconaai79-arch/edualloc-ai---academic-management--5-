@@ -1,7 +1,12 @@
 
 import React, { useMemo, useState } from 'react';
 import type { Subject, Course, TimetableEntry, LessonStructure, LetterheadConfig } from '../types';
-import { AcademicCapIcon, CheckCircleIcon, ExclamationTriangleIcon, PrinterIcon, EyeIcon } from './icons';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { EyeIcon } from './icons/EyeIcon';
+
 import { generateCourseProgressPdf } from '../services/pdfService';
 
 interface CourseProgressReportProps {

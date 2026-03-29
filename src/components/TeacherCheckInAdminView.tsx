@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { User, Institution, TeacherCheckInWithDetails } from '../types';
-import { ClockIcon, CheckCircleIcon, XCircleIcon, SearchIcon, CalendarDaysIcon, UsersIcon } from './icons';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { UsersIcon } from './icons/UsersIcon';
+
 
 interface TeacherCheckInAdminViewProps {
     currentUser: User;

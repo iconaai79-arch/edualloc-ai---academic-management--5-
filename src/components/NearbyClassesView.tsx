@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { TimetableEntry, Subject, User, Room, Building } from '../types';
 import { calculateDistance } from '../utils/locationUtils';
 import { timeToMinutes } from '../utils/timeUtils';
-import { MapPinIcon } from './icons';
+import { MapPinIcon } from './icons/MapPinIcon';
+
 
 interface NearbyClassesViewProps {
     timetable: TimetableEntry[];

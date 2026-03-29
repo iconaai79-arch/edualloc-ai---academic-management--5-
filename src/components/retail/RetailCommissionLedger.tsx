@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { RetailCommissionLedger as CommissionType, User, RetailInventoryItem } from '../../types';
 import { HandCoins, Banknote, Calendar, User as UserIcon, Tag, AlertCircle, Search, Filter, ArrowUpRight } from 'lucide-react';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
 
 interface RetailCommissionLedgerProps {
     institutionId: string;

@@ -1,11 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Institution } from '../types';
-import {
-    BarChart3Icon, DownloadIcon, CalendarDaysIcon, FilterIcon,
-    FileTextIcon, UsersIcon, HomeIcon,
-    ChartPieIcon, TrendingUpIcon, ShieldIcon, AlertTriangleIcon,
-    DownloadIcon as ArrowDownTrayIcon, PaperAirplaneIcon as ShareIcon, PrinterIcon, ChevronRightIcon
-} from './icons';
+import { BarChart3Icon } from './icons/BarChart3Icon';
+import { DownloadIcon } from './icons/DownloadIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { FilterIcon } from './icons/FilterIcon';
+import { FileTextIcon } from './icons/FileTextIcon';
+import { UsersIcon } from './icons/UsersIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { PaperAirplaneIcon as ShareIcon } from './icons/PaperAirplaneIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+
 import { apiService } from '../services/apiService';
 import { generateBoardingReportPdf } from '../services/pdfService';
 import { exportBoardingToExcel, exportBoardingSummaryToExcel } from '../utils/boardingExportUtils';

@@ -3,7 +3,8 @@ import type {
     User, Course, StudentAttendance, TimetableEntry,
     Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, Vehicle
 } from '../types';
-import { UserIcon } from './icons';
+import { UserIcon } from './icons/UserIcon';
+
 
 interface ParentViewProps {
     user: User;

@@ -1,6 +1,8 @@
 import React from 'react';
 import type { CarWashJob, RetailSale } from '../../types';
-import { TruckIcon, ShoppingCartIcon } from '../icons';
+import { TruckIcon } from '../icons/TruckIcon';
+import { ShoppingCartIcon } from '../icons/ShoppingCartIcon';
+
 
 interface CustomerStatusBoardProps {
     carWashJobs: CarWashJob[];

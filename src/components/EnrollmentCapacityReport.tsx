@@ -1,7 +1,13 @@
 
 import React, { useMemo, useState } from 'react';
 import type { Room, TimetableEntry, Course, Subject, LetterheadConfig } from '../types';
-import { BuildingOfficeIcon, UserGroupIcon, ExclamationTriangleIcon, CheckCircleIcon, EyeIcon, PrinterIcon } from './icons';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+
 import { generateEnrollmentCapacityPdf } from '../services/pdfService';
 
 interface EnrollmentCapacityReportProps {

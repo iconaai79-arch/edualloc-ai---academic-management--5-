@@ -3,7 +3,9 @@ import React, { useState, useMemo } from 'react';
 import type { AllocationRequest, User, Subject, AbsenceRequest, TimetableEntry, TimeOffRequest, TimeOffRequestStatus, LecturerContract, Semester, Institution, LetterheadConfig, FeedbackSubmission, LessonRating, EnrollmentRequest, StudentAbsenceRequest, StudentAbsenceRequestStatus, Department, Course, RequestStatus } from '../types';
 import { LecturerInteractionManager } from './LecturerInteractionManager';
 import { StudentInteractionManager } from './StudentInteractionManager';
-import { UserGroupIcon, AcademicCapIcon } from './icons/index';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+
 
 interface InteractionsManagerProps {
     // Lecturer Props

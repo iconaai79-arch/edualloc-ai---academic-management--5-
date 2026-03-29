@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { 
-    EyeIcon, 
-    PlusIcon, 
-    SparklesIcon,
-    ArrowPathIcon,
-    SearchIcon,
-    FileTextIcon,
-    DownloadIcon
-} from '../icons/index';
+import { EyeIcon } from '../icons/EyeIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { FileTextIcon } from '../icons/FileTextIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
 
 interface RefractionData {
     sphere: string;

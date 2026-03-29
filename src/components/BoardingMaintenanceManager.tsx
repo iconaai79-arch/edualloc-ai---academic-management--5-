@@ -3,13 +3,25 @@ import {
     User, Institution, BoardingMaintenanceLog, BoardingHouse,
     MaintenancePriority, MaintenanceStatus
 } from '../types';
-import {
-    SettingsIcon, PlusIcon, SearchIcon, FilterIcon, XIcon,
-    AlertTriangleIcon, CheckCircleIcon, ClockIcon,
-    Cog8ToothIcon, ClipboardListIcon, HomeIcon, BedIcon,
-    CalendarDaysIcon, TrashIcon, InformationCircleIcon,
-    ArrowPathIcon, TrendingUpIcon, ShieldIcon
-} from './icons';
+import { SettingsIcon } from './icons/SettingsIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { FilterIcon } from './icons/FilterIcon';
+import { XIcon } from './icons/XIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { BedIcon } from './icons/BedIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+
 import { apiService } from '../services/apiService';
 
 interface BoardingMaintenanceManagerProps {

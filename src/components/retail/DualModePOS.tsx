@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
-import { CircleCheckIcon } from '../icons';
+import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+
 import { Search, ShoppingCart, User as UserIcon, MapPin, Calculator, DollarSign, Tag, HandCoins, AlertCircle, Plus, Store, X, CreditCard, Printer, Coffee, Zap } from 'lucide-react';
 
 interface DualModePOSProps {

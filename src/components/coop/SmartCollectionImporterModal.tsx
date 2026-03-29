@@ -14,7 +14,9 @@ import {
     AlertTriangle,
     AlertCircle
 } from 'lucide-react';
-import { CircleCheckIcon, UserIcon as UserIconAlt } from '../icons';
+import { CircleCheckIcon } from '../icons/CircleCheckIcon';
+import { UserIcon as UserIconAlt } from '../icons/UserIcon';
+
 
 type CollectionMappingField = 'farmerName' | 'farmerAccountNumber' | 'farmerPhoneNumber' | 'farmerMemberId' | 'collectionDate' | 'productType' | 'quantity' | 'unit' | 'qualityGrade';
 

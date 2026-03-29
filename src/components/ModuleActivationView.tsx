@@ -1,5 +1,9 @@
 import React from 'react';
-import { SparklesIcon, ShieldIcon as ShieldCheckIcon, ZapIcon as RocketLaunchIcon, ArrowRightIcon } from './icons';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
+import { RocketLaunchIcon } from './icons/RocketLaunchIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+
 
 interface ModuleActivationViewProps {
     moduleId: string;
