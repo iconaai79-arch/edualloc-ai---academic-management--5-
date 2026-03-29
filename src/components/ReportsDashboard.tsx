@@ -8,7 +8,17 @@ import { AttendanceReports } from './AttendanceReports.tsx';
 import { AssessmentReports } from './AssessmentReports.tsx';
 import { ExamTimetableGrid } from './ExamTimetableGrid.tsx';
 import { generateExamTimetablePdf, generateWorkloadStatisticsPdf } from '../services/pdfService.ts';
-import { PrinterIcon, DocumentArrowDownIcon, ChartBarIcon, BuildingOfficeIcon, ExclamationTriangleIcon, ClipboardListIcon, AcademicCapIcon, CalendarDaysIcon, ChartPieIcon, CheckCircleIcon, UserGroupIcon } from './icons/index.ts';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 import { RoomUtilizationReport } from './RoomUtilizationReport.tsx';
 import { TimetablesView } from './TimetablesView.tsx';
 import { VisualReports } from './VisualReports.tsx';
@@ -17,7 +27,8 @@ import { EnrollmentCapacityReport } from './EnrollmentCapacityReport.tsx';
 import { ActivityLogView } from './ActivityLogView.tsx';
 import { RoomDistanceReport } from './RoomDistanceReport.tsx';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { EyeIcon, TrendingUpIcon } from './icons/index.ts';
+import { EyeIcon } from './icons/EyeIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { AttendanceAnalytics } from './AttendanceAnalytics';
 
 interface ReportsDashboardProps {

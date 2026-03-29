@@ -2,7 +2,11 @@
 import React, { useState, useCallback } from 'react';
 import type { Subject, User, AllocationRequest, Priority } from '../types';
 import { generateJustification } from '../services/geminiService';
-import { SparklesIcon, XIcon, CheckCircleIcon, PaperAirplaneIcon, ArrowPathIcon } from './icons/index';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface ChangeRequestModalProps {
   allocation: AllocationRequest;

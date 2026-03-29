@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
-import { 
-    CreditCardIcon, 
-    PlusIcon, 
-    SparklesIcon,
-    ArrowPathIcon,
-    SearchIcon,
-    FileTextIcon,
-    MpesaIcon,
-    ShieldIcon,
-    CheckCircleIcon,
-    ChartBarIcon
-} from '../icons/index';
+import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { FileTextIcon } from '../icons/FileTextIcon';
+import { MpesaIcon } from '../icons/MpesaIcon';
+import { ShieldIcon } from '../icons/ShieldIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { ChartBarIcon } from '../icons/ChartBarIcon';
 
 interface Claim {
     id: string;

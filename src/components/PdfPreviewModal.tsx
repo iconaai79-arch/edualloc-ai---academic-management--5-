@@ -1,6 +1,7 @@
 
 import React, { useEffect } from 'react';
-import { XIcon, DocumentArrowDownIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 
 interface PdfPreviewModalProps {
     url: string;

@@ -5,12 +5,24 @@ import type {
     BookReservation, BookStockReceipt, LibrarySettings, v_library_statistics,
     CompanyDetails, Course, Department, AcademicYear, Semester
 } from '../types';
-import {
-    BookOpenIcon, BarChart3Icon, ClipboardListIcon, ClockIcon,
-    CheckCircleIcon, PlusIcon, XIcon, UserIcon, ArrowTrendingUpIcon,
-    QrCodeIcon, RectangleStackIcon, CurrencyIcon, SettingsIcon, ArchiveBoxIcon,
-    BuildingOfficeIcon, UsersIcon, ShieldIcon, ArrowPathIcon
-} from './icons/index';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { BarChart3Icon } from './icons/BarChart3Icon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { SettingsIcon } from './icons/SettingsIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UsersIcon } from './icons/UsersIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { apiService } from '../services/apiService';
 
 // Sub-components

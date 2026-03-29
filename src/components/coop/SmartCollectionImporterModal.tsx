@@ -14,7 +14,7 @@ import {
     AlertTriangle,
     AlertCircle
 } from 'lucide-react';
-import { CircleCheckIcon } from '../icons/CircleCheckIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { UserIcon as UserIconAlt } from '../icons/UserIcon';
 
 

@@ -5,12 +5,26 @@ import type {
     AgrovetUnitType, AgrovetPaymentMethod, AgrovetSaleStatus
 } from '../types';
 import { apiService } from '../services/apiService';
-import {
-    PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon,
-    ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, UserIcon, ArrowPathIcon,
-    ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
-    ShoppingCartIcon, TagIcon, BeakerIcon, ExclamationTriangleIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
+import { TagIcon } from './icons/TagIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 
 interface AgrovetViewProps {
     currentUser: User;

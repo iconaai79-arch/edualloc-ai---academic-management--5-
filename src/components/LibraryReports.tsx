@@ -5,13 +5,21 @@ import type {
     Department, v_library_statistics, Course, Institution, CompanyDetails,
     BookReservation, BookStockReceipt
 } from '../types';
-import {
-    BarChart3Icon, ClipboardListIcon, DownloadIcon, UserIcon,
-    BookOpenIcon, ArrowPathIcon, ChartPieIcon, ArrowTrendingUpIcon,
-    SearchIcon, PrinterIcon,
-    CheckCircleIcon, XCircleIcon, ClockIcon, ChartBarIcon,
-    ArrowRightIcon
-} from './icons/index';
+import { BarChart3Icon } from './icons/BarChart3Icon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
+import { UserIcon } from './icons/UserIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
 import { apiService } from '../services/apiService';
 import { generateLibraryUnreturnedReportPdf, generateMemberLibraryHistoryPdf } from '../services/pdfService';
 

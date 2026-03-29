@@ -1,11 +1,19 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Book, User, LibraryTransaction, LibrarySettings } from '../types';
-import {
-    PlusIcon, SearchIcon, CheckCircleIcon, XIcon, UserIcon,
-    BookOpenIcon, ClockIcon, AlertTriangleIcon, ArrowPathIcon,
-    CurrencyIcon, QrCodeIcon, BellIcon, EyeIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { BellIcon } from './icons/BellIcon';
+import { EyeIcon } from './icons/EyeIcon';
 import { apiService } from '../services/apiService';
 
 interface BookLendingManagerProps {

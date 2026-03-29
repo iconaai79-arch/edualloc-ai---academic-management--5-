@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { Subject, Department, LessonStructure } from '../types';
-import { XIcon, PlusIcon, CheckCircleIcon, ArrowPathIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface BulkSubjectStructureModalProps {
     onClose: () => void;

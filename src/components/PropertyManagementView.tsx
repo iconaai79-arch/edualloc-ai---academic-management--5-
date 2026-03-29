@@ -6,16 +6,42 @@ import {
     CompanyDetails, PMInvoice, PMInvoiceStatus, SmsConfig, Department, Subject, Course, LetterheadConfig, UserUpdateData
 } from '../types';
 import { apiService } from '../services/apiService';
-import {
-    PlusIcon, XIcon, CheckCircleIcon, SparklesIcon, UserGroupIcon,
-    ChartBarIcon, Cog8ToothIcon, ArchiveBoxIcon, UserIcon, ArrowPathIcon,
-    ClockIcon, CurrencyIcon, ChartPieIcon, TrashIcon, EyeIcon, SearchIcon,
-    HomeIcon, GridIcon, ListIcon, CreditCardIcon, AlertTriangleIcon,
-    TrendingUpIcon, BuildingOfficeIcon, UserPlusIcon, MapPinIcon, ShoppingCartIcon,
-    MpesaIcon, BanknotesIcon, PencilIcon, CalendarDaysIcon as CalendarIcon,
-    PaperAirplaneIcon, DownloadIcon, ChatBubbleBottomCenterTextIcon, ChatBubbleLeftRightIcon, SettingsIcon,
-    DocumentTextIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { HomeIcon } from './icons/HomeIcon';
+import { GridIcon } from './icons/GridIcon';
+import { ListIcon } from './icons/ListIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
+import { MpesaIcon } from './icons/MpesaIcon';
+import { BanknotesIcon } from './icons/BanknotesIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { SettingsIcon } from './icons/SettingsIcon';
+import { DocumentTextIcon } from './icons/DocumentTextIcon';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { PdfPreviewModal } from './PdfPreviewModal';

@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { 
-    ChartBarIcon, 
-    ChartPieIcon, 
-    TrendingUpIcon, 
-    CurrencyIcon, 
-    DocumentTextIcon,
-    UsersIcon,
-    ArrowPathIcon,
-    SearchIcon,
-    PlusIcon,
-    ClockIcon
-} from '../icons/index';
+import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { ChartPieIcon } from '../icons/ChartPieIcon';
+import { TrendingUpIcon } from '../icons/TrendingUpIcon';
+import { CurrencyIcon } from '../icons/CurrencyIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { ClockIcon } from '../icons/ClockIcon';
 import { ChartLineIcon, FireIcon, HeartIcon, ActivityIcon, CalendarIcon } from './HealthIcons';
 import { Role } from '../../types';
 

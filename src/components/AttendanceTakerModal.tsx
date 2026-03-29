@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { User, TimetableEntry, Subject, StudentAttendance, StudentAbsenceRequest } from '../types';
 import { XIcon } from './icons/XIcon';
-import { UserIcon } from './icons/index';
+import { UserIcon } from './icons/UserIcon';
 
 interface AttendanceTakerModalProps {
   lesson: TimetableEntry;

@@ -1,39 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, Institution, County, AllocationRequest, Role, CountyInventoryItem, CountyInventoryCategory, CountyStore, StockTransaction, BursaryApplication, CountyBursaryFund, ActivityLog } from '../types';
-import {
-    BuildingOfficeIcon,
-    UserGroupIcon,
-    ChartPieIcon,
-    ArrowRightOnRectangleIcon,
-    AcademicCapIcon,
-    Cog8ToothIcon,
-    SparklesIcon,
-    ArrowUpTrayIcon,
-    PlusIcon,
-    EnvelopeIcon,
-    PhoneIcon,
-    PencilIcon,
-    UserIcon,
-    XIcon,
-    FingerPrintIcon,
-    ArchiveBoxIcon,
-    TruckIcon,
-    QrCodeIcon,
-    MapPinIcon,
-    CheckCircleIcon,
-    ChevronRightIcon,
-    CurrencyIcon,
-    ClipboardListIcon,
-    CheckIcon,
-    DocumentArrowDownIcon,
-    ShieldIcon,
-    TrashIcon,
-    BedIcon,
-    ChatBubbleBottomCenterTextIcon,
-    BookOpenIcon,
-    BeakerIcon,
-    HomeIcon
-} from './icons/index';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { UserIcon } from './icons/UserIcon';
+import { XIcon } from './icons/XIcon';
+import { FingerPrintIcon } from './icons/FingerPrintIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { TruckIcon } from './icons/TruckIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { BedIcon } from './icons/BedIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { BeakerIcon } from './icons/BeakerIcon';
+import { HomeIcon } from './icons/HomeIcon';
 import { apiService } from '../services/apiService';
 import { SmartInstitutionImporterModal } from './SmartInstitutionImporterModal';
 import { SmartInventoryImporterModal } from './SmartInventoryImporterModal';

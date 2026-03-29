@@ -1,7 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import type { Book } from '../types';
-import { XIcon, PrinterIcon, DownloadIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
 
 interface BookQrCodeModalProps {
     book: Book;

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { XIcon, BuildingOfficeIcon, SparklesIcon, BedIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { BedIcon } from '../icons/BedIcon';
 
 interface AddWardModalProps {
     isOpen: boolean;

@@ -1,10 +1,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { InventoryItem, User, StockTransaction, Department } from '../types';
-import {
-    PlusIcon, SearchIcon, CheckCircleIcon, XIcon, UserIcon,
-    ArchiveBoxIcon, ClockIcon, ArrowPathIcon, EyeIcon, BuildingOfficeIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { apiService } from '../services/apiService';
 
 interface StoreIssuanceManagerProps {

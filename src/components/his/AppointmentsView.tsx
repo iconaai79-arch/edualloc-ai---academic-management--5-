@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    PlusIcon, 
-    SearchIcon, 
-    ChevronRightIcon, 
-    UsersIcon, 
-    ArrowPathIcon,
-    CalendarDaysIcon,
-    ClockIcon,
-    CheckCircleIcon,
-    XCircleIcon as XMarkIcon,
-    BellIcon,
-    DocumentTextIcon,
-    CalendarIcon
-} from '../icons/index';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { XCircleIcon as XMarkIcon } from '../icons/XCircleIcon';
+import { BellIcon } from '../icons/BellIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+
 import { AddAppointmentModal } from './AddAppointmentModal';
 import { Role, HISAppointment } from '../../types';
 import { apiService } from '../../services/apiService';

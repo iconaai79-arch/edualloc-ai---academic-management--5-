@@ -4,12 +4,17 @@ import type {
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
     AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig
 } from '../types';
-import {
-    PlusIcon, UserGroupIcon, AcademicCapIcon, ArrowUpTrayIcon,
-    CheckCircleIcon, XIcon, SparklesIcon, EyeIcon, PrinterIcon,
-    // FIXED: Added missing icons
-    DocumentArrowDownIcon, MagnifyingGlassIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { analyzeUserSpreadsheet } from '../services/geminiService';
 import { EditUserModal } from './EditUserModal';
 import { ManageLessonsModal } from './ManageLessonsModal';

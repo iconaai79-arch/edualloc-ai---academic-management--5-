@@ -4,13 +4,26 @@ import {
     Institution, PMLandlord, PMDisbursement
 } from '../types';
 import { apiService } from '../services/apiService';
-import {
-    HomeIcon, BuildingOfficeIcon, CurrencyIcon, WrenchIcon,
-    BellIcon, UserIcon, ArrowRightOnRectangleIcon, ArrowRightIcon,
-    TrendingUpIcon, ChartPieIcon, CheckCircleIcon, InformationCircleIcon,
-    EnvelopeIcon, ArrowTrendingUpIcon, ExclamationTriangleIcon, ChatBubbleBottomCenterTextIcon,
-    SparklesIcon, CalendarDaysIcon, XIcon, PaperAirplaneIcon
-} from './icons/index';
+import { HomeIcon } from './icons/HomeIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { WrenchIcon } from './icons/WrenchIcon';
+import { BellIcon } from './icons/BellIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { XIcon } from './icons/XIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 
 interface LandlordPortalViewProps {
     currentUser: User;

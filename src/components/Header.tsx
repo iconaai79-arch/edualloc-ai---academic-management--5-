@@ -3,7 +3,11 @@ import type { User, AppNotification, Institution, Role } from '../types';
 import { NotificationBell } from './NotificationBell';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName } from '../utils/roleUtils';
-import { ChevronDownIcon, ArrowRightOnRectangleIcon, PencilIcon, ClockIcon, SparklesIcon } from './icons/index';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
 
 interface HeaderProps {
     currentUser: User | null;

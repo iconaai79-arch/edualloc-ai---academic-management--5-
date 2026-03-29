@@ -1,6 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
-import { StarIcon, CheckCircleIcon, BuildingOfficeIcon, XIcon, MagnifyingGlassIcon } from './icons/index';
+import { StarIcon } from './icons/StarIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { XIcon } from './icons/XIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import type { GuestFeedback, Institution, FeedbackSubmission } from '../types';
 
 interface GuestFeedbackViewProps {

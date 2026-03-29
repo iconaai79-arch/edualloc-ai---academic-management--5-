@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    XIcon, 
-    PlusIcon, 
-    TrashIcon, 
-    BeakerIcon, 
-    SparklesIcon, 
-    CheckCircleIcon,
-    SearchIcon,
-    ExclamationTriangleIcon
-} from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { BeakerIcon } from '../icons/BeakerIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { apiService } from '../../services/apiService';
 
 interface AddPrescriptionModalProps {

@@ -11,30 +11,42 @@ import type {
     WatchlistRecord, MaintenanceRequest, TransportVehicle, TransportOnboarding, VehicleLog,
     SmsConfig, LetterheadConfig
 } from '../types';
-import {
-    ShieldIcon, ArchiveBoxIcon, PlusIcon, CheckCircleIcon, XIcon,
-    UserIcon, InformationCircleIcon, MapPinIcon, PrinterIcon,
-    CreditCardIcon, DocumentArrowDownIcon, ChartBarIcon, MagnifyingGlassIcon, EyeIcon,
-    // Added BuildingOfficeIcon to resolve name collision or missing reference errors
-    BuildingOfficeIcon, ClockIcon, CheckIcon, ArrowUpTrayIcon, ClipboardListIcon,
-    LockClosedIcon,
-    MpesaIcon,
-    SparklesIcon,
-    TrendingUpIcon,
-    ArrowTrendingUpIcon,
-    CameraIcon,
-    CalendarDaysIcon,
-    PhoneIcon,
-    ArrowRightOnRectangleIcon,
-    ExclamationTriangleIcon,
-    ArrowPathIcon,
-    EnvelopeIcon,
-    ArrowsRightLeftIcon,
-    PaperAirplaneIcon,
-    TrashIcon,
-    PencilIcon,
-    UserPlusIcon
-} from './icons/index';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { LockClosedIcon } from './icons/LockClosedIcon';
+import { MpesaIcon } from './icons/MpesaIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { CameraIcon } from './icons/CameraIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
 import { UserManager } from './UserManager';
 import { DepartmentManager } from './DepartmentManager';
 import { SecurityAlertManager } from './SecurityAlertManager';

@@ -2,18 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import type { PMSettings, Institution } from '../types';
 import { apiService } from '../services/apiService';
-import {
-    GridIcon,
-    BellIcon,
-    CheckCircleIcon,
-    ArrowPathIcon,
-    SparklesIcon,
-    PhoneIcon,
-    PencilIcon,
-    MapPinIcon,
-    UploadIcon,
-    XIcon
-} from './icons/index';
+import { GridIcon } from './icons/GridIcon';
+import { BellIcon } from './icons/BellIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { UploadIcon } from './icons/UploadIcon';
+import { XIcon } from './icons/XIcon';
 
 interface PMConfigManagerProps {
     institutionId: string;

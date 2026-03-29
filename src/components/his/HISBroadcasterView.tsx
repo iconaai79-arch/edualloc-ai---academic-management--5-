@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { 
-    PlusIcon, 
-    SparklesIcon,
-    ArrowPathIcon,
-    ExclamationTriangleIcon,
-    UsersIcon,
-    BellIcon,
-    SearchIcon
-} from '../icons/index';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { BellIcon } from '../icons/BellIcon';
+import { SearchIcon } from '../icons/SearchIcon';
 import { MegaphoneIcon, SignalIcon } from './HealthIcons';
 
 interface Broadcast {

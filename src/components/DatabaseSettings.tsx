@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { DatabaseConfig } from '../types';
-import {
-    ShieldIcon,
-    ArrowPathIcon,
-    CheckCircleIcon,
-    XIcon,
-    InformationCircleIcon,
-    LockClosedIcon,
-    CommandLineIcon,
-    SparklesIcon
-} from './icons/index';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { LockClosedIcon } from './icons/LockClosedIcon';
+import { CommandLineIcon } from './icons/CommandLineIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
 import { apiService, initSupabaseClient } from '../services/apiService';
 
 interface DatabaseSettingsProps {

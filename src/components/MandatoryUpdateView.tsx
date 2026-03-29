@@ -1,7 +1,14 @@
 
 import React, { useState } from 'react';
 import type { User, ProfileUpdateData, PasswordUpdateData } from '../types';
-import { ShieldExclamationIcon, LockClosedIcon, CheckCircleIcon, XIcon, UserIcon, PhoneIcon, EnvelopeIcon, ArrowPathIcon } from './icons/index';
+import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
+import { LockClosedIcon } from './icons/LockClosedIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { UserIcon } from './icons/UserIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface MandatoryUpdateViewProps {
     user: User;

@@ -1,26 +1,23 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution } from '../types';
-import {
-    BookOpenIcon,
-    ClockIcon,
-    CalendarDaysIcon,
-    CheckIcon,
-    XIcon,
-    MapPinIcon,
-    ClockInIcon,
-    StarIcon,
-    ArrowsRightLeftIcon,
-    SparklesIcon,
-    InformationCircleIcon,
-    ArrowTrendingUpIcon,
-    ClipboardListIcon,
-    // FIXED: Added missing ShieldIcon and CheckCircleIcon to the imports
-    ShieldIcon,
-    CheckCircleIcon,
-    PlusIcon,
-    ArrowPathIcon
-} from './icons/index';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { ClockInIcon } from './icons/ClockInIcon';
+import { StarIcon } from './icons/StarIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { AbsenceRequestModal } from './AbsenceRequestModal';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';

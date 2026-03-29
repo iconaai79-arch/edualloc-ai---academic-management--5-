@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { 
-    PlusIcon, 
-    SparklesIcon,
-    ArrowPathIcon,
-    SearchIcon
-} from '../icons/index';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
 import { ScissorsIcon, ActivityIcon } from './HealthIcons';
 
 interface Tooth {

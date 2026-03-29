@@ -20,13 +20,29 @@ import {
 } from '../services/pdfService';
 import { formatRoleDisplayName } from '../utils/roleUtils';
 import { getInstitutionEmailConfig } from '../services/emailService';
-import {
-    PlusIcon, XIcon, SearchIcon, Cog8ToothIcon, StarIcon, SparklesIcon,
-    WrenchIcon, DocumentTextIcon, CurrencyIcon, ChartPieIcon, UserGroupIcon,
-    BanknotesIcon, ArchiveBoxIcon, ClockIcon, UserIcon, ChartBarIcon,
-    EnvelopeIcon, ArrowUpTrayIcon, CheckCircleIcon,
-    ClipboardListIcon, EyeIcon, TrendingUpIcon, GiftIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { XIcon } from './icons/XIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { StarIcon } from './icons/StarIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { WrenchIcon } from './icons/WrenchIcon';
+import { DocumentTextIcon } from './icons/DocumentTextIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { ChartPieIcon } from './icons/ChartPieIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { BanknotesIcon } from './icons/BanknotesIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
+import { GiftIcon } from './icons/GiftIcon';
 
 const VEHICLE_TYPES: CarWashVehicleType[] = ['Sedan', 'SUV', 'Truck', 'Matatu', 'Motorbike', 'Van', 'Bus', 'Other'];
 const PAYMENT_METHODS: CarWashPaymentMethod[] = ['cash', 'mpesa', 'card', 'credit'];

@@ -21,7 +21,7 @@ import {
     CreditCard,
     Calendar
 } from 'lucide-react';
-import { CheckCircleIcon as CircleCheck } from '../icons/index';
+import { CheckCircleIcon as CircleCheck } from '../icons/CheckCircleIcon';
 
 interface RiderPortalProps {
     currentUser: User;

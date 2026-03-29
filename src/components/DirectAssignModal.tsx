@@ -1,7 +1,15 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import type { User, Subject, Priority, Course } from '../types';
 import { generateBulkJustification, generateJustification } from '../services/geminiService';
-import { SparklesIcon, XIcon, PlusIcon, CheckIcon, MagnifyingGlassIcon, ChevronDownIcon, UserGroupIcon, Cog8ToothIcon, ClipboardListIcon } from './icons/index';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
 
 interface DirectAssignModalProps {
     lecturers: User[];

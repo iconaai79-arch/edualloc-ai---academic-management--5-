@@ -1,6 +1,9 @@
 
 import React, { useState } from 'react';
-import { XIcon, SendIcon, CheckCircleIcon, SparklesIcon } from './../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { SendIcon } from '../icons/SendIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
 import { apiService } from '../../services/apiService';
 
 interface BookDemoModalProps {

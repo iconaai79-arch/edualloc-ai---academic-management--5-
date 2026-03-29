@@ -7,11 +7,16 @@ import type {
 } from '../types';
 import { generateTimetable } from '../services/geminiService';
 import { generateStandardTimetable } from '../utils/timetableLogic';
-import {
-    SparklesIcon, CommandLineIcon, ExclamationTriangleIcon,
-    ChevronRightIcon, XIcon, CheckCircleIcon, BuildingOfficeIcon,
-    UserGroupIcon, RectangleStackIcon, CalendarDaysIcon
-} from './icons/index';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CommandLineIcon } from './icons/CommandLineIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 
 interface TimetableWizardProps {
     onClose?: () => void;

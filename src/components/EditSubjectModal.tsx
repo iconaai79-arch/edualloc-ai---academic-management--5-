@@ -1,7 +1,11 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Subject, Department, Room, Course, Institution, TimetableSettings, TimetableConstraint, TimetableConstraintType, User, CourseLevel } from '../types';
-import { XIcon, PlusIcon, MagnifyingGlassIcon, CheckIcon, InformationCircleIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
 
 interface EditSubjectModalProps {
     subject: Subject;

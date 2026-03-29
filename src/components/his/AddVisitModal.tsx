@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { XIcon, SparklesIcon, UsersIcon, BuildingOfficeIcon } from '../icons/index';
+import { XIcon } from '../icons/XIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { CalendarIcon, ClockIcon } from './HealthIcons';
 
 interface AddVisitModalProps {

@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import type { LibraryFine, LibrarySettings, User } from '../types';
-import {
-    SettingsIcon, CurrencyIcon, CheckCircleIcon, XCircleIcon,
-    AlertTriangleIcon, UserIcon, ShieldIcon
-} from './icons/index';
+import { SettingsIcon } from './icons/SettingsIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { UserIcon } from './icons/UserIcon';
+import { ShieldIcon } from './icons/ShieldIcon';
 import { apiService } from '../services/apiService';
 
 interface LibraryPenaltyManagerProps {

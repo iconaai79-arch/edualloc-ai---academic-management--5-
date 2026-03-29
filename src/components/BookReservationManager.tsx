@@ -1,11 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import type { Book, BookReservation, User } from '../types';
-import {
-    RectangleStackIcon, CheckCircleIcon, XCircleIcon, ClockIcon,
-    UserIcon, BookOpenIcon, AlertTriangleIcon, ArrowRightIcon,
-    CalendarDaysIcon
-} from './icons/index';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { UserIcon } from './icons/UserIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { apiService } from '../services/apiService';
 
 interface BookReservationManagerProps {

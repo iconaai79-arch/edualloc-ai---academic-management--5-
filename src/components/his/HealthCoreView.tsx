@@ -1,23 +1,21 @@
 import React, { useState } from 'react';
 import { Role, HISPatient } from '../../types';
-import { 
-    PlusIcon, 
-    SparklesIcon,
-    ArrowPathIcon,
-    SearchIcon,
-    ChevronRightIcon,
-    UsersIcon,
-    EyeIcon,
-    BuildingOfficeIcon,
-    PencilIcon,
-    CreditCardIcon,
-    DocumentTextIcon,
-    BellIcon,
-    Cog8ToothIcon as SettingsIcon,
-    ChartBarIcon,
-    XIcon,
-    BeakerIcon
-} from '../icons/index';
+import { PlusIcon } from '../icons/PlusIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
+import { PencilIcon } from '../icons/PencilIcon';
+import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { BellIcon } from '../icons/BellIcon';
+import { Cog8ToothIcon as SettingsIcon } from '../icons/Cog8ToothIcon';
+import { ChartBarIcon } from '../icons/ChartBarIcon';
+import { XIcon } from '../icons/XIcon';
+import { BeakerIcon } from '../icons/BeakerIcon';
 import { HeartIcon, ActivityIcon, ScissorsIcon, CalendarIcon, GlobeAltIcon, PhotoIcon, ChartLineIcon, ClockIcon } from './HealthIcons';
 
 import { InpatientView } from './InpatientView';

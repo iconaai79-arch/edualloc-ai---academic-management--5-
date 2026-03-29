@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, TransactionStatus, InvoiceItem } from '../types';
-import { SparklesIcon, MpesaIcon, PhoneIcon, ChatBubbleLeftRightIcon, ArrowRightOnRectangleIcon, CreditCardIcon, ClockIcon, EnvelopeIcon } from './icons/index';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { MpesaIcon } from './icons/MpesaIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
+import { CreditCardIcon } from './icons/CreditCardIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { PayNowModal } from './PayNowModal';
 
 interface TrialExpiredViewProps {

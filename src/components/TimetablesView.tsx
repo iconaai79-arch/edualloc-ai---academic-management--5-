@@ -6,20 +6,18 @@ import { DepartmentWorkloadSummary } from './DepartmentWorkloadSummary';
 import { RelationsView } from './RelationsView';
 import { MasterCourseTimetableGrid } from './MasterCourseTimetableGrid';
 import { DepartmentalMasterTimetable } from './DepartmentalMasterTimetable';
-import {
-    BuildingOfficeIcon,
-    ChartBarIcon,
-    CalendarDaysIcon,
-    UserGroupIcon,
-    PrinterIcon,
-    DocumentArrowDownIcon,
-    UserIcon,
-    RectangleStackIcon,
-    ArrowsRightLeftIcon,
-    EyeIcon,
-    XIcon,
-    EnvelopeIcon
-} from './icons/index';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { UserIcon } from './icons/UserIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { XIcon } from './icons/XIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { generateMasterCourseTimetablePdf, generateMasterFacilityGridPdf, generateLecturerTimetablePdf, generateStudentTimetablePdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';

@@ -1,7 +1,7 @@
 import React from 'react';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
-import { RocketLaunchIcon } from './icons/RocketLaunchIcon';
+import { ShieldIcon as ShieldCheckIcon } from './icons/ShieldIcon';
+import { ZapIcon } from './icons/ZapIcon';
 import { ArrowRightIcon } from './icons/ArrowRightIcon';
 
 
@@ -31,7 +31,7 @@ export const ModuleActivationView: React.FC<ModuleActivationViewProps> = ({
             <div className="relative z-10 max-w-2xl text-center space-y-8">
                 <div className="flex justify-center">
                     <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-xl transform -rotate-6">
-                        <RocketLaunchIcon className="w-10 h-10 text-white" />
+                        <ZapIcon className="w-10 h-10 text-white" />
                     </div>
                 </div>
 
@@ -56,7 +56,7 @@ export const ModuleActivationView: React.FC<ModuleActivationViewProps> = ({
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Enterprise-grade data protection and backups.</p>
                     </div>
                     <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                        <RocketLaunchIcon className="w-6 h-6 text-amber-500 mb-2" />
+                        <ZapIcon className="w-6 h-6 text-amber-500 mb-2" />
                         <h4 className="font-bold text-slate-900 dark:text-white text-sm">Instant Setup</h4>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Start working in seconds with zero configuration.</p>
                     </div>

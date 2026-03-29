@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import type { User, Unavailability } from '../types';
-import { XIcon, ClockIcon, PlusIcon, CheckCircleIcon, ArrowPathIcon, CalendarDaysIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 
 interface LecturerUnavailabilityModalProps {
   lecturer: User;

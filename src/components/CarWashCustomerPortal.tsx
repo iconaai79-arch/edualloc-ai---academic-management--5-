@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import { generateReceiptPdfDataUri } from '../services/pdfService';
 import type { User, CarWashJob, CarWashCustomer, Receipt, Invoice, Institution } from '../types';
-import {
-    ClockIcon, CheckCircleIcon, DocumentArrowDownIcon,
-    ArrowPathIcon, UserIcon, SparklesIcon, CalendarDaysIcon,
-    MapPinIcon, CurrencyIcon
-} from './icons/index';
+import { ClockIcon } from './icons/ClockIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { UserIcon } from './icons/UserIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
 
 interface CarWashCustomerPortalProps {
     currentUser: User;

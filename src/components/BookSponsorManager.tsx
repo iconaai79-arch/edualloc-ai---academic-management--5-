@@ -1,11 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import type { Book, BookStockReceipt, User } from '../types';
-import {
-    PlusIcon, BuildingOfficeIcon, TrashIcon, ArchiveBoxIcon,
-    CalendarDaysIcon, ClipboardListIcon, DownloadIcon, CheckCircleIcon,
-    ChartBarIcon, XIcon
-} from './icons/index';
+import { PlusIcon } from './icons/PlusIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { XIcon } from './icons/XIcon';
 import { apiService } from '../services/apiService';
 
 interface BookSponsorManagerProps {

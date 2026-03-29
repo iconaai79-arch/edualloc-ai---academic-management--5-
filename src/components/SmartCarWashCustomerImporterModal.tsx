@@ -1,7 +1,10 @@
 
 import React, { useState } from 'react';
 import type { CarWashCustomer, CarWashVehicle, CarWashVehicleType, Institution } from '../types';
-import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { analyzeCarWashCustomerSpreadsheet } from '../services/geminiService';
 import * as XLSX from 'xlsx';
 

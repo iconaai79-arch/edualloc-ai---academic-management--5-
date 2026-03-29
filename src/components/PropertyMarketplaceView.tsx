@@ -2,12 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { PMListing, PMListingStatus, PMListingType, Institution, RetailInventoryItem } from '../types';
 import { apiService } from '../services/apiService';
 import { getInstitutionEmailConfig } from '../services/emailService';
-import {
-    HomeIcon, SearchIcon, MapPinIcon, ShoppingCartIcon,
-    SparklesIcon, PhoneIcon, EnvelopeIcon, ArrowRightIcon,
-    XIcon, BuildingOfficeIcon,
-    CurrencyIcon, CheckCircleIcon, StarIcon
-} from './icons/index';
+import { HomeIcon } from './icons/HomeIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { MapPinIcon } from './icons/MapPinIcon';
+import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { XIcon } from './icons/XIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { CurrencyIcon } from './icons/CurrencyIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { StarIcon } from './icons/StarIcon';
 
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;

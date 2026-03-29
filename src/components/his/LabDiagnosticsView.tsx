@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    BeakerIcon, 
-    PlusIcon, 
-    ArrowPathIcon, 
-    SearchIcon,
-    ChevronRightIcon,
-    UsersIcon,
-    SparklesIcon,
-    CheckCircleIcon,
-    ClockIcon,
-    DocumentTextIcon
-} from '../icons/index';
+import { BeakerIcon } from '../icons/BeakerIcon';
+import { PlusIcon } from '../icons/PlusIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { SearchIcon } from '../icons/SearchIcon';
+import { ChevronRightIcon } from '../icons/ChevronRightIcon';
+import { UsersIcon } from '../icons/UsersIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { apiService } from '../../services/apiService';
 
 interface LabDiagnosticsViewProps {

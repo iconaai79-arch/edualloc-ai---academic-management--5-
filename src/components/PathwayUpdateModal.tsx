@@ -1,7 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import type { Subject, Department, LessonStructure } from '../types';
 import { suggestPathwaySubjectUpdates } from '../services/geminiService';
-import { SparklesIcon, XIcon, CheckCircleIcon, ArrowPathIcon, InformationCircleIcon } from './icons/index';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { XIcon } from './icons/XIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
 
 interface PathwayUpdateModalProps {
     onClose: () => void;

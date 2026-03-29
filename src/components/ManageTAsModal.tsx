@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import type { User, Subject, AllocationRequest, TaAssignment } from '../types';
-import { XIcon, UserGroupIcon, PlusIcon, TrashIcon, CheckCircleIcon, SparklesIcon, UserPlusIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
 
 interface ManageTAsModalProps {
   allocation: AllocationRequest;

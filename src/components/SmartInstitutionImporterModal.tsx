@@ -1,7 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Institution, InstitutionRegistrationData } from '../types';
-import { XIcon, SparklesIcon, CheckCircleIcon, ArrowUpTrayIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { analyzeInstitutionSpreadsheet } from '../services/geminiService';
 
 import * as XLSX from 'xlsx';

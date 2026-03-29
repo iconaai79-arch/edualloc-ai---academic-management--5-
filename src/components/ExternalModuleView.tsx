@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowPathIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, GlobeAltIcon } from './icons/index';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ArrowsPointingOutIcon } from './icons/ArrowsPointingOutIcon';
+import { ArrowsPointingInIcon } from './icons/ArrowsPointingInIcon';
+import { GlobeAltIcon } from './icons/GlobeAltIcon';
 
 interface ExternalModuleViewProps {
     url: string;

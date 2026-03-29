@@ -1,7 +1,11 @@
 
 import React, { useState } from 'react';
 import type { Subject } from '../types';
-import { XIcon, TrashIcon, ArrowPathIcon, InformationCircleIcon, ClipboardListIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { TrashIcon } from './icons/TrashIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
 
 interface DeallocationModalProps {
   subject: Subject;

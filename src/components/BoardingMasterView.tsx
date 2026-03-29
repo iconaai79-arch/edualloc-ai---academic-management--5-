@@ -4,7 +4,16 @@ import {
     CompanyDetails, AcademicYear, Semester,
     Course, Department
 } from '../types';
-import { HomeIcon, BedIcon, UsersIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, SettingsIcon, BarChart3Icon, ClipboardListIcon, UserGroupIcon } from './icons/index';
+import { HomeIcon } from './icons/HomeIcon';
+import { BedIcon } from './icons/BedIcon';
+import { UsersIcon } from './icons/UsersIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XCircleIcon } from './icons/XCircleIcon';
+import { AlertTriangleIcon } from './icons/AlertTriangleIcon';
+import { SettingsIcon } from './icons/SettingsIcon';
+import { BarChart3Icon } from './icons/BarChart3Icon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 import { apiService } from '../services/apiService';
 import HouseManager from './HouseManager';
 import RoomBedManager from './RoomBedManager';

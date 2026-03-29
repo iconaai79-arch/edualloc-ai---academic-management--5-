@@ -1,7 +1,13 @@
 
 import React, { useState, useMemo } from 'react';
 import type { User, Subject, AllocationRequest, Priority, Department, Course } from '../types';
-import { XIcon, MagnifyingGlassIcon, PlusIcon, ClipboardListIcon, ChevronRightIcon, CheckCircleIcon, ArrowPathIcon } from './icons/index';
+import { XIcon } from './icons/XIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 
 interface ManageLessonsModalProps {
     teacher: User;

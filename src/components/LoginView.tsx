@@ -1,7 +1,20 @@
 
 import React, { useState } from 'react';
 import type { User, Institution, InstitutionRegistrationData, CountyRegistrationData, Course, AcademicLevel, StudentRegistrationData, CompanyDetails } from '../types';
-import { CalendarDaysIcon, StarIcon, UserIcon, AcademicCapIcon, CheckCircleIcon, XIcon, PhoneIcon, ChatBubbleLeftRightIcon, SparklesIcon, CheckIcon, PaperAirplaneIcon, BuildingOfficeIcon, ShieldExclamationIcon, ShoppingCartIcon } from './icons/index';
+import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { StarIcon } from './icons/StarIcon';
+import { UserIcon } from './icons/UserIcon';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { XIcon } from './icons/XIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
+import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
+import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
+import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 
 interface LoginViewProps {
     // FIXED: Added 'suspended' to return types of onLogin to match implementation in App.tsx

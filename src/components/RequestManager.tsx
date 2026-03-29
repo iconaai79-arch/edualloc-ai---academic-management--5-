@@ -1,13 +1,17 @@
 
 import React, { useMemo, useState } from 'react';
 import type { AllocationRequest, User, Subject, RequestStatus, Priority, LessonStructure } from '../types';
-import {
-    CheckIcon, XIcon, SparklesIcon, ClockIcon,
-    ArrowsRightLeftIcon, InformationCircleIcon,
-    PlusIcon, CheckCircleIcon, BookOpenIcon,
-    ArrowPathIcon,
-    ExclamationTriangleIcon
-} from './icons/index';
+import { CheckIcon } from './icons/CheckIcon';
+import { XIcon } from './icons/XIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { ClockIcon } from './icons/ClockIcon';
+import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
+import { InformationCircleIcon } from './icons/InformationCircleIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { BookOpenIcon } from './icons/BookOpenIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 
 interface RequestManagerProps {
     requests: AllocationRequest[];
