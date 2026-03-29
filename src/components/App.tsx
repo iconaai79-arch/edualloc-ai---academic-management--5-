@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { LoginView } from './LoginView';
 import { Header } from './Header';
-import { AdminView } from './AdminView';
-import { SuperAdminView } from './SuperAdminView';
-import { LecturerView } from './LecturerView';
-import { StudentView } from './StudentView';
 import { ChatBot } from './ChatBot';
 import { MandatoryUpdateView } from './MandatoryUpdateView';
 import { SuspendedAccountView } from './SuspendedAccountView';
@@ -14,31 +10,37 @@ import { GuestFeedbackView } from './GuestFeedbackView';
 import { ProfileModal } from './ProfileModal';
 import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
-import { LibraryMasterView } from './LibraryMasterView';
-import { AcademicsOfficerView } from './AcademicsOfficerView';
-import { CountyAdminView } from './CountyAdminView';
-import BoardingMasterView from './BoardingMasterView';
-import { ParentView } from './ParentView';
-import { PracticeTeacherView } from './PracticeTeacherView';
-import { CarWashView } from './CarWashView';
-import { CarWashCustomerPortal } from './CarWashCustomerPortal';
-import { TenantPortalView } from './TenantPortalView';
-import { LandlordPortalView } from './LandlordPortalView';
 import { RetailCustomerPortal } from './retail/RetailCustomerPortal';
-import { AgrovetView } from './AgrovetView';
-import { PropertyManagementView } from './PropertyManagementView';
-import { PropertyMarketplaceView } from './PropertyMarketplaceView';
 import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { CarServiceView } from './carservice/CarServiceView';
 import { HealthCoreView } from './his/HealthCoreView';
-import { FarmerPortal } from './coop/FarmerPortal';
-import { RiderPortal } from './coop/RiderPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
-import ResellerDashboard from './ResellerDashboard';
-import { ChurchDashboard } from './church/ChurchDashboard';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { MarketingLandingPage } from './public/MarketingLandingPage';
 import { BookDemoModal } from './public/BookDemoModal';
+
+// Lazy-loaded major portals
+const AdminView = lazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
+const SuperAdminView = lazy(() => import('./SuperAdminView').then(m => ({ default: m.SuperAdminView })));
+const LecturerView = lazy(() => import('./LecturerView').then(m => ({ default: m.LecturerView })));
+const StudentView = lazy(() => import('./StudentView').then(m => ({ default: m.StudentView })));
+const TenantPortalView = lazy(() => import('./TenantPortalView').then(m => ({ default: m.TenantPortalView })));
+const LandlordPortalView = lazy(() => import('./LandlordPortalView').then(m => ({ default: m.LandlordPortalView })));
+const PropertyManagementView = lazy(() => import('./PropertyManagementView').then(m => ({ default: m.PropertyManagementView })));
+const LibraryMasterView = lazy(() => import('./LibraryMasterView').then(m => ({ default: m.LibraryMasterView })));
+const AcademicsOfficerView = lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
+const CountyAdminView = lazy(() => import('./CountyAdminView').then(m => ({ default: m.CountyAdminView })));
+const ParentView = lazy(() => import('./ParentView').then(m => ({ default: m.ParentView })));
+const PracticeTeacherView = lazy(() => import('./PracticeTeacherView').then(m => ({ default: m.PracticeTeacherView })));
+const CarWashView = lazy(() => import('./CarWashView').then(m => ({ default: m.CarWashView })));
+const CarWashCustomerPortal = lazy(() => import('./CarWashCustomerPortal').then(m => ({ default: m.CarWashCustomerPortal })));
+const AgrovetView = lazy(() => import('./AgrovetView').then(m => ({ default: m.AgrovetView })));
+const PropertyMarketplaceView = lazy(() => import('./PropertyMarketplaceView').then(m => ({ default: m.PropertyMarketplaceView })));
+const ChurchDashboard = lazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
+const FarmerPortal = lazy(() => import('./coop/FarmerPortal').then(m => ({ default: m.FarmerPortal })));
+const RiderPortal = lazy(() => import('./coop/RiderPortal').then(m => ({ default: m.RiderPortal })));
+const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
+const ResellerDashboard = lazy(() => import('./ResellerDashboard'));
 
 import { apiService, initSupabaseClient } from '../services/apiService';
 import { getAdminRoleForInstitution } from '../utils/roleUtils';
@@ -2212,7 +2214,8 @@ export const App: React.FC = () => {
                             isHealthSystemOpen={isHealthSystemOpen}
                         />
                         <main className={`flex-grow mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full transition-all duration-300 ${isFullWidthLayout ? 'max-w-[1600px]' : 'max-w-7xl'}`}>
-                            {activeRole === 'admin' ? (
+                            <Suspense fallback={<SystemPulseLoader message="Initializing Portal..." status="Loading perspective environment" />}>
+                                {activeRole === 'admin' ? (
                                 <AdminView
                                     currentUser={currentUser}
                                     activeRole={activeRole || undefined}
@@ -3695,7 +3698,8 @@ export const App: React.FC = () => {
                                     coopAgrovetInventory={coopAgrovetInventory}
                                 />
                             ) : null}
-                        </main>
+                        </Suspense>
+                    </main>
                     </>
                 ) : (
                     <>
