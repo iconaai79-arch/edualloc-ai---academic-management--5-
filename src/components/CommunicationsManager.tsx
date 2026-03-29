@@ -18,7 +18,7 @@ interface CommunicationsManagerProps {
     mpesaConfig?: MpesaConfig;
     smsConfig?: SmsConfig;
     onRefreshData?: () => void;
-    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative';
+    moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church';
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -300,7 +300,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     <>
                         <input
                             type="text"
-                            placeholder="Search for user by name or ID..."
+                            placeholder={isChurch ? "Search for member/worker by name..." : "Search for user by name or ID..."}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="form-input mt-1"
@@ -313,9 +313,9 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                             aria-label="Select individual recipient"
                         >
                             <option value="" disabled>Select a user ({filteredUsersForIndividualSelection.length} found)</option>
-                            {filteredUsersForIndividualSelection.map(user => (
+                             {filteredUsersForIndividualSelection.map(user => (
                                 <option key={user.id} value={user.id}>
-                                    {user.name} ({user.role}) - {user.phoneNumber || 'No phone'}
+                                    {user.name} ({isChurch && (user.role === 'student' || user.role === 'member' || user.role === 'church_member') ? 'Member' : user.role}) - {user.phoneNumber || 'No phone'}
                                 </option>
                             ))}
                         </select>
@@ -532,9 +532,9 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                     </>
                                 ) : (
                                     <>
-                                        <option value="individual">Individual User</option>
+                                        <option value="individual">{isChurch ? 'Individual Member/Worker' : 'Individual User'}</option>
                                         {isSuperAdminView && <option value="institution">By Institution</option>}
-                                        <option value="all_staff">All Staff</option>
+                                        <option value="all_staff">{isChurch ? 'All Church Workers/Staff' : 'All Staff'}</option>
                                         {isRetailAgency ? (
                                             <>
                                                 <option value="all_retail_agents">All Retail Agents</option>
@@ -545,9 +545,10 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                             </>
                                         ) : (
                                             <>
-                                                <option value="all_students">All Students</option>
-                                                <option value="department">By Department</option>
-                                                <option value="course">By Course</option>
+                                                <option value="all_students">{isChurch ? 'All Congregation Members' : 'All Students'}</option>
+                                                <option value="department">{isChurch ? 'By Ministry/Committee' : 'By Department'}</option>
+                                                <option value="course">{isChurch ? 'By Program/Group' : 'By Course'}</option>
+                                                {isChurch && <option value="all_customers">All Visitors & Guests</option>}
                                             </>
                                         )}
                                     </>
