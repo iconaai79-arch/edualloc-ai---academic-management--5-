@@ -680,7 +680,7 @@ export const App: React.FC = () => {
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstId || "Global");
             [inv, ext, vh, fs, fp, fb, sar, enr, abs, con, att, item, tt, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, apts, sups, stx, cinv, ccats, cstores, bApps, bFunds, lo, obs, vis, sec, reqRecords, retExp, rStores, rInv, tor, fBulletin, fDocs, fWatch, fMaint, fCheckIn, vhcls, tonb, vlogs, cafe, cOrders, rSales, cwJobs, cFarmers, cColls, cRiders, cAgroInv, cAgroSales, cSaccoAcc, cSaccoTx, cPayouts, cExps, cInc, ims] = await Promise.all([
                     apiService.fetchInvoices(effectiveInstId).catch(() => []),
-                    apiService.fetchExtensionRequests(effectiveInstId).catch(() => []),
+                    apiService.fetchExtensionRequests(currentUser?.role === 'super_admin' ? 'ALL' : effectiveInstId).catch(() => []),
                     apiService.fetchVoteHeads(effectiveInstId).catch(() => []),
                     apiService.fetchFeeStructures(effectiveInstId).catch(() => []),
                     apiService.fetchFinancialPeriods(effectiveInstId).catch(() => []),
