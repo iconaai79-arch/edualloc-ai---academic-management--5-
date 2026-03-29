@@ -1381,13 +1381,16 @@ export const apiService = {
                 status,
                 resolved_at: new Date().toISOString()
             });
-            if (!request || !request.id) throw new Error("Failed to update extension request status");
+            if (!request) throw new Error("Failed to update extension request status: No response from server.");
 
-            // 2. If approved, extend the institution's trial
-            if (status === 'approved' && request.institutionId) {
-                const insts = await this.fetchModuleRecords<any>('institutions', request.institutionId);
+            // Use fallback from currentRequest if the backend select() came back empty 
+            const finalRequest = request.id ? request : { ...currentRequest, ...request };
+
+            // 3. If approved, extend the institution's trial
+            if (status === 'approved' && finalRequest.institutionId) {
+                const insts = await this.fetchModuleRecords<any>('institutions', finalRequest.institutionId);
                 const inst = insts[0];
-                if (!inst) throw new Error("Institution not found for the given request");
+                if (!inst) throw new Error("Institution not found for the given request ID: " + finalRequest.institutionId);
 
                 // Calculate new expiry date
                 const currentExpiry = inst.trialEndsAt ? new Date(inst.trialEndsAt) : new Date();

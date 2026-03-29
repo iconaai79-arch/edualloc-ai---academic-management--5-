@@ -151,9 +151,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // Return entire array for bulk, first element for single
             if (Array.isArray(recordData)) {
-                return res.status(200).json(data || { success: true });
+                return res.status(200).json(data || { success: true, count: recordData.length });
             }
-            return res.status(200).json(data?.[0] || { success: true });
+            return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
 
         return res.status(405).json({ success: false, error: 'Method not allowed' });

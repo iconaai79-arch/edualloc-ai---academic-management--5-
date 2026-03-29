@@ -1031,7 +1031,8 @@ export const App: React.FC = () => {
             alert(`Extension request ${status} successfully.`);
         } catch (err) {
             console.error("Failed to update extension request status:", err);
-            alert("Failed to update status. Please try again.");
+            const errMsg = (err as any)?.message || (err as any)?.error || "Unknown error";
+            alert(`Failed to update status: ${errMsg}. Please try again.`);
         }
     };
 
