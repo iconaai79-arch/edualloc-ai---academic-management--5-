@@ -65,6 +65,7 @@ import { TruckIcon } from './icons/TruckIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
 import { BanknotesIcon } from './icons/BanknotesIcon';
 import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
+import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
 
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
