@@ -2,6 +2,7 @@
 // const ai = ... // Removed
 
 import type { User, Subject, AllocationRequest, Room, TimetableEntry, TimetableSettings, Course, TimeOffRequest, ExamTimetableEntry, Internship, ExamTimetableSettings, LessonStructure, ScheduleProfile } from '../types';
+import { apiService } from './apiService';
 
 
 const PRO_LOGICAL_CORE = 'gemini-1.5-pro';
@@ -41,9 +42,13 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
     const model = preferredModel === 'flash' ? STANDARD_LOGICAL_CORE : PRO_LOGICAL_CORE;
 
     try {
+        const token = await apiService.getAuthToken();
         const response = await fetch('/api/ai', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
             body: JSON.stringify({
                 model,
                 contents,
@@ -387,9 +392,13 @@ export const findLocationCoordinates = async (query: string, aiModelTier?: strin
 
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string, aiModelTier?: string): Promise<string> => {
     try {
+        const token = await apiService.getAuthToken();
         const response = await fetch('/api/ai', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            },
             body: JSON.stringify({
                 model: PRO_LOGICAL_CORE, // Default to Pro for chat
                 history,

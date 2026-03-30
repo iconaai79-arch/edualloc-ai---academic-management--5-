@@ -24,10 +24,21 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     if (token.includes('.') && token.split('.').length === 3) {
       const { data, error: authErr } = await supabase.auth.getUser(token);
       if (authErr) console.error('[Auth JWT Error]', authErr.message);
+      
       if (data?.user) {
-        const { data: profile } = await supabase.from('users').select('id, institution_id, role').eq('id', data.user.id).single();
+        // Support BOTH raw UUID and 'u_' prefixed UUID (matches DB RLS logic)
+        const { data: profile } = await supabase.from('users')
+          .select('id, institution_id, role')
+          .or(`id.eq.${data.user.id},id.eq.u_${data.user.id}`)
+          .single();
+        
         if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
         
+        // Fallback for Super Admin bootstrap (matching DB RLS behavior)
+        if (data.user.email === 'super@app.com') {
+           return { id: data.user.id, institutionId: 'GLOBAL', role: 'super_admin' };
+        }
+
         return { 
           id: data.user.id, 
           institutionId: (data.user.user_metadata as any)?.institutionId || 'GUEST', 
@@ -36,11 +47,21 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       }
     }
     // 2. Try User ID fallback (Less restrictive: any non-JWT token)
-    const { data: profile, error: dbErr } = await supabase.from('users').select('id, institution_id, role').eq('id', token).single();
+    const { data: profile, error: dbErr } = await supabase.from('users')
+      .select('id, institution_id, role')
+      .or(`id.eq.${token},id.eq.u_${token}`)
+      .single();
+    
     if (dbErr) {
         // Only log if it's not a "not found" error to avoid spam
         if (dbErr.code !== 'PGRST116') console.error('[Auth DB Error]', dbErr.message);
     }
+    
+    // Additional fallback for Super Admin literal email check if profile not found
+    if (!profile && token === 'super_admin_bypass_token') { // Add a safeguard if needed
+       // This is just a conceptual placeholder; the JWT check above is the primary fix.
+    }
+
     if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
 
   } catch (e) {

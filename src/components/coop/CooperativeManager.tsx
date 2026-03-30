@@ -1106,7 +1106,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             ))}
                                             {filteredFarmers.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={6} className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                                    <td colSpan={8} className="py-12 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
                                                         No farmers found matching your search
                                                     </td>
                                                 </tr>

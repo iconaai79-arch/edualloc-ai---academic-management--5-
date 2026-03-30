@@ -25,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify Auth
     const supabase = createServiceClient();
     if (!supabase) return res.status(500).json({ error: 'Database service unavailable' });
-    const userResult = await getAuthenticatedUser(supabase);
+    const userResult = await getAuthenticatedUser(supabase, req.headers.authorization);
     if (!userResult) return res.status(401).json({ error: 'Unauthorized: Session invalid' });
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
