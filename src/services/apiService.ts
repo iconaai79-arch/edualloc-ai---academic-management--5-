@@ -1738,9 +1738,10 @@ export const apiService = {
         const collection = collections.find(c => c.id === id);
         if (!collection) throw new Error("Collection not found");
 
-        const hasDiscrepancy = finalQuantity !== collection.quantity;
-        const update: CoopCollection = {
-            ...collection,
+        const hasDiscrepancy = Number(finalQuantity) !== Number(collection.quantity);
+        // Optimized update payload to prevent 'text = uuid' type mismatch by avoiding full object spread
+        const update: any = {
+            id,
             finalQuantity,
             factoryConfirmed: true,
             confirmedBy,
@@ -1753,12 +1754,9 @@ export const apiService = {
         await this.saveModuleRecord('coop_collections', update);
     },
     async approveCoopCollection(id: string, approvedBy: string, status: 'approved' | 'rejected'): Promise<void> {
-        const collections = await this.fetchCoopCollections();
-        const collection = collections.find(c => c.id === id);
-        if (!collection) throw new Error("Collection not found");
-
-        const update: CoopCollection = {
-            ...collection,
+        // Optimized update payload to prevent 'text = uuid' type mismatch by avoiding full object spread
+        const update: any = {
+            id,
             approvalStatus: status,
             approvedBy,
             approvedAt: new Date().toISOString(),
