@@ -2387,13 +2387,27 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 let dataUri = '';
                                 if (targetType === 'farmer') {
                                     dataUri = await pdfService.generateFarmerStatementPdf(
-                                        selectedEntity as CoopFarmer, transactions, 0, totals, stStartDate, stEndDate, 
-                                        {} as any, undefined, null
+                                        selectedEntity as CoopFarmer, 
+                                        transactions, 
+                                        0, 
+                                        totals, 
+                                        stStartDate, 
+                                        stEndDate, 
+                                        currentInstitution as any, 
+                                        letterheadConfig, 
+                                        footerImageUrl
                                     );
                                 } else {
                                     dataUri = await pdfService.generateRiderStatementPdf(
-                                        selectedEntity as CoopRider, transactions, 0, totals, stStartDate, stEndDate, 
-                                        {} as any, undefined, null
+                                        selectedEntity as CoopRider, 
+                                        transactions, 
+                                        0, 
+                                        totals, 
+                                        stStartDate, 
+                                        stEndDate, 
+                                        currentInstitution as any, 
+                                        letterheadConfig, 
+                                        footerImageUrl
                                     );
                                 }
                                 const link = document.createElement('a');

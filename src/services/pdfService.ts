@@ -4574,3 +4574,220 @@ export const generateInventorySummaryPdfDataUri = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+/**
+ * Generates a comprehensive statement for a cooperative farmer.
+ */
+export const generateFarmerStatementPdf = async (
+    farmer: CoopFarmer,
+    transactions: any[],
+    openingBalance: number,
+    totals: { credit: number; debit: number; balance: number },
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title & Date Range
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("FARMER PRODUCTION STATEMENT", margin, yPos);
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, margin, yPos);
+    yPos += 15;
+
+    // Farmer Details Card
+    doc.setFillColor(248, 250, 252); // Slate-50
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 2, 2, 'FD');
+    
+    let cardY = yPos + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.text("FARMER DETAILS", margin + 5, cardY);
+    cardY += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${farmer.name.toUpperCase()}`, margin + 5, cardY);
+    doc.text(`ID/Member No: ${farmer.idNumber || farmer.memberNumber || 'N/A'}`, pageWidth / 2, cardY);
+    cardY += 5;
+    doc.text(`Phone: ${farmer.phoneNumber || 'N/A'}`, margin + 5, cardY);
+    doc.text(`Route/Area: ${farmer.route || 'Main'}`, pageWidth / 2, cardY);
+    cardY += 5;
+    doc.text(`Status: ${farmer.status?.toUpperCase() || 'ACTIVE'}`, margin + 5, cardY);
+    
+    yPos += 45;
+
+    // Summary Table
+    const summaryHead = [['Opening Bal', 'Total Deliveries (Qty)', 'Total Advances', 'Closing Balance']];
+    const summaryBody = [[
+        openingBalance.toLocaleString(),
+        totals.credit.toLocaleString(),
+        totals.debit.toLocaleString(),
+        totals.balance.toLocaleString()
+    ]];
+
+    doc.autoTable({
+        startY: yPos,
+        head: summaryHead,
+        body: summaryBody,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255, fontSize: 9 },
+        styles: { fontSize: 11, halign: 'center' },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Transactions Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text("TRANSACTION LEDGER", margin, yPos);
+    yPos += 6;
+
+    const transHead = [['Date', 'Description', 'Reference', 'Qty/In', 'Amt/Out', 'Balance']];
+    const transBody = transactions.map((t: any) => [
+        new Date(t.date).toLocaleDateString(),
+        t.description || (t.type === 'credit' ? 'Milk Delivery' : 'Cash Advance'),
+        t.reference || t.id?.substring(0, 8).toUpperCase() || '-',
+        t.type === 'credit' ? t.amount.toLocaleString() : '-',
+        t.type === 'debit' ? t.amount.toLocaleString() : '-',
+        t.balance.toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: transHead,
+        body: transBody,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8 },
+        columnStyles: {
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
+
+/**
+ * Generates a comprehensive statement for a cooperative rider.
+ */
+export const generateRiderStatementPdf = async (
+    rider: CoopRider,
+    transactions: any[],
+    openingBalance: number,
+    totals: { credit: number; debit: number; balance: number },
+    startDate: string,
+    endDate: string,
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Title & Date Range
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("RIDER EARNINGS STATEMENT", margin, yPos);
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, margin, yPos);
+    yPos += 15;
+
+    // Rider Details Card
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 30, 2, 2, 'FD');
+    
+    let cardY = yPos + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.text("RIDER DETAILS", margin + 5, cardY);
+    cardY += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Name: ${rider.name.toUpperCase()}`, margin + 5, cardY);
+    doc.text(`Phone: ${rider.phoneNumber || 'N/A'}`, pageWidth / 2, cardY);
+    cardY += 5;
+    doc.text(`License No: ${rider.licenseNumber || 'N/A'}`, margin + 5, cardY);
+    doc.text(`Vehicle: ${rider.vehicleNumber || 'N/A'}`, pageWidth / 2, cardY);
+    
+    yPos += 40;
+
+    // Summary Table
+    const summaryHead = [['Opening Bal', 'Gross Earnings', 'Deductions', 'Net Payable']];
+    const summaryBody = [[
+        openingBalance.toLocaleString(),
+        totals.credit.toLocaleString(),
+        totals.debit.toLocaleString(),
+        totals.balance.toLocaleString()
+    ]];
+
+    doc.autoTable({
+        startY: yPos,
+        head: summaryHead,
+        body: summaryBody,
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72], textColor: 255 },
+        styles: { fontSize: 11, halign: 'center' },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Transactions Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text("EARNINGS LEDGER", margin, yPos);
+    yPos += 6;
+
+    const transHead = [['Date', 'Description', 'Credit', 'Debit', 'Balance']];
+    const transBody = transactions.map((t: any) => [
+        new Date(t.date).toLocaleDateString(),
+        t.description || (t.type === 'credit' ? 'Delivery Fee' : 'Payment'),
+        t.type === 'credit' ? t.amount.toLocaleString() : '-',
+        t.type === 'debit' ? t.amount.toLocaleString() : '-',
+        t.balance.toLocaleString()
+    ]);
+
+    doc.autoTable({
+        startY: yPos,
+        head: transHead,
+        body: transBody,
+        theme: 'striped',
+        headStyles: { fillColor: [22, 163, 74] }, // Green-600
+        styles: { fontSize: 8 },
+        columnStyles: {
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};
