@@ -605,6 +605,22 @@ export const apiService = {
             throw e;
         }
     },
+    async fetchSmsOutbox(institutionId: string): Promise<any[]> {
+        return this.fetchModuleRecords('sms_outbox', institutionId, undefined, {
+            order: 'created_at.desc'
+        });
+    },
+    async saveToSmsOutbox(messages: any[]): Promise<void> {
+        await this.saveModuleRecord('sms_outbox', messages);
+    },
+    async removeFromSmsOutbox(id: string): Promise<void> {
+        await this.deleteModuleRecord('sms_outbox', id);
+    },
+    async clearSmsOutbox(institutionId: string): Promise<void> {
+        // Since we don't have a bulk delete by filter in proxy, 
+        // we'll fetch then delete individual for now, or just let users delete manually.
+        // For "Retry All", we'll delete each as it succeeds.
+    },
     async saveModuleRecords<T = any>(module: string, data: T[]): Promise<T[] | null> {
         const payload = data.map(toSnakeCase);
 

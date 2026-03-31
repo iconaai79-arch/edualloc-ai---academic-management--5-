@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/PlusIcon';
 
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
 
@@ -60,9 +60,11 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [message, setMessage] = useState('');
     const [status, setStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'compose' | 'history'>('compose');
+    const [activeTab, setActiveTab] = useState<'compose' | 'history' | 'outbox'>('compose');
     const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
+    const [smsOutbox, setSmsOutbox] = useState<SmsOutbox[]>([]);
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+    const [isLoadingOutbox, setIsLoadingOutbox] = useState(false);
 
     const [smsInfo, setSmsInfo] = useState({ count: 0, characters: 0, limit: 160, isUnicode: false });
 
@@ -87,9 +89,24 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
     };
 
+    const fetchOutbox = async () => {
+        if (!currentInstitution) return;
+        setIsLoadingOutbox(true);
+        try {
+            const outbox = await apiService.fetchSmsOutbox(currentInstitution.id);
+            setSmsOutbox(outbox);
+        } catch (err) {
+            console.error('Failed to fetch SMS outbox:', err);
+        } finally {
+            setIsLoadingOutbox(false);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'history') {
             fetchLogs();
+        } else if (activeTab === 'outbox') {
+            fetchOutbox();
         }
     }, [activeTab, currentInstitution]);
 
@@ -287,6 +304,84 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         setTimeout(() => setStatus({ type: 'idle', message: '' }), 5000);
     };
 
+    const handleQueueToOutbox = async () => {
+        if (!currentInstitution) return;
+        setStatus({ type: 'sending', message: 'Queuing messages to outbox...' });
+        try {
+            const outboxMessages = validRecipients.map(user => ({
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                institutionId: currentInstitution.id,
+                recipient: user.phoneNumber || '',
+                message: message,
+                units: smsInfo.count,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            }));
+
+            // Bulk save to outbox
+            await apiService.saveToSmsOutbox(outboxMessages);
+            setStatus({ type: 'success', message: `${outboxMessages.length} messages queued to outbox.` });
+            setMessage('');
+            setTimeout(() => setStatus({ type: 'idle', message: '' }), 5000);
+        } catch (err) {
+            console.error('Failed to queue to outbox:', err);
+            setStatus({ type: 'error', message: 'Failed to queue messages.' });
+        }
+    };
+
+    const handleRetryOutbox = async (item: SmsOutbox) => {
+        const totalUnitsRequired = item.units;
+        if ((smsBalance || 0) < totalUnitsRequired) {
+            alert(`Insufficient balance to send this message (${totalUnitsRequired} units required).`);
+            return;
+        }
+
+        try {
+            const result = await onSendSms(item.recipient, item.message, smsConfig, item.units, item.institutionId);
+            if (result.success) {
+                await apiService.removeFromSmsOutbox(item.id);
+                fetchOutbox();
+                if (onRefreshData) onRefreshData();
+            } else {
+                alert(`Failed to retry: ${result.message}`);
+            }
+        } catch (err) {
+            console.error('Retry error:', err);
+        }
+    };
+
+    const handleRetryAllOutbox = async () => {
+        const totalPending = smsOutbox.length;
+        if (totalPending === 0) return;
+
+        let processed = 0;
+        let success = 0;
+        let balance = smsBalance || 0;
+
+        setStatus({ type: 'sending', message: `Retrying ${totalPending} messages...` });
+
+        for (const item of smsOutbox) {
+            if (balance < item.units) break;
+
+            try {
+                const result = await onSendSms(item.recipient, item.message, smsConfig, item.units, item.institutionId);
+                if (result.success) {
+                    await apiService.removeFromSmsOutbox(item.id);
+                    success++;
+                    balance -= item.units;
+                }
+            } catch (err) {
+                console.error('Retry all error at item', item.id, err);
+            }
+            processed++;
+        }
+
+        setStatus({ type: 'success', message: `Processed ${processed} messages. Successfully sent: ${success}.` });
+        fetchOutbox();
+        if (onRefreshData) onRefreshData();
+        setTimeout(() => setStatus({ type: 'idle', message: '' }), 5000);
+    };
+
     const handleRecipientTargetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setRecipientTarget(e.target.value);
         setSelectedId('');
@@ -353,6 +448,88 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
     };
 
+    const renderOutboxTab = () => {
+        if (isLoadingOutbox) {
+            return (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+                    <p className="text-sm font-medium">Loading outbox...</p>
+                </div>
+            );
+        }
+
+        if (smsOutbox.length === 0) {
+            return (
+                <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                    <p className="text-slate-500 dark:text-slate-400">Outbox is empty.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs font-medium text-slate-500">{smsOutbox.length} messages waiting to be sent.</p>
+                    <button 
+                        onClick={handleRetryAllOutbox}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all"
+                    >
+                        Retry All
+                    </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                <th className="py-3 px-4">Date</th>
+                                <th className="py-3 px-4">Recipient</th>
+                                <th className="py-3 px-4">Message</th>
+                                <th className="py-3 px-4 text-center">Units</th>
+                                <th className="py-3 px-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {smsOutbox.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                    <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                                        {new Date(item.createdAt).toLocaleDateString()}
+                                    </td>
+                                    <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
+                                        {item.recipient}
+                                    </td>
+                                    <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400">
+                                        {item.message}
+                                    </td>
+                                    <td className="py-3 px-4 text-center text-[10px] font-bold">
+                                        {item.units}
+                                    </td>
+                                    <td className="py-3 px-4 text-right">
+                                        <button 
+                                            onClick={() => handleRetryOutbox(item)}
+                                            className="text-indigo-600 hover:text-indigo-800 font-bold text-xs"
+                                        >
+                                            Retry
+                                        </button>
+                                        <button 
+                                            onClick={async () => {
+                                                if (confirm('Delete from outbox?')) {
+                                                    await apiService.removeFromSmsOutbox(item.id);
+                                                    fetchOutbox();
+                                                }
+                                            }}
+                                            className="text-red-600 hover:text-red-800 font-bold text-xs ml-3"
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
     const renderHistoryTab = () => {
         if (isLoadingLogs) {
             return (
@@ -482,6 +659,12 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         >
                             Sent History
                         </button>
+                        <button
+                            onClick={() => setActiveTab('outbox')}
+                            className={`text-xs font-black uppercase tracking-widest pb-1 border-b-2 transition-all ${activeTab === 'outbox' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Outbox {smsOutbox.length > 0 && <span className="ml-1 bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full">{smsOutbox.length}</span>}
+                        </button>
                     </div>
                 </div>
                 {(smsBalance !== undefined || ['admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'super_admin', 'academics_officer', 'boarding_master', 'property_admin', 'carwash_admin', 'agrovet_admin', 'transport_admin'].includes(currentUser?.role || '')) && (
@@ -588,10 +771,21 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         </div>
                         <div className="flex justify-end items-center gap-4">
                             {status.type !== 'idle' && (
-                                <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
-                                    status.type === 'success' ? 'text-green-600' :
-                                        'text-slate-500'
-                                    }`}>{status.message}</p>
+                                <div className="flex items-center gap-3">
+                                    <p className={`text-sm font-medium ${status.type === 'error' ? 'text-red-500' :
+                                        status.type === 'success' ? 'text-green-600' :
+                                            'text-slate-500'
+                                        }`}>{status.message}</p>
+                                    
+                                    {status.type === 'error' && status.message.includes('Insufficient balance') && validRecipients.length > 0 && (
+                                        <button 
+                                            onClick={handleQueueToOutbox}
+                                            className="text-xs font-black uppercase text-indigo-600 hover:text-indigo-800 border-b border-indigo-600"
+                                        >
+                                            Queue to Outbox
+                                        </button>
+                                    )}
+                                </div>
                             )}
                             <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
                                 {status.type === 'sending' ? 'Sending...' : 'Send SMS'}
@@ -617,9 +811,13 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                         </div>
                     </div>
                 </div>
-            ) : (
+            ) : activeTab === 'history' ? (
                 <div className="mt-4">
                     {renderHistoryTab()}
+                </div>
+            ) : (
+                <div className="mt-4">
+                    {renderOutboxTab()}
                 </div>
             )}
             {isBuySMSModalOpen && currentInstitution && mpesaConfig && (

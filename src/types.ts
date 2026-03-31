@@ -626,6 +626,16 @@ export interface SmsLog {
     createdAt: string;
 }
 
+export interface SmsOutbox {
+    id: string;
+    institutionId: string;
+    recipient: string;
+    message: string;
+    units: number;
+    status: 'pending' | 'processing' | 'failed';
+    createdAt: string;
+}
+
 export interface AgrovetSaleItem {
     id: string;
     saleId: string;

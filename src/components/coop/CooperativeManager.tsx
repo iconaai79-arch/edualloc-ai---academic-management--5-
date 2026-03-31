@@ -202,6 +202,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         saleDate: formatDateString(new Date()),
         paymentStatus: 'paid'
     });
+    const [isSavingRate, setIsSavingRate] = useState(false);
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
@@ -257,8 +258,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             
             const matchesDate = dateStr >= startDate && dateStr <= endDate;
             
+            const farmer = farmers.find(f => f.id === c.farmerId);
+            const farmerName = farmer?.name || '';
+            const farmerPhone = farmer?.phone || '';
+            const farmerNationalId = farmer?.nationalId || '';
+            const farmerMemberId = farmer?.memberId || '';
+
             const matchesSearch = !searchTerm || 
-                getFarmerName(c.farmerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                farmerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                farmerPhone.includes(searchTerm) ||
+                farmerNationalId.includes(searchTerm) ||
+                farmerMemberId.includes(searchTerm) ||
                 (c.productType || '').toLowerCase().includes(searchTerm.toLowerCase());
             return matchesDate && matchesSearch;
         }).sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime());
@@ -501,7 +511,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const filteredFarmers = useMemo(() => {
         return farmers.filter(f => 
             f.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            f.phone?.includes(searchTerm)
+            f.phone?.includes(searchTerm) ||
+            f.nationalId?.includes(searchTerm) ||
+            f.memberId?.includes(searchTerm)
         );
     }, [farmers, searchTerm]);
 
@@ -2309,11 +2321,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
                         const filteredTargets = useMemo(() => {
                             const list = targetType === 'farmer' ? farmers : riders;
-                            return list.filter(item => 
-                                item.name?.toLowerCase().includes(stSearch.toLowerCase()) || 
-                                (targetType === 'farmer' && (item as CoopFarmer).accountNumber?.includes(stSearch))
-                            );
-                        }, [targetType, stSearch]);
+                            return list.filter(item => {
+                                const searchLower = stSearch.toLowerCase();
+                                const matchesBase = item.name?.toLowerCase().includes(searchLower) || item.phone?.includes(stSearch);
+                                
+                                if (targetType === 'farmer') {
+                                    const farmer = item as CoopFarmer;
+                                    return matchesBase || 
+                                           farmer.nationalId?.includes(stSearch) || 
+                                           farmer.memberId?.includes(stSearch) ||
+                                           farmer.accountNumber?.includes(stSearch);
+                                }
+                                return matchesBase || (item as CoopRider).nationalId?.includes(stSearch);
+                            });
+                        }, [targetType, stSearch, farmers, riders]);
 
                         const selectedEntity = (targetType === 'farmer' ? farmers : riders).find(e => e.id === targetId);
 
@@ -2375,10 +2396,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
                         const totals = useMemo(() => {
                             return transactions.reduce((acc, t) => {
-                                if (t.type === 'credit') acc.credit += t.amount; else acc.debit += t.amount;
+                                if (t.type === 'credit') {
+                                    acc.credit += t.amount;
+                                    acc.totalQty += (t.quantity || 0);
+                                } else {
+                                    acc.debit += t.amount;
+                                    // Itemize deduction
+                                    const category = t.description.includes('Payout') ? 'Payouts' : 
+                                                   t.description.includes('Agrovet') ? 'Agrovet' : 
+                                                   t.description.includes('SACCO') ? 'SACCO' : 'Other';
+                                    acc.deductionsBreakdown[category] = (acc.deductionsBreakdown[category] || 0) + t.amount;
+                                }
                                 acc.balance = t.balance;
                                 return acc;
-                            }, { credit: 0, debit: 0, balance: 0 });
+                            }, { credit: 0, debit: 0, balance: 0, totalQty: 0, deductionsBreakdown: {} as Record<string, number> });
                         }, [transactions]);
 
                         const handlePreview = async () => {
@@ -2410,10 +2441,22 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         footerImageUrl
                                     );
                                 }
-                                const link = document.createElement('a');
-                                link.href = dataUri;
-                                link.download = `Statement_${selectedEntity.name}_${stStartDate}.pdf`;
-                                link.click();
+                                if (dataUri) {
+                                    const blob = dataUriToBlob(dataUri);
+                                    const url = URL.createObjectURL(blob);
+                                    const pdfWindow = window.open(url, '_blank');
+                                    if (pdfWindow) {
+                                        pdfWindow.focus();
+                                    } else {
+                                        // Fallback if popup blocked
+                                        const link = document.createElement('a');
+                                        link.href = url;
+                                        link.target = '_blank';
+                                        link.click();
+                                    }
+                                    // Optimization: Revoke URL after a delay to keep the blob alive for the new window
+                                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                                }
                             } catch (err) { alert("Failed to generate PDF"); }
                         };
 
@@ -2445,12 +2488,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search {targetType === 'farmer' ? 'Farmer' : 'Rider'}</label>
-                                            <input type="text" value={stSearch} onChange={e => setStSearch(e.target.value)} placeholder="Search names..." className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 font-bold outline-none text-sm dark:text-white" />
+                                            <input type="text" value={stSearch} onChange={e => setStSearch(e.target.value)} placeholder="Search name, phone, or ID..." className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 font-bold outline-none text-sm dark:text-white" />
                                         </div>
                                         <div className="space-y-2">
                                             <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-2xl p-4 font-bold outline-none text-sm appearance-none dark:text-white">
                                                 <option value="">--- Select {targetType === 'farmer' ? 'Farmer' : 'Rider'} ---</option>
-                                                {filteredTargets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                {filteredTargets.map(t => (
+                                                    <option key={t.id} value={t.id}>
+                                                        {t.name} ({t.phone})
+                                                    </option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="grid grid-cols-1 gap-4">
@@ -2472,9 +2519,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">{stStartDate} to {stEndDate}</p>
                                             </div>
                                             {targetId && (
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Closing Balance</p>
-                                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance.toLocaleString()}</p>
+                                                <div className="flex gap-12 text-right">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Total Quantity</p>
+                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">{totals.totalQty.toLocaleString()} <span className="text-xs uppercase font-bold text-slate-400">Units</span></p>
+                                                    </div>
+                                                    <div className="h-10 w-px bg-slate-200 dark:bg-slate-700" />
+                                                    <div className="flex gap-6">
+                                                        {Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => (
+                                                            <div key={cat}>
+                                                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest italic">{cat}</p>
+                                                                <p className="text-sm font-black text-slate-900 dark:text-white italic">-{amt.toLocaleString()}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="h-10 w-px bg-slate-200 dark:bg-slate-700" />
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest italic">Closing Balance</p>
+                                                        <p className="text-2xl font-black text-slate-900 dark:text-white italic">KES {totals.balance.toLocaleString()}</p>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -2975,20 +3038,29 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <span className="ml-2 font-bold opacity-60">KES / Unit</span>
                                          </div>
                                          <button 
+                                            disabled={isSavingRate}
                                             onClick={async () => {
                                                 if (onUpdateInstitution && currentInstitution) {
-                                                    await onUpdateInstitution(currentInstitution.id, {
-                                                        coopSettings: {
-                                                            ...currentInstitution.coopSettings,
-                                                            payoutRate
-                                                        }
-                                                    });
-                                                    onLogAction?.(`Updated global payout rate to KES ${payoutRate}`);
+                                                    setIsSavingRate(true);
+                                                    try {
+                                                        await onUpdateInstitution(currentInstitution.id, {
+                                                            coopSettings: {
+                                                                ...currentInstitution.coopSettings,
+                                                                payoutRate
+                                                            }
+                                                        });
+                                                        onLogAction?.(`Updated global payout rate to KES ${payoutRate}`);
+                                                        alert("Payout rate saved successfully!");
+                                                    } catch (err) {
+                                                        alert("Failed to save rate. Please try again.");
+                                                    } finally {
+                                                        setIsSavingRate(false);
+                                                    }
                                                 }
                                             }}
-                                            className="bg-white text-indigo-600 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+                                            className="bg-white text-indigo-600 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-lg active:scale-95 disabled:opacity-50"
                                          >
-                                             Save Rate
+                                             {isSavingRate ? 'Saving...' : 'Save Rate'}
                                          </button>
                                      </div>
                                  </div>

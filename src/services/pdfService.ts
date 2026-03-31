@@ -4442,7 +4442,7 @@ export const generateFarmerStatementPdf = async (
     farmer: CoopFarmer,
     transactions: any[],
     openingBalance: number,
-    totals: { credit: number; debit: number; balance: number },
+    totals: { credit: number; debit: number; balance: number; totalQty?: number; deductionsBreakdown?: Record<string, number> },
     startDate: string,
     endDate: string,
     institution: Institution,
@@ -4482,19 +4482,20 @@ export const generateFarmerStatementPdf = async (
     cardY += 6;
     doc.setFont('helvetica', 'normal');
     doc.text(`Name: ${farmer.name.toUpperCase()}`, margin + 5, cardY);
-    doc.text(`ID/Member No: ${farmer.idNumber || farmer.memberNumber || 'N/A'}`, pageWidth / 2, cardY);
+    doc.text(`ID/Member No: ${farmer.nationalId || farmer.memberId || 'N/A'}`, pageWidth / 2, cardY);
     cardY += 5;
-    doc.text(`Phone: ${farmer.phoneNumber || 'N/A'}`, margin + 5, cardY);
-    doc.text(`Route/Area: ${farmer.route || 'Main'}`, pageWidth / 2, cardY);
+    doc.text(`Phone: ${farmer.phone || 'N/A'}`, margin + 5, cardY);
+    doc.text(`Route/Area: ${farmer.location || 'Main'}`, pageWidth / 2, cardY);
     cardY += 5;
     doc.text(`Status: ${farmer.status?.toUpperCase() || 'ACTIVE'}`, margin + 5, cardY);
     
     yPos += 45;
 
     // Summary Table
-    const summaryHead = [['Opening Bal', 'Total Deliveries (Qty)', 'Total Advances', 'Closing Balance']];
+    const summaryHead = [['Opening Bal', 'Total Deliveries (Qty)', 'Gross Earnings', 'Total Deductions', 'Closing Balance']];
     const summaryBody = [[
         openingBalance.toLocaleString(),
+        (totals.totalQty || 0).toLocaleString(),
         totals.credit.toLocaleString(),
         totals.debit.toLocaleString(),
         totals.balance.toLocaleString()
@@ -4509,7 +4510,31 @@ export const generateFarmerStatementPdf = async (
         styles: { fontSize: 11, halign: 'center' },
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // Itemized Deductions
+    if (totals.deductionsBreakdown && Object.keys(totals.deductionsBreakdown).length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text("DEDUCTIONS BREAKDOWN", margin, yPos);
+        yPos += 5;
+
+        const dedHead = [['Category', 'Amount (KES)']];
+        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt.toLocaleString()]);
+
+        doc.autoTable({
+            startY: yPos,
+            head: dedHead,
+            body: dedBody,
+            theme: 'grid',
+            headStyles: { fillColor: [244, 63, 94] }, // Rose-500
+            styles: { fontSize: 9 },
+            margin: { left: margin, right: margin + 100 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    } else {
+        yPos += 5;
+    }
 
     // Transactions Table
     doc.setFont('helvetica', 'bold');
@@ -4522,7 +4547,7 @@ export const generateFarmerStatementPdf = async (
         new Date(t.date).toLocaleDateString(),
         t.description || (t.type === 'credit' ? 'Milk Delivery' : 'Cash Advance'),
         t.reference || t.id?.substring(0, 8).toUpperCase() || '-',
-        t.type === 'credit' ? t.amount.toLocaleString() : '-',
+        t.type === 'credit' ? (t.quantity || 0).toLocaleString() : '-',
         t.type === 'debit' ? t.amount.toLocaleString() : '-',
         t.balance.toLocaleString()
     ]);
@@ -4552,7 +4577,7 @@ export const generateRiderStatementPdf = async (
     rider: CoopRider,
     transactions: any[],
     openingBalance: number,
-    totals: { credit: number; debit: number; balance: number },
+    totals: { credit: number; debit: number; balance: number; totalQty?: number; deductionsBreakdown?: Record<string, number> },
     startDate: string,
     endDate: string,
     institution: Institution,
@@ -4592,10 +4617,10 @@ export const generateRiderStatementPdf = async (
     cardY += 6;
     doc.setFont('helvetica', 'normal');
     doc.text(`Name: ${rider.name.toUpperCase()}`, margin + 5, cardY);
-    doc.text(`Phone: ${rider.phoneNumber || 'N/A'}`, pageWidth / 2, cardY);
+    doc.text(`Phone: ${rider.phone || 'N/A'}`, pageWidth / 2, cardY);
     cardY += 5;
     doc.text(`License No: ${rider.licenseNumber || 'N/A'}`, margin + 5, cardY);
-    doc.text(`Vehicle: ${rider.vehicleNumber || 'N/A'}`, pageWidth / 2, cardY);
+    doc.text(`Vehicle: ${rider.vehiclePlate || rider.vehicleNumber || 'N/A'}`, pageWidth / 2, cardY);
     
     yPos += 40;
 
@@ -4617,7 +4642,31 @@ export const generateRiderStatementPdf = async (
         styles: { fontSize: 11, halign: 'center' },
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+
+    // Itemized Deductions
+    if (totals.deductionsBreakdown && Object.keys(totals.deductionsBreakdown).length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text("DEDUCTIONS BREAKDOWN", margin, yPos);
+        yPos += 5;
+
+        const dedHead = [['Category', 'Amount (KES)']];
+        const dedBody = Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => [cat, amt.toLocaleString()]);
+
+        doc.autoTable({
+            startY: yPos,
+            head: dedHead,
+            body: dedBody,
+            theme: 'grid',
+            headStyles: { fillColor: [244, 63, 94] }, // Rose-500
+            styles: { fontSize: 9 },
+            margin: { left: margin, right: margin + 100 }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+    } else {
+        yPos += 5;
+    }
 
     // Transactions Table
     doc.setFont('helvetica', 'bold');
