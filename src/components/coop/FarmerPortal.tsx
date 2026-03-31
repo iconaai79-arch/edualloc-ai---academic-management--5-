@@ -25,7 +25,7 @@ import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
 import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
 import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
 import { ChatBubbleLeftRightIcon as MessageSquare } from '../icons/ChatBubbleLeftRightIcon';
-import { CogIcon } from '../icons/CogIcon';
+import { Cog8ToothIcon as CogIcon } from '../icons/Cog8ToothIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 
 interface FarmerPortalProps {
