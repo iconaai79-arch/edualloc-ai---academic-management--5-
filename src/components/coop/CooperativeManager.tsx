@@ -186,6 +186,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
     const [isProcessing, setIsProcessing] = useState(false);
     const [reportSubTab, setReportSubTab] = useState<'overview' | 'payouts' | 'ledger' | 'statements'>('overview');
     const [isAddingFarmer, setIsAddingFarmer] = useState(false);
@@ -236,7 +238,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
 
     React.useEffect(() => {
         setSelectedCollections([]);
-    }, [startDate, endDate]);
+        setCurrentPage(1);
+    }, [startDate, endDate, searchTerm]);
 
 
 
@@ -260,6 +263,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             return matchesDate && matchesSearch;
         }).sort((a, b) => new Date(b.collectionDate).getTime() - new Date(a.collectionDate).getTime());
     }, [collections, startDate, endDate, searchTerm, farmers]);
+
+    const paginatedCollections = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return filteredCollections.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredCollections, currentPage, itemsPerPage]);
+
+    const totalPages = Math.ceil(filteredCollections.length / itemsPerPage);
 
 
     const handleSubmitFarmer = async (e: React.FormEvent) => {
@@ -1718,7 +1728,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredCollections.map(col => (
+                                            {paginatedCollections.map(col => (
                                                 <tr key={col.id} className="group bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer shadow-sm hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                                                     <td className="px-6 py-5 rounded-l-3xl">
                                                         <input 
@@ -1783,6 +1793,58 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-8 px-6 py-4 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Page {currentPage} of {totalPages}
+                                            </p>
+                                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Showing {Math.min(filteredCollections.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredCollections.length, currentPage * itemsPerPage)} of {filteredCollections.length} records
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 disabled:opacity-30 transition-all"
+                                            >
+                                                <ChevronLeft className="w-5 h-5" />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                                                    let pageNum = currentPage;
+                                                    if (currentPage <= 3) pageNum = i + 1;
+                                                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                                                    else pageNum = currentPage - 2 + i;
+                                                    
+                                                    if (pageNum <= 0 || pageNum > totalPages) return null;
+
+                                                    return (
+                                                        <button 
+                                                            key={pageNum}
+                                                            onClick={() => setCurrentPage(pageNum)}
+                                                            className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${currentPage === pageNum ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 scale-110' : 'text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-600'}`}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button 
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 disabled:opacity-30 transition-all"
+                                            >
+                                                <ChevronRight className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {(farmerSubTab as any) === 'approvals' && (

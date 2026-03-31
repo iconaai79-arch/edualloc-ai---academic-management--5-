@@ -740,7 +740,7 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CarWashJob>('carwash_jobs', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopFarmer>('coop_farmers', effectiveInstId).catch(() => []),
-                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId).catch(() => []),
+                    apiService.fetchModuleRecords<CoopCollection>('coop_collections', effectiveInstId, undefined, { limit: 50000 }).catch(() => []),
                     apiService.fetchModuleRecords<CoopRider>('coop_riders', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopAgrovetInventory>('coop_agrovet_inventory', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<CoopAgrovetSales>('coop_agrovet_sales', effectiveInstId).catch(() => []),

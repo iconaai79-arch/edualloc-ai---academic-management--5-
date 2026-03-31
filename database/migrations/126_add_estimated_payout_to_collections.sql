@@ -12,3 +12,4 @@ ADD COLUMN IF NOT EXISTS estimated_payout NUMERIC(15, 2) DEFAULT 0.00;
 -- Comment for documentation
 COMMENT ON COLUMN public.coop_collections._estimated_payout IS 'Pre-calculated estimated payout for this collection record.';
 COMMENT ON COLUMN public.coop_collections.estimated_payout IS 'Standard alias for _estimated_payout.';
+ 
