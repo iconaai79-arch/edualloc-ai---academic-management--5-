@@ -1811,7 +1811,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 disabled:opacity-30 transition-all"
                                             >
-                                                <ChevronLeft className="w-5 h-5" />
+                                                <ChevronRightIcon className="w-5 h-5 rotate-180" />
                                             </button>
                                             
                                             <div className="flex items-center gap-1">
@@ -1840,7 +1840,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                                 className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 disabled:opacity-30 transition-all"
                                             >
-                                                <ChevronRight className="w-5 h-5" />
+                                                <ChevronRightIcon className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
