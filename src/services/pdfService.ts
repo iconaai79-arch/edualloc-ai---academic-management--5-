@@ -4700,3 +4700,82 @@ export const generateRiderStatementPdf = async (
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');
 };
+
+/**
+ * Generates a Payment Schedule Report for cooperative payouts.
+ * Filters by settlement method (MPESA, BANK, CASH).
+ */
+export const generatePaymentSchedulePdf = async (
+    payouts: any[],
+    farmers: any[],
+    method: 'mpesa' | 'bank' | 'cash' | 'all',
+    institution: Institution,
+    letterheadConfig: LetterheadConfig | undefined,
+    footerImageUrl: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const [headerImg, footerImg] = await Promise.all([
+        loadImage(letterheadConfig?.headerImageUrl),
+        loadImage(footerImageUrl)
+    ]);
+
+    let yPos = setupPdfHeader(doc, headerImg);
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Filter payouts by method if not 'all'
+    const filteredPayouts = payouts.filter(p => {
+        const farmer = farmers.find(f => f.id === p.farmerId);
+        return method === 'all' || (farmer?.paymentMethod || 'mpesa') === method;
+    });
+
+    const methodName = method === 'all' ? 'ALL METHODS' : method.toUpperCase();
+    const payoutMonth = payouts[0]?.payoutMonth || 'N/A';
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text("PAYMENT SETTLEMENT SCHEDULE", margin, yPos);
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const subtitle = `Settlement Method: ${methodName} | Period: ${payoutMonth}`;
+    doc.text(subtitle, margin, yPos);
+    yPos += 15;
+
+    const head = [['#', 'Farmer Name / ID', 'Phone', 'Account / Phone', 'Method', 'Net Payout']];
+    const body = filteredPayouts.map((p, index) => {
+        const farmer = farmers.find(f => f.id === p.farmerId);
+        return [
+            index + 1,
+            `${farmer?.name || 'Unknown'} (${farmer?.memberId || 'N/A'})`,
+            farmer?.phone || 'N/A',
+            farmer?.accountNumber || farmer?.phone || 'N/A',
+            (farmer?.paymentMethod || 'mpesa').toUpperCase(),
+            `KES ${p.netPayout.toLocaleString()}`
+        ];
+    });
+
+    doc.autoTable({
+        startY: yPos,
+        head: head,
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [79, 70, 229], fontStyle: 'bold' }, // Indigo-600
+        styles: { fontSize: 8 },
+        columnStyles: {
+            5: { halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    const total = filteredPayouts.reduce((sum, p) => sum + p.netPayout, 0);
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL SETTLEMENT: KES ${total.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+    setupPdfFooter(doc, footerImg);
+    return doc.output('datauristring');
+};

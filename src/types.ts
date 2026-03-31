@@ -2897,6 +2897,7 @@ export interface CoopFarmer {
     status: 'active' | 'inactive';
     riderId?: string;
     joinedAt: string;
+    paymentMethod?: 'mpesa' | 'bank' | 'cash';
 }
 
 export interface CoopRider {

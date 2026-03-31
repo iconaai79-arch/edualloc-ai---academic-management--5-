@@ -234,6 +234,7 @@ export interface AdminViewProps {
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     enrollmentRequests?: EnrollmentRequest[];
     absenceRequests: AbsenceRequest[];
@@ -1009,6 +1010,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onLogAction={props.onLogAction}
                                  onInitiatePayouts={props.onInitiatePayouts}
                                 onApprovePayouts={props.onApprovePayouts}
+                                onDisbursePayouts={props.onDisbursePayouts}
                                 onAddPayouts={props.onAddPayouts}
                                 onUpdateInstitution={props.onUpdateInstitution}
                                 onUpdateLogo={props.onUpdateLogo}

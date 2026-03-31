@@ -1583,15 +1583,42 @@ export const App: React.FC = () => {
     }, [loadData, handleLogAction]);
 
     const handleApprovePayouts = useCallback(async (payoutIds: string[]) => {
-        // Placeholder for payout approval
-        await handleLogAction(`Approved ${payoutIds.length} payouts`);
-        loadData();
-    }, [loadData, handleLogAction]);
+        try {
+            await apiService.updatePayoutStatus(payoutIds, 'approved');
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            if (instId) {
+                await apiService.notifyCoopAdmins(instId, `${payoutIds.length} payout drafts have been approved and are ready for disbursement.`);
+            }
+            await handleLogAction(`Approved ${payoutIds.length} payouts`);
+            loadData();
+        } catch (err: any) {
+            alert(`Approval failed: ${err.message}`);
+        }
+    }, [loadData, handleLogAction, activeInstitution, currentUser]);
 
     const handleAddPayouts = useCallback(async (payouts: any[]) => {
-        // Placeholder for bulk payout addition
-        await handleLogAction(`Added ${payouts.length} payout records`);
-        loadData();
+        try {
+            await apiService.saveModuleRecords('coop_monthly_payouts', payouts);
+            const instId = activeInstitution?.id || currentUser?.institutionId;
+            if (instId) {
+                await apiService.notifyCoopAdmins(instId, `New payout drafts (${payouts.length}) have been generated for your review.`);
+            }
+            await handleLogAction(`Generated ${payouts.length} payout drafts`);
+            loadData();
+        } catch (err: any) {
+            alert(`Draft generation failed: ${err.message}`);
+        }
+    }, [loadData, handleLogAction, activeInstitution, currentUser]);
+
+    const handleDisbursePayouts = useCallback(async (payoutIds: string[]) => {
+        try {
+            // Here you would integrate with M-Pesa or bank APIs
+            await apiService.updatePayoutStatus(payoutIds, 'paid');
+            await handleLogAction(`Disbursed ${payoutIds.length} payouts`);
+            loadData();
+        } catch (err: any) {
+            alert(`Disbursement failed: ${err.message}`);
+        }
     }, [loadData, handleLogAction]);
 
     const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
@@ -3001,6 +3028,7 @@ export const App: React.FC = () => {
                                     onAddCoopIncome={handleAddCoopIncome}
                                     onInitiatePayouts={handleInitiatePayouts}
                                     onApprovePayouts={handleApprovePayouts}
+                                    onDisbursePayouts={handleDisbursePayouts}
                                     onAddPayouts={handleAddPayouts}
                                     retailStores={retailStores}
                                     inventory={retailInventory}

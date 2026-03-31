@@ -690,6 +690,25 @@ export const apiService = {
             }
         }
     },
+    async notifyCoopAdmins(institutionId: string, message: string, type: string = 'info'): Promise<void> {
+        // Fetch users in this institution to find Chairman/Managers
+        const users = await this.fetchModuleRecords<User>('users', institutionId);
+        const targets = users.filter(u => u.role === 'coop_chairman' || u.role === 'cooperative_manager' || u.role === 'coop_admin');
+        
+        if (targets.length > 0) {
+            for (const target of targets) {
+                await this.createNotification(target.id, message, type);
+            }
+        }
+    },
+    async updatePayoutStatus(payoutIds: string[], status: string): Promise<void> {
+        const updates = payoutIds.map(id => ({ 
+            id, 
+            status, 
+            updatedAt: new Date().toISOString() 
+        }));
+        await this.saveModuleRecords('coop_monthly_payouts', updates);
+    },
     async markAllNotificationsAsRead(userId: string): Promise<void> {
         if (!_supabase) {
             const records = ls.get('app_notifications');

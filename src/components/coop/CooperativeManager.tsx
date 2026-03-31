@@ -82,6 +82,7 @@ interface CooperativeManagerProps {
     onLogAction?: (action: string) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     currentInstitution?: Institution | null;
     activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings';
@@ -135,6 +136,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onLogAction,
     onInitiatePayouts,
     onApprovePayouts,
+    onDisbursePayouts,
     onAddPayouts,
     currentInstitution,
     activeTab: externalActiveTab,
@@ -183,6 +185,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         const d = new Date();
         return formatDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0));
     });
+    const [payoutStatusFilter, setPayoutStatusFilter] = useState<'pending' | 'approved' | 'paid'>('pending');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPayouts, setSelectedPayouts] = useState<string[]>([]);
     const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
@@ -207,7 +210,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
-        joinedAt: formatDateString(new Date())
+        joinedAt: formatDateString(new Date()),
+        paymentMethod: 'mpesa'
     });
     const [newCollection, setNewCollection] = useState<Partial<CoopCollection>>({
         collectionDate: formatDateString(new Date()),
@@ -528,8 +532,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const getFilteredPayouts = () => {
         return payouts.filter(p => {
             if (!p.payoutMonth) return false;
-            // Payout month is YYYY-MM-01, compare with truncated ranges
-            return p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate;
+            const matchesMonth = p.payoutMonth.substring(0, 10) >= startDate && p.payoutMonth.substring(0, 10) <= endDate;
+            return matchesMonth && p.status === payoutStatusFilter;
         });
     };
 
@@ -923,6 +927,21 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     }
                                 </div>
                                 
+                                {!isAddingFarmer && (
+                                    <div className="mb-6 relative group">
+                                        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+                                            <SearchIcon className="w-5 h-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search farmers by name, ID or phone number..." 
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                            className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-[2rem] py-5 pl-14 pr-6 text-sm font-black tracking-tight outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm group-hover:border-slate-200 dark:group-hover:border-slate-600 dark:text-white"
+                                        />
+                                    </div>
+                                )}
+                                
                                 {isAddingFarmer && 
                                     <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
                                         <div className="flex items-center justify-between mb-8">
@@ -1032,6 +1051,19 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         ))}
                                                     </select>
                                                 </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Settlement Method</label>
+                                                    <select 
+                                                        required
+                                                        value={newFarmer.paymentMethod || 'mpesa'} 
+                                                        onChange={e => setNewFarmer({...newFarmer, paymentMethod: e.target.value as any})}
+                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                                    >
+                                                        <option value="mpesa">M-PESA</option>
+                                                        <option value="bank">Bank Transfer</option>
+                                                        <option value="cash">Cash Settlement</option>
+                                                    </select>
+                                                </div>
                                             </div>
 
                                             <div className="flex items-center justify-end gap-4 pt-4">
@@ -1060,6 +1092,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <tr>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name / ID</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">A/C Number</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Rider</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Number</th>
@@ -1087,6 +1120,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-6 text-xs text-slate-500 font-medium">{farmer.phone}</td>
+                                                    <td className="py-4 px-6">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+                                                            farmer.paymentMethod === 'mpesa' ? 'bg-emerald-50 text-emerald-600' :
+                                                            farmer.paymentMethod === 'bank' ? 'bg-blue-50 text-blue-600' :
+                                                            'bg-amber-50 text-amber-600'
+                                                        }`}>
+                                                            {farmer.paymentMethod || 'mpesa'}
+                                                        </span>
+                                                    </td>
                                                     <td className="py-4 px-6 text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-tighter">{farmer.accountNumber}</td>
                                                     <td className="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap">
                                                         {farmer.riderId ? (
@@ -1419,51 +1461,78 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             </div>
                                         </div>
                                     </div>
+                                    <div className="flex bg-slate-100 dark:bg-slate-900 rounded-3xl p-1.5 shadow-inner">
+                                        {(['pending', 'approved', 'paid'] as const).map((status) => (
+                                            <button
+                                                key={status}
+                                                onClick={() => {
+                                                    setPayoutStatusFilter(status);
+                                                    setSelectedPayouts([]);
+                                                }}
+                                                className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+                                                    payoutStatusFilter === status 
+                                                        ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-xl scale-[1.02]' 
+                                                        : 'text-slate-400 hover:text-slate-600'
+                                                }`}
+                                            >
+                                                {status === 'pending' ? 'Review Drafts' : status === 'approved' ? 'Approved (Ready)' : 'Payment History'}
+                                                {status !== 'paid' && (
+                                                    <span className="ml-2 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full text-[8px]">
+                                                        {payouts.filter(px => px.status === status).length}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <div className="flex items-center gap-4">
-                                        {(currentUser.role === 'cooperative_manager' || currentUser.role === 'admin') && (
+                                        {payoutStatusFilter === 'pending' && (currentUser.role === 'cooperative_manager' || currentUser.role === 'coop_chairman' || currentUser.role === 'super_admin') && (
                                             <button 
                                                 disabled={selectedPayouts.length === 0 || isProcessing}
                                                 onClick={async () => {
-                                                    if (window.confirm(`Initiate monthly dues for ${selectedPayouts.length} farmers?`)) {
+                                                    if (window.confirm(`Approve ${selectedPayouts.length} payout drafts for disbursement?`)) {
                                                         setIsProcessing(true);
-                                                        await onInitiatePayouts?.(selectedPayouts);
+                                                        await onApprovePayouts?.(selectedPayouts);
                                                         setSelectedPayouts([]);
                                                         setIsProcessing(false);
-                                                        onLogAction?.(`Initiated bulk payout for ${selectedPayouts.length} farmers`);
+                                                        onLogAction?.(`Approved ${selectedPayouts.length} payout drafts`);
                                                     }
                                                 }}
-                                                className="flex items-center gap-2 bg-indigo-600 disabled:bg-slate-300 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                                className="flex items-center gap-2 bg-indigo-600 disabled:bg-slate-300 hover:bg-indigo-700 text-white px-8 py-4 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95"
                                             >
-                                                <PayoutIcon className="w-4 h-4" />
-                                                Initiate Bulk Dues
+                                                <SuccessIcon className="w-4 h-4 text-emerald-300" />
+                                                Approve Selected
                                             </button>
                                         )}
-                                        {(currentUser.role === 'coop_chairman' || currentUser.role === 'super_admin') && (
+
+                                        {payoutStatusFilter === 'approved' && (currentUser.role === 'coop_chairman' || currentUser.role === 'super_admin') && (
                                             <button 
                                                 disabled={selectedPayouts.length === 0 || isProcessing}
                                                 onClick={async () => {
                                                     if (window.confirm(`Approve and Disburse funds via M-PESA for ${selectedPayouts.length} farmers?`)) {
                                                         setIsProcessing(true);
-                                                        await onApprovePayouts?.(selectedPayouts);
+                                                        await onDisbursePayouts?.(selectedPayouts);
                                                         setSelectedPayouts([]);
                                                         setIsProcessing(false);
-                                                        onLogAction?.(`Approved and Disbursed bulk M-Pesa payout to ${selectedPayouts.length} farmers`);
+                                                        onLogAction?.(`Disbursed bulk M-Pesa payout to ${selectedPayouts.length} farmers`);
                                                     }
                                                 }}
-                                                className="flex items-center gap-2 bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                                                className="flex items-center gap-2 bg-emerald-600 disabled:bg-slate-300 hover:bg-emerald-700 text-white px-8 py-4 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95"
                                             >
-                                                <SuccessIcon className="w-4 h-4" />
-                                                Approve & Play (M-PESA)
+                                                <PayoutIcon className="w-4 h-4" />
+                                                Disburse (M-PESA)
                                             </button>
                                         )}
-                                                                                <button 
-                                            disabled={isProcessing}
-                                            onClick={handleGeneratePayoutDrafts}
-                                            className="flex items-center gap-2 border-2 border-slate-100 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50"
-                                        >
-                                            <PlusIcon className="w-4 h-4" />
-                                            Generate Drafts
-                                        </button>
+
+                                        {payoutStatusFilter === 'pending' && (
+                                            <button 
+                                                disabled={isProcessing}
+                                                onClick={handleGeneratePayoutDrafts}
+                                                className="flex items-center gap-2 border-2 border-slate-100 dark:border-slate-700 px-6 py-4 rounded-3xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                                            >
+                                                <PlusIcon className="w-4 h-4" />
+                                                Generate Drafts
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="overflow-x-auto">
@@ -2760,13 +2829,30 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 </button>
                                             </div>
                                         </div>
-                                        <button 
-                                            onClick={handleSettlementPreview}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center gap-2"
-                                        >
-                                            <ExportIcon className="w-4 h-4" />
-                                            Preview PDF
-                                        </button>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['all', 'mpesa', 'bank', 'cash'].map(m => (
+                                                <button 
+                                                    key={m}
+                                                    onClick={async () => {
+                                                        const docUri = await pdfService.generatePaymentSchedulePdf(
+                                                            getFilteredPayouts(), 
+                                                            farmers, 
+                                                            m as any, 
+                                                            props.currentInstitution!, 
+                                                            props.letterheadConfig, 
+                                                            props.footerImageUrl
+                                                        );
+                                                        const link = document.createElement('a');
+                                                        link.href = docUri;
+                                                        link.download = `Payment_Schedule_${m.toUpperCase()}_${new Date().toLocaleDateString()}.pdf`;
+                                                        link.click();
+                                                    }}
+                                                    className="bg-slate-50 hover:bg-indigo-50 text-indigo-600 dark:bg-slate-800 dark:text-indigo-400 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-100 dark:border-slate-700 hover:border-indigo-200 shadow-sm active:scale-95"
+                                                >
+                                                    {m === 'all' ? 'All Methods' : m.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
                                         <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-2xl flex items-center gap-3">
                                             <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Rate (KES/Unit):</label>
                                             <input 
@@ -3253,7 +3339,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                     />
                                 </div>
-                                <div className="col-span-2 space-y-1">
+                                <div className="space-y-1">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Location / Route</label>
                                     <input 
                                         type="text" 
@@ -3261,6 +3347,18 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         onChange={e => setEditingFarmer({...editingFarmer, location: e.target.value})}
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
                                     />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Settlement Method</label>
+                                    <select 
+                                        value={editingFarmer.paymentMethod || 'mpesa'} 
+                                        onChange={e => setEditingFarmer({...editingFarmer, paymentMethod: e.target.value as any})}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 text-[10px] font-bold outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white"
+                                    >
+                                        <option value="mpesa">M-PESA</option>
+                                        <option value="bank">Bank Transfer</option>
+                                        <option value="cash">Cash Settlement</option>
+                                    </select>
                                 </div>
                             </div>
 
