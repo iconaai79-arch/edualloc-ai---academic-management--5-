@@ -1828,19 +1828,7 @@ export const App: React.FC = () => {
         }
     }, [currentUser, activeInstitution, onUpdateInstitution, loadData]);
     
-    const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
-        if (!activeInstitution) return;
-        setIsSavingModule(true);
-        try {
-            await apiService.activateModuleTrial(moduleId, activeInstitution.id);
-            await handleLogAction(`Activated 14-day free trial for module: ${moduleId}`);
-            await loadData();
-        } catch (e: any) {
-            alert(`Failed to activate trial: ${e.message || "Unknown error"}`);
-        } finally {
-            setIsSavingModule(false);
-        }
-    }, [activeInstitution, handleLogAction, loadData]);
+
 
 
     const handleClearDemoData = useCallback(async () => {
