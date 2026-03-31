@@ -2908,6 +2908,8 @@ export interface CoopCollection {
     approvedBy?: string;
     approvedAt?: string;
     smsStatus?: 'pending' | 'sent' | 'failed';
+    _estimated_payout?: number; // Raw snake_case for direct mapping
+    estimatedPayout?: number;   // camelCase for frontend usage
     createdAt: string;
 }
 
