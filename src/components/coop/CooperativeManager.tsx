@@ -113,6 +113,7 @@ interface CooperativeManagerProps {
     onAddInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
     onAddSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
+    onSendSms?: (recipient: string, message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -168,7 +169,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onAddExtensionRequest,
     onAddInventory,
     onAddSale,
-    onAddSales
+    onAddSales,
+    onSendSms
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -654,6 +656,25 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             alert("Basket is empty");
             return;
         }
+
+        // Credit Rule Validation
+        if (posStatus === 'credit' && currentInstitution?.coopSettings?.requireCurrentMonthDeliveryForCredit) {
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            const hasDeliveryThisMonth = collections.some(col => {
+                if (col.farmerId !== posFarmerId) return false;
+                const d = new Date(col.collectionDate);
+                return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            });
+
+            if (!hasDeliveryThisMonth) {
+                alert(`Credit access denied: Farmer ${farmers.find(f => f.id === posFarmerId)?.name || 'N/A'} has no milk deliveries recorded for the current month. Please settle with CASH.`);
+                setIsProcessing(false);
+                return;
+            }
+        }
+
         setIsProcessing(true);
         try {
             const saleRecords = posBasket.map(basketItem => ({
@@ -678,6 +699,17 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             }
             
             if (onLogAction) await onLogAction(`Processed POS sale with ${posBasket.length} items for farmer ${posFarmerId}`);
+            
+            // SMS Notification for Credit Sales
+            if (posStatus === 'credit' && onSendSms) {
+                const farmer = farmers.find(f => f.id === posFarmerId);
+                if (farmer && farmer.phone) {
+                    const total = posBasket.reduce((sum, item) => sum + item.amount, 0);
+                    const msg = `Dear ${farmer.name}, a credit sale of KES ${total.toLocaleString()} for ${posBasket.length} items has been recorded (Member: ${farmer.memberId || 'N/A'}). This will be deducted from your next payout. Thank you for your continued partnership.`;
+                    onSendSms(farmer.phone, msg, smsConfig, 1, currentInstitution?.id).catch(e => console.error("Failed to send credit sale SMS:", e));
+                }
+            }
+
             setPosBasket([]);
             setPosFarmerId('');
             setIsRecordingSale(false);
@@ -3314,7 +3346,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Monthly SMS Billing</p>
+                                             <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Monthly SMS Billing</p>
                                             <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Bill farmers for notifications</p>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -3322,6 +3354,27 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 type="checkbox" 
                                                 checked={currentInstitution?.farmerSmsBillingEnabled || false}
                                                 onChange={(e) => onUpdateInstitution?.(currentInstitution!.id, { farmerSmsBillingEnabled: e.target.checked })}
+                                                className="sr-only peer" 
+                                            />
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Credit Eligibility Rule</p>
+                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Require delivery for credit POS</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={currentInstitution?.coopSettings?.requireCurrentMonthDeliveryForCredit || false}
+                                                onChange={(e) => onUpdateInstitution?.(currentInstitution!.id, { 
+                                                    coopSettings: {
+                                                        ...currentInstitution?.coopSettings,
+                                                        requireCurrentMonthDeliveryForCredit: e.target.checked 
+                                                    }
+                                                })}
                                                 className="sr-only peer" 
                                             />
                                             <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>

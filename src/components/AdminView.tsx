@@ -774,6 +774,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     timeOffRequests={props.timeOffRequests || []}
                                     onTimetableGenerated={props.onTimetableGenerated}
                                     onLogAction={props.onLogAction}
+                                 onSendSms={props.onSendSms}
                                     onNavigateToSettings={(tab) => {
                                         if (tab === 'calendar') {
                                             setTimetableSubTab('calendar');
@@ -820,6 +821,7 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
+                                 onSendSms={props.onSendSms}
                                 />
                             ) : timetableSubTab === 'subjects' ? (
                                 <SubjectManager
@@ -1008,7 +1010,9 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                 onAddIncome={props.onAddCoopIncome}
                                 onAddInventory={props.onAddCoopAgrovetInventory}
                                 onAddSale={props.onAddCoopAgrovetSale}
+                                onAddSales={props.onAddCoopAgrovetSales}
                                 onLogAction={props.onLogAction}
+                                onSendSms={props.onSendSms}
                                  onInitiatePayouts={props.onInitiatePayouts}
                                 onApprovePayouts={props.onApprovePayouts}
                                 onDisbursePayouts={props.onDisbursePayouts}

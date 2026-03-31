@@ -132,6 +132,7 @@ export interface CoopSettings {
     coffeePrice?: number;
     advanceLimit?: number;
     farmerSmsBillingEnabled?: boolean;
+    requireCurrentMonthDeliveryForCredit?: boolean;
 }
 
 export interface Institution {
