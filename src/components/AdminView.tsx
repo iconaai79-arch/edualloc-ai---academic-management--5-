@@ -232,6 +232,7 @@ export interface AdminViewProps {
     onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
     onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
+    onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;

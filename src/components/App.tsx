@@ -2793,6 +2793,11 @@ export const App: React.FC = () => {
                                         await apiService.saveCoopAgrovetSale({ ...data, institutionId: instId });
                                         loadData();
                                     }}
+                                    onAddCoopAgrovetSales={async (data) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveModuleRecords('coop_agrovet_sales', data.map(s => ({ ...s, institutionId: instId })));
+                                        loadData();
+                                    }}
                                     onInitiatePayouts={async (payoutIds) => {
                                         await apiService.disburseBulkMpesa(payoutIds, currentUser.id);
                                         loadData();
@@ -3954,6 +3959,11 @@ export const App: React.FC = () => {
                                     onAddCoopAgrovetSale={async (data) => {
                                         const instId = activeInstitution?.id || currentUser.institutionId;
                                         await apiService.saveCoopAgrovetSale({ ...data, institutionId: instId });
+                                        loadData();
+                                    }}
+                                    onAddCoopAgrovetSales={async (data) => {
+                                        const instId = activeInstitution?.id || currentUser.institutionId;
+                                        await apiService.saveModuleRecords('coop_agrovet_sales', data.map(s => ({ ...s, institutionId: instId })));
                                         loadData();
                                     }}
                                     onInitiatePayouts={async (payoutIds) => {

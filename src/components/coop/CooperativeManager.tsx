@@ -112,6 +112,7 @@ interface CooperativeManagerProps {
     onAddExtensionRequest?: (reason: string) => void;
     onAddInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
     onAddSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
+    onAddSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
 }
 
 export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
@@ -166,7 +167,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     onWithdrawRequest,
     onAddExtensionRequest,
     onAddInventory,
-    onAddSale
+    onAddSale,
+    onAddSales
 }) => {
     const [localActiveSubTab, setLocalActiveSubTab] = useState<'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings'>('overview');
     const [farmerSubTab, setFarmerSubTab] = useState<'registry' | 'collections' | 'logistics' | 'payouts'>('registry');
@@ -654,30 +656,35 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
         setIsProcessing(true);
         try {
-            if (onAddSale) {
-                // We create individual records for each item for consistency with existing payout logic
-                for (const basketItem of posBasket) {
-                    await onAddSale({
-                        id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        farmerId: posFarmerId,
-                        itemId: basketItem.itemId,
-                        quantity: Number(basketItem.quantity),
-                        amount: Number(basketItem.amount),
-                        saleDate: posSaleDate,
-                        paymentStatus: posStatus,
-                        institutionId: currentInstitution?.id || '',
-                        recordedBy: currentUser.id
-                    });
+            const saleRecords = posBasket.map(basketItem => ({
+                id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                farmerId: posFarmerId,
+                itemId: basketItem.itemId,
+                quantity: Number(basketItem.quantity),
+                amount: Number(basketItem.amount),
+                saleDate: posSaleDate,
+                paymentStatus: posStatus,
+                institutionId: currentInstitution?.id || '',
+                recordedBy: currentUser.id
+            }));
+
+            if (onAddSales) {
+                await onAddSales(saleRecords);
+            } else if (onAddSale) {
+                // Fallback to sequential if plural is not provided (though it should be now)
+                for (const record of saleRecords) {
+                    await onAddSale(record);
                 }
             }
+            
             if (onLogAction) await onLogAction(`Processed POS sale with ${posBasket.length} items for farmer ${posFarmerId}`);
             setPosBasket([]);
             setPosFarmerId('');
             setIsRecordingSale(false);
             alert("Sale processed successfully");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert("Failed to process POS checkout");
+            alert(`Failed to process POS checkout: ${err.message || "Please check your network and try again"}`);
         } finally {
             setIsProcessing(false);
         }
