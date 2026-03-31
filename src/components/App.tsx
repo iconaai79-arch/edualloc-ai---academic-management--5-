@@ -3516,6 +3516,7 @@ export const App: React.FC = () => {
                             ) : activeRole === 'farmer' ? (
                                 <FarmerPortal
                                     currentUser={currentUser}
+                                    farmer={coopFarmers.find(f => f.id === currentUser.farmerId || f.phone === currentUser.phoneNumber)}
                                     collections={coopCollections.filter(c => c.farmerId === currentUser.id || c.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
                                     saccoAccounts={saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
                                     saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId).map(a => a.id).includes(t.accountId))}
@@ -3523,6 +3524,7 @@ export const App: React.FC = () => {
                                     agrovetSales={coopAgrovetSales.filter(s => s.farmerId === currentUser.id || s.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
                                     agrovetInventory={coopAgrovetInventory}
                                     notifications={notifications.filter(n => n.userId === currentUser.id || n.institutionId === currentUser.institutionId)}
+                                    onUpdateFarmer={handleUpdateFarmer}
                                     onLogout={handleLogout}
                                 />
                             ) : activeRole === 'rider' ? (

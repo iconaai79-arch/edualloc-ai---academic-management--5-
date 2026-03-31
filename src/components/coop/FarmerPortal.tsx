@@ -8,7 +8,8 @@ import {
     CoopAgrovetSales,
     CoopAgrovetInventory,
     SaccoTransaction,
-    AppNotification
+    AppNotification,
+    CoopFarmer
 } from '../../types';
 import { GridIcon as LayoutDashboard } from '../icons/GridIcon';
 import { ClipboardListIcon as ClipboardList } from '../icons/ClipboardListIcon';
@@ -24,6 +25,8 @@ import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
 import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
 import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
 import { ChatBubbleLeftRightIcon as MessageSquare } from '../icons/ChatBubbleLeftRightIcon';
+import { CogIcon } from '../icons/CogIcon';
+import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 
 interface FarmerPortalProps {
     currentUser: User;
@@ -34,6 +37,8 @@ interface FarmerPortalProps {
     agrovetSales: CoopAgrovetSales[];
     agrovetInventory: CoopAgrovetInventory[];
     notifications?: AppNotification[];
+    farmer?: CoopFarmer | null;
+    onUpdateFarmer?: (id: string, data: Partial<CoopFarmer>) => Promise<void>;
     onLogout: () => void;
 }
 
@@ -46,9 +51,14 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
     agrovetSales = [],
     agrovetInventory = [],
     notifications = [],
+    farmer = null,
+    onUpdateFarmer,
     onLogout
 }) => {
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements' | 'notifications'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'collections' | 'sacco' | 'agrovet' | 'statements' | 'notifications' | 'settings'>('dashboard');
+    const [isSaving, setIsSaving] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [selectedMethod, setSelectedMethod] = useState<string>(farmer?.paymentMethod || 'mpesa');
 
     const stats = useMemo(() => {
         const totalQty = collections.reduce((sum, c) => sum + Number(c.quantity), 0);
@@ -84,7 +94,8 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                         { id: 'sacco', label: 'SACCO Wallet', icon: <Wallet className="w-4 h-4" /> },
                         { id: 'agrovet', label: 'Store Credit', icon: <ShoppingBag className="w-4 h-4" /> },
                         { id: 'statements', label: 'Statements', icon: <FileText className="w-4 h-4" /> },
-                        { id: 'notifications', label: 'Notifications', icon: <MessageSquare className="w-4 h-4" /> }
+                        { id: 'notifications', label: 'Notifications', icon: <MessageSquare className="w-4 h-4" /> },
+                        { id: 'settings', label: 'Account Settings', icon: <Settings className="w-4 h-4" /> }
                     ].map(item => (
                         <button
                             key={item.id}
@@ -532,6 +543,150 @@ export const FarmerPortal: React.FC<FarmerPortalProps> = ({
                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">You're all caught up with the cooperative!</p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'settings' && (
+                    <div className="animate-fade-in space-y-10">
+                        <div className="px-2">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mb-1">Account & Preferences</p>
+                             <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Portal Settings</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                            <div className="lg:col-span-2 space-y-8">
+                                {/* Profile Card */}
+                                <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-8 flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600">
+                                            <Settings className="w-4 h-4" />
+                                        </div>
+                                        Personal Information
+                                    </h4>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
+                                            <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 text-sm font-bold dark:text-white opacity-60 cursor-not-allowed">
+                                                {currentUser.name}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Member ID</label>
+                                            <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 text-sm font-bold dark:text-white opacity-60 cursor-not-allowed">
+                                                {farmer?.memberId || 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Phone Number</label>
+                                            <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 text-sm font-bold dark:text-white opacity-60 cursor-not-allowed">
+                                                {currentUser.phoneNumber}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
+                                            <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 text-sm font-bold dark:text-white opacity-60 cursor-not-allowed">
+                                                {currentUser.email}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="mt-8 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl inline-block">
+                                        To update personal details, please contact the cooperative office.
+                                    </p>
+                                </div>
+
+                                {/* Settlement Section */}
+                                <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8">
+                                        <CreditCard className="w-12 h-12 text-slate-100 dark:text-slate-800" />
+                                    </div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-2">Preferred Settlement Method</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-8">How you receive your monthly payouts</p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {[
+                                            { id: 'mpesa', label: 'M-PESA Pay', desc: 'Secure phone settlement', color: 'emerald' },
+                                            { id: 'bank', label: 'Bank Transfer', desc: 'Direct bank deposit', color: 'blue' },
+                                            { id: 'cash', label: 'Physical Cash', desc: 'Collect at office', color: 'orange' }
+                                        ].map(method => (
+                                            <button 
+                                                key={method.id}
+                                                onClick={() => setSelectedMethod(method.id)}
+                                                className={`p-6 rounded-[2rem] border transition-all text-left group relative ${
+                                                    selectedMethod === method.id 
+                                                    ? `bg-${method.color}-50 dark:bg-${method.color}-900/20 border-${method.color}-200 dark:border-${method.color}-800` 
+                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                {selectedMethod === method.id && (
+                                                    <div className={`absolute top-4 right-4 w-5 h-5 bg-${method.color}-500 rounded-full flex items-center justify-center text-white scale-110 shadow-lg`}>
+                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                    </div>
+                                                )}
+                                                <p className={`text-[11px] font-black uppercase tracking-tighter mb-1 ${
+                                                    selectedMethod === method.id ? `text-${method.color}-600 dark:text-${method.color}-400` : 'text-slate-900 dark:text-white'
+                                                }`}>{method.label}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{method.desc}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-12 flex items-center gap-6">
+                                        <button 
+                                            disabled={isSaving || !farmer || selectedMethod === farmer.paymentMethod}
+                                            onClick={async () => {
+                                                if (!farmer || !onUpdateFarmer) return;
+                                                setIsSaving(true);
+                                                try {
+                                                    await onUpdateFarmer(farmer.id, { paymentMethod: selectedMethod as any });
+                                                    setShowSuccess(true);
+                                                    setTimeout(() => setShowSuccess(false), 3000);
+                                                } catch (err) {
+                                                    console.error("Failed to update settlement method", err);
+                                                } finally {
+                                                    setIsSaving(false);
+                                                }
+                                            }}
+                                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-indigo-200 dark:shadow-none flex items-center gap-3 active:scale-95"
+                                        >
+                                            {isSaving ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <CogIcon className="w-4 h-4" />
+                                            )}
+                                            {isSaving ? 'Saving Changes...' : 'Save Preferences'}
+                                        </button>
+                                        
+                                        {showSuccess && (
+                                            <div className="flex items-center gap-2 text-emerald-500 animate-bounce-in">
+                                                <CheckCircle className="w-5 h-5" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">Update Successful</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-6">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter px-2">Security</h3>
+                                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Password Management</p>
+                                    <button className="w-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 transition-all text-left">
+                                        Change Portal Password
+                                    </button>
+                                    <p className="mt-6 text-[9px] text-slate-400 font-medium leading-relaxed leading-4">
+                                        Last updated: {currentUser.passwordLastUpdated ? new Date(currentUser.passwordLastUpdated).toLocaleDateString() : 'Never'}
+                                    </p>
+                                </div>
+
+                                <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white">
+                                    <h4 className="text-sm font-black uppercase tracking-tight mb-2 text-indigo-300">Need Help?</h4>
+                                    <p className="text-xs text-indigo-100 font-medium leading-relaxed mb-6">If you encounter issues with your settlement, please reach out to our support team.</p>
+                                    <button className="w-full bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white transition-all">
+                                        Contact Support
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
