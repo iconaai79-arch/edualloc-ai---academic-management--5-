@@ -22,7 +22,9 @@ import { ArrowUpRightIcon as ExportIcon } from '../icons/ArrowUpRightIcon';
 import { Cog8ToothIcon as CogIcon } from '../icons/Cog8ToothIcon';
 import { InformationCircleIcon as AlertIcon } from '../icons/InformationCircleIcon';
 import { UploadIcon as UploadCloud } from '../icons/UploadIcon';
-import { XIcon as X } from '../icons/XIcon';
+import { Trash2Icon as TrashIcon } from '../icons/Trash2Icon';
+import { ArrowPathIcon as ResetIcon } from '../icons/ArrowPathIcon';
+import { MinusIcon } from '../icons/MinusIcon';
 import { CheckCircleIcon as SuccessIcon } from '../icons/CheckCircleIcon';
 
 import { SettingsManager } from '../SettingsManager';
@@ -208,6 +210,16 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [isSavingRate, setIsSavingRate] = useState(false);
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
+
+    // POS System States
+    const [posBasket, setPosBasket] = useState<any[]>([]);
+    const [posHeldSales, setPosHeldSales] = useState<any[]>([]);
+    const [agrovetFarmerSearchQuery, setAgrovetFarmerSearchQuery] = useState('');
+    const [agrovetItemSearchQuery, setAgrovetItemSearchQuery] = useState('');
+    const [posSaleDate, setPosSaleDate] = useState(formatDateString(new Date()));
+    const [posFarmerId, setPosFarmerId] = useState('');
+    const [posStatus, setPosStatus] = useState<'paid' | 'credit'>('paid');
+    const [isPOSHeldView, setIsPOSHeldView] = useState(false);
     const [newFarmer, setNewFarmer] = useState<Partial<CoopFarmer>>({
         status: 'active',
         joinedAt: formatDateString(new Date()),
@@ -604,35 +616,100 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
     };
 
-    const handleSubmitSale = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newSale.farmerId || !newSale.itemId || !newSale.quantity) {
-            alert("Please select a farmer, item and enter quantity");
+    const addToBasket = (item: CoopAgrovetInventory) => {
+        const existing = posBasket.find(i => i.itemId === item.id);
+        if (existing) {
+            updateBasketQuantity(item.id, existing.quantity + 1);
+        } else {
+            setPosBasket([...posBasket, { 
+                itemId: item.id, 
+                itemName: item.itemName, 
+                unitPrice: item.unitPrice, 
+                quantity: 1, 
+                amount: item.unitPrice 
+            }]);
+        }
+    };
+
+    const removeFromBasket = (itemId: string) => {
+        setPosBasket(posBasket.filter(i => i.itemId !== itemId));
+    };
+
+    const updateBasketQuantity = (itemId: string, qty: number) => {
+        if (qty <= 0) {
+            removeFromBasket(itemId);
+            return;
+        }
+        setPosBasket(posBasket.map(i => i.itemId === itemId ? { ...i, quantity: qty, amount: i.unitPrice * qty } : i));
+    };
+
+    const handlePOSCheckout = async () => {
+        if (!posFarmerId) {
+            alert("Please select a farmer for this sale");
+            return;
+        }
+        if (posBasket.length === 0) {
+            alert("Basket is empty");
             return;
         }
         setIsProcessing(true);
         try {
             if (onAddSale) {
-                const { ...cleanSale } = newSale;
-                if(cleanSale.paymentStatus as any === 'pending') { cleanSale.paymentStatus = 'credit'; }
-                await onAddSale({
-                    ...cleanSale,
-                    id: `sale_${Date.now()}`,
-                    institutionId: currentInstitution?.id || ''
-                });
+                // We create individual records for each item for consistency with existing payout logic
+                for (const basketItem of posBasket) {
+                    await onAddSale({
+                        id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        farmerId: posFarmerId,
+                        itemId: basketItem.itemId,
+                        quantity: Number(basketItem.quantity),
+                        amount: Number(basketItem.amount),
+                        saleDate: posSaleDate,
+                        paymentStatus: posStatus,
+                        institutionId: currentInstitution?.id || '',
+                        recordedBy: currentUser.id
+                    });
+                }
             }
+            if (onLogAction) await onLogAction(`Processed POS sale with ${posBasket.length} items for farmer ${posFarmerId}`);
+            setPosBasket([]);
+            setPosFarmerId('');
             setIsRecordingSale(false);
-            setNewSale({
-                saleDate: formatDateString(new Date()),
-                paymentStatus: 'paid'
-            });
-            if (onLogAction) await onLogAction(`Recorded sale for farmer ${newSale.farmerId}`);
+            alert("Sale processed successfully");
         } catch (err) {
             console.error(err);
-            alert("Failed to record sale");
+            alert("Failed to process POS checkout");
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    const holdTransaction = () => {
+        if (posBasket.length === 0) return;
+        const newHold = {
+            id: `held_${Date.now()}`,
+            basket: [...posBasket],
+            farmerId: posFarmerId,
+            date: posSaleDate,
+            heldAt: new Date().toISOString()
+        };
+        setPosHeldSales([newHold, ...posHeldSales]);
+        setPosBasket([]);
+        setPosFarmerId('');
+        alert("Transaction held successfully");
+    };
+
+    const resumeHold = (heldSale: any) => {
+        setPosBasket(heldSale.basket);
+        setPosFarmerId(heldSale.farmerId);
+        setPosSaleDate(heldSale.date);
+        setPosHeldSales(posHeldSales.filter(h => h.id !== heldSale.id));
+        setIsPOSHeldView(false);
+    };
+
+    const handleSubmitSale = async (e: React.FormEvent) => {
+        e.preventDefault();
+        // Legacy single item submit replaced by loop in handlePOSCheckout
+        handlePOSCheckout();
     };
 
     return (
@@ -2162,90 +2239,247 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                     </div>
                                 )}
 
-                                {/* Record Sale Form */}
+                                {/* Record Sale Form (POS System) */}
                                 {isRecordingSale && (
-                                    <div className="mb-12 bg-slate-50 dark:bg-slate-900/50 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-fade-in-up">
-                                        <h3 className="text-lg font-black tracking-tighter uppercase mb-6 flex items-center gap-3">
-                                            <PayoutIcon className="w-5 h-5 text-emerald-500" />
-                                            New Sales Record
-                                        </h3>
-                                        <form onSubmit={handleSubmitSale} className="space-y-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Farmer / Customer</label>
-                                                    <select 
-                                                        required
-                                                        value={newSale.farmerId || ''} 
-                                                        onChange={e => setNewSale({...newSale, farmerId: e.target.value})}
-                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                                    >
-                                                        <option value="">Select Farmer</option>
-                                                        {farmers.map(f => (
-                                                            <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
-                                                        ))}
-                                                    </select>
+                                    <div className="mb-12 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[3rem] shadow-xl overflow-hidden animate-fade-in-up">
+                                        <div className="flex flex-col lg:flex-row min-h-[700px]">
+                                            {/* POS - Product Picker (Left) */}
+                                            <div className="flex-1 p-8 border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div>
+                                                        <h3 className="text-xl font-black tracking-tighter uppercase text-slate-900 dark:text-white flex items-center gap-3">
+                                                            <StoreIcon className="w-6 h-6 text-indigo-600" />
+                                                            Product Selection
+                                                        </h3>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select items to add to basket</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <button 
+                                                            onClick={() => setIsPOSHeldView(!isPOSHeldView)}
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isPOSHeldView ? 'bg-orange-500 text-white shadow-lg' : 'bg-orange-50 dark:bg-orange-900/10 text-orange-600 border border-orange-100 dark:border-orange-900/20'}`}
+                                                        >
+                                                            {isPOSHeldView ? 'Back to Selection' : `Held Sales (${posHeldSales.length})`}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Inventory Item</label>
-                                                    <select 
-                                                        required
-                                                        value={newSale.itemId || ''} 
-                                                        onChange={e => {
-                                                            const item = inventory.find(i => i.id === e.target.value);
-                                                            setNewSale({
-                                                                ...newSale, 
-                                                                itemId: e.target.value,
-                                                                amount: item ? item.unitPrice * (newSale.quantity || 0) : 0
-                                                            });
-                                                        }}
-                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                                    >
-                                                        <option value="">Select Item</option>
-                                                        {inventory.map(i => (
-                                                            <option key={i.id} value={i.id}>{i.itemName} (Stock: {i.quantity})</option>
-                                                        ))}
-                                                    </select>
+
+                                                {isPOSHeldView ? (
+                                                    <div className="space-y-4">
+                                                        {posHeldSales.length === 0 ? (
+                                                            <div className="text-center py-20 bg-white dark:bg-slate-800/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
+                                                                <ResetIcon className="w-12 h-12 text-slate-200 dark:text-slate-700 mx-auto mb-4" />
+                                                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No transactions on hold</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                {posHeldSales.map(held => (
+                                                                    <div key={held.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+                                                                        <div>
+                                                                            <div className="flex justify-between items-start mb-4">
+                                                                                <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tighter">Held: {new Date(held.heldAt).toLocaleTimeString()}</p>
+                                                                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest">{held.basket.length} Items</span>
+                                                                            </div>
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 truncate text-emerald-600">
+                                                                                {farmers.find(f => f.id === held.farmerId)?.name || 'Walk-in Customer'}
+                                                                            </p>
+                                                                        </div>
+                                                                        <button 
+                                                                            onClick={() => resumeHold(held)}
+                                                                            className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest transition-all"
+                                                                        >
+                                                                            Resume Sale
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-6">
+                                                        {/* Product Search */}
+                                                        <div className="relative">
+                                                            <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Search items by name or category..."
+                                                                value={agrovetItemSearchQuery}
+                                                                onChange={(e) => setAgrovetItemSearchQuery(e.target.value)}
+                                                                className="w-full bg-white dark:bg-slate-800 border-none rounded-2xl py-5 pl-14 pr-6 text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:text-white placeholder:text-slate-400"
+                                                            />
+                                                        </div>
+
+                                                        {/* Inventory Grid */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                                            {inventory
+                                                                .filter(item => 
+                                                                    item.itemName.toLowerCase().includes(agrovetItemSearchQuery.toLowerCase()) || 
+                                                                    item.category?.toLowerCase().includes(agrovetItemSearchQuery.toLowerCase())
+                                                                )
+                                                                .map(item => (
+                                                                    <button 
+                                                                        key={item.id}
+                                                                        disabled={item.quantity <= 0}
+                                                                        onClick={() => addToBasket(item)}
+                                                                        className="group bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left relative overflow-hidden"
+                                                                    >
+                                                                        <div className="absolute top-0 right-0 p-4">
+                                                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${item.quantity > 5 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                                                {item.quantity} In Stock
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="mt-4">
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">{item.category}</p>
+                                                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter mb-3 line-clamp-1">{item.itemName}</h4>
+                                                                            <p className="text-xl font-black text-indigo-600">KES {Number(item.unitPrice).toLocaleString()}</p>
+                                                                        </div>
+                                                                        <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between">
+                                                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-500 transition-colors">Add to basket</span>
+                                                                            <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                                                <PlusIcon className="w-4 h-4" />
+                                                                            </div>
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* POS - Basket & Checkout (Right Sidebar) */}
+                                            <div className="w-full lg:w-[450px] bg-white dark:bg-slate-900 p-10 flex flex-col justify-between shadow-[-20px_0_40px_-20px_rgba(0,0,0,0.05)]">
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-10">
+                                                        <h3 className="text-xl font-black tracking-tighter uppercase text-slate-900 dark:text-white flex items-center gap-3">
+                                                            <FinanceIcon className="w-6 h-6 text-emerald-600" />
+                                                            Basket Total
+                                                        </h3>
+                                                        <button 
+                                                            onClick={() => setPosBasket([])}
+                                                            className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors flex items-center gap-2"
+                                                        >
+                                                            <ResetIcon className="w-3.5 h-3.5" />
+                                                            Clear
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Cart Items */}
+                                                    <div className="space-y-6 mb-10 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                                        {posBasket.length === 0 ? (
+                                                            <div className="text-center py-10 opacity-40">
+                                                                <StoreIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                                                                <p className="text-[10px] font-black uppercase tracking-widest">Basket is empty</p>
+                                                            </div>
+                                                        ) : (
+                                                            posBasket.map(basketItem => (
+                                                                <div key={basketItem.itemId} className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl relative group">
+                                                                    <div className="flex-1">
+                                                                        <h5 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tighter line-clamp-1">{basketItem.itemName}</h5>
+                                                                        <p className="text-[10px] font-bold text-slate-400">KES {Number(basketItem.unitPrice).toLocaleString()} × {basketItem.quantity}</p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-1.5 shadow-sm">
+                                                                        <button 
+                                                                            onClick={() => updateBasketQuantity(basketItem.itemId, basketItem.quantity - 1)}
+                                                                            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                                                                        >
+                                                                            <MinusIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <span className="text-xs font-black text-slate-900 dark:text-white w-6 text-center">{basketItem.quantity}</span>
+                                                                        <button 
+                                                                            onClick={() => updateBasketQuantity(basketItem.itemId, basketItem.quantity + 1)}
+                                                                            className="w-7 h-7 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+                                                                        >
+                                                                            <PlusIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white min-w-[80px] text-right">KES {Number(basketItem.amount).toLocaleString()}</p>
+                                                                    <button 
+                                                                        onClick={() => removeFromBasket(basketItem.itemId)}
+                                                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg scale-0 group-hover:scale-100 transition-all active:scale-90"
+                                                                    >
+                                                                        <TrashIcon className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
+
+                                                    {/* Farmer & Date Configuration */}
+                                                    <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Customer / Farmer Search</label>
+                                                            <div className="relative">
+                                                                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Search farmer..."
+                                                                    value={agrovetFarmerSearchQuery}
+                                                                    onChange={(e) => setAgrovetFarmerSearchQuery(e.target.value)}
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 text-xs font-bold p-3.5 pl-10 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/10 transition-all dark:text-white"
+                                                                />
+                                                            </div>
+                                                            <select 
+                                                                value={posFarmerId}
+                                                                onChange={(e) => setPosFarmerId(e.target.value)}
+                                                                className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3.5 rounded-xl text-xs font-black uppercase tracking-tighter outline-none focus:border-indigo-500 transition-all dark:text-white"
+                                                            >
+                                                                <option value="">Select Farmer</option>
+                                                                {farmers
+                                                                    .filter(f => f.name.toLowerCase().includes(agrovetFarmerSearchQuery.toLowerCase()) || f.memberId?.toLowerCase().includes(agrovetFarmerSearchQuery.toLowerCase()))
+                                                                    .map(f => (
+                                                                        <option key={f.id} value={f.id}>{f.name} ({f.memberId})</option>
+                                                                    ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-2">
+                                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Process Date</label>
+                                                                <input 
+                                                                    type="date"
+                                                                    value={posSaleDate}
+                                                                    onChange={(e) => setPosSaleDate(e.target.value)}
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 p-3.5 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all dark:text-white"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Method</label>
+                                                                <select 
+                                                                    value={posStatus}
+                                                                    onChange={(e) => setPosStatus(e.target.value as any)}
+                                                                    className="w-full bg-slate-50 dark:bg-slate-800 p-3.5 rounded-xl text-xs font-bold outline-none border-none transition-all dark:text-white"
+                                                                >
+                                                                    <option value="paid">Cash Sale (Paid)</option>
+                                                                    <option value="credit">On Credit (Deducted)</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity</label>
-                                                    <input 
-                                                        required
-                                                        type="number" 
-                                                        value={newSale.quantity || ''} 
-                                                        onChange={e => {
-                                                            const qty = Number(e.target.value);
-                                                            const item = inventory.find(i => i.id === newSale.itemId);
-                                                            setNewSale({
-                                                                ...newSale, 
-                                                                quantity: qty,
-                                                                amount: item ? item.unitPrice * qty : 0
-                                                            });
-                                                        }}
-                                                        placeholder="0"
-                                                        className="w-full bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all dark:text-white"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Total Amount (KES)</label>
-                                                    <input 
-                                                        required
-                                                        readOnly
-                                                        type="number" 
-                                                        value={newSale.amount || ''} 
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm font-black outline-none transition-all dark:text-white text-emerald-600"
-                                                    />
+
+                                                <div className="mt-10 space-y-6 pt-10 border-t border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-sm font-black text-slate-500 uppercase tracking-widest">Total Payable</span>
+                                                        <span className="text-3xl font-black text-slate-900 dark:text-white">KES {posBasket.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <button 
+                                                            disabled={posBasket.length === 0}
+                                                            onClick={holdTransaction}
+                                                            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 py-5 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all"
+                                                        >
+                                                            Hold Sale
+                                                        </button>
+                                                        <button 
+                                                            disabled={isProcessing || posBasket.length === 0 || !posFarmerId}
+                                                            onClick={handlePOSCheckout}
+                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-3xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+                                                        >
+                                                            {isProcessing ? 'Processing...' : 'Checkout Now'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-end pt-4">
-                                                <button 
-                                                    type="submit"
-                                                    disabled={isProcessing}
-                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50"
-                                                >
-                                                    {isProcessing ? 'Recording...' : 'Finalize Sale'}
-                                                </button>
-                                            </div>
-                                        </form>
+                                        </div>
                                     </div>
                                 )}
 
