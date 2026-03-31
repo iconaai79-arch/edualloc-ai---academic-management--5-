@@ -1412,6 +1412,29 @@ export const App: React.FC = () => {
         }
     };
 
+    const handleActivateModuleTrial = useCallback(async (moduleId: string) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        
+        const trialEndsAt = new Date();
+        trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14-day trial
+        
+        const record: InstitutionModuleState = {
+            id: `mod_${moduleId}_${instId}_${Date.now()}`,
+            moduleId,
+            institutionId: instId,
+            status: 'trial',
+            activatedAt: new Date().toISOString(),
+            trialEndsAt: trialEndsAt.toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        
+        await apiService.saveModuleRecord('institution_module_states', record);
+        await handleLogAction(`Activated trial for module: ${moduleId}`);
+        loadData();
+    }, [activeInstitution, currentUser, handleLogAction, loadData]);
+
     // --- Cooperative Handlers ---
 
     const handleAddFarmer = useCallback(async (data: any) => {
@@ -3008,7 +3031,7 @@ export const App: React.FC = () => {
                                     onOnboardStudent={handleOnboardStudent}
                                     onOffboardStudent={handleOffboardStudent}
                                     onConfirmReceipt={handleConfirmReceipt}
-                                    onActivateModuleTrial={onActivateModuleTrial}
+                                    onActivateModuleTrial={handleActivateModuleTrial}
                                 />
                             ) : activeRole === 'student' ? (
                                 <StudentView
