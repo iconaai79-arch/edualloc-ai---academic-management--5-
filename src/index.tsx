@@ -14,7 +14,7 @@ if (typeof window !== 'undefined') {
     'allocation_requests', 'mpesa_transactions', 'users', 'institutions'
   ];
 
-  const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+  const isProduction = (import.meta as any).env.PROD || window.location.hostname !== 'localhost';
   const isDebugMode = new URLSearchParams(window.location.search).has('debug');
 
   const filterLogs = (originalFn: any) => (...args: any[]) => {

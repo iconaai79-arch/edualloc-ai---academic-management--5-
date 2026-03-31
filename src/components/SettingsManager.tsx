@@ -1883,13 +1883,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <input 
                                                     type="text" 
                                                     readOnly 
-                                                    value={`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution.id}`}
+                                                    value={`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution?.id || ''}`}
                                                     className="form-input h-10 font-mono text-[9px] bg-white dark:bg-slate-900 border-dashed"
                                                 />
                                                 <button 
                                                     type="button"
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution.id}`);
+                                                        navigator.clipboard.writeText(`${window.location.origin}/api/integrations?action=ncbaWebhook&institutionId=${props.currentInstitution?.id || ''}`);
                                                         alert('Callback URL copied');
                                                     }}
                                                     className="px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold uppercase hover:bg-slate-50 transition-all"
@@ -2831,6 +2831,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         user={props.currentUser}
                         showOnly="staff"
                         currentInstitution={props.currentInstitution}
+                        smsConfig={props.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' }}
+                        onWithdrawRequest={props.onWithdrawRequest || (async () => { })}
+                        onDeleteUser={props.onDeleteUser || (async () => { })}
+                        onEditUser={props.onEditUser || (async (id, data) => { })}
                         letterheadConfig={props.letterheadConfig || props.companyDetails?.letterheadConfig || {
                             headerImageUrl: props.currentInstitution?.logoUrl || null,
                             stampImageUrl: null

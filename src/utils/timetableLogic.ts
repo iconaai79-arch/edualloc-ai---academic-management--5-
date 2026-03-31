@@ -196,12 +196,16 @@ export const generateStandardTimetable = (
                                 institutionId: alloc.institutionId,
                                 academicYearId: academicYearId,
                                 semesterId: semesterId,
+                                courseId: linkedCourse!.id,
+                                courseLevelId: alloc.courseLevelIds?.[0] || 'unknown',
                                 duration: requiredDuration,
                                 start_time: slot.start,
                                 end_time: endTimeStr,
                                 subject_id: subject.id,
                                 lecturer_id: alloc.lecturerId,
-                                room_id: availableRoom.id
+                                room_id: availableRoom.id,
+                                course_id: linkedCourse!.id,
+                                course_level_id: alloc.courseLevelIds?.[0] || 'unknown'
                             });
 
                             placed = true;

@@ -2942,7 +2942,7 @@ export const generateCarWashOperationalSummaryPdf = async (
     institution: Institution,
     letterheadConfig: LetterheadConfig | undefined,
     footerImageUrl: string | null,
-    reportsTab: 'all' | 'revenue' | 'staff' | 'customers' | 'services' | 'feedback' = 'all',
+    reportsTab: 'all' | 'revenue' | 'staff' | 'customers' | 'services' | 'feedback' | 'trends' = 'all',
     startDate?: string,
     endDate?: string
 ): Promise<string> => {

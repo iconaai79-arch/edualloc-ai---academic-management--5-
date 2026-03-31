@@ -11,7 +11,7 @@ import { MapPinIcon as MapPin } from '../icons/MapPinIcon';
 import { ArchiveBoxIcon as Package } from '../icons/ArchiveBoxIcon';
 import { XIcon as X } from '../icons/XIcon';
 import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
-import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 
 
@@ -230,7 +230,7 @@ export function RetailStockTransfers({ institutionId, currentUser }: RetailStock
                                                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                         title="Approve"
                                                     >
-                                                        <CircleCheckIcon className="w-4 h-4" />
+                                                        <CheckCircleIcon className="w-4 h-4" />
                                                     </button>
                                                 )}
                                                 {transfer.status === 'approved' && (

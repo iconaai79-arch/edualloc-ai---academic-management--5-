@@ -1,7 +1,7 @@
 import React from 'react';
 import type {
     User, Course, StudentAttendance, TimetableEntry,
-    Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, Vehicle
+    Subject, Room, Building, TimetableSettings, LeaveOutRequest, TransportOnboarding, TransportVehicle
 } from '../types';
 import { UserIcon } from './icons/UserIcon';
 
@@ -22,7 +22,7 @@ interface ParentViewProps {
     leaveOutRequests: LeaveOutRequest[];
     onUpdateLeaveOut?: (id: string, data: Partial<LeaveOutRequest>) => Promise<void>;
     transportOnboarding?: TransportOnboarding[];
-    vehicles?: Vehicle[];
+    vehicles?: TransportVehicle[];
     onConfirmTransport?: (recordId: string) => Promise<void>;
 }
 

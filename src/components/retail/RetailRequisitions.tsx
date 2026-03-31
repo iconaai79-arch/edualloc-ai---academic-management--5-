@@ -7,7 +7,7 @@ import { ClockIcon as ClockIcon } from '../icons/ClockIcon';
 import { XCircleIcon as XCircleIcon } from '../icons/XCircleIcon';
 import { ArchiveBoxIcon as PackageIcon } from '../icons/ArchiveBoxIcon';
 import { TrashIcon as TrashIcon } from '../icons/TrashIcon';
-import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 import { Requisition, RetailStore, User, RetailInventoryItem, Institution, CompanyDetails, Supplier } from '../../types';
 import { generateLpoPdf } from '../../services/pdfService';
@@ -237,7 +237,7 @@ export function RetailRequisitions({
                                                     className="p-1.5 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors group/btn"
                                                     title="Mark as Received"
                                                 >
-                                                    <CircleCheckIcon className="w-4 h-4" />
+                                                    <CheckCircleIcon className="w-4 h-4" />
                                                 </button>
                                             )}
                                         </div>

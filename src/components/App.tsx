@@ -2808,6 +2808,48 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     isImpersonating={!!impersonatedRole}
+                                    coopFarmers={coopFarmers}
+                                    coopCollections={coopCollections}
+                                    coopRiders={coopRiders}
+                                    coopAgrovetInventory={coopAgrovetInventory}
+                                    coopAgrovetSales={coopAgrovetSales}
+                                    saccoAccounts={saccoAccounts}
+                                    saccoTransactions={saccoTransactions}
+                                    coopPayouts={coopPayouts}
+                                    coopExpenses={coopExpenses}
+                                    coopIncome={coopIncome}
+                                    onAddFarmer={onAddFarmer}
+                                    onUpdateFarmer={onUpdateFarmer}
+                                    onImportFarmers={onImportFarmers}
+                                    onLogCollection={onLogCollection}
+                                    onImportCollections={onImportCollections}
+                                    onBulkConfirmCollections={onBulkConfirmCollections}
+                                    onAddRider={onAddRider}
+                                    onConfirmCollection={onConfirmCollection}
+                                    onApproveCollection={onApproveCollection}
+                                    onAddCoopExpense={onAddCoopExpense}
+                                    onAddCoopIncome={onAddCoopIncome}
+                                    onInitiatePayouts={onInitiatePayouts}
+                                    onApprovePayouts={onApprovePayouts}
+                                    onAddPayouts={onAddPayouts}
+                                    retailStores={retailStores}
+                                    inventory={retailInventory}
+                                    suppliers={suppliers}
+                                    retailExpenses={retailExpenses}
+                                    onAddRetailExpense={onAddRetailExpense}
+                                    onAddRequisition={onAddRequisition}
+                                    onUpdateRequisition={onUpdateRequisition}
+                                    vehicles={vehicles}
+                                    transportOnboarding={transportOnboarding}
+                                    vehicleLogs={vehicleLogs}
+                                    onAddVehicle={handleAddVehicle}
+                                    onUpdateVehicle={handleUpdateVehicle}
+                                    onDeleteVehicle={handleDeleteVehicle}
+                                    onLogGateAction={handleLogGateAction}
+                                    onOnboardStudent={handleOnboardStudent}
+                                    onOffboardStudent={handleOffboardStudent}
+                                    onConfirmReceipt={handleConfirmReceipt}
+                                    onActivateModuleTrial={onActivateModuleTrial}
                                 />
                             ) : activeRole === 'student' ? (
                                 <StudentView

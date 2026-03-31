@@ -12,7 +12,7 @@ import { UserIcon as UserIconAlt } from '../icons/UserIcon';
 import { XIcon as X } from '../icons/XIcon';
 import { ChevronRightIcon as ChevronRight } from '../icons/ChevronRightIcon';
 import { SearchIcon as Search } from '../icons/SearchIcon';
-import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { GiftIcon as Gift } from '../icons/GiftIcon';
 import { CalendarDaysIcon as Calendar } from '../icons/CalendarDaysIcon';
 import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
@@ -152,7 +152,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                                     <div className="space-y-6">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center border-4 border-white/20">
-                                                <CircleCheckIcon className="w-12 h-12 text-emerald-600 mb-4" />
+                                                <CheckCircleIcon className="w-12 h-12 text-emerald-600 mb-4" />
                                             </div>
                                             <div>
                                                 <p className="font-bold text-sm">Interior Vacuuming</p>

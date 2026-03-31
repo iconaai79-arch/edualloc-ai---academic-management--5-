@@ -199,7 +199,7 @@ export function RetailManager(props: RetailManagerProps) {
                         currentUser={currentUser}
                         retailStores={retailStores}
                         requisitions={requisitions}
-                        inventory={inventory}
+                        inventory={inventory as any}
                         onAddRequisition={onAddRequisition!}
                         onUpdateRequisition={onUpdateRequisition}
                     />

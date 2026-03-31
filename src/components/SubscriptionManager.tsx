@@ -188,8 +188,8 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
         return onAddTransaction({
             ...paymentData,
             institutionId: institution.id,
-            provider: 'M-Pesa',
-            paymentMethod: 'M-Pesa'
+            provider: 'mpesa',
+            paymentMethod: 'stk_push'
         }, items);
     };
 

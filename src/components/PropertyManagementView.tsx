@@ -2423,7 +2423,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = ({
                         subjects={subjects}
                         courses={courses}
                         allocations={[]}
-                        onWithdrawRequest={() => {}}
+                        onWithdrawRequest={async (reqId) => { console.log(reqId); }}
                         letterheadConfig={letterheadConfig}
                         logoUrl={logoUrl}
                         footerImageUrl={footerImageUrl}

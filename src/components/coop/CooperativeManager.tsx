@@ -83,8 +83,6 @@ interface CooperativeManagerProps {
     onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
-    onAddInventory?: (data: any) => Promise<void>;
-    onAddSale?: (data: any) => Promise<void>;
     currentInstitution?: Institution | null;
     activeTab?: 'overview' | 'farmers' | 'collections' | 'logistics' | 'agrovet' | 'sacco' | 'payouts' | 'finances' | 'approvals' | 'reports' | 'communication' | 'settings';
     onTabChange?: (tab: string) => void;
@@ -200,7 +198,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
     const [newInventory, setNewInventory] = useState<any>({});
     const [newSale, setNewSale] = useState<Partial<CoopAgrovetSales>>({
         saleDate: formatDateString(new Date()),
-        paymentStatus: 'cash'
+        paymentStatus: 'paid'
     });
     const [editingFarmer, setEditingFarmer] = useState<CoopFarmer | null>(null);
     const [riderVolumes, setRiderVolumes] = useState<Record<string, string>>({});
@@ -590,7 +588,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         try {
             if (onAddSale) {
                 const { ...cleanSale } = newSale;
-                if(cleanSale.paymentStatus === 'pending') { cleanSale.paymentStatus = 'credit'; }
+                if(cleanSale.paymentStatus as any === 'pending') { cleanSale.paymentStatus = 'credit'; }
                 await onAddSale({
                     ...cleanSale,
                     id: `sale_${Date.now()}`,
@@ -600,7 +598,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             setIsRecordingSale(false);
             setNewSale({
                 saleDate: formatDateString(new Date()),
-                paymentStatus: 'cash'
+                paymentStatus: 'paid'
             });
             if (onLogAction) await onLogAction(`Recorded sale for farmer ${newSale.farmerId}`);
         } catch (err) {
@@ -1787,7 +1785,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                         )}
-                        {farmerSubTab === 'approvals' && (
+                        {(farmerSubTab as any) === 'approvals' && (
                             <div className="animate-fade-in">
                                 <div className="mb-8">
                                     <h2 className="text-xl font-black tracking-tighter uppercase">Board Approvals</h2>
@@ -2819,11 +2817,13 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 onSendSms={async (recipient, message, config, units, instId) => {
                                     // Implementation for sending SMS
                                     try {
-                                        const result = await apiService.sendSms({
-                                            to: recipient,
+                                        const result = await apiService.sendSms(
+                                            recipient,
                                             message,
-                                            institutionId: instId || currentInstitution?.id || ''
-                                        });
+                                            undefined,
+                                            undefined,
+                                            instId || currentInstitution?.id || ''
+                                        );
                                         return { success: true, message: 'Sent' };
                                     } catch (err) {
                                         return { success: false, message: 'Failed to send' };

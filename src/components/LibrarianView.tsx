@@ -30,7 +30,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isAddingBook, setIsAddingBook] = useState(false);
-    const [newBook, setNewBook] = useState({ title: '', author: '', isbn: '', quantity: 1, category: '', location: '' });
+    const [newBook, setNewBook] = useState({ title: '', author: '', isbn: '', quantity: 1, category: '', location: '', accessionNumber: '' });
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedIssueStudent, setSelectedIssueStudent] = useState('');
     const [selectedIssueBook, setSelectedIssueBook] = useState('');
@@ -57,7 +57,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
         e.preventDefault();
         if (newBook.title && newBook.quantity > 0) {
             onAddBook({ ...newBook, available: newBook.quantity });
-            setNewBook({ title: '', author: '', isbn: '', quantity: 1, category: '', location: '' });
+            setNewBook({ title: '', author: '', isbn: '', quantity: 1, category: '', location: '', accessionNumber: '' });
             setIsAddingBook(false);
         }
     };

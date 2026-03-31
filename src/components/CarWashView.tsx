@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, RetailSale, RetailInventoryItem, CafeOrder, CafeMenuItem } from '../types';
+import type { User, Institution, CarWashPackage, CarWashCustomer, CarWashVehicle, CarWashJob, CarWashInventoryItem, CarWashFeedback, CarWashShiftLog, CarWashVehicleType, CarWashPaymentMethod, MpesaTransaction, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, RetailSale, RetailInventoryItem, CafeOrder, CafeMenuItem, CompanyDetails, CarWashAddOn, CarWashSettings } from '../types';
 import type { Invoice, Receipt } from '../types';
 import { apiService } from '../services/apiService';
 import { CommunicationsManager } from './CommunicationsManager';
@@ -1104,7 +1104,9 @@ export const CarWashView: React.FC<CarWashViewProps> = ({
                         phoneNumber: customer.phoneNumber || 'N/A',
                         status: 'completed',
                         timestamp: new Date().toISOString(),
-                        payerName: customer.name
+                        payerName: customer.name,
+                        provider: 'mpesa',
+                        paymentMethod: 'stk_push'
                     };
 
                     const proxyCompanyDetails = {

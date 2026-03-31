@@ -48,7 +48,7 @@ interface LoginViewProps {
 export const LoginView: React.FC<LoginViewProps> = ({
     onLogin, onInstitutionRegister, onCountyRegister, logoUrl, applicationTitle,
     onOpenGuestPortal, onOpenGuestFeedback, onOpenMarketplace, onOpenShowcase, companyDetails, onForgotPassword, onResetPassword,
-    onVerifyOtp, onResendOtp
+    onVerifyOtp, onResendOtp, onVerifyResetOtp
 }) => {
     const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'recovery_otp' | 'reg_success' | 'reset_sent' | 'reset_password' | 'otp'>('login');
     const [identifier, setIdentifier] = useState('');

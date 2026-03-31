@@ -1,5 +1,5 @@
 
-import type { Institution, User, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types';
+import type { Institution, User, Role, Department, Subject, Course, Building, Room, TimetableSettings, AcademicYear, Semester, CompanyDetails, MpesaTransaction, InventoryItem, Invoice, InvoiceItem, Receipt, Requisition, EmployeeDetails, PayrollRun, Supplier, ExamTimetableSettings, AcademicLevel, Visitor, GradingSystem, ScheduleProfile, TimetablePeriod, Break } from './types';
 
 export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     name: "Eduai Automation",

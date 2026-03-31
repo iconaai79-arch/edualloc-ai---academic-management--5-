@@ -7,7 +7,11 @@ import type {
     UserUpdateData, MpesaConfig, SubscriptionConfig, EmailConfig, TransactionStatus,
     Room, Building, AcademicLevel, TimetableSettings, ExamTimetableSettings, RequestStatus, AcademicYear, TimetableEntry, Conflict, TimeOffRequest, TimeOffRequestStatus, EnrollmentRequest, AbsenceRequest, LecturerContract, FeedbackSubmission, LessonRating, LeaveOutRequest,
     Invoice, VoteHead, FeeStructure, FinancialPeriod, UserTask, BiometricConfig, StudentAbsenceRequest, StudentAbsenceRequestStatus, SecurityAlert, Visitor, Requisition, StudentAttendance, Assessment, AssessmentMark, ExamTimetableEntry, Role,
-    Assignment, Submission, County, CommissionWithdrawalRequest
+    Assignment, Submission, County, CommissionWithdrawalRequest, ShowcaseItem,
+    CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales,
+    SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
+    RetailStore, RetailInventoryItem, Supplier, RetailExpense, TransportVehicle,
+    TransportOnboarding, VehicleLog
 } from '../types';
 import { TransactionsManager } from './TransactionsManager';
 import { DatabaseSettings } from './DatabaseSettings';
@@ -195,7 +199,7 @@ export interface SuperAdminViewProps {
     onSendSms?: (r: string, m: string, config?: SmsConfig, units?: number, institutionId?: string) => Promise<any>;
     onSaveSmsConfig?: (config: SmsConfig) => void;
     onUpdateRequest: (requestId: string, data: Partial<Omit<AllocationRequest, 'id'>>) => void;
-    onWithdrawRequest: (id: string) => void;
+    onWithdrawRequest: (id: string) => Promise<void>;
     onAddUnavailability?: (userId: string, u: Omit<Unavailability, 'id' | 'status'>) => void;
     onUpdateUnavailability?: (userId: string, id: string, data: any) => void;
     onDeleteUnavailability?: (userId: string, id: string) => void;
@@ -269,11 +273,6 @@ export interface SuperAdminViewProps {
     onUpdateAssessmentStatus?: (id: string, status: string) => void;
     onSaveAssessmentMarks?: (id: string, data: any) => void;
     contracts: LecturerContract[];
-    onGenerateDemoData?: () => void;
-    onClearDemoData?: () => void;
-    isGeneratingDemoData: boolean;
-    demoDataGenerationProgress: number;
-    demoDataGenerationMessage: string;
     examTimetable: ExamTimetableEntry[];
     onSwitchPerspective?: (role: Role) => void;
     onWithdrawRequestStatus?: (id: string) => Promise<void>;
@@ -291,6 +290,48 @@ export interface SuperAdminViewProps {
     onAddAssignment?: (data: Omit<Assignment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onDeleteAssignment?: (id: string) => void;
     onUpdateSubmission?: (id: string, data: Partial<Submission>) => void;
+    coopFarmers?: CoopFarmer[];
+    coopCollections?: CoopCollection[];
+    coopRiders?: CoopRider[];
+    coopAgrovetInventory?: CoopAgrovetInventory[];
+    coopAgrovetSales?: CoopAgrovetSales[];
+    saccoAccounts?: SaccoAccount[];
+    saccoTransactions?: SaccoTransaction[];
+    coopPayouts?: CoopMonthlyPayout[];
+    coopExpenses?: CoopExpense[];
+    coopIncome?: CoopIncome[];
+    retailStores?: RetailStore[];
+    inventory?: RetailInventoryItem[];
+    suppliers?: Supplier[];
+    retailExpenses?: RetailExpense[];
+    vehicles?: TransportVehicle[];
+    transportOnboarding?: TransportOnboarding[];
+    vehicleLogs?: VehicleLog[];
+    onAddFarmer?: (data: any) => Promise<void>;
+    onUpdateFarmer?: (id: string, data: any) => Promise<void>;
+    onImportFarmers?: (data: any[]) => Promise<void>;
+    onLogCollection?: (data: any) => Promise<void>;
+    onImportCollections?: (data: any[]) => Promise<void>;
+    onBulkConfirmCollections?: (riderId: string, collections: any[]) => Promise<void>;
+    onAddRider?: (data: any) => Promise<void>;
+    onConfirmCollection?: (id: string, qty: number) => Promise<void>;
+    onApproveCollection?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
+    onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
+    onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
+    onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
+    onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onAddPayouts?: (payouts: any[]) => Promise<void>;
+    onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
+    onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
+    onDeleteVehicle?: (id: string) => Promise<void>;
+    onLogGateAction?: (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => Promise<void>;
+    onOnboardStudent?: (studentId: string, vehicleId: string, direction: 'to_school' | 'from_school', lat?: number, lng?: number) => Promise<void>;
+    onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
+    onConfirmReceipt?: (recordId: string) => Promise<void>;
+    onAddRetailExpense?: (expense: Omit<RetailExpense, 'id' | 'institutionId' | 'date' | 'recordedById'>) => Promise<void>;
+    onAddRequisition?: (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => Promise<void>;
+    onUpdateRequisition?: (reqId: string, data: Partial<Requisition>) => Promise<void>;
+    onActivateModuleTrial?: (moduleId: string) => Promise<void>;
     isImpersonating?: boolean;
     leaveOutRequests?: LeaveOutRequest[];
     demoRequests: DemoRequest[];
@@ -493,7 +534,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         applicationTitle: companyDetails?.applicationTitle || '',
         themeColor: companyDetails?.themeColor || '#4f46e5',
         email: companyDetails?.email || '',
-        phone: companyDetails?.phone || companyDetails?.phoneNumber || '',
+        phone: companyDetails?.phone || '',
         website: companyDetails?.website || '',
         address: companyDetails?.address || '',
         logoUrl: companyDetails?.logoUrl || '',
@@ -527,7 +568,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 applicationTitle: companyDetails.applicationTitle || '',
                 themeColor: companyDetails.themeColor || '#4f46e5',
                 email: companyDetails.email || '',
-                phone: companyDetails.phone || companyDetails.phoneNumber || '',
+                phone: companyDetails.phone || '',
                 website: companyDetails.website || '',
                 address: companyDetails.address || '',
                 logoUrl: companyDetails.logoUrl || '',
@@ -806,6 +847,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 institutionId: disburseReseller.id,
                 payerName: 'Super Admin',
                 description: `Commission Payout: ${disbursementRef} ${disbursementNotes ? `(${disbursementNotes})` : ''}`,
+                provider: 'mpesa' as const,
+                paymentMethod: 'paybill' as const,
                 metadata: {
                     type: 'commission_disbursement',
                     ref: disbursementRef,
@@ -947,12 +990,14 @@ Please change it after login.`;
 
             if (action === 'approve') {
                 // Create a payout transaction record
-                await apiService.onAddTransaction({
+                if (props.onAddTransaction) await props.onAddTransaction({
                     amount: request.amount,
                     phoneNumber: '', // We don't have reseller phone here easily but it's optional for payout
                     institutionId: request.resellerId,
                     payerName: 'System Disbursement',
                     description: `Commission Payout - Ref: ${request.id}`,
+                    provider: 'mpesa' as const,
+                    paymentMethod: 'paybill' as const,
                     metadata: { type: 'commission_payout', requestId: request.id }
                 }, []);
             }
@@ -1084,10 +1129,28 @@ Please change it after login.`;
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <AdminView
                     {...props}
+                    allTimetableEntries={props.allTimetableEntries || []}
+                    coopFarmers={props.coopFarmers || []}
+                    coopCollections={props.coopCollections || []}
+                    coopRiders={props.coopRiders || []}
+                    coopAgrovetInventory={props.coopAgrovetInventory || []}
+                    coopAgrovetSales={props.coopAgrovetSales || []}
+                    saccoAccounts={props.saccoAccounts || []}
+                    saccoTransactions={props.saccoTransactions || []}
+                    coopPayouts={props.coopPayouts || []}
+                    coopExpenses={props.coopExpenses || []}
+                    coopIncome={props.coopIncome || []}
+                    retailStores={props.retailStores || []}
+                    inventory={props.inventory || []}
+                    suppliers={props.suppliers || []}
+                    retailExpenses={props.retailExpenses || []}
+                    vehicles={props.vehicles || []}
+                    transportOnboarding={props.transportOnboarding || []}
+                    vehicleLogs={props.vehicleLogs || []}
                     requests={requests || []}
                     enrollmentRequests={enrollmentRequests}
                     onUpdateRequest={props.onUpdateRequest}
-                    onWithdrawRequest={props.onWithdrawRequest}
+                    onWithdrawRequest={props.onWithdrawRequestStatus}
                     onAddUser={props.onAddUser || (async () => { })}
                     onEditUser={props.onEditUser || (async () => { })}
                     onDeleteUser={props.onDeleteUser || (async () => { })}
@@ -1095,6 +1158,16 @@ Please change it after login.`;
                     onImportStudents={props.onImportStudents || (async () => { })}
                     onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
                     onExamTimetableGenerated={props.onExamTimetableGenerated || (async () => { })}
+                    onAddFarmer={props.onAddFarmer || (async () => { })}
+                    onLogCollection={props.onLogCollection || (async () => { })}
+                    onAddRider={props.onAddRider || (async () => { })}
+                    onConfirmCollection={props.onConfirmCollection || (async () => { })}
+                    onApproveCollection={props.onApproveCollection || (async () => { })}
+                    onAddInstitution={props.onAddInstitution || (() => { })}
+                    onDeleteInstitution={props.onDeleteInstitution || (() => { })}
+                    onToggleInstitutionStatus={props.onToggleInstitutionStatus || (() => { })}
+                    onLoginAsAdmin={props.onLoginAsAdmin || (() => { })}
+                    onGenerateReceipt={props.onGenerateReceipt || (() => { })}
                 />
             </React.Suspense>
         );
@@ -1224,7 +1297,7 @@ Please change it after login.`;
                                     <p className="text-[10px] text-slate-400 uppercase mt-1">Deploy & Monitor Systems</p>
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('users')}
+                                    onClick={() => setActiveTab('all_users')}
                                     className="flex flex-col items-start p-6 bg-emerald-50 dark:bg-emerald-900/30 rounded-3xl border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 transition-all group text-left"
                                 >
                                     <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
@@ -1981,7 +2054,7 @@ Please change it after login.`;
                             onImportStudents={onImportStudents}
                             onDeleteUser={props.onDeleteUser}
                             onEditUser={props.onEditUser}
-                            onWithdrawRequest={() => { }}
+                            onWithdrawRequest={async () => { }}
                             letterheadConfig={localCompanyInfo.letterheadConfig}
                             logoUrl={localCompanyInfo.logoUrl}
                             footerImageUrl={localCompanyInfo.footerImageUrl}
@@ -2040,9 +2113,6 @@ Please change it after login.`;
                                 onImportSubjectsAndAssociate={props.onImportSubjectsAndAssociate}
                                 onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
                                 onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
-                                onAddCoopAgrovetInventory={props.onAddCoopAgrovetInventory}
-                                onAddCoopAgrovetSale={props.onAddCoopAgrovetSale}
-                                onAddExtensionRequest={props.onAddExtensionRequest}
                                 timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                 onSaveTimetableSettings={props.onSaveTimetableSettings}
                                 letterheadConfig={
@@ -2075,7 +2145,7 @@ Please change it after login.`;
                                 onAssociateSubjectToCourseLevel={props.onAssociateSubjectToCourseLevel}
                                 onDisassociateSubjectFromCourseLevel={props.onDisassociateSubjectFromCourseLevel}
                                 onDirectAssign={props.onDirectAssign}
-                                onWithdrawRequest={props.onWithdrawRequest}
+                                onWithdrawRequest={props.onWithdrawRequestStatus}
                                 onUpdateRequest={props.onUpdateRequest}
                                 currentUser={currentUser}
                                 currentInstitution={currentInstitution}
@@ -2117,22 +2187,25 @@ Please change it after login.`;
                 {activeTab === 'interactions' && (
                     <div className="animate-fade-in-up">
                         <InteractionsManager
-                            institutions={institutions}
                             users={users}
                             requests={requests}
-                            onUpdateInstitution={props.onUpdateInstitution}
-                            onUpdateLogo={props.onUpdateLogo}
-                            onUpdateThemeColor={props.onUpdateThemeColor}
                             onUpdateRequest={props.onUpdateRequest}
-                            onWithdrawRequest={props.onWithdrawRequest}
-                            isTimetableGenerating={props.isTimetableGenerating || false}
-                            timetableGenerationProgress={props.timetableGenerationProgress || 0}
-                            timetableGenerationMessage={props.timetableGenerationMessage || ""}
-                            timetableGenerationEta={props.timetableGenerationEta || null}
-                            onSetIsTimetableGenerating={props.onSetIsTimetableGenerating}
-                            onSetTimetableGenerationProgress={props.onSetTimetableGenerationProgress}
-                            onSetTimetableGenerationMessage={props.onSetTimetableGenerationMessage}
-                            onSetTimetableGenerationEta={props.onSetTimetableGenerationEta}
+                            absenceRequests={[]}
+                            timeOffRequests={[]}
+                            contracts={[]}
+                            feedbackSubmissions={[]}
+                            lessonRatings={[]}
+                            enrollmentRequests={[]}
+                            studentAbsenceRequests={[]}
+                            currentUser={props.currentUser}
+                            subjects={props.subjects}
+                            departments={props.departments}
+                            courses={props.courses}
+                            generatedTimetable={props.generatedTimetable}
+                            getLecturerById={() => undefined}
+                            letterheadConfig={props.letterheadConfig}
+                            footerImageUrl={props.footerImageUrl}
+                            onOpenDirectAssign={() => {}}
                         />
                     </div>
                 )}
@@ -4111,7 +4184,7 @@ Please change it after login.`;
                                     className={`flex flex-col items-center text-center gap-3 p-4 rounded-2xl border-2 border-transparent transition-all group hover:border-indigo-500 hover:shadow-lg ${opt.color}`}
                                 >
                                     <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl shadow-sm transition-transform group-hover:scale-110">
-                                        {React.cloneElement(opt.icon as React.ReactElement, { className: 'w-5 h-5' })}
+                                        {React.cloneElement(opt.icon as any, { className: 'w-5 h-5' })}
                                     </div>
                                     <span className="font-bold text-[10px] uppercase tracking-tight leading-tight">{opt.label}</span>
                                 </button>

@@ -27,6 +27,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     ncbaConfig: {
       clientId: '',
       clientSecret: '',
+      apiKey: '',
+      baseUrl: '',
+      accountNumber: '',
       merchantId: '',
       webhookSecret: '',
       shortCode: '',
@@ -55,6 +58,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         ncbaConfig: {
           clientId: institution.ncbaConfig?.clientId || '',
           clientSecret: institution.ncbaConfig?.clientSecret || '',
+          apiKey: institution.ncbaConfig?.apiKey || '',
+          baseUrl: institution.ncbaConfig?.baseUrl || '',
+          accountNumber: institution.ncbaConfig?.accountNumber || '',
           merchantId: institution.ncbaConfig?.merchantId || '',
           webhookSecret: institution.ncbaConfig?.webhookSecret || '',
           shortCode: institution.ncbaConfig?.shortCode || '',
@@ -334,7 +340,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Secret Registry Code</p>
-                        <p className="text-[10px] font-mono font-bold text-indigo-600 truncate">{institution.institution_code || institution.institutionCode || 'N/A'}</p>
+                        <p className="text-[10px] font-mono font-bold text-indigo-600 truncate">{institution.institutionCode || 'N/A'}</p>
                       </div>
                     </div>
 

@@ -1451,7 +1451,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                             return matchesRole && matchesSearch && matchesStart && matchesEnd;
                                         }).map(t => {
                                             const recipient = users.find(u => u.id === t.recipientId);
-                                            const course = courses.find(c => c.id === recipient?.courseId);
+                                            const course = (courses || []).find(c => c.id === recipient?.courseId);
                                             const level = course?.levels.find(l => l.id === recipient?.courseLevelId);
                                             return {
                                                 ...t,
@@ -1525,7 +1525,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                                                             <td colSpan={7} className="px-6 py-12 text-center">
                                                                 <div className="flex flex-col items-center gap-3">
                                                                     <div className="p-4 bg-slate-50 rounded-full">
-                                                                        <PackageIcon className="w-8 h-8 text-slate-300" />
+                                                                        <ArchiveBoxIcon className="w-8 h-8 text-slate-300" />
                                                                     </div>
                                                                     <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">No matching issuances found</p>
                                                                 </div>
@@ -1536,7 +1536,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
 
                                                 return filtered.map(t => {
                                                     const recipient = users.find(u => u.id === t.recipientId);
-                                                    const course = courses.find(c => c.id === recipient?.courseId);
+                                                    const course = (courses || []).find(c => c.id === recipient?.courseId);
                                                     const level = course?.levels.find(l => l.id === recipient?.courseLevelId);
                                                     const className = level ? `${course?.shortName || course?.name} ${level.name}` : 'N/A';
 

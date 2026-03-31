@@ -1,5 +1,5 @@
 
-export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'worker' | 'member' | 'visitor';
+export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
 
 export interface DemoRequest {
     id: string;
@@ -610,6 +610,28 @@ export interface SmsLog {
     status: string;
     provider: string;
     gatewayResponse?: any;
+    createdAt: string;
+}
+
+export interface AgrovetSaleItem {
+    id: string;
+    saleId: string;
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    institutionId: string;
+    createdAt: string;
+}
+
+export interface AgrovetSaleItem {
+    id: string;
+    saleId: string;
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    institutionId: string;
     createdAt: string;
 }
 
@@ -2780,6 +2802,7 @@ export interface Vehicle {
     lastServiceDate?: string;
     createdAt: string;
     updatedAt: string;
+    color?: string;
     notes?: string;
 }
 
@@ -2826,6 +2849,8 @@ export interface RepairOrder {
     taxTotal: number;
     discountTotal: number;
     grandTotal: number;
+    totalAmount: number;
+    estimatedTotal?: number;
     insuranceClaimNumber?: string; // For split billing
     insuranceDeductible?: number;
     createdAt: string;

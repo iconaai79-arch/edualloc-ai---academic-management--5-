@@ -10,7 +10,7 @@ import { ExclamationIcon as AlertCircle } from '../icons/ExclamationIcon';
 import { MagnifyingGlassIcon as Search } from '../icons/MagnifyingGlassIcon';
 import { FunnelIcon as Filter } from '../icons/FunnelIcon';
 import { ArrowUpRightIcon as ArrowUpRight } from '../icons/ArrowUpRightIcon';
-import { CheckCircleIcon as CircleCheckIcon } from '../icons/CheckCircleIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { ClockIcon as Clock } from '../icons/ClockIcon';
 
 
@@ -134,7 +134,7 @@ export function RetailCommissionLedger({ institutionId, currentUser }: RetailCom
                     <div className="flex justify-between items-end">
                         <h3 className="text-3xl font-black text-emerald-600">KES {totalPaid.toLocaleString()}</h3>
                         <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                            <CircleCheckIcon className="w-5 h-5" />
+                            <CheckCircleIcon className="w-5 h-5" />
                         </div>
                     </div>
                 </div>

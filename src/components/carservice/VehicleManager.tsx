@@ -73,7 +73,7 @@ export const VehicleManager: React.FC<VehicleManagerProps> = ({ vehicles }) => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-4 h-4 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: vehicle.color.toLowerCase() }}></div>
+                                            <div className="w-4 h-4 rounded-full border border-slate-300 shadow-inner" style={{ backgroundColor: (vehicle.color || 'grey').toLowerCase() }}></div>
                                             <span className="text-xs font-medium text-slate-600 dark:text-slate-400 capitalize">{vehicle.color}</span>
                                         </div>
                                     </td>

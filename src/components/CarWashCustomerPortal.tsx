@@ -131,7 +131,7 @@ export const CarWashCustomerPortal: React.FC<CarWashCustomerPortalProps> = ({ cu
             const job = jobs.find(j => j.id === receipt.relatedTransactionId);
 
             // Dummy transaction data to satisfy generator (portal doesn't fetch mpesa tracking atm)
-            const proxyTx = {
+            const proxyTx: any = {
                 id: receipt.relatedTransactionId || '',
                 transactionId: receipt.paymentMethod.toUpperCase(),
                 institutionId: receipt.institutionId,

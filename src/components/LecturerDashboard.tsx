@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution } from '../types';
+import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution, StudentAbsenceRequest } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
@@ -46,6 +46,21 @@ interface LecturerDashboardProps {
     studentAbsenceRequests?: any[];
     onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
     users?: User[];
+}
+
+interface UpcomingLessonsWidgetProps {
+    userId: string;
+    timetable: TimetableEntry[];
+    getSubjectById: (id: string) => Subject | undefined;
+    getRoomById: (id: string) => Room | undefined;
+    onCheckIn: (entryId: string) => void;
+    onAbsenceRequest: (entryId: string, reason: string) => void;
+    studentAttendances?: any[];
+    studentAbsenceRequests?: any[];
+    onSaveAttendance?: (lessonId: string, attendance: any[]) => Promise<void>;
+    users?: User[];
+    currentUser: User;
+    studentAbsences: StudentAbsenceRequest[];
 }
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; colorClass?: string }> = ({ title, value, icon, colorClass = 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' }) => (
@@ -97,7 +112,8 @@ const dayMapping = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Fri
 
 const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
     userId, timetable = [], getSubjectById, getRoomById, onCheckIn, onAbsenceRequest,
-    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = []
+    studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = [],
+    currentUser, studentAbsences
 }) => {
     const [now, setNow] = useState(new Date());
     const [absenceModalEntry, setAbsenceModalEntry] = useState<TimetableEntry | null>(null);
@@ -323,6 +339,8 @@ const UpcomingLessonsWidget: React.FC<UpcomingLessonsWidgetProps> = ({
                         if (onSaveAttendance) await onSaveAttendance(lid, data);
                         setAttendanceModalEntry(null);
                     }}
+                    currentUser={currentUser}
+                    studentAbsences={studentAbsences}
                 />
             )}
         </div>
@@ -406,6 +424,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 studentAbsenceRequests={studentAbsenceRequests}
                 onSaveAttendance={onSaveAttendance}
                 users={users}
+                currentUser={user}
+                studentAbsences={studentAbsenceRequests || []}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

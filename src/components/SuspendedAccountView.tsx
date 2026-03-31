@@ -31,6 +31,8 @@ export const SuspendedAccountView: React.FC<SuspendedAccountViewProps> = ({ user
         return onAddTransaction({
             ...paymentData,
             institutionId: institution.id,
+            provider: 'mpesa',
+            paymentMethod: 'stk_push'
         }, items);
     };
 

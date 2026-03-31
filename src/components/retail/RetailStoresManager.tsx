@@ -11,7 +11,7 @@ import { MoreVerticalIcon as MoreVertical } from '../icons/MoreVerticalIcon';
 import { PencilIcon as Pencil } from '../icons/PencilIcon';
 import { TrashIcon as Trash } from '../icons/TrashIcon';
 import { CreditCardIcon as CreditCard } from '../icons/CreditCardIcon';
-import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface RetailStoresManagerProps {
     institutionId: string;
@@ -290,7 +290,7 @@ export function RetailStoresManager({ institutionId }: RetailStoresManagerProps)
 
                                     <div className="flex items-center gap-2 text-sm text-slate-500">
                                         {store.isActive ? (
-                                            <><CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" /><span>Active Location</span></>
+                                            <><CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" /><span>Active Location</span></>
                                         ) : (
                                             <><XCircle className="w-4 h-4 text-red-500 flex-shrink-0" /><span>Inactive</span></>
                                         )}
