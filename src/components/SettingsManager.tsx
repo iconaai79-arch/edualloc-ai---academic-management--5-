@@ -56,7 +56,10 @@ import { BuildingManager } from './BuildingManager';
 import { AcademicLevelManager } from './AcademicLevelManager';
 import { DatabaseSettings } from './DatabaseSettings';
 import { UserManager } from './UserManager';
+import { AcademicConfigManager } from './AcademicConfigManager';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { ChartBarIcon } from './icons/ChartBarIcon';
+import { CalculatorIcon } from './icons/CalculatorIcon';
 
 interface SettingsManagerProps {
     currentUser: User;
@@ -197,7 +200,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [activeTab, setActiveTab] = useState<SettingsTab>((isSuperAdmin && !isCoop) ? 'global_config' : 'general');
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_config' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'gateways' | 'sms' | 'email' | 'farmer_billing'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'showcase'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'ncba'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>('departments');
@@ -1518,11 +1521,22 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     }
                                     return filtered;
                                 }
-                                const subs = ['profile', 'academic_config', 'location', 'branding', 'grading'];
+                                const subs = ['profile', 'academic_settings', 'grading', 'security_policy', 'location', 'branding'];
                                 if (props.currentUser.role === 'admin') { subs.push('billing'); subs.push('sms'); subs.push('gateways'); }
                                 return subs;
                             })().map((sub: string) => (
-                                <button key={sub} onClick={() => setGeneralSubTab(sub as any)} className={`py-2 px-4 border-b-2 font-black text-[10px] uppercase tracking-widest transition-colors whitespace-nowrap capitalize ${generalSubTab === sub ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>{sub.replace('_', ' ')}</button>
+                                <button key={sub} onClick={() => setGeneralSubTab(sub as any)} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${generalSubTab === sub ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                                    {sub === 'profile' && <InformationCircleIcon className="w-4 h-4" />}
+                                    {sub === 'academic_settings' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
+                                    {sub === 'grading' && <AcademicCapIcon className="w-4 h-4 text-indigo-500" />}
+                                    {sub === 'security_policy' && <ShieldIcon className="w-4 h-4 text-rose-500" />}
+                                    {sub === 'location' && <MapPinIcon className="w-4 h-4 text-emerald-500" />}
+                                    {sub === 'branding' && <SparklesIcon className="w-4 h-4 text-purple-500" />}
+                                    {sub === 'billing' && <CreditCardIcon className="w-4 h-4 text-blue-500" />}
+                                    {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
+                                    {sub === 'gateways' && <BuildingOfficeIcon className="w-4 h-4 text-teal-500" />}
+                                    {sub.replace('_', ' ')}
+                                </button>
                             ))}
                         </div>
                         {generalSubTab === 'profile' && (
@@ -1555,8 +1569,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 <div className="mt-8 flex justify-end"><button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Update Profile</button></div>
                             </div>
                         )}
-                        {generalSubTab === 'academic_config' && (
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        {generalSubTab === 'academic_settings' && (
+                            <AcademicConfigManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} />
+                        )}
+                        {generalSubTab === 'security_policy' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
                                 <h4 className="font-bold text-lg mb-6 flex items-center gap-2">
                                     <ShieldIcon className="w-5 h-5 text-indigo-500" /> Administrative Constraints & Security
                                 </h4>

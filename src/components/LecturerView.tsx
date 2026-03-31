@@ -23,6 +23,9 @@ import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
+import { AssessmentManager } from './AssessmentManager';
+import { AssessmentReports } from './AssessmentReports';
+import { ChartBarIcon } from './icons/ChartBarIcon';
 
 
 interface LecturerViewProps {
@@ -154,7 +157,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'my_timetable'];
+        const base = ['dashboard', 'academic_hub', 'my_timetable'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -193,8 +196,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'} whitespace-nowrap py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all`}
+                            className={`py-4 px-4 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
+                            {tab === 'dashboard' && <CalendarPlusIcon className="w-4 h-4" />}
+                            {tab === 'academic_hub' && <ChartBarIcon className="w-4 h-4 text-amber-500" />}
+                            {tab === 'my_timetable' && <ClockIcon className="w-4 h-4 text-indigo-500" />}
+                            {tab === 'my_requests' && <BookOpenIcon className="w-4 h-4 text-emerald-500" />}
+                            {tab === 'inventory' && <ArchiveBoxIcon className="w-4 h-4 text-rose-500" />}
                             {tab.replace(/_/g, ' ')}
                         </button>
                     ))}
@@ -234,6 +242,56 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     onSaveAttendance={props.onSaveAttendance}
                     users={props.users}
                 />
+            )}
+
+            {activeTab === 'academic_hub' && (
+                <div className="space-y-8 animate-fade-in-up">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6 text-center md:text-left">
+                            <div>
+                                <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Academic Performance Hub</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage Marks, Assessments & Student Reports</p>
+                            </div>
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/30 rounded-[2rem] text-amber-600 shadow-inner">
+                                <ChartBarIcon className="w-10 h-10" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                            <div className="space-y-6">
+                                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Record Marks & Assessments</h4>
+                                <AssessmentManager
+                                    user={user}
+                                    assessments={props.assessments || []}
+                                    assessmentMarks={props.assessmentMarks || []}
+                                    allocatedSubjects={allocations.map(a => getSubjectById(a.subjectId)!).filter(Boolean)}
+                                    users={props.users}
+                                    courses={courses}
+                                    onAddAssessment={props.onAddAssessment || (() => { })}
+                                    onDeleteAssessment={props.onDeleteAssessment || (() => { })}
+                                    onSaveAssessmentMarks={props.onSaveAssessmentMarks || (async () => { })}
+                                />
+                            </div>
+
+                            <div className="space-y-6">
+                                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Generate Documents & Results</h4>
+                                <AssessmentReports
+                                    currentUser={user}
+                                    assessments={props.assessments || []}
+                                    assessmentMarks={props.assessmentMarks || []}
+                                    users={props.users}
+                                    subjects={subjects}
+                                    courses={courses}
+                                    departments={departments}
+                                    letterheadConfig={props.letterheadConfig}
+                                    logoUrl={currentInstitution?.logoUrl || null}
+                                    footerImageUrl={props.footerImageUrl}
+                                    currentInstitution={currentInstitution}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {activeTab === 'my_timetable' && (

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { LetterheadConfig, Institution } from '../types';
 
@@ -5,6 +6,8 @@ interface BrandedPaperProps {
     institution?: Institution | null;
     letterheadConfig?: LetterheadConfig;
     footerImageUrl?: string | null;
+    title?: string;
+    subtitle?: string;
     children: React.ReactNode;
     className?: string;
 }
@@ -13,6 +16,8 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
     institution, 
     letterheadConfig, 
     footerImageUrl, 
+    title,
+    subtitle,
     children, 
     className = "" 
 }) => {
@@ -37,6 +42,10 @@ export const BrandedPaper: React.FC<BrandedPaperProps> = ({
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em]">
                                 Official Academic Record
                             </p>
+                        </div>
+                        <div className="text-right">
+                           {title && <h1 className="text-xl font-black text-indigo-600 uppercase tracking-tighter">{title}</h1>}
+                           {subtitle && <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{subtitle}</p>}
                         </div>
                         {institution?.logoUrl && (
                             <img src={institution.logoUrl} alt="Logo" className="h-16 w-16 object-contain" />

@@ -1,6 +1,18 @@
 
 export type Role = 'super_admin' | 'reseller' | 'county_admin' | 'county_staff' | 'admin' | 'staff' | 'hod' | 'lecturer' | 'student' | 'practice_teacher' | 'academics_officer' | 'parent' | 'librarian' | 'security' | 'info_desk' | 'store' | 'supplier' | 'head_teacher' | 'dos' | 'teacher' | 'deputy' | 'tto' | 'county_secretary' | 'county_driver' | 'county_store_keeper' | 'county_teacher' | 'county_director' | 'county_co' | 'county_cec' | 'county_deputy_governor' | 'county_governor' | 'boarding_master' | 'driver' | 'transport_assistant' | 'agrovet_admin' | 'coop_admin' | 'coop_chairman' | 'sacco_officer' | 'property_admin' | 'his_admin' | 'carwash_admin' | 'carwash_cashier' | 'carwash_waiter' | 'carwash_attendant' | 'transport_admin' | 'carwash_customer' | 'landlord' | 'tenant' | 'field_agent' | 'retail_agent' | 'mechanic_admin' | 'customer' | 'lead' | 'cooperative_manager' | 'farmer' | 'rider' | 'church_admin' | 'church_member' | 'pastor' | 'deacon' | 'elder' | 'treasurer' | 'secretary' | 'worker' | 'member' | 'visitor';
 
+export type RankingCriteria = 'points' | 'mean_points' | 'total_marks';
+
+export interface AcademicConfig {
+    rankingEnabled: boolean;
+    rankingCriteria: RankingCriteria;
+    subjectRankingEnabled: boolean;
+    assessmentWeighting?: Record<string, number>; // assessmentId -> weight (percentage)
+    showAttendance: boolean;
+    showFeeBalance: boolean;
+    defaultIsSummative?: boolean;
+}
+
 export interface DemoRequest {
     id: string;
     name: string;
@@ -169,6 +181,7 @@ export interface Institution {
     farmerSmsBillingEnabled?: boolean;
     moduleStates?: InstitutionModuleState[];
     coopSettings?: CoopSettings;
+    academicConfig?: AcademicConfig;
 }
 
 export interface NcbaConfig {

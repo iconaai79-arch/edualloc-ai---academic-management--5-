@@ -1412,6 +1412,165 @@ export const App: React.FC = () => {
         }
     };
 
+    // --- Cooperative Handlers ---
+
+    const handleAddFarmer = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        const payload = { ...data, id: `f_${Date.now()}`, institutionId: instId };
+        await apiService.saveModuleRecord('coop_farmers', payload);
+        await handleLogAction(`Registered farmer: ${data.name}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleUpdateFarmer = useCallback(async (id: string, data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        await apiService.saveModuleRecord('coop_farmers', { ...data, id, institutionId: instId });
+        await handleLogAction(`Updated farmer: ${data.name}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleImportFarmers = useCallback(async (farmers: any[]) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        const timestamp = Date.now();
+        const payloads = farmers.map((f, i) => ({
+            ...f,
+            id: f.id || `f_${timestamp}_${i}`,
+            institutionId: instId
+        }));
+        await apiService.saveModuleRecords('coop_farmers', payloads);
+        await handleLogAction(`Imported ${farmers.length} farmers`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleLogCollection = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId || !currentUser) return;
+        const payload = { 
+            ...data, 
+            id: `c_${Date.now()}`, 
+            institutionId: instId,
+            recordedBy: currentUser.id,
+            farmer_id: data.farmerId || data.farmer_id
+        };
+        await apiService.saveModuleRecord('coop_collections', payload);
+        await handleLogAction(`Logged collection for farmer ${data.farmerId}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleImportCollections = useCallback(async (collections: any[]) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId || !currentUser) return;
+        const timestamp = Date.now();
+        const payloads = collections.map((c, i) => ({
+            ...c,
+            id: `c_${timestamp}_${i}`,
+            institutionId: instId,
+            recordedBy: currentUser.id,
+            status: 'pending'
+        }));
+        await apiService.saveModuleRecords('coop_collections', payloads);
+        await handleLogAction(`Imported ${collections.length} collections`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleBulkConfirmCollections = useCallback(async (riderId: string, pendingCollections: any[]) => {
+        if (!currentUser) return;
+        const now = new Date().toISOString();
+        const payloads = pendingCollections.map(c => ({
+            ...c,
+            factoryConfirmed: true,
+            finalQuantity: c.quantity,
+            confirmedBy: currentUser.id,
+            confirmedAt: now,
+            status: 'delivered'
+        }));
+        await apiService.saveModuleRecords('coop_collections', payloads);
+        await handleLogAction(`Bulk confirmed ${pendingCollections.length} collections for rider ${riderId}`);
+        loadData();
+    }, [currentUser, loadData, handleLogAction]);
+
+    const handleAddRider = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId) return;
+        const riderId = `r_${Date.now()}`;
+        await apiService.saveModuleRecord('coop_riders', { ...data, id: riderId, institutionId: instId });
+        
+        await apiService.registerUser({
+            name: data.name,
+            phoneNumber: data.phone,
+            role: 'rider',
+            riderId: riderId,
+            institutionId: instId,
+            email: `${data.phone}@eduai.co.ke`
+        }, activeInstitution?.name);
+        
+        await handleLogAction(`Registered rider: ${data.name}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleConfirmCollection = useCallback(async (id: string, qty: number) => {
+        if (!currentUser) return;
+        await apiService.confirmCoopCollection(id, qty, currentUser.id);
+        const col = coopCollections.find(c => c.id === id);
+        const farmer = coopFarmers.find(f => f.id === col?.farmerId);
+        if (col && farmer && qty === col.quantity) {
+            await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery on ${col.collectionDate} has been confirmed at Factory. Final Qty: ${qty} ${col.unit}. Thank you!`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
+        }
+        await handleLogAction(`Confirmed collection ${id} with weight ${qty}`);
+        loadData();
+    }, [currentUser, coopCollections, coopFarmers, activeInstitution, loadData, handleLogAction]);
+
+    const handleApproveCollection = useCallback(async (id: string, status: string) => {
+        if (!currentUser) return;
+        await apiService.approveCoopCollection(id, currentUser.id, status as any);
+        if (status === 'approved') {
+            const col = coopCollections.find(c => c.id === id);
+            const farmer = coopFarmers.find(f => f.id === col?.farmerId);
+            if (col && farmer) {
+                await apiService.sendSms(farmer.phone, `Your ${col.productType} delivery discrepancy for ${col.collectionDate} has been RESOLVED and APPROVED by the board. Final Qty: ${col.finalQuantity} ${col.unit}.`, activeInstitution?.smsConfig, 1, activeInstitution?.id);
+            }
+        }
+        await handleLogAction(`Updated status for collection ${id} to ${status}`);
+        loadData();
+    }, [currentUser, coopCollections, coopFarmers, activeInstitution, loadData, handleLogAction]);
+
+    const handleAddCoopIncome = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId || !currentUser) return;
+        await apiService.saveCoopIncome({ ...data, id: `inc_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id });
+        await handleLogAction(`Recorded cooperative income: ${data.description}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleAddCoopExpense = useCallback(async (data: any) => {
+        const instId = activeInstitution?.id || currentUser?.institutionId;
+        if (!instId || !currentUser) return;
+        await apiService.saveCoopExpense({ ...data, id: `exp_${Date.now()}`, institutionId: instId, recordedBy: currentUser.id });
+        await handleLogAction(`Recorded cooperative expense: ${data.description}`);
+        loadData();
+    }, [activeInstitution, currentUser, loadData, handleLogAction]);
+
+    const handleInitiatePayouts = useCallback(async (data: any) => {
+        // Placeholder for payout logic
+        await handleLogAction(`Initiated monthly payouts`);
+        loadData();
+    }, [loadData, handleLogAction]);
+
+    const handleApprovePayouts = useCallback(async (payoutIds: string[]) => {
+        // Placeholder for payout approval
+        await handleLogAction(`Approved ${payoutIds.length} payouts`);
+        loadData();
+    }, [loadData, handleLogAction]);
+
+    const handleAddPayouts = useCallback(async (payouts: any[]) => {
+        // Placeholder for bulk payout addition
+        await handleLogAction(`Added ${payouts.length} payout records`);
+        loadData();
+    }, [loadData, handleLogAction]);
+
     const handleDirectAssign = useCallback(async (lecturerId: string, subjectIds: string[], priority: Priority, justification: string, courseLevelSelections?: Record<string, string[]>) => {
         if (!activeInstitution) return;
 
@@ -2818,27 +2977,27 @@ export const App: React.FC = () => {
                                     coopPayouts={coopPayouts}
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}
-                                    onAddFarmer={onAddFarmer}
-                                    onUpdateFarmer={onUpdateFarmer}
-                                    onImportFarmers={onImportFarmers}
-                                    onLogCollection={onLogCollection}
-                                    onImportCollections={onImportCollections}
-                                    onBulkConfirmCollections={onBulkConfirmCollections}
-                                    onAddRider={onAddRider}
-                                    onConfirmCollection={onConfirmCollection}
-                                    onApproveCollection={onApproveCollection}
-                                    onAddCoopExpense={onAddCoopExpense}
-                                    onAddCoopIncome={onAddCoopIncome}
-                                    onInitiatePayouts={onInitiatePayouts}
-                                    onApprovePayouts={onApprovePayouts}
-                                    onAddPayouts={onAddPayouts}
+                                    onAddFarmer={handleAddFarmer}
+                                    onUpdateFarmer={handleUpdateFarmer}
+                                    onImportFarmers={handleImportFarmers}
+                                    onLogCollection={handleLogCollection}
+                                    onImportCollections={handleImportCollections}
+                                    onBulkConfirmCollections={handleBulkConfirmCollections}
+                                    onAddRider={handleAddRider}
+                                    onConfirmCollection={handleConfirmCollection}
+                                    onApproveCollection={handleApproveCollection}
+                                    onAddCoopExpense={handleAddCoopExpense}
+                                    onAddCoopIncome={handleAddCoopIncome}
+                                    onInitiatePayouts={handleInitiatePayouts}
+                                    onApprovePayouts={handleApprovePayouts}
+                                    onAddPayouts={handleAddPayouts}
                                     retailStores={retailStores}
                                     inventory={retailInventory}
                                     suppliers={suppliers}
                                     retailExpenses={retailExpenses}
-                                    onAddRetailExpense={onAddRetailExpense}
-                                    onAddRequisition={onAddRequisition}
-                                    onUpdateRequisition={onUpdateRequisition}
+                                    onAddRetailExpense={handleAddRetailExpense}
+                                    onAddRequisition={handleAddRequisition}
+                                    onUpdateRequisition={handleUpdateRequisition}
                                     vehicles={vehicles}
                                     transportOnboarding={transportOnboarding}
                                     vehicleLogs={vehicleLogs}
