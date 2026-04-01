@@ -26,6 +26,7 @@ import { Trash2Icon as TrashIcon } from '../icons/Trash2Icon';
 import { ArrowPathIcon as ResetIcon } from '../icons/ArrowPathIcon';
 import { MinusIcon } from '../icons/MinusIcon';
 import { CheckCircleIcon as SuccessIcon } from '../icons/CheckCircleIcon';
+import { XIcon } from '../icons/XIcon';
 
 import { SettingsManager } from '../SettingsManager';
 import { CommunicationsManager } from '../CommunicationsManager';
@@ -2080,147 +2081,148 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 )}
                             </div>
                         )}
-                        {(farmerSubTab as any) === 'approvals' && (
-                            <div className="animate-fade-in space-y-12 pb-12">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                                    <div>
-                                        <h2 className="text-2xl font-black tracking-tighter uppercase">Board Approvals Queue</h2>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review and authorize sensitive operations</p>
+                    </div>
+                )}
+
+                {activeSubTab === 'approvals' && (
+                    <div className="p-8 animate-fade-in space-y-12 pb-12">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                                <h2 className="text-2xl font-black tracking-tighter uppercase">Board Approvals Queue</h2>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Review and authorize sensitive operations</p>
+                            </div>
+                            {payouts.filter(p => p.status === 'pending').length > 0 && (
+                                <button 
+                                    onClick={async () => {
+                                        const pendingIds = payouts.filter(p => p.status === 'pending').map(p => p.id);
+                                        if (window.confirm(`Approve all ${pendingIds.length} pending payout drafts?`)) {
+                                            setIsProcessing(true);
+                                            await onApprovePayouts?.(pendingIds);
+                                            setIsProcessing(false);
+                                        }
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
+                                >
+                                    Approve All Payouts
+                                </button>
+                            )}
+                        </div>
+                        
+                        {/* 1. Financial Payouts Section */}
+                        {payouts.filter(p => p.status === 'pending').length > 0 && (
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
+                                        <PayoutIcon className="w-4 h-4" />
                                     </div>
-                                    {payouts.filter(p => p.status === 'pending').length > 0 && (
-                                        <button 
-                                            onClick={async () => {
-                                                const pendingIds = payouts.filter(p => p.status === 'pending').map(p => p.id);
-                                                if (window.confirm(`Approve all ${pendingIds.length} pending payout drafts?`)) {
-                                                    setIsProcessing(true);
-                                                    await onApprovePayouts?.(pendingIds);
-                                                    setIsProcessing(false);
-                                                }
-                                            }}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
-                                        >
-                                            Approve All Payouts
-                                        </button>
-                                    )}
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Financial Payout Drafts</h3>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {payouts.filter(p => p.status === 'pending').map(p => (
+                                        <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 text-xs">
+                                                    {getFarmerName(p.farmerId).substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-base font-black tracking-tight text-slate-900 dark:text-white">{getFarmerName(p.farmerId)}</h4>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.payoutMonth} · Net Payout</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-8">
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Due</p>
+                                                    <p className="text-xl font-black text-emerald-600 tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => onApprovePayouts?.([p.id])}
+                                                        className="bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
+                                                    >
+                                                        Approve Draft
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 2. Collection Quantity Section */}
+                        {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length > 0 && (
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
+                                        <AlertIcon className="w-4 h-4" />
+                                    </div>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Collection Quantity Variances</h3>
                                 </div>
                                 
-                                {/* 1. Financial Payouts Section */}
-                                {payouts.filter(p => p.status === 'pending').length > 0 && (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
-                                                <PayoutIcon className="w-4 h-4" />
-                                            </div>
-                                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Financial Payout Drafts</h3>
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-4">
-                                            {payouts.filter(p => p.status === 'pending').map(p => (
-                                                <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-md transition-all">
-                                                    <div className="flex items-center gap-6">
-                                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center font-black text-slate-400 text-xs">
-                                                            {getFarmerName(p.farmerId).substring(0, 2).toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-base font-black tracking-tight text-slate-900 dark:text-white">{getFarmerName(p.farmerId)}</h4>
-                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.payoutMonth} · Net Payout</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-8">
-                                                        <div className="text-right">
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Amount Due</p>
-                                                            <p className="text-xl font-black text-emerald-600 tracking-tighter">KES {p.netPayout.toLocaleString()}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <button 
-                                                                onClick={() => onApprovePayouts?.([p.id])}
-                                                                className="bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95"
-                                                            >
-                                                                Approve Draft
-                                                            </button>
-                                                        </div>
+                                <div className="grid grid-cols-1 gap-6">
+                                    {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').map(col => (
+                                        <div key={col.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-8 animate-fade-in-up hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                                                    <AlertIcon className="w-8 h-8 text-amber-600" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">Discrepancy: {getFarmerName(col.farmerId)}</h4>
+                                                    <div className="flex items-center gap-4 mt-1">
+                                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date: {col.collectionDate}</p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Product: {col.productType}</p>
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* 2. Collection Quantity Section */}
-                                {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length > 0 && (
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-600">
-                                                <AlertIcon className="w-4 h-4" />
                                             </div>
-                                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Collection Quantity Variances</h3>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-1 gap-6">
-                                            {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').map(col => (
-                                                <div key={col.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-8 animate-fade-in-up hover:shadow-md transition-all">
-                                                    <div className="flex items-center gap-6">
-                                                        <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                                                            <AlertIcon className="w-8 h-8 text-amber-600" />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">Discrepancy: {getFarmerName(col.farmerId)}</h4>
-                                                            <div className="flex items-center gap-4 mt-1">
-                                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date: {col.collectionDate}</p>
-                                                                <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Product: {col.productType}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="flex items-center gap-12 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-                                                        <div className="text-center">
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Rider Recorded</p>
-                                                            <p className="text-xl font-black text-slate-600 dark:text-slate-400">{col.quantity}</p>
-                                                        </div>
-                                                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-                                                        <div className="text-center">
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Factory Confirmed</p>
-                                                            <p className="text-xl font-black text-indigo-600">{col.finalQuantity}</p>
-                                                        </div>
-                                                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
-                                                        <div className="text-center">
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Variance</p>
-                                                            <p className={`text-xl font-black ${Number(col.finalQuantity) - Number(col.quantity) < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                                                {(Number(col.finalQuantity) - Number(col.quantity)).toFixed(2)}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-3">
-                                                        <button 
-                                                            onClick={() => onApproveCollection?.(col.id, 'rejected')}
-                                                            className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => onApproveCollection?.(col.id, 'approved')}
-                                                            className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                    </div>
+                                            
+                                            <div className="flex items-center gap-12 bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Rider Recorded</p>
+                                                    <p className="text-xl font-black text-slate-600 dark:text-slate-400">{col.quantity}</p>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                                <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Factory Confirmed</p>
+                                                    <p className="text-xl font-black text-indigo-600">{col.finalQuantity}</p>
+                                                </div>
+                                                <div className="h-8 w-px bg-slate-200 dark:bg-slate-800" />
+                                                <div className="text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Variance</p>
+                                                    <p className={`text-xl font-black ${Number(col.finalQuantity) - Number(col.quantity) < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                        {(Number(col.finalQuantity) - Number(col.quantity)).toFixed(2)}
+                                                    </p>
+                                                </div>
+                                            </div>
 
-                                {/* Unified Empty State */}
-                                {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length === 0 && payouts.filter(p => p.status === 'pending').length === 0 && (
-                                    <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
-                                        <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-6">
-                                            <SuccessIcon className="w-10 h-10 text-emerald-500" />
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => onApproveCollection?.(col.id, 'rejected')}
+                                                    className="px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 text-slate-400"
+                                                >
+                                                    Reject
+                                                </button>
+                                                <button 
+                                                    onClick={() => onApproveCollection?.(col.id, 'approved')}
+                                                    className="bg-slate-900 dark:bg-indigo-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
+                                                >
+                                                    Approve
+                                                </button>
+                                            </div>
                                         </div>
-                                        <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase mb-2">Queue Fully Cleared</h3>
-                                        <p className="text-xs font-medium text-slate-500 max-w-sm">There are no pending collection or payout approvals at this moment. All discrepancies and drafts have been resolved.</p>
-                                    </div>
-                                )}
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Unified Empty State */}
+                        {collections.filter(c => c.requiresApproval && c.approvalStatus === 'pending').length === 0 && payouts.filter(p => p.status === 'pending').length === 0 && (
+                            <div className="bg-slate-50/50 dark:bg-slate-900/30 p-20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
+                                <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mb-6">
+                                    <SuccessIcon className="w-10 h-10 text-emerald-500" />
+                                </div>
+                                <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase mb-2">Queue Fully Cleared</h3>
+                                <p className="text-xs font-medium text-slate-500 max-w-sm">There are no pending collection or payout approvals at this moment. All discrepancies and drafts have been resolved.</p>
                             </div>
                         )}
                     </div>
@@ -3682,7 +3684,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                 </div>
                             </div>
                             <button onClick={() => setEditingFarmer(null)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl text-slate-400 transition-all">
-                                <X className="w-5 h-5" />
+                                <XIcon className="w-5 h-5" />
                             </button>
                         </div>
                         <div className="p-8 space-y-6 overflow-y-auto max-h-[60vh]">
