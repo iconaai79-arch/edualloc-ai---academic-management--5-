@@ -2460,6 +2460,7 @@ export const App: React.FC = () => {
                                     academicYears={academicYears}
                                     semesters={semesters}
                                     saccoTransactions={saccoTransactions}
+                                    coopAgrovetInventory={coopAgrovetInventory}
                                     onActivateModuleTrial={handleActivateModuleTrial}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
@@ -2812,10 +2813,8 @@ export const App: React.FC = () => {
                                         await apiService.saveModuleRecords('coop_monthly_payouts', payouts);
                                         loadData();
                                     }}
-                                    coopAgrovetInventory={coopAgrovetInventory}
-                                    saccoTransactions={saccoTransactions}
                                 />
-                            ) : (isHealthSystemOpen || activeRole === 'his_admin') ? (
+                            ) : ((isHealthSystemOpen && !['property_admin', 'landlord', 'tenant'].includes(activeRole || '') && activeInstitution?.institutionType !== 'Property Management') || activeRole === 'his_admin') ? (
                                 <HealthCoreView 
                                     activeRole={activeRole as Role} 
                                     userName={currentUser?.name} 
@@ -3573,7 +3572,7 @@ export const App: React.FC = () => {
                                     currentInstitution={activeInstitution!}
                                     onLogout={handleLogout}
                                 />
-                            ) : (activeRole === 'property_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
+                            ) : (activeRole === 'property_admin' || activeInstitution?.institutionType === 'Property Management' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('property management'))) ? (
                                 <PropertyManagementView
                                     currentUser={currentUser}
                                     currentInstitution={activeInstitution!}

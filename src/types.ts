@@ -140,7 +140,7 @@ export interface Institution {
     name: string;
     email: string;
     phoneNumber: string;
-    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church';
+    institutionType: 'Primary' | 'Secondary' | 'University' | 'College' | 'Institute' | 'Polytechnic' | 'ECD' | 'International' | 'Business' | 'Broadcaster' | 'Reseller' | 'TVET' | 'Kindergarten' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management';
     businessSubType?: string;
     status: 'active' | 'trial' | 'suspended';
     subscriptionEndsAt?: string;
