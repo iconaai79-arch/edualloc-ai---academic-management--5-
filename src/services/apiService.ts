@@ -1782,11 +1782,7 @@ export const apiService = {
             return update;
         });
 
-        if (updates.length === 1) {
-            await this.saveModuleRecord('coop_monthly_payouts', updates[0]);
-        } else if (updates.length > 1) {
-            await this.saveModuleRecords('coop_monthly_payouts', updates);
-        }
+        await this.saveModuleRecords('coop_monthly_payouts', updates);
     },
     async disburseBulkMpesa(ids: string[], userId: string): Promise<any> {
         // Simulate M-Pesa B2C API Call

@@ -2089,30 +2089,32 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                     <div className="p-8 animate-fade-in space-y-12 pb-12 relative">
                         {/* High-Fidelity Progress Indicator */}
                         {isProcessing && (
-                            <div className="sticky top-0 z-50 -mx-8 -mt-8 mb-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-6 border-b border-indigo-50 dark:border-indigo-900/20 shadow-2xl shadow-indigo-500/5 animate-in slide-in-from-top duration-500">
+                            <div className="fixed inset-x-0 top-0 z-[9999] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl p-6 border-b border-indigo-100 dark:border-indigo-900/30 shadow-2xl animate-in slide-in-from-top duration-500">
                                 <div className="max-w-4xl mx-auto">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-4">
                                             <div className="relative">
-                                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
-                                                    <ApprovalIcon className={`w-4 h-4 ${processingProgress < 100 ? 'animate-spin' : ''}`} />
+                                                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
+                                                    <ApprovalIcon className={`w-5 h-5 ${processingProgress < 100 ? 'animate-spin' : ''}`} />
                                                 </div>
                                                 {processingProgress === 100 && (
-                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce" />
+                                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 animate-bounce flex items-center justify-center">
+                                                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                                                    </div>
                                                 )}
                                             </div>
                                             <div>
-                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">System Task</h4>
-                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">
-                                                    {processingProgress < 100 ? 'Authorizing Payout Queue...' : 'Batch Approval Complete'}
+                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500/60">Payout System Authorization</h4>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                                                    {processingProgress < 100 ? 'Authorizing Secure Batch...' : 'Batch Successfully Authorized'}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-xl font-black tracking-tighter text-indigo-600">{processingProgress}%</p>
+                                            <p className="text-2xl font-black tracking-tighter text-indigo-600 tabular-nums">{processingProgress}%</p>
                                         </div>
                                     </div>
-                                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-[2px]">
+                                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-[2px]">
                                         <div 
                                             className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-violet-600 rounded-full transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_20px_rgba(99,102,241,0.4)]"
                                             style={{ width: `${processingProgress}%` }}
@@ -2130,31 +2132,37 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                             {payouts.filter(p => p.status === 'pending').length > 0 && (
                                 <button 
                                     onClick={async () => {
-                                        const pendingIds = payouts.filter(p => p.status === 'pending').map(p => p.id);
-                                        if (window.confirm(`Approve all ${pendingIds.length} pending payout drafts?`)) {
-                                            setIsProcessing(true);
-                                            setProcessingProgress(10);
-                                            
-                                            // Simulate progress
-                                            const interval = setInterval(() => {
-                                                setProcessingProgress(prev => {
-                                                    if (prev >= 90) {
-                                                        clearInterval(interval);
-                                                        return 90;
-                                                    }
-                                                    return prev + 10;
-                                                });
-                                            }, 200);
+                                        try {
+                                            const pendingIds = payouts.filter(p => p.status === 'pending').map(p => p.id);
+                                            if (window.confirm(`Approve all ${pendingIds.length} pending payout drafts?`)) {
+                                                setIsProcessing(true);
+                                                setProcessingProgress(10);
+                                                
+                                                // Simulate progress
+                                                const interval = setInterval(() => {
+                                                    setProcessingProgress(prev => {
+                                                        if (prev >= 90) {
+                                                            clearInterval(interval);
+                                                            return 90;
+                                                        }
+                                                        return prev + 10;
+                                                    });
+                                                }, 200);
 
-                                            await onApprovePayouts?.(pendingIds);
-                                            
-                                            clearInterval(interval);
-                                            setProcessingProgress(100);
-                                            
-                                            setTimeout(() => {
-                                                setIsProcessing(false);
-                                                setProcessingProgress(0);
-                                            }, 600);
+                                                await onApprovePayouts?.(pendingIds);
+                                                
+                                                clearInterval(interval);
+                                                setProcessingProgress(100);
+                                                
+                                                setTimeout(() => {
+                                                    setIsProcessing(false);
+                                                    setProcessingProgress(0);
+                                                }, 600);
+                                            }
+                                        } catch (err: any) {
+                                            alert(`Global approval failed: ${err.message}`);
+                                            setIsProcessing(false);
+                                            setProcessingProgress(0);
                                         }
                                     }}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
@@ -2194,14 +2202,20 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <button 
                                                         disabled={isProcessing}
                                                         onClick={async () => {
-                                                            setIsProcessing(true);
-                                                            setProcessingProgress(20);
-                                                            await onApprovePayouts?.([p.id]);
-                                                            setProcessingProgress(100);
-                                                            setTimeout(() => {
+                                                            try {
+                                                                setIsProcessing(true);
+                                                                setProcessingProgress(20);
+                                                                await onApprovePayouts?.([p.id]);
+                                                                setProcessingProgress(100);
+                                                                setTimeout(() => {
+                                                                    setIsProcessing(false);
+                                                                    setProcessingProgress(0);
+                                                                }, 500);
+                                                            } catch (err: any) {
+                                                                alert(`Approval failed: ${err.message}`);
                                                                 setIsProcessing(false);
                                                                 setProcessingProgress(0);
-                                                            }, 500);
+                                                            }
                                                         }}
                                                         className="bg-slate-900 dark:bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100"
                                                     >
