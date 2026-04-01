@@ -1761,9 +1761,9 @@ export const apiService = {
         const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
         const now = new Date().toISOString();
         
-        const updates = ids.map(id => {
+        const updatePromises = ids.map(async id => {
             const update: any = {
-                id,
+                id: id.trim(),
                 status
             };
             
@@ -1778,10 +1778,33 @@ export const apiService = {
                     update.paidAt = now;
                 }
             }
-            return update;
+
+            if (!_supabase) {
+                const table = 'coop_monthly_payouts';
+                let records = ls.get(table);
+                if (records) {
+                    const idx = records.findIndex((r: any) => r.id === update.id);
+                    if (idx >= 0) {
+                        records[idx] = { ...records[idx], ...update };
+                        ls.set(table, records);
+                    }
+                }
+                return;
+            }
+
+            // Target the specific row by ID with .update() to avoid NOT NULL constraint errors on other columns
+            const { error } = await _supabase
+                .from('coop_monthly_payouts')
+                .update(toSnakeCase(update))
+                .eq('id', update.id);
+
+            if (error) {
+                console.error(`Status update failed for payout ${id}:`, error);
+                throw error;
+            }
         });
 
-        await this.saveModuleRecords('coop_monthly_payouts', updates);
+        await Promise.all(updatePromises);
     },
     async disburseBulkMpesa(ids: string[], userId: string): Promise<any> {
         // Simulate M-Pesa B2C API Call
