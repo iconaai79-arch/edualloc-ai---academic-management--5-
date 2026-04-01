@@ -2909,6 +2909,7 @@ export interface CoopRider {
     nationalId: string;
     licenseNumber: string;
     vehiclePlate: string;
+    vehicleNumber?: string;
     status: 'active' | 'inactive';
 }
 

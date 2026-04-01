@@ -2958,7 +2958,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         stEndDate, 
                                         currentInstitution as any, 
                                         letterheadConfig, 
-                                        footerImageUrl
+                                        footerImageUrl ?? null
                                     );
                                 } else {
                                     dataUri = await pdfService.generateRiderStatementPdf(
@@ -2970,7 +2970,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                         stEndDate, 
                                         currentInstitution as any, 
                                         letterheadConfig, 
-                                        footerImageUrl
+                                        footerImageUrl ?? null
                                     );
                                 }
                                 if (dataUri) {
@@ -3058,7 +3058,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     </div>
                                                     <div className="h-10 w-px bg-slate-200 dark:bg-slate-700" />
                                                     <div className="flex gap-6">
-                                                        {Object.entries(totals.deductionsBreakdown).map(([cat, amt]) => (
+                                                        {(Object.entries(totals.deductionsBreakdown) as [string, number][]).map(([cat, amt]) => (
                                                             <div key={cat}>
                                                                 <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest italic">{cat}</p>
                                                                 <p className="text-sm font-black text-slate-900 dark:text-white italic">-{amt.toLocaleString()}</p>
@@ -3301,9 +3301,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                             getFilteredPayouts(), 
                                                             farmers, 
                                                             m as any, 
-                                                            props.currentInstitution!, 
-                                                            props.letterheadConfig, 
-                                                            props.footerImageUrl
+                                                            currentInstitution!, 
+                                                            letterheadConfig, 
+                                                            footerImageUrl ?? null
                                                         );
                                                         const link = document.createElement('a');
                                                         link.href = docUri;
