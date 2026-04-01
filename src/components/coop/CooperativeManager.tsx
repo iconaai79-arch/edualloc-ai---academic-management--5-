@@ -334,11 +334,14 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
         }
         setIsProcessing(true);
         try {
-            await onLogCollection({
+            const payoutRate = currentInstitution?.coopSettings?.payoutRate || 50;
+            const collectionWithPayout = {
                 ...newCollection,
                 id: `c_${Date.now()}`,
-                institutionId: currentInstitution?.id || ''
-            });
+                institutionId: currentInstitution?.id || '',
+                estimatedPayout: Number(newCollection.quantity) * payoutRate
+            };
+            await onLogCollection(collectionWithPayout);
             setIsLoggingCollection(false);
             setNewCollection({
                 collectionDate: formatDateString(new Date()),
@@ -1208,7 +1211,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                             <tr>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Farmer Name / ID</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone</th>
-                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
+                                                <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Settlement</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">A/C Number</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned Rider</th>
                                                 <th className="text-left py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Number</th>
@@ -1236,6 +1239,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-6 text-xs text-slate-500 font-medium">{farmer.phone}</td>
+                                                    <td className="py-4 px-6">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+                                                            farmer.paymentMethod === 'bank' ? 'bg-blue-50 text-blue-600' :
+                                                            farmer.paymentMethod === 'cash' ? 'bg-amber-50 text-amber-600' :
+                                                            'bg-emerald-50 text-emerald-600'
+                                                        }`}>
+                                                            {farmer.paymentMethod || 'mpesa'}
+                                                        </span>
+                                                    </td>
                                                     <td className="py-4 px-6">
                                                         <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
                                                             farmer.paymentMethod === 'mpesa' ? 'bg-emerald-50 text-emerald-600' :
@@ -1670,6 +1682,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="px-6 pb-2 text-right">Gross</th>
                                                 <th className="px-6 pb-2 text-right text-rose-500">Deductions</th>
                                                 <th className="px-6 pb-2 text-right text-emerald-600 font-black">Net Amount</th>
+                                                <th className="px-6 pb-2 text-center">Settlement</th>
                                                 <th className="px-6 pb-2">Status</th>
                                                 <th className="px-6 pb-2">Workflow</th>
                                             </tr>
@@ -1696,6 +1709,15 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <td className="px-6 py-5 text-right font-bold text-slate-600">KES {p.grossPayout.toLocaleString()}</td>
                                                 <td className="px-6 py-5 text-right font-medium text-rose-500">- KES {(p.agrovetDeduction + p.saccoDeduction + p.logisticsDeduction).toLocaleString()}</td>
                                                 <td className="px-6 py-5 text-right font-black text-emerald-700 text-lg tracking-tighter">KES {p.netPayout.toLocaleString()}</td>
+                                                    <td className="px-6 py-5 text-center">
+                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+                                                            farmers.find(f => f.id === p.farmerId)?.paymentMethod === 'bank' ? 'bg-blue-50 text-blue-600' :
+                                                            farmers.find(f => f.id === p.farmerId)?.paymentMethod === 'cash' ? 'bg-amber-50 text-amber-600' :
+                                                            'bg-emerald-50 text-emerald-600'
+                                                        }`}>
+                                                            {farmers.find(f => f.id === p.farmerId)?.paymentMethod || 'mpesa'}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-5">
                                                         <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
                                                             p.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 
@@ -1920,6 +1942,7 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                 <th className="px-6 pb-2">Product</th>
                                                 <th className="px-6 pb-2 text-right uppercase tracking-widest text-[9px]">Rider Qty</th>
                                                 <th className="px-6 pb-2 text-right uppercase tracking-widest text-[9px]">Final Qty</th>
+                                                <th className="px-6 pb-2 text-right uppercase tracking-widest text-[9px]">Est. Payout</th>
                                                 <th className="px-6 pb-2">Status</th>
                                                 <th className="px-6 pb-2 text-right">Actions</th>
                                             </tr>
@@ -1952,6 +1975,9 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
                                                     <td className="px-6 py-5 text-right font-black text-slate-400">{col.quantity}</td>
                                                     <td className="px-6 py-5 text-right font-black text-indigo-600 dark:text-indigo-400">
                                                         {col.factoryConfirmed ? col.finalQuantity : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right font-black text-slate-900 dark:text-white">
+                                                        KES {(col.estimatedPayout || (Number(col.finalQuantity || col.quantity) * (currentInstitution?.coopSettings?.payoutRate || 50))).toLocaleString()}
                                                     </td>
                                                     <td className="px-6 py-5">
                                                         <div className="flex items-center gap-2">
