@@ -1269,13 +1269,14 @@ export const App: React.FC = () => {
         if (originalSuperAdminSession) {
             setIsTransitioning(true);
             setTimeout(() => {
-                setCurrentUser(originalSuperAdminSession);
-                apiService.storeSession(originalSuperAdminSession);
+                const saUser = originalSuperAdminSession;
                 setOriginalSuperAdminSession(null);
                 setImpersonatedRole(null);
                 localStorage.removeItem('eduai_super_admin_session');
-                loadData(true);
+                setCurrentUser(saUser);
+                apiService.storeSession(saUser);
                 setIsTransitioning(false);
+                // loadData() is triggered automatically by the useEffect watching currentUser.id
             }, 100);
         }
     };
