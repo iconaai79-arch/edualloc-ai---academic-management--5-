@@ -701,14 +701,7 @@ export const apiService = {
             }
         }
     },
-    async updatePayoutStatus(payoutIds: string[], status: string): Promise<void> {
-        const updates = payoutIds.map(id => ({ 
-            id, 
-            status, 
-            updatedAt: new Date().toISOString() 
-        }));
-        await this.saveModuleRecords('coop_monthly_payouts', updates);
-    },
+
     async markAllNotificationsAsRead(userId: string): Promise<void> {
         if (!_supabase) {
             const records = ls.get('app_notifications');
@@ -1764,22 +1757,36 @@ export const apiService = {
         };
         await this.saveModuleRecord('coop_collections', update);
     },
-    async updatePayoutStatus(id: string, status: 'initiated' | 'approved' | 'paid' | 'rejected', userId: string): Promise<void> {
-        const update: any = {
-            id,
-            status,
-            updatedAt: new Date().toISOString()
-        };
-        if (status === 'initiated') {
-            update.initiatedBy = userId;
-            update.initiatedAt = new Date().toISOString();
-        } else if (status === 'approved') {
-            update.approvedBy = userId;
-            update.approvedAt = new Date().toISOString();
-        } else if (status === 'paid') {
-            update.paidAt = new Date().toISOString();
+    async updatePayoutStatus(idOrIds: string | string[], status: 'initiated' | 'approved' | 'paid' | 'rejected' | string, userId?: string): Promise<void> {
+        const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+        const now = new Date().toISOString();
+        
+        const updates = ids.map(id => {
+            const update: any = {
+                id,
+                status,
+                updatedAt: now
+            };
+            
+            if (userId) {
+                if (status === 'initiated') {
+                    update.initiatedBy = userId;
+                    update.initiatedAt = now;
+                } else if (status === 'approved') {
+                    update.approvedBy = userId;
+                    update.approvedAt = now;
+                } else if (status === 'paid') {
+                    update.paidAt = now;
+                }
+            }
+            return update;
+        });
+
+        if (updates.length === 1) {
+            await this.saveModuleRecord('coop_monthly_payouts', updates[0]);
+        } else if (updates.length > 1) {
+            await this.saveModuleRecords('coop_monthly_payouts', updates);
         }
-        await this.saveModuleRecord('coop_monthly_payouts', update);
     },
     async disburseBulkMpesa(ids: string[], userId: string): Promise<any> {
         // Simulate M-Pesa B2C API Call

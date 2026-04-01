@@ -1584,7 +1584,7 @@ export const App: React.FC = () => {
 
     const handleApprovePayouts = useCallback(async (payoutIds: string[]) => {
         try {
-            await apiService.updatePayoutStatus(payoutIds, 'approved');
+            await apiService.updatePayoutStatus(payoutIds, 'approved', currentUser?.id);
             const instId = activeInstitution?.id || currentUser?.institutionId;
             if (instId) {
                 await apiService.notifyCoopAdmins(instId, `${payoutIds.length} payout drafts have been approved and are ready for disbursement.`);
@@ -1613,7 +1613,7 @@ export const App: React.FC = () => {
     const handleDisbursePayouts = useCallback(async (payoutIds: string[]) => {
         try {
             // Here you would integrate with M-Pesa or bank APIs
-            await apiService.updatePayoutStatus(payoutIds, 'paid');
+            await apiService.updatePayoutStatus(payoutIds, 'paid', currentUser?.id);
             await handleLogAction(`Disbursed ${payoutIds.length} payouts`);
             loadData();
         } catch (err: any) {
@@ -2803,9 +2803,7 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onApprovePayouts={async (payoutIds) => {
-                                        for (const id of payoutIds) {
-                                            await apiService.updatePayoutStatus(id, 'approved', currentUser.id);
-                                        }
+                                        await apiService.updatePayoutStatus(payoutIds, 'approved', currentUser.id);
                                         loadData();
                                     }}
                                     onAddPayouts={async (payouts: any[]) => {
@@ -3971,9 +3969,7 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     onApprovePayouts={async (payoutIds) => {
-                                        for (const id of payoutIds) {
-                                            await apiService.updatePayoutStatus(id, 'approved', currentUser.id);
-                                        }
+                                        await apiService.updatePayoutStatus(payoutIds, 'approved', currentUser.id);
                                         loadData();
                                     }}
                                     onAddPayouts={async (payouts: any[]) => {
