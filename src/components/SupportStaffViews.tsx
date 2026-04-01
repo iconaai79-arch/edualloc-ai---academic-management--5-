@@ -93,7 +93,7 @@ export interface SupportStaffViewProps {
     onAddItem?: (item: Omit<InventoryItem, 'id' | 'lastUpdated' | 'institutionId'>) => Promise<void>;
     onAddSupplier?: (supplier: Omit<Supplier, 'id' | 'institutionId'>) => Promise<void>;
     onAddItems?: (items: Omit<InventoryItem, 'id' | 'institutionId'>[]) => void;
-    onAddStoreTransaction?: (item: InventoryItem, type: 'Restock' | 'Dispatch' | 'Adjustment' | 'Issue', quantity: number, party: string, verificationMethod: string, signature: string | null) => void;
+    onAddStoreTransaction?: (transaction: StockTransaction) => void;
     transactions?: MpesaTransaction[];
     invoices?: Invoice[];
     receipts?: Receipt[];
@@ -143,7 +143,7 @@ export interface SupportStaffViewProps {
     onOffboardStudent?: (recordId: string, lat?: number, lng?: number) => Promise<void>;
     onSwitchPerspective?: (role: any) => void;
     onAddUser?: (data: any) => Promise<void>;
-    onEditUser?: (user: User) => Promise<void>;
+    onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     onAddDepartment?: (data: any) => Promise<void>;
     onUpdateDepartment?: (id: string, data: any) => Promise<void>;
@@ -1862,8 +1862,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     onLogAction={onLogAction}
                     onAddUser={onAddUser}
                     onEditUser={async (uid, data) => {
-                        const user = users.find(u => u.id === uid);
-                        if (user && onEditUser) await onEditUser({ ...user, ...data });
+                        if (onEditUser) await onEditUser(uid, data);
                     }}
                     onDeleteUser={async (uid) => { await onDeleteUser?.(uid); }}
                     onImportStudents={onImportStudents!}
@@ -1903,8 +1902,7 @@ export const StoreView: React.FC<SupportStaffViewProps> = (props) => {
                     onLogAction={onLogAction}
                     onAddUser={onAddUser}
                     onEditUser={async (uid, data) => {
-                        const user = users.find(u => u.id === uid);
-                        if (user && onEditUser) await onEditUser({ ...user, ...data });
+                        if (onEditUser) await onEditUser(uid, data);
                     }}
                     onDeleteUser={async (uid) => { await onDeleteUser?.(uid); }}
                     onImportStudents={onImportStudents!}

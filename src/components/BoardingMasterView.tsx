@@ -498,7 +498,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = ({
                         onSendSms={onSendSms}
                         showOnly="student"
                         allocations={[]} // Optional for student view in this context
-                        onWithdrawRequest={() => { }}
+                        onWithdrawRequest={async (_requestId) => { }}
                         onAddParent={onAddParent}
                         onDeleteParent={onDeleteParent}
                     />

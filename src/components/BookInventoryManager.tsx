@@ -134,6 +134,19 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         }
     };
 
+    const handleDeleteBook = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this resource record? All associated lending history will be affected.')) return;
+        try {
+            await apiService.deleteModuleRecord('books', id);
+            await onLogAction('Deleted resource record from registry');
+            loadBooks();
+            onDataChange();
+        } catch (error: any) {
+            console.error('Delete error:', error);
+            alert(`Failed to delete book: ${error.message || 'Database connection error'}`);
+        }
+    };
+
     const handlePrintQr = (book: Book) => {
         setQrBook(book);
         onLogAction(`Opened QR label portal for ${book.title}`);

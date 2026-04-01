@@ -65,7 +65,8 @@ import type {
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
     TransportVehicle, TransportOnboarding, VehicleLog, PMLandlord,
     RetailStore, RetailInventoryItem, RetailExpense, RetailStoreStock, RetailSerializedItem, RetailStockTransfer, RetailWishlist, RetailCommissionLedger, Vehicle, RepairOrder, CafeMenuItem, CafeOrder, AppNotification, RetailSale, RetailSaleItem, CarWashJob, CoopFarmer, CoopCollection, CoopRider, CoopAgrovetInventory, CoopAgrovetSales, SaccoAccount, SaccoTransaction, CoopMonthlyPayout, CoopExpense, CoopIncome,
-    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest
+    ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay, DemoRequest,
+    InstitutionModuleState
 } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -721,7 +722,7 @@ export const App: React.FC = () => {
                     apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<Visitor>('visitors', effectiveInstId).catch(() => []),
-                    apiService.fetchSecurityAlerts(effectiveInstId).catch(() => []),
+                    apiService.fetchSecurityAlerts(effectiveInstId || '').catch(() => []),
                     apiService.fetchModuleRecords<Requisition>('requisitions', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstId).catch(() => []),
                     apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstId).catch(() => []),
@@ -2458,6 +2459,7 @@ export const App: React.FC = () => {
                                     academicLevels={academicLevels}
                                     academicYears={academicYears}
                                     semesters={semesters}
+                                    saccoTransactions={saccoTransactions}
                                     onActivateModuleTrial={handleActivateModuleTrial}
                                     activeAcademicYear={activeAcademicYear}
                                     activeSemester={activeSemester}
@@ -2811,6 +2813,7 @@ export const App: React.FC = () => {
                                         loadData();
                                     }}
                                     coopAgrovetInventory={coopAgrovetInventory}
+                                    saccoTransactions={saccoTransactions}
                                 />
                             ) : (isHealthSystemOpen || activeRole === 'his_admin') ? (
                                 <HealthCoreView 
@@ -3521,8 +3524,8 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     farmer={coopFarmers.find(f => f.id === currentUser.farmerId || f.phone === currentUser.phoneNumber)}
                                     collections={coopCollections.filter(c => c.farmerId === currentUser.id || c.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    saccoAccounts={saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
-                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.memberId === currentUser.id || a.memberId === (users.find(u => u.id === currentUser.id) as any)?.farmerId).map(a => a.id).includes(t.accountId))}
+                                    saccoAccounts={saccoAccounts.filter(a => a.farmerId === currentUser.id || a.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
+                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.farmerId === currentUser.id || a.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId).map(a => a.id).includes(t.accountId))}
                                     payouts={coopPayouts.filter(p => p.farmerId === currentUser.id || p.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
                                     agrovetSales={coopAgrovetSales.filter(s => s.farmerId === currentUser.id || s.farmerId === (users.find(u => u.id === currentUser.id) as any)?.farmerId)}
                                     agrovetInventory={coopAgrovetInventory}
@@ -3535,8 +3538,8 @@ export const App: React.FC = () => {
                                     currentUser={currentUser}
                                     rider={coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)}
                                     collections={coopCollections.filter(c => c.riderId === currentUser.riderId || c.riderId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
-                                    saccoAccounts={saccoAccounts.filter(a => a.memberId === currentUser.riderId || a.memberId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
-                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.memberId === currentUser.riderId || a.memberId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id).map(a => a.id).includes(t.accountId))}
+                                    saccoAccounts={saccoAccounts.filter(a => a.farmerId === currentUser.riderId || a.farmerId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id)}
+                                    saccoTransactions={saccoTransactions.filter(t => t.accountId && saccoAccounts.filter(a => a.farmerId === currentUser.riderId || a.farmerId === coopRiders.find(r => r.id === currentUser.riderId || r.phone === currentUser.phoneNumber)?.id).map(a => a.id).includes(t.accountId))}
                                     payouts={coopPayouts}
                                     onLogout={handleLogout}
                                 />
@@ -3832,6 +3835,7 @@ export const App: React.FC = () => {
                                     coopRiders={coopRiders}
                                     coopAgrovetSales={coopAgrovetSales}
                                     saccoAccounts={saccoAccounts}
+                                    saccoTransactions={saccoTransactions}
                                     coopPayouts={coopPayouts}
                                     coopExpenses={coopExpenses}
                                     coopIncome={coopIncome}

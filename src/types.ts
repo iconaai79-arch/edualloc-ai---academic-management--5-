@@ -2860,7 +2860,7 @@ export interface RepairOrder {
     institutionId: string;
     vehicleId: string;
     customerId?: string; // If registered user
-    status: 'draft' | 'estimate' | 'approved' | 'in_progress' | 'waiting_on_parts' | 'ready' | 'completed' | 'invoiced';
+    status: 'draft' | 'estimate' | 'approved' | 'in_progress' | 'waiting_on_parts' | 'ready' | 'completed' | 'invoiced' | 'cancelled';
     mileageIn: number;
     mileageOut?: number;
     serviceAdvisorId: string; // The user who wrote the ticket

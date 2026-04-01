@@ -233,7 +233,7 @@ export interface AdminViewProps {
     onAddCoopAgrovetInventory?: (data: Partial<CoopAgrovetInventory>) => Promise<void>;
     onAddCoopAgrovetSale?: (data: Partial<CoopAgrovetSales>) => Promise<void>;
     onAddCoopAgrovetSales?: (data: Partial<CoopAgrovetSales>[]) => Promise<void>;
-    onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
+    onInitiatePayouts?: (data: any) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
     onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
@@ -774,7 +774,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     timeOffRequests={props.timeOffRequests || []}
                                     onTimetableGenerated={props.onTimetableGenerated}
                                     onLogAction={props.onLogAction}
-                                 onSendSms={props.onSendSms}
                                     onNavigateToSettings={(tab) => {
                                         if (tab === 'calendar') {
                                             setTimetableSubTab('calendar');
@@ -821,7 +820,6 @@ export const AdminView: React.FC<AdminViewProps> = (props: AdminViewProps) => {
                                     currentInstitution={props.currentInstitution}
                                     onMoveTimetableEntry={props.onMoveTimetableEntry}
                                     onLogAction={props.onLogAction}
-                                 onSendSms={props.onSendSms}
                                 />
                             ) : timetableSubTab === 'subjects' ? (
                                 <SubjectManager

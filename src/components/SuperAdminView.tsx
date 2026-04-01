@@ -318,8 +318,9 @@ export interface SuperAdminViewProps {
     onApproveCollection?: (id: string, status: 'approved' | 'rejected') => Promise<void>;
     onAddCoopExpense?: (data: Partial<CoopExpense>) => Promise<void>;
     onAddCoopIncome?: (data: Partial<CoopIncome>) => Promise<void>;
-    onInitiatePayouts?: (payoutIds: string[]) => Promise<void>;
+    onInitiatePayouts?: (data: any) => Promise<void>;
     onApprovePayouts?: (payoutIds: string[]) => Promise<void>;
+    onDisbursePayouts?: (payoutIds: string[]) => Promise<void>;
     onAddPayouts?: (payouts: any[]) => Promise<void>;
     onAddVehicle?: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
     onUpdateVehicle?: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;

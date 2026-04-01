@@ -271,6 +271,33 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
     };
 
+    const handleReturnBook = async (transaction: LibraryTransaction) => {
+        if (!confirm('Process return for this resource?')) return;
+        setIsProcessing(true);
+        try {
+            const book = books.find(b => b.id === transaction.bookId);
+            if (book) {
+                await apiService.saveModuleRecord('books', {
+                    ...book,
+                    available: Math.min(book.quantity, book.available + 1)
+                });
+            }
+            await apiService.saveModuleRecord('library_transactions', {
+                ...transaction,
+                status: 'returned',
+                returnDate: new Date().toISOString()
+            });
+            await onLogAction(`Received return of "${book?.title || 'resource'}" from ${getUserName(transaction.userId)}`);
+            loadData();
+            onDataChange();
+        } catch (error: any) {
+            console.error('Return error:', error);
+            alert(`Return process failed: ${error.message || 'Database connection error'}`);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
     const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown User';
     const getUserStaffId = (id: string) => users.find(u => u.id === id)?.staffId || 'N/A';

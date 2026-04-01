@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type {
     User, Institution, AgrovetProduct, AgrovetBatch, AgrovetSale,
     AgrovetFarmer, AgrovetAnimal, AgrovetConsultation, AgrovetCreditNote,
-    AgrovetUnitType, AgrovetPaymentMethod, AgrovetSaleStatus
+    AgrovetUnitType, AgrovetPaymentMethod, AgrovetSaleStatus, AgrovetSaleItem
 } from '../types';
 import { apiService } from '../services/apiService';
 import { PlusIcon } from './icons/PlusIcon';
@@ -159,7 +159,7 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
     // MODALS / FORMS
     const [prodForm, setProdForm] = useState<Partial<AgrovetProduct>>({ category: 'Seeds', unitType: 'kg', reorderLevel: 10 });
     const [farmerForm, setFarmerForm] = useState<Partial<AgrovetFarmer>>({ loyaltyPoints: 0, creditLimit: 0 });
-    const [batchForm, setBatchForm] = useState<Partial<AgrovetBatch>>({ quantity: 0 });
+    const [batchForm, setBatchForm] = useState<Partial<AgrovetBatch>>({ quantity: 0, costPrice: 0, sellingPrice: 0 });
     const [showBatchModal, setShowBatchModal] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
@@ -208,7 +208,10 @@ export const AgrovetView: React.FC<AgrovetViewProps> = ({ currentUser, currentIn
             institutionId,
             batchNumber: batchForm.batchNumber!,
             expiryDate: batchForm.expiryDate!,
-            quantity: batchForm.quantity!
+            quantity: batchForm.quantity!,
+            costPrice: batchForm.costPrice || 0,
+            sellingPrice: batchForm.sellingPrice || 0,
+            receivedDate: new Date().toISOString()
         };
 
         try {
