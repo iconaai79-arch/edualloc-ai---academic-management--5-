@@ -1764,8 +1764,7 @@ export const apiService = {
         const updates = ids.map(id => {
             const update: any = {
                 id,
-                status,
-                updatedAt: now
+                status
             };
             
             if (userId) {
