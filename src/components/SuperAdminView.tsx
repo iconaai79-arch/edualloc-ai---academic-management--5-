@@ -2897,9 +2897,6 @@ Please change it after login.`;
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
-                                                        <input 
-                                                            type="text" 
-                                                            value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
                                                             className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
                                                             placeholder="/v1/stk/push"

@@ -91,6 +91,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return newObj;
     }
 
+    const safeParseJson = async (res: Response, defaultErrorPrefix = 'NCBA Gateway error') => {
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            // If not JSON, extract a snippet of the response (e.g., "A server error...")
+            const snippet = text.substring(0, 150).trim().replace(/<[^>]*>?/gm, ''); // Strip HTML tags if any
+            throw new Error(`${defaultErrorPrefix}: ${snippet || 'Invalid response format'}`);
+        }
+    };
+
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -766,20 +777,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
-            const { clientId, clientSecret, baseUrl, stkPushBaseUrl, requestUrl } = ncbaConfig;
-            const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-            
-            // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
-            let effectiveBase = (stkPushBaseUrl || baseUrl || '').trim();
-            if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
-            
-            // Auto-prepend https if protocol is missing
-            if (!effectiveBase.startsWith('http')) {
-                effectiveBase = 'https://' + effectiveBase;
-                console.log(`[NCBA Auth] Auto-prepended https to base: ${effectiveBase}`);
-            }
-            
-            // Priority: requestUrl (new) -> 2024 spec default
             const cId = ncbaConfig.clientId || ncbaConfig.client_id;
             const cSec = ncbaConfig.clientSecret || ncbaConfig.client_secret;
             
@@ -790,8 +787,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 method: 'POST',
                 headers: { 'Authorization': `Basic ${auth}` }
             });
-            if (!tokenRes.ok) throw new Error(`NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
-            const data = await tokenRes.json() as any;
+            if (!tokenRes.ok) {
+                const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
+                throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
+            }
+            const data = await safeParseJson(tokenRes) as any;
             return data.access_token;
         };
 
@@ -833,15 +833,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!res.ok) {
-                const text = await res.text();
-                console.error(`[NCBA STK] Gateway error (${res.status}):`, text);
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    return { StatusCode: 'ERROR', StatusDescription: `HTTP ${res.status}: ${text.substring(0, 100)}` };
-                }
+                return await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
             }
-            return await res.json();
+            return await safeParseJson(res);
         };
 
         const queryNcbaStkStatus = async (ncbaConfig: any, checkoutRequestId: string) => {
@@ -870,11 +864,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
 
             if (!res.ok) {
-                const text = await res.text();
-                console.error(`[NCBA Query] Gateway error (${res.status}):`, text);
-                try { return JSON.parse(text); } catch (e) { return { StatusCode: 'ERROR', StatusDescription: text }; }
+                return await safeParseJson(res, 'NCBA Query rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
             }
-            return await res.json();
+            return await safeParseJson(res);
         };
 
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
@@ -891,7 +883,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     amount: amount
                 }, ncbaConfig.params))
             });
-            return await res.json();
+
+            if (!res.ok) {
+                return await safeParseJson(res, 'NCBA QR generation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
+            }
+            return await safeParseJson(res);
         };
 
         const normalizePhoneNCBA = (phone: string) => {
