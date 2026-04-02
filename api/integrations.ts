@@ -80,6 +80,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return Array.from(variants).filter(v => v.length > 0);
     };
 
+    function toCamelCase(obj: any): any {
+        if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
+        if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
+        const newObj: any = {};
+        Object.keys(obj).forEach(key => {
+            const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+            newObj[camelKey] = toCamelCase(obj[key]);
+        });
+        return newObj;
+    }
+
     try {
         if (!action) {
             if (req.method === 'GET') return res.status(200).json({ status: 'Online', timestamp: new Date().toISOString(), mode: 'Integration Bridge' });
@@ -769,14 +780,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             // Priority: requestUrl (new) -> 2024 spec default
-            const effectivePath = requestUrl || '/payments/api/v1/auth/token';
-            const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
-                ? effectiveBase + effectivePath.substring(1) 
-                : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
-
-            console.log(`[NCBA Auth] Token request to: ${fullUrl}`);
-            const tokenRes = await fetchWithTimeout(fullUrl, {
-                method: 'GET',
+            const cId = ncbaConfig.clientId || ncbaConfig.client_id;
+            const cSec = ncbaConfig.clientSecret || ncbaConfig.client_secret;
+            
+            if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
+            
+            const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
+            const tokenRes = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com'}/oauth/v1/generate?grant_type=client_credentials`, {
+                method: 'POST',
                 headers: { 'Authorization': `Basic ${auth}` }
             });
             if (!tokenRes.ok) throw new Error(`NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
@@ -788,7 +799,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const token = await getNcbaToken(ncbaConfig);
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
-            let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.baseUrl || '').trim();
+            let effectiveBase = (ncbaConfig.stkPushBaseUrl || ncbaConfig.stk_push_base_url || ncbaConfig.baseUrl || ncbaConfig.base_url || '').trim();
             if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
             
             // Auto-prepend https if protocol is missing
@@ -809,13 +820,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 headers: mergeHeaders({
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
-                    'X-API-Key': ncbaConfig.apiKey
+                    'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
                     TelephoneNo: normalizePhoneNCBA(phone),
                     Amount: String(amount),
                     PayBillNo: ncbaConfig.paybill || '880100',
-                    AccountNo: ncbaConfig.accountNumber,
+                    AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
                     Network: 'Safaricom',
                     TransactionType: 'CustomerPayBillOnline'
                 }, ncbaConfig.params))
@@ -836,14 +847,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             // 2024 Spec: POST /payments/api/v1/qr/generate
-            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl}/payments/api/v1/qr/generate`, {
+            const res = await fetchWithTimeout(`${ncbaConfig.baseUrl || ncbaConfig.base_url}/payments/api/v1/qr/generate`, {
                 method: 'POST',
                 headers: mergeHeaders({
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }, ncbaConfig.headers),
                 body: JSON.stringify(mergeParams({
-                    till: ncbaConfig.accountNumber, // Till/Shortcode usually
+                    till: ncbaConfig.accountNumber || ncbaConfig.account_number, // Till/Shortcode usually
                     amount: amount
                 }, ncbaConfig.params))
             });
@@ -1350,7 +1361,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
             
             // Prioritize config from request body (for testing unsaved changes)
-            let ncbaConfig = bodyConfig;
+            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
             let targetInstId = institutionId;
 
             if (!ncbaConfig) {
@@ -1358,13 +1369,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
                 
                 if (inst && inst.ncbaConfig) {
-                    ncbaConfig = inst.ncbaConfig;
+                    ncbaConfig = toCamelCase(inst.ncbaConfig);
                     targetInstId = inst.id;
                 } else if (isPlatformService) {
                     // Fallback to Global Super Admin config for platform services (SMS/Subscription)
-                    ncbaConfig = settings.ncba_config || settings.ncbaConfig;
+                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
                     targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
-                    console.log(`[NCBA Gateway] Falling back to global configuration for ${paramsMap.metadata?.type} purchase.`);
+                    console.log(`[NCBA Gateway] Falling back to normalized global configuration for ${paramsMap.metadata?.type} purchase.`);
                 }
 
                 if (!ncbaConfig) {
@@ -1408,33 +1419,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (action === 'ncbaGenerateQr') {
             const { institutionId } = paramsMap;
-            const isPlatformService = ['sms', 'subscription', 'one-off'].includes(paramsMap.metadata?.type);
+            const isPlatformService = paramsMap.metadata?.type === 'sms';
 
-            // Prioritize config from request body
-            let ncbaConfig = bodyConfig;
+            let ncbaConfig = bodyConfig ? toCamelCase(bodyConfig) : null;
+            let targetInstId = institutionId;
+
             if (!ncbaConfig) {
                 const { data: inst } = await supabase.from('institutions').select('*').eq('id', institutionId || user?.user_metadata?.institutionId).maybeSingle();
-                
                 if (inst && inst.ncbaConfig) {
-                    ncbaConfig = inst.ncbaConfig;
+                    ncbaConfig = toCamelCase(inst.ncbaConfig);
+                    targetInstId = inst.id;
                 } else if (isPlatformService) {
-                    ncbaConfig = settings.ncba_config || settings.ncbaConfig;
+                    // Normalize global fallback
+                    ncbaConfig = toCamelCase(settings.ncba_config || settings.ncbaConfig);
+                    targetInstId = institutionId || user?.user_metadata?.institutionId || 'SYSTEM';
                 }
+            }
 
-                if (!ncbaConfig) {
-                    return res.status(400).json({ success: false, message: 'NCBA Configuration is missing. Please apply Super Admin configuration for platform services.' });
-                }
+            if (!ncbaConfig) {
+                return res.status(400).json({ success: false, message: 'NCBA Integration not configured.' });
             }
 
             try {
                 const result = await generateNcbaQr(ncbaConfig, amount);
-                const resData = result as any;
-                if (resData.StatusCode === '0') {
-                    return res.status(200).json({ success: true, qr: resData.Base64QrCode, message: 'QR Code generated successfully.' });
-                }
-                return res.status(400).json({ success: false, message: resData.StatusDescription || 'QR processing failed.' });
+                return res.status(200).json({ success: true, qrData: result });
             } catch (err: any) {
-                return res.status(500).json({ success: false, message: 'QR generation failed.', error: err.message });
+                console.error(`[NCBA QR Fatal] Generation failed:`, err);
+                return res.status(500).json({ 
+                    success: false, 
+                    message: 'NCBA QR generation failed.', 
+                    error: err.message,
+                    hint: 'Verify the Base URL and ensure the gateway is reachable.'
+                });
             }
         }
 
