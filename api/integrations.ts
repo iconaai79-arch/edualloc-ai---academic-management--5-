@@ -760,11 +760,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
             const effectiveBase = stkPushBaseUrl || baseUrl;
+            if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
+            
             // Priority: requestUrl (new) -> 2024 spec default
             const effectivePath = requestUrl || '/payments/api/v1/auth/token';
             const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
                 ? effectiveBase + effectivePath.substring(1) 
                 : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
+
+            if (!fullUrl.startsWith('http')) throw new Error('Invalid NCBA Base URL: Must start with http:// or https://');
 
             console.log(`[NCBA Auth] Token request to: ${fullUrl}`);
             const tokenRes = await fetchWithTimeout(fullUrl, {
@@ -781,11 +785,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // Priority: stkPushBaseUrl (new) -> baseUrl (legacy)
             const effectiveBase = ncbaConfig.stkPushBaseUrl || ncbaConfig.baseUrl;
+            if (!effectiveBase) throw new Error('NCBA Base URL or STK Push Base URL is missing in the configuration.');
+            
             // Priority: pushStkUrl (new) -> 2024 spec default
             const effectivePath = ncbaConfig.pushStkUrl || '/payments/api/v1/stk-push/initiate';
             const fullUrl = effectiveBase.endsWith('/') && effectivePath.startsWith('/') 
                 ? effectiveBase + effectivePath.substring(1) 
                 : (!effectiveBase.endsWith('/') && !effectivePath.startsWith('/') ? effectiveBase + '/' + effectivePath : effectiveBase + effectivePath);
+
+            if (!fullUrl.startsWith('http')) throw new Error('Invalid NCBA Base URL: Must start with http:// or https://');
 
             console.log(`[NCBA STK] Initiation request to: ${fullUrl}`);
             const res = await fetchWithTimeout(fullUrl, {
