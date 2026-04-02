@@ -97,8 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return JSON.parse(text);
         } catch (e) {
             // If not JSON, extract a snippet of the response (e.g., "A server error...")
-            const snippet = text.substring(0, 150).trim().replace(/<[^>]*>?/gm, ''); // Strip HTML tags if any
-            throw new Error(`${defaultErrorPrefix}: ${snippet || 'Invalid response format'}`);
+            const snippet = text.substring(0, 500).trim().replace(/<[^>]*>?/gm, ''); // Larger snippet, strip HTML tags if any
+            const errorMsg = `${defaultErrorPrefix} (${res.status}): ${snippet || 'Invalid response format'}`;
+            console.error(`[NCBA DEBUG] Raw error body: ${text.substring(0, 1000)}`);
+            throw new Error(errorMsg);
         }
     };
 
@@ -829,10 +831,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             if (!tokenRes.ok) {
                 const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
+                console.error(`[NCBA DEBUG] Auth request failed with status ${tokenRes.status}`);
                 throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
             }
             const data = await safeParseJson(tokenRes) as any;
-            if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
+            if (!data.access_token) {
+                console.error(`[NCBA DEBUG] Auth success but no access_token. Body: ${JSON.stringify(data).substring(0, 200)}`);
+                throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
+            }
             return data.access_token;
         };
 
@@ -887,6 +893,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (!res.ok) {
+                console.error(`[NCBA DEBUG] STK Push initiation failed with status ${res.status}`);
                 return await safeParseJson(res, 'NCBA STK initiation rejected').catch(e => ({ success: false, StatusCode: 'ERROR', StatusDescription: e.message }));
             }
             return await safeParseJson(res);
