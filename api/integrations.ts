@@ -791,7 +791,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Normalize the base URL for the token endpoint
             let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://c2bapis.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
-            const tokenUrl = `${tokenBase}/oauth/v1/generate`;
+            
+            // On c2bapis, the path must be prefixed with /payments
+            const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
+            const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
+            const tokenUrl = `${tokenBase}${tokenPath}`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
@@ -807,11 +811,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     headers: { 
                         'Authorization': `Basic ${auth}`,
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
                     },
-                    body: body.toString()
+                    body: body.toString(),
+                    redirect: 'manual' // We want to catch and report redirects instead of blindly following to HTML
                 }, 25000);
+
+                // Handle Redirects (NCBA Gateway often redirects on invalid paths/headers)
+                if (tokenRes.status === 301 || tokenRes.status === 302) {
+                    const location = tokenRes.headers.get('location');
+                    throw new Error(`NCBA Gateway Redirect detected (${tokenRes.status}). Target: ${location}. This usually indicates an incorrect API path or missing mandatory headers (User-Agent). Expected JSON, got Redirect.`);
+                }
             } catch (fetchErr: any) {
+                if (fetchErr.message.includes('Redirect')) throw fetchErr; // Re-throw our redirect error
+                
                 const isAbort = fetchErr?.name === 'AbortError';
                 console.error(`[NCBA Auth Connection Error] URL: ${tokenUrl}`, fetchErr);
                 const errorCode = fetchErr.code || fetchErr.errno || 'N/A';
@@ -824,7 +838,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!tokenRes.ok) {
                 const errBody = await tokenRes.text().catch(() => 'No body');
                 console.error(`[NCBA Auth] Failed with status ${tokenRes.status}: ${errBody}`);
-                const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
+                const errData = await safeParseJson({ text: () => Promise.resolve(errBody), ok: false } as any, 'NCBA Auth failed').catch(e => ({ message: e.message }));
                 throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status}) - Body: ${errBody}`);
             }
             const data = await safeParseJson(tokenRes) as any;
@@ -872,7 +886,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     method: 'POST',
                     headers: mergeHeaders({
                         'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Client)'
                     }, ncbaConfig.headers),
                     body: JSON.stringify(mergeParams({
                         TelephoneNo: normalizePhoneNCBA(phone),
@@ -881,9 +897,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         AccountNo: ncbaConfig.accountNumber || ncbaConfig.account_number,
                         Network: 'Safaricom',
                         TransactionType: 'CustomerPayBillOnline'
-                    }, ncbaConfig.params))
+                    }, ncbaConfig.params)),
+                    redirect: 'manual'
                 }, 25000);
+
+                if (res.status === 301 || res.status === 302) {
+                    const location = res.headers.get('location');
+                    throw new Error(`NCBA STK Initiation Redirect detected (${res.status}). Target: ${location}. This usually indicates an incorrect STK Push path configured in your settings.`);
+                }
             } catch (fetchErr: any) {
+                if (fetchErr.message.includes('Redirect')) throw fetchErr;
                 const isAbort = fetchErr?.name === 'AbortError';
                 throw new Error(
                     isAbort

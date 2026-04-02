@@ -1,7 +1,7 @@
 const https = require('https');
 const dns = require('dns');
 
-const targetUrl = process.argv[2] || 'https://c2bapis.ncbagroup.com/oauth/v1/generate';
+const targetUrl = process.argv[2] || 'https://c2bapis.ncbagroup.com/payments/oauth/v1/generate';
 const url = new URL(targetUrl);
 
 console.log(`\n--- NCBA Connectivity Diagnostic Tool ---`);
@@ -27,7 +27,11 @@ dns.lookup(url.hostname, (err, address, family) => {
         hostname: url.hostname,
         port: 443,
         path: url.pathname,
-        method: 'HEAD', // Light request
+        method: 'POST', // Use POST as it's more representative for token calls
+        headers: {
+            'User-Agent': 'EduAlloc-AI/1.0.0 (Bank-Integration-Diagnostic)',
+            'Accept': 'application/json'
+        },
         timeout: 10000
     }, (res) => {
         const duration = Date.now() - start;
