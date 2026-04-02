@@ -146,7 +146,10 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       const { apiService } = await import('../services/apiService');
       const res = await apiService.initiatePayment('ncba', 1, phoneNumber, undefined, formData.ncbaConfig);
       if (res.success) alert("NCBA STK Push request sent to phone.");
-      else alert(`NCBA Initiation Failure: ${res.message || 'Unknown error. Please check your credentials and endpoint URLs.'}`);
+      else {
+        const detail = res.error || (res.details ? JSON.stringify(res.details) : '');
+        alert(`NCBA Initiation Failure: ${res.message || 'Unknown error.'}${detail ? '\n\nDetail: ' + detail : ''}`);
+      }
     } catch (e: any) {
       alert(`NCBA Handshake Error: ${e.message || 'Connection failed'}`);
     }
