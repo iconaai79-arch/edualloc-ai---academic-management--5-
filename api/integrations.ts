@@ -789,6 +789,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return normalized;
         };
 
+        const fetchWithTimeout = async (url: string, options: any, timeout = 25000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (e) {
+                clearTimeout(id);
+                throw e;
+            }
+        };
+
         const getNcbaToken = async (ncbaConfig: any) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
