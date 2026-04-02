@@ -796,8 +796,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return 'mock-access-token-ncba-12345';
             }
 
-            const cId = ncbaConfig.clientId || ncbaConfig.client_id;
-            const cSec = ncbaConfig.clientSecret || ncbaConfig.client_secret;
+            const cId = (ncbaConfig.clientId || ncbaConfig.client_id || '').trim();
+            const cSec = (ncbaConfig.clientSecret || ncbaConfig.client_secret || '').trim();
             
             if (!cId || !cSec) throw new Error('NCBA Client ID or Client Secret is missing.');
             
@@ -807,7 +807,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // On c2bapis, the path must be prefixed with /payments
             const isNewEndpoint = tokenBase.includes('c2bapis.ncbagroup.com');
             const tokenPath = isNewEndpoint ? '/payments/oauth/v1/generate' : '/oauth/v1/generate';
-            const tokenUrl = `${tokenBase}${tokenPath}`;
+            // Some NCBA/WSO2 gateways require grant_type in the query string
+            const tokenUrl = `${tokenBase}${tokenPath}?grant_type=client_credentials`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
