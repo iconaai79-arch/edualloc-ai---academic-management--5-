@@ -612,7 +612,8 @@ export const CooperativeManager: React.FC<CooperativeManagerProps> = ({
             await onAddInventory?.({
                 ...newInventory,
                 id: `inv_${Date.now()}`,
-                institutionId: currentInstitution?.id || ''
+                institutionId: currentInstitution?.id || '',
+                recordedBy: currentUser.id
             });
             setIsAddingInventory(false);
             setNewInventory({});

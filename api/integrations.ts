@@ -775,6 +775,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ success: true, resetToken });
         }
+        // --- NCBA & Gateway Helpers ---
+        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
+            if (!customHeaders || customHeaders.length === 0) return base;
+            const extra = customHeaders
+                .filter(h => h.name && h.name.trim())
+                .reduce((acc, h) => ({ ...acc, [h.name.trim()]: h.value }), {});
+            return { ...base, ...extra };
+        };
+
+        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
+            if (!customParams || customParams.length === 0) return base;
+            const extra = customParams
+                .filter(p => p.name && p.name.trim())
+                .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
+            return { ...base, ...extra };
+        };
+
         // --- NCBA Bank Helpers (2024 Spec) ---
         const getNcbaToken = async (ncbaConfig: any) => {
             const cId = ncbaConfig.clientId || ncbaConfig.client_id;
@@ -785,7 +802,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Normalize the base URL for the token endpoint
             let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
-            const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
+
+            // Priority: ncbaConfig.requestUrl (configurable via UI) -> Standard NCBA v2 -> Fallback Safaricom-like v1
+            const tokenPath = ncbaConfig.requestUrl || ncbaConfig.request_url || '/oauth/v2/token';
+            const tokenUrl = tokenPath.startsWith('http') 
+                ? tokenPath 
+                : `${tokenBase}${tokenPath.startsWith('/') ? '' : '/'}${tokenPath}${tokenPath.includes('?') ? '' : '?grant_type=client_credentials'}`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
@@ -793,7 +815,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 tokenRes = await fetchWithTimeout(tokenUrl, {
                     method: 'POST',
-                    headers: { 'Authorization': `Basic ${auth}` }
+                    headers: mergeHeaders({ 
+                        'Authorization': `Basic ${auth}`,
+                        'X-API-Key': ncbaConfig.apiKey || ncbaConfig.api_key
+                    }, ncbaConfig.headers)
                 }, 25000);
             } catch (fetchErr: any) {
                 const isAbort = fetchErr?.name === 'AbortError';
@@ -930,21 +955,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return p; // Expected format: 254XXXXXXXXX
         };
 
-        const mergeHeaders = (base: any, customHeaders?: { name: string; value: string }[]) => {
-            if (!customHeaders || customHeaders.length === 0) return base;
-            const extra = customHeaders
-                .filter(h => h.name && h.name.trim())
-                .reduce((acc, h) => ({ ...acc, [h.name.trim()]: h.value }), {});
-            return { ...base, ...extra };
-        };
-
-        const mergeParams = (base: any, customParams?: { name: string; value: string }[]) => {
-            if (!customParams || customParams.length === 0) return base;
-            const extra = customParams
-                .filter(p => p.name && p.name.trim())
-                .reduce((acc, p) => ({ ...acc, [p.name.trim()]: p.value }), {});
-            return { ...base, ...extra };
-        };
 
         // Internal Helper for Reconciliation
         const reconcilePayment = async (txn: any) => {

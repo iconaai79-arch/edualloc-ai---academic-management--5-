@@ -2952,6 +2952,7 @@ export interface CoopAgrovetInventory {
     unitPrice: number;
     reorderLevel: number;
     supplier?: string;
+    recordedBy?: string;
 }
 
 export interface CoopAgrovetSales {
@@ -2963,6 +2964,7 @@ export interface CoopAgrovetSales {
     amount: number;
     paymentStatus: 'paid' | 'credit' | 'deducted';
     saleDate: string;
+    recordedBy?: string;
 }
 
 export interface SaccoAccount {
