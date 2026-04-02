@@ -785,15 +785,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Normalize the base URL for the token endpoint
             let tokenBase = (ncbaConfig.baseUrl || ncbaConfig.base_url || 'https://api.ncbagroup.com').trim().replace(/\/+$/, '');
             if (!tokenBase.startsWith('http')) tokenBase = 'https://' + tokenBase;
-            const tokenUrl = `${tokenBase}/oauth/v1/generate?grant_type=client_credentials`;
+            const tokenUrl = `${tokenBase}/oauth/v1/generate`;
             
             console.log(`[NCBA Auth] Fetching token from: ${tokenUrl}`);
             const auth = Buffer.from(`${cId}:${cSec}`).toString('base64');
+            
+            // Send grant_type in the body as form-urlencoded (more standard for OAuth2)
+            const body = new URLSearchParams();
+            body.append('grant_type', 'client_credentials');
+
             let tokenRes: Response;
             try {
                 tokenRes = await fetchWithTimeout(tokenUrl, {
                     method: 'POST',
-                    headers: { 'Authorization': `Basic ${auth}` }
+                    headers: { 
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    },
+                    body: body.toString()
                 }, 25000);
             } catch (fetchErr: any) {
                 const isAbort = fetchErr?.name === 'AbortError';
@@ -804,8 +814,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 );
             }
             if (!tokenRes.ok) {
+                const errBody = await tokenRes.text().catch(() => 'No body');
+                console.error(`[NCBA Auth] Failed with status ${tokenRes.status}: ${errBody}`);
                 const errData = await safeParseJson(tokenRes, 'NCBA Auth failed').catch(e => ({ message: e.message }));
-                throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status})`);
+                throw new Error(errData.message || `NCBA Auth failed: ${tokenRes.statusText} (${tokenRes.status}) - Body: ${errBody}`);
             }
             const data = await safeParseJson(tokenRes) as any;
             if (!data.access_token) throw new Error('NCBA Auth succeeded but no access_token was returned. Check client credentials.');
