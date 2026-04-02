@@ -1351,6 +1351,38 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
 
                                                 <div className="space-y-6">
+                                                    <div className="pt-4 border-t border-teal-100/50 dark:border-teal-900/20">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Base URL</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.stkPushBaseUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, stkPushBaseUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-teal-600" 
+                                                            placeholder="https://api.ncbagroup.com"
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Request URL (GET)</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={localCompanyInfo.ncbaConfig?.requestUrl || ''} 
+                                                                onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, requestUrl: e.target.value } as any })}
+                                                                className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                                placeholder="/v1/stk/request"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Push STK (POST)</label>
+                                                            <input 
+                                                                type="text" 
+                                                                value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
+                                                                onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
+                                                                className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                                placeholder="/v1/stk/push"
+                                                            />
+                                                        </div>
+                                                    </div>
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Gateway Base URL</label>
                                                         <input 
@@ -1786,6 +1818,36 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 value={localInstNcbaConfig.apiKey || ''} 
                                                 onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, apiKey: e.target.value })}
                                                 className="form-input" 
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">STK Push Base URL</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstNcbaConfig.stkPushBaseUrl || ''} 
+                                                placeholder="https://api.ncbagroup.com"
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, stkPushBaseUrl: e.target.value })}
+                                                className="form-input text-indigo-600 font-mono" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Request URL (GET)</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstNcbaConfig.requestUrl || ''} 
+                                                placeholder="/v1/stk/request"
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, requestUrl: e.target.value })}
+                                                className="form-input font-mono" 
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Push STK URL (POST)</label>
+                                            <input 
+                                                type="text" 
+                                                value={localInstNcbaConfig.pushStkUrl || ''} 
+                                                placeholder="/v1/stk/push"
+                                                onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, pushStkUrl: e.target.value })}
+                                                className="form-input font-mono" 
                                             />
                                         </div>
                                         <div>

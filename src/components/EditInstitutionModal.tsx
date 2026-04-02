@@ -37,6 +37,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       callbackUsername: '',
       callbackSecret: '',
       notificationApiKey: '',
+      stkPushBaseUrl: '',
+      requestUrl: '',
+      pushStkUrl: '',
       headers: [] as { name: string; value: string }[],
       params: [] as { name: string; value: string }[]
     }
@@ -70,6 +73,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
           callbackUsername: institution.ncbaConfig?.callbackUsername || '',
           callbackSecret: institution.ncbaConfig?.callbackSecret || '',
           notificationApiKey: institution.ncbaConfig?.notificationApiKey || '',
+          stkPushBaseUrl: institution.ncbaConfig?.stkPushBaseUrl || '',
+          requestUrl: institution.ncbaConfig?.requestUrl || '',
+          pushStkUrl: institution.ncbaConfig?.pushStkUrl || '',
           headers: institution.ncbaConfig?.headers || [],
           params: institution.ncbaConfig?.params || []
         }
@@ -363,6 +369,36 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">STK Push Base URL</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.stkPushBaseUrl}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, stkPushBaseUrl: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="https://api.ncbagroup.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Request URL (GET)</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.requestUrl}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, requestUrl: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="/v1/stk/request"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">Push STK URL (POST)</label>
+                        <input
+                          type="text"
+                          value={formData.ncbaConfig.pushStkUrl}
+                          onChange={e => setFormData({ ...formData, ncbaConfig: { ...formData.ncbaConfig, pushStkUrl: e.target.value } })}
+                          className="form-input text-[10px] h-10 font-mono"
+                          placeholder="/v1/stk/push"
+                        />
+                      </div>
                       <div>
                         <label className="block text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider mb-1">OAuth Client ID</label>
                         <input

@@ -200,6 +200,9 @@ export interface NcbaConfig {
     callbackUsername?: string;
     callbackSecret?: string;
     notificationApiKey?: string;
+    stkPushBaseUrl?: string;
+    requestUrl?: string;
+    pushStkUrl?: string;
 }
 
 

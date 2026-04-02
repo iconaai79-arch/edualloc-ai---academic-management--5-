@@ -552,7 +552,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             cpanelSecret: '',
             items: []
         },
-        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] }
+        ncbaConfig: companyDetails?.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '' }
     });
 
     const [localSmsConfig, setLocalSmsConfig] = useState<SmsConfig>(companyDetails?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
@@ -586,7 +586,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     cpanelSecret: '',
                     items: []
                 },
-                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [] }
+                ncbaConfig: companyDetails.ncbaConfig || { clientId: '', clientSecret: '', apiKey: '', baseUrl: '', accountNumber: '', environment: 'sandbox', headers: [], params: [], stkPushBaseUrl: '', requestUrl: '', pushStkUrl: '' }
             });
             setLocalSmsConfig(companyDetails.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '', smsUnitPrice: 1, minSmsUnits: 100 });
             setLocalEmailConfig(companyDetails.emailConfig || { host: '', port: 587, username: '', password: '', encryption: 'tls', fromName: '', fromEmail: '' });
@@ -2869,13 +2869,43 @@ Please change it after login.`;
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                                                    <div className="space-y-2">
-                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">NCBA OAuth Client ID</label>
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">STK Push Base URL</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.stkPushBaseUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, stkPushBaseUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm text-indigo-600" 
+                                                            placeholder="https://api.ncbagroup.com"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Request URL (GET)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.requestUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, requestUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="/v1/stk/request"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">Push STK URL (POST)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localCompanyInfo.ncbaConfig?.pushStkUrl || ''} 
+                                                            onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, pushStkUrl: e.target.value } as any })}
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
+                                                            placeholder="/v1/stk/push"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2 ml-1">OAuth Client ID</label>
                                                         <input 
                                                             type="text" 
                                                             value={localCompanyInfo.ncbaConfig?.clientId || ''} 
                                                             onChange={e => setLocalCompanyInfo({ ...localCompanyInfo, ncbaConfig: { ...localCompanyInfo.ncbaConfig, clientId: e.target.value } as any })}
-                                                            className="form-input h-12 font-mono" 
+                                                            className="form-input h-14 bg-white dark:bg-slate-900 font-mono text-sm" 
                                                             placeholder="Enter Client ID"
                                                         />
                                                     </div>
